@@ -1,0 +1,25 @@
+spring:
+  # 测试用内存数据库，避免依赖本地 MySQL
+  datasource:
+    url: jdbc:h2:mem:youyu;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        jdbc:
+          time_zone: Asia/Shanghai
+
+  # 脚手架阶段暂无迁移脚本，测试环境关闭 Flyway
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: test-secret-key-only-for-unit-tests-do-not-use-in-prod
+    expiration-ms: 3600000

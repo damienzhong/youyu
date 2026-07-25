@@ -1,0 +1,25 @@
+# OS
+.DS_Store
+
+# Environment / secrets（绝不提交）
+.env
+*.local
+application-local.yml
+
+# Java / Maven
+target/
+*.iml
+.idea/
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs / runtime
+logs/
+*.log
+
+# jqwik 属性测试运行数据库
+.jqwik-database
+
+# Node / 前端（后续任务 1.2 引入）
+node_modules/
+dist/
+.vite/
