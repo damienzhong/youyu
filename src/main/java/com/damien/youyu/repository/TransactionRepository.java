@@ -54,6 +54,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(
             Long userId, LocalDateTime fromInclusive, LocalDateTime toExclusive);
 
+    /**
+     * 某用户在半开区间 [fromInclusive, toExclusive) 内的交易，按时间倒序（首页「当月流水」用）。
+     */
+    List<Transaction> findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
+            Long userId, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
     /** 某用户最近一笔交易，供快速记账默认账户选择（需求 6.1）。 */
     Optional<Transaction> findFirstByUserIdOrderByOccurredAtDescIdDesc(Long userId);
 

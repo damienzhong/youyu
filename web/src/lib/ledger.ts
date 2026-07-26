@@ -197,6 +197,8 @@ export interface FetchTransactionsParams {
   /** 页码，从 0 开始（与 Spring Data 一致）。 */
   page?: number
   size?: number
+  /** 指定自然月 `YYYY-MM`：返回该月全部交易（首页「当月流水」），忽略分页。 */
+  month?: string
 }
 
 /** 把后端原始交易对象归一化为 Transaction（容错 camelCase / snake_case）。 */
@@ -223,7 +225,9 @@ function normalizeTransaction(raw: any): Transaction {
 export async function fetchTransactions(params: FetchTransactionsParams = {}): Promise<TransactionPage> {
   const page = params.page ?? 0
   const size = params.size ?? 20
-  const data = await http.get<unknown, any>('/transactions', { params: { page, size } })
+  // 指定 month：返回该自然月全部交易（后端返回数组，走下方数组分支）。
+  const query = params.month ? { month: params.month } : { page, size }
+  const data = await http.get<unknown, any>('/transactions', { params: query })
 
   if (Array.isArray(data)) {
     const items = data.map(normalizeTransaction)
@@ -429,6 +433,37 @@ export function dayKeyOf(occurredAt: string): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/**
+ * 分类名 → emoji 图标（按关键字粗匹配，未命中按种类给通用图标）。
+ * 首页流水与记一笔的分类网格共用，保证同一分类图标一致。
+ * 由于分类为用户自建、无图标字段，这里用名称关键字启发式映射（需求 5.x）。
+ */
+const CATEGORY_EMOJI_RULES: Array<[RegExp, string]> = [
+  [/餐饮|吃|饭|外卖|美食|聚餐|零食|饮|咖啡|奶茶/, '🍜'],
+  [/交通|地铁|公交|打车|出行|车|油|加油|停车|高铁/, '🚇'],
+  [/购物|买|衣|鞋|服饰|数码|电器|日用/, '🛍️'],
+  [/娱乐|游戏|电影|玩|唱|运动|健身/, '🎮'],
+  [/居住|房租|房贷|物业|水电|燃气|家居/, '🏠'],
+  [/医疗|药|医院|健康|体检/, '💊'],
+  [/教育|学习|书|培训|课|学费/, '📚'],
+  [/通讯|话费|网费|流量|手机|宽带/, '📱'],
+  [/旅行|旅游|酒店|机票|景点/, '✈️'],
+  [/宠物/, '🐾'],
+  [/工资|薪|奖金|报销|劳务/, '💰'],
+  [/理财|利息|收益|投资|分红|基金|股票/, '📈'],
+  [/红包|礼金|转赠/, '🧧'],
+  [/退款|返现/, '💸'],
+]
+
+/** 取分类图标 emoji。name 可传「父 · 子」组合以提高命中率；kind 决定兜底图标。 */
+export function categoryEmoji(name: string | null | undefined, kind?: CategoryKind): string {
+  const s = String(name ?? '')
+  for (const [re, emoji] of CATEGORY_EMOJI_RULES) {
+    if (re.test(s)) return emoji
+  }
+  return kind === 'INCOME' ? '💰' : '🧾'
 }
 
 /** 展示用时间（HH:mm）。 */
@@ -696,4 +731,149 @@ export function triggerDownload(blob: Blob, filename: string): void {
   a.remove()
   // 稍后释放，确保下载已开始。
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// =====================================================================
+// 预算（月度总预算 + 分类预算 + 预算健康）
+// 对接后端（见 BudgetController）：
+//   GET    /budgets?month=YYYY-MM                     预算总览
+//   PUT    /budgets?month=YYYY-MM        {amount}     设置月度总预算
+//   POST   /budgets/categories?month=    {categoryId, amount}  设置分类预算
+//   DELETE /budgets/categories/{id}?month=YYYY-MM     删除分类预算
+//   POST   /budgets/copy-previous?month=YYYY-MM       沿用上月预算
+// 金额一律字符串传输（后端 DECIMAL/BigDecimal）。
+// =====================================================================
+
+export type BudgetStatus = 'OK' | 'WARN' | 'OVER'
+
+/** 预算健康（前瞻）：剩余天数、日均可用、预计月底结余。 */
+export interface BudgetHealth {
+  daysLeft: number
+  dailyAvailable: string
+  projectedBalance: string
+  projectedOver: boolean
+}
+
+/** 单个分类预算明细。 */
+export interface CategoryBudgetItem {
+  categoryId: number
+  name: string
+  budget: string
+  spent: string
+  remaining: string
+  usedPercent: number
+  txCount: number
+  status: BudgetStatus
+}
+
+/** 预算总览。 */
+export interface BudgetOverview {
+  month: string
+  hasBudget: boolean
+  totalBudget: string | null
+  spent: string
+  remaining: string | null
+  usedPercent: number
+  status: BudgetStatus | null
+  currentMonth: boolean
+  health: BudgetHealth | null
+  allocated: string
+  unallocated: string | null
+  categories: CategoryBudgetItem[]
+}
+
+/** 把后端预算总览归一化（金额转字符串，容错缺省）。 */
+function normalizeBudgetOverview(data: any, month: string): BudgetOverview {
+  const str = (v: unknown): string => (v == null ? '0' : String(v))
+  const strOrNull = (v: unknown): string | null => (v == null ? null : String(v))
+  const rawCats: any[] = Array.isArray(data?.categories) ? data.categories : []
+  const health = data?.health
+    ? {
+        daysLeft: Number(data.health.daysLeft ?? 0),
+        dailyAvailable: str(data.health.dailyAvailable),
+        projectedBalance: str(data.health.projectedBalance),
+        projectedOver: Boolean(data.health.projectedOver),
+      }
+    : null
+  return {
+    month: String(data?.month ?? month),
+    hasBudget: Boolean(data?.hasBudget),
+    totalBudget: strOrNull(data?.totalBudget),
+    spent: str(data?.spent),
+    remaining: strOrNull(data?.remaining),
+    usedPercent: Number(data?.usedPercent ?? 0),
+    status: (data?.status ?? null) as BudgetStatus | null,
+    currentMonth: Boolean(data?.currentMonth),
+    health,
+    allocated: str(data?.allocated),
+    unallocated: strOrNull(data?.unallocated),
+    categories: rawCats.map((c) => ({
+      categoryId: Number(c?.categoryId),
+      name: String(c?.name ?? ''),
+      budget: str(c?.budget),
+      spent: str(c?.spent),
+      remaining: str(c?.remaining),
+      usedPercent: Number(c?.usedPercent ?? 0),
+      txCount: Number(c?.txCount ?? 0),
+      status: (c?.status ?? 'OK') as BudgetStatus,
+    })),
+  }
+}
+
+/** 拉取某自然月预算总览；month 形如 `YYYY-MM`（缺省取当前月）。 */
+export async function fetchBudgetOverview(month?: string): Promise<BudgetOverview> {
+  const params = month ? { month } : undefined
+  const data = await http.get<unknown, any>('/budgets', { params })
+  return normalizeBudgetOverview(data, month ?? '')
+}
+
+/** 设置/更新月度总预算，返回最新总览。 */
+export async function setTotalBudget(month: string, amount: string): Promise<BudgetOverview> {
+  const data = await http.put<unknown, any>('/budgets', { amount }, { params: { month } })
+  return normalizeBudgetOverview(data, month)
+}
+
+/** 设置/更新某分类预算，返回最新总览。 */
+export async function setCategoryBudget(
+  month: string,
+  categoryId: number,
+  amount: string,
+): Promise<BudgetOverview> {
+  const data = await http.post<unknown, any>(
+    '/budgets/categories',
+    { categoryId, amount },
+    { params: { month } },
+  )
+  return normalizeBudgetOverview(data, month)
+}
+
+/** 删除某分类预算，返回最新总览。 */
+export async function deleteCategoryBudget(month: string, categoryId: number): Promise<BudgetOverview> {
+  const data = await http.delete<unknown, any>(`/budgets/categories/${categoryId}`, { params: { month } })
+  return normalizeBudgetOverview(data, month)
+}
+
+/** 沿用上月预算（总预算 + 分类预算复制到本月），返回最新总览。 */
+export async function copyPreviousBudget(month: string): Promise<BudgetOverview> {
+  const data = await http.post<unknown, any>('/budgets/copy-previous', null, { params: { month } })
+  return normalizeBudgetOverview(data, month)
+}
+
+/** 把预算相关后端错误码映射为友好中文提示。 */
+export function toBudgetErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) return '操作失败，请稍后重试'
+  switch (err.code) {
+    case 'BUDGET_AMOUNT_INVALID':
+      return '预算金额需在 0.01 到 9,999,999,999,999,999.99 之间且最多两位小数'
+    case 'BUDGET_CATEGORY_INVALID':
+      return '只能给支出分类设置预算'
+    case 'BUDGET_MONTH_INVALID':
+      return '月份格式不正确'
+    case 'NOT_FOUND':
+      return '分类不存在，请刷新后重试'
+    case 'NETWORK_ERROR':
+      return '网络异常，操作未成功，请重试'
+    default:
+      return err.message || '操作失败，请稍后重试'
+  }
 }

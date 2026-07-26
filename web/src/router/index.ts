@@ -26,11 +26,12 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/components/layout/AppShell.vue'),
     children: [
       { path: '', component: () => import('@/views/HomeView.vue') },
-      { path: 'quick', component: () => import('@/views/QuickEntryView.vue') },
+      // 记一笔：PC 保留侧边栏（与首页一致）；移动端隐藏底部 tab、占满全屏（flush）。
+      { path: 'quick', component: () => import('@/views/QuickEntryView.vue'), meta: { flush: true } },
       { path: 'accounts', component: () => import('@/views/AccountsView.vue') },
-      { path: 'transactions', component: () => import('@/views/TransactionsView.vue') },
       { path: 'categories', component: () => import('@/views/CategoriesView.vue') },
       { path: 'reports', component: () => import('@/views/ReportsView.vue') },
+      { path: 'budget', component: () => import('@/views/BudgetView.vue') },
       { path: 'export', component: () => import('@/views/ExportView.vue') },
     ],
   },

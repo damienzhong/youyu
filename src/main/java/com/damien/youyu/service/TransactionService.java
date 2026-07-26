@@ -212,6 +212,17 @@ public class TransactionService {
     }
 
     /**
+     * 列出本人在半开区间 [from, to) 内的交易，按时间倒序（首页「当月流水」用）。
+     * 边界按 {@code Asia/Shanghai} 自然月：from=当月 1 日 00:00，to=次月 1 日 00:00。
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Transaction> listByRange(Long userId, LocalDateTime from, LocalDateTime to) {
+        return transactionRepository
+                .findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
+                        userId, from, to);
+    }
+
+    /**
      * 单条读取本人交易（校验归属，需求 2.4）。
      *
      * @throws ApiException NOT_FOUND（交易不存在或不属于当前用户）

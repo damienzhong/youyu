@@ -10,6 +10,7 @@
 import { ref, computed, watch } from 'vue'
 import {
   updateTransaction,
+  deleteTransaction,
   validateAmount,
   toEntryErrorMessage,
   ACCOUNT_TYPE_LABELS,
@@ -139,6 +140,24 @@ async function onSubmit() {
   }
 }
 
+/** 删除本笔流水（后端回滚原影响、调整账户余额，需求 4.6）。 */
+async function onDelete() {
+  if (typeof window !== 'undefined'
+      && !window.confirm('确定删除这笔流水吗？删除后对应账户余额会随之调整。')) {
+    return
+  }
+  errorMsg.value = ''
+  submitting.value = true
+  try {
+    await deleteTransaction(props.transaction.id)
+    emit('saved')
+  } catch (e) {
+    errorMsg.value = toEntryErrorMessage(e)
+  } finally {
+    submitting.value = false
+  }
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
@@ -225,6 +244,7 @@ function toOccurredAt(local: string): string {
       </div>
 
       <footer class="modal-foot">
+        <button class="btn btn-danger" type="button" :disabled="submitting" @click="onDelete">删除</button>
         <button class="btn btn-ghost" type="button" @click="emit('close')">取消</button>
         <button class="btn" type="button" :disabled="submitting" @click="onSubmit">
           {{ submitting ? '保存中…' : '保存' }}
@@ -305,6 +325,14 @@ function toOccurredAt(local: string): string {
 }
 .btn-ghost:active {
   background: #f1f5f2;
+}
+.btn-danger {
+  background: #fef2f2;
+  color: var(--color-danger);
+  border: 1px solid #f3d3d3;
+}
+.btn-danger:active {
+  background: #fde3e3;
 }
 .field {
   display: block;

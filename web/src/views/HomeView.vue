@@ -9,19 +9,22 @@
  *  - 宽屏（≥768px）额外在右侧展示账户简览 + 净资产合计。
  *  - 悬浮「＋」按钮 → 记一笔（QuickEntry）。
  */
-import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import TransactionEditModal from '@/components/TransactionEditModal.vue'
 import {
   fetchAccounts,
   fetchCategories,
   fetchTransactions,
   fetchMonthlyReport,
+  fetchBudgetOverview,
   currentMonth,
   monthLabel,
   formatAmount,
   sumBalances,
   accountNameOf,
   categoryNameOf,
+  categoryEmoji,
   timeLabelOf,
   dayKeyOf,
   type Account,
@@ -29,6 +32,7 @@ import {
   type Category,
   type Transaction,
   type MonthlyReport,
+  type BudgetOverview,
 } from '@/lib/ledger'
 
 const loading = ref(true)
@@ -39,11 +43,127 @@ const accounts = ref<Account[]>([])
 const categories = ref<Category[]>([])
 const recent = ref<Transaction[]>([])
 const report = ref<MonthlyReport | null>(null)
+const budget = ref<BudgetOverview | null>(null)
 
-const month = currentMonth()
+// 当前查看的自然月（可选任意年月查看该月概览）。
+const month = ref(currentMonth())
+const reportLoading = ref(false)
+const isCurrentMonth = computed(() => month.value === currentMonth())
+
 const netAssets = computed(() => sumBalances(accounts.value))
 
+const router = useRouter()
+
+// 点击某笔流水 → 打开编辑弹窗（可改/删）。
+const editing = ref<Transaction | null>(null)
+function openEdit(tx: Transaction) {
+  editing.value = tx
+}
+/** 编辑/删除保存后：刷新当月流水、报表、预算与账户余额。 */
+async function onTxSaved() {
+  editing.value = null
+  try {
+    const [page, rep, accs] = await Promise.all([
+      fetchTransactions({ month: month.value }),
+      fetchMonthlyReport(month.value),
+      fetchAccounts(),
+    ])
+    recent.value = page.items
+    report.value = rep
+    accounts.value = accs
+    loadBudget()
+  } catch {
+    /* 刷新失败不阻断，保留现有数据 */
+  }
+}
+
+/** 拉取所选月预算总览（失败不阻塞首页，仅隐藏预算行）。 */
+async function loadBudget() {
+  try {
+    budget.value = await fetchBudgetOverview(month.value)
+  } catch {
+    budget.value = null
+  }
+}
+
+// === 月份选择器（任意年月，不可选未来月） ===
+const pickerOpen = ref(false)
+const pickerYear = ref(Number(currentMonth().split('-')[0]))
+const cur = (() => {
+  const [y, m] = currentMonth().split('-').map(Number)
+  return { y: y ?? 1970, m: m ?? 1 }
+})()
+const selectedMonthNum = computed(() => Number(month.value.split('-')[1]))
+const selectedYearNum = computed(() => Number(month.value.split('-')[0]))
+
+/** 打开选择器，年份定位到当前查看年。 */
+function openPicker() {
+  pickerYear.value = selectedYearNum.value
+  pickerOpen.value = true
+}
+function stepYear(delta: number) {
+  pickerYear.value += delta
+}
+/** 该 (年, 月) 是否为未来月（不可选）。 */
+function isFutureMonth(y: number, m: number): boolean {
+  return y > cur.y || (y === cur.y && m > cur.m)
+}
+/** 选定某月：更新 month 并重新拉取该月概览。 */
+async function pickMonth(m: number) {
+  if (isFutureMonth(pickerYear.value, m)) return
+  month.value = `${pickerYear.value}-${String(m).padStart(2, '0')}`
+  pickerOpen.value = false
+  reportLoading.value = true
+  try {
+    const [rep, page] = await Promise.all([
+      fetchMonthlyReport(month.value),
+      fetchTransactions({ month: month.value }),
+    ])
+    report.value = rep
+    recent.value = page.items
+    loadError.value = ''
+    loadBudget()
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '加载失败，请重试'
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+// === 首页快捷入口（资产/统计接现有页；预算/导入功能待建，先占位提示） ===
+interface QuickAction {
+  key: string
+  label: string
+  icon: string
+  tint: string
+  to?: string // 已有页面直接跳转
+  soon?: boolean // 功能未上线，点了提示「敬请期待」
+}
+const quickActions: QuickAction[] = [
+  { key: 'assets', label: '资产', icon: '💎', tint: 'qa-green', to: '/accounts' },
+  { key: 'stats', label: '统计', icon: '📊', tint: 'qa-blue', to: '/reports' },
+  { key: 'budget', label: '预算', icon: '🧮', tint: 'qa-orange', to: '/budget' },
+  { key: 'import', label: '导入', icon: '📥', tint: 'qa-purple', soon: true },
+]
+const comingSoon = ref('')
+let comingSoonTimer: ReturnType<typeof setTimeout> | undefined
+function onQuickAction(a: QuickAction) {
+  if (a.to) {
+    router.push(a.to)
+    return
+  }
+  // 占位：轻提示「敬请期待」，功能后续迭代补齐。
+  comingSoon.value = `「${a.label}」功能即将上线，敬请期待～`
+  if (comingSoonTimer) clearTimeout(comingSoonTimer)
+  comingSoonTimer = setTimeout(() => {
+    comingSoon.value = ''
+  }, 2000)
+}
+
 onMounted(load)
+onUnmounted(() => {
+  if (comingSoonTimer) clearTimeout(comingSoonTimer)
+})
 
 async function load() {
   loading.value = true
@@ -52,14 +172,15 @@ async function load() {
     const [accs, cats, page, rep] = await Promise.all([
       fetchAccounts(),
       fetchCategories(),
-      fetchTransactions({ page: 0, size: 8 }),
-      fetchMonthlyReport(month),
+      fetchTransactions({ month: month.value }),
+      fetchMonthlyReport(month.value),
     ])
     accounts.value = accs
     categories.value = cats
     recent.value = page.items
     report.value = rep
     loaded.value = true
+    loadBudget()
   } catch (e) {
     // 失败：保留上次已加载数据，仅提示 + 重试（需求 11.5）。
     loadError.value = e instanceof Error ? e.message : '加载失败，请重试'
@@ -132,31 +253,11 @@ function txSubtitle(tx: Transaction): string {
   return parts.join(' · ')
 }
 
-/** 分类名 → emoji 图标（按关键字粗匹配，未命中给通用票据图标）。 */
-const EMOJI_RULES: Array<[RegExp, string]> = [
-  [/餐饮|吃|饭|外卖|美食|聚餐|零食|饮/, '🍜'],
-  [/交通|地铁|公交|打车|出行|车|油|停车/, '🚇'],
-  [/购物|买|衣|鞋|数码|电器/, '🛍️'],
-  [/娱乐|游戏|电影|玩/, '🎮'],
-  [/居住|房租|房贷|物业|水电|燃气/, '🏠'],
-  [/医疗|药|医院|健康/, '💊'],
-  [/教育|学习|书|培训|课/, '📚'],
-  [/通讯|话费|网费|流量|手机/, '📱'],
-  [/旅行|旅游|酒店|机票/, '✈️'],
-  [/宠物/, '🐾'],
-  [/工资|薪|收入|奖金|报销/, '💰'],
-  [/理财|利息|收益|投资|分红/, '📈'],
-  [/红包|礼金/, '🧧'],
-]
-
-/** 交易图标：转账固定，收入默认 💰，支出按分类名匹配。 */
+/** 交易图标：转账固定，收入/支出按分类名匹配（共用 ledger.categoryEmoji）。 */
 function iconOf(tx: Transaction): string {
   if (tx.type === 'transfer') return '🔁'
   const name = categoryNameOf(categories.value, tx.categoryId)
-  for (const [re, emoji] of EMOJI_RULES) {
-    if (re.test(name)) return emoji
-  }
-  return tx.type === 'income' ? '💰' : '🧾'
+  return categoryEmoji(name, tx.type === 'income' ? 'INCOME' : 'EXPENSE')
 }
 
 /** 图标底色：支出红调、收入绿调、转账灰调。 */
@@ -181,14 +282,6 @@ function accountDot(type: AccountType): string {
 
 <template>
   <section class="home">
-    <!-- 顶部问候（宽屏改为标题区） -->
-    <header class="home-head">
-      <div class="greet">
-        <h1>本月概览</h1>
-        <p class="text-muted">{{ monthLabel(month) }} · 记好每一笔，日子有余</p>
-      </div>
-    </header>
-
     <!-- 加载失败：提示 + 重试（保留上次数据） -->
     <div v-if="loadError" class="banner banner-err" role="alert">
       <span>{{ loadError }}</span>
@@ -198,9 +291,15 @@ function accountDot(type: AccountType): string {
     <p v-if="loading && !loaded" class="text-muted loading">加载中…</p>
 
     <template v-if="loaded">
-      <!-- 本月概览主卡 -->
+      <!-- 概览主卡：品牌露出 + 月份选择 + 收支（截图分享自带品牌与数据） -->
       <div class="overview">
-        <div class="ov-label">本月结余</div>
+        <div class="ov-top">
+          <div class="brand"><span class="brand-mk">¥</span>有余</div>
+          <button type="button" class="month-chip" :class="{ dim: reportLoading }" @click="openPicker">
+            {{ monthLabel(month) }} <span class="car">▾</span>
+          </button>
+        </div>
+        <div class="ov-label">{{ isCurrentMonth ? '本月结余' : '当月结余' }}</div>
         <div class="ov-balance num" :class="{ neg: Number(report?.balance) < 0 }">
           ¥{{ formatAmount(report?.balance ?? '0') }}
         </div>
@@ -213,42 +312,68 @@ function accountDot(type: AccountType): string {
             <div class="k">支出</div>
             <div class="v num">¥{{ formatAmount(report?.totalExpense ?? '0') }}</div>
           </div>
-          <div class="stat">
-            <div class="k">净资产</div>
-            <div class="v num">¥{{ formatAmount(netAssets) }}</div>
-          </div>
         </div>
+
+        <!-- 本月剩余预算（点进预算页；未设预算引导设置） -->
+        <button v-if="budget" type="button" class="ov-budget" @click="router.push('/budget')">
+          <template v-if="budget.hasBudget">
+            <span class="obk">预算剩余</span>
+            <span class="obv num" :class="{ neg: Number(budget.remaining) < 0 }">
+              ¥{{ formatAmount(budget.remaining ?? '0') }}
+            </span>
+            <span class="obp" :class="(budget.status ?? 'OK').toLowerCase()">已用 {{ budget.usedPercent }}%</span>
+          </template>
+          <template v-else>
+            <span class="obk">还没设本月预算</span>
+            <span class="obset">去设置 →</span>
+          </template>
+        </button>
       </div>
+
+      <!-- 快捷入口行 -->
+      <div class="quick-row card">
+        <button v-for="a in quickActions" :key="a.key" type="button" class="qa" @click="onQuickAction(a)">
+          <span class="qa-ic" :class="a.tint">{{ a.icon }}</span>
+          <span class="qa-label">{{ a.label }}</span>
+        </button>
+      </div>
+
+      <!-- 占位功能轻提示 -->
+      <p v-if="comingSoon" class="coming-soon" role="status">{{ comingSoon }}</p>
 
       <div class="body-grid">
         <!-- 最近流水 -->
         <div class="col-main">
           <div class="section-head">
-            <h2>最近流水</h2>
-            <RouterLink class="more-link" to="/transactions">全部 →</RouterLink>
+            <h2>{{ isCurrentMonth ? '本月流水' : '当月流水' }}</h2>
           </div>
 
           <p v-if="recent.length === 0" class="card empty text-muted">
-            还没有流水，点右下角「＋」记一笔吧。
+            {{ isCurrentMonth ? '本月还没有流水，点右下角「＋」记一笔吧。' : '这个月没有流水。' }}
           </p>
 
           <template v-else>
             <div v-for="g in groupedRecent" :key="g.key" class="day">
               <div class="day-h">
-                <span>{{ g.label }}</span>
+                <span class="day-date">{{ g.label }}</span>
                 <span class="day-sum">
-                  <span v-if="g.income > 0" class="inc">收 ¥{{ formatAmount(g.income) }}</span>
-                  <span v-if="g.expense > 0" class="exp">支 ¥{{ formatAmount(g.expense) }}</span>
+                  <span class="inc">收 {{ formatAmount(g.income) }}</span>
+                  <span class="exp">支 {{ formatAmount(g.expense) }}</span>
+                  <span class="net" :class="g.income - g.expense >= 0 ? 'pos' : 'neg'">
+                    净 {{ g.income - g.expense >= 0 ? '+' : '-' }}{{ formatAmount(Math.abs(g.income - g.expense)) }}
+                  </span>
                 </span>
               </div>
               <ul class="tx-list card">
-                <li v-for="tx in g.items" :key="tx.id" class="tx-item">
-                  <span class="ico" :class="iconBgClass(tx)">{{ iconOf(tx) }}</span>
-                  <div class="tx-info">
-                    <div class="tx-title">{{ txTitle(tx) }}</div>
-                    <div class="tx-sub text-muted">{{ txSubtitle(tx) }}</div>
-                  </div>
-                  <div class="tx-amount num" :class="tx.type">{{ signedAmount(tx) }}</div>
+                <li v-for="tx in g.items" :key="tx.id">
+                  <button type="button" class="tx-item" @click="openEdit(tx)">
+                    <span class="ico" :class="iconBgClass(tx)">{{ iconOf(tx) }}</span>
+                    <div class="tx-info">
+                      <div class="tx-title">{{ txTitle(tx) }}</div>
+                      <div class="tx-sub text-muted">{{ txSubtitle(tx) }}</div>
+                    </div>
+                    <div class="tx-amount num" :class="tx.type">{{ signedAmount(tx) }}</div>
+                  </button>
                 </li>
               </ul>
             </div>
@@ -284,6 +409,56 @@ function accountDot(type: AccountType): string {
 
     <!-- 悬浮记一笔按钮 -->
     <RouterLink class="fab" to="/quick" aria-label="记一笔">＋</RouterLink>
+
+    <!-- 点击流水 → 编辑/删除弹窗 -->
+    <TransactionEditModal
+      v-if="editing"
+      :transaction="editing"
+      :accounts="accounts"
+      :categories="categories"
+      @close="editing = null"
+      @saved="onTxSaved"
+    />
+
+    <!-- 月份选择底部面板：任意年月（不可选未来月） -->
+    <div v-if="pickerOpen" class="picker-mask" @click.self="pickerOpen = false">
+      <div class="picker" role="dialog" aria-label="选择月份">
+        <div class="picker-head">
+          <button type="button" class="pk-cancel" @click="pickerOpen = false">取消</button>
+          <span class="pk-title">选择月份</span>
+          <span class="pk-spacer"></span>
+        </div>
+        <div class="year-row">
+          <button type="button" class="y-arrow" aria-label="上一年" @click="stepYear(-1)">‹</button>
+          <span class="y-val num">{{ pickerYear }}</span>
+          <button
+            type="button"
+            class="y-arrow"
+            aria-label="下一年"
+            :disabled="pickerYear >= cur.y"
+            @click="stepYear(1)"
+          >
+            ›
+          </button>
+        </div>
+        <div class="months">
+          <button
+            v-for="m in 12"
+            :key="m"
+            type="button"
+            class="mo"
+            :class="{
+              active: pickerYear === selectedYearNum && m === selectedMonthNum,
+              future: isFutureMonth(pickerYear, m),
+            }"
+            :disabled="isFutureMonth(pickerYear, m)"
+            @click="pickMonth(m)"
+          >
+            {{ m }}月
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -294,31 +469,67 @@ function accountDot(type: AccountType): string {
 .home {
   padding-bottom: 80px;
 }
-.home-head {
-  margin-bottom: 16px;
-}
-.greet h1 {
-  margin: 0;
-  font-size: 22px;
-}
-.greet p {
-  margin: 4px 0 0;
-  font-size: 13px;
-}
 .loading {
   padding: 24px 0;
 }
 
-/* ===== 概览主卡：品牌绿渐变 ===== */
+/* 概览卡顶部：品牌 + 月份 chip */
+.ov-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
+}
+.brand-mk {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 800;
+}
+.month-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.month-chip.dim {
+  opacity: 0.6;
+}
+.month-chip .car {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+/* ===== 概览主卡：品牌绿渐变（略收紧，给快捷入口和流水让位） ===== */
 .overview {
   position: relative;
   overflow: hidden;
-  margin-bottom: 22px;
-  padding: 22px;
-  border-radius: 22px;
+  margin-bottom: 14px;
+  padding: 18px 18px 16px;
+  border-radius: 20px;
   color: #fff;
   background: linear-gradient(150deg, #22c55e, #16a34a 55%, #0b6b34);
-  box-shadow: 0 16px 34px rgba(22, 163, 74, 0.28);
+  box-shadow: 0 14px 30px rgba(22, 163, 74, 0.26);
 }
 .overview::after {
   content: '';
@@ -329,6 +540,8 @@ function accountDot(type: AccountType): string {
   background: rgba(255, 255, 255, 0.1);
   top: -80px;
   right: -40px;
+  /* 装饰圆不拦截点击，否则会盖住右上角月份 chip */
+  pointer-events: none;
 }
 .ov-label {
   position: relative;
@@ -338,7 +551,7 @@ function accountDot(type: AccountType): string {
 .ov-balance {
   position: relative;
   margin-top: 4px;
-  font-size: 38px;
+  font-size: 34px;
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -350,13 +563,13 @@ function accountDot(type: AccountType): string {
 .ov-stats {
   position: relative;
   display: flex;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 8px;
+  margin-top: 14px;
 }
 .ov-stats .stat {
   flex: 1;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 9px 10px;
   border-radius: 13px;
   background: rgba(255, 255, 255, 0.14);
 }
@@ -366,9 +579,113 @@ function accountDot(type: AccountType): string {
 }
 .ov-stats .v {
   margin-top: 3px;
-  font-size: 15px;
   font-weight: 700;
-  overflow-wrap: anywhere;
+  /* 随屏宽自适应字号，长金额也保持单行不换行 */
+  font-size: clamp(11px, 3.4vw, 15px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 本月剩余预算行（绿卡内，半透明白底，可点进预算页） */
+.ov-budget {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+.ov-budget .obk {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.ov-budget .obv {
+  font-size: 16px;
+  font-weight: 800;
+}
+.ov-budget .obv.neg {
+  color: #fee2e2;
+}
+.ov-budget .obp {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.ov-budget .obp.warn {
+  background: #fff4e5;
+  color: #b45309;
+}
+.ov-budget .obp.over {
+  background: #fef2f2;
+  color: var(--color-danger);
+}
+.ov-budget .obset {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ===== 快捷入口行 ===== */
+.quick-row {
+  display: flex;
+  padding: 14px 4px;
+  margin-bottom: 20px;
+}
+.qa {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.qa-ic {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+}
+.qa-green {
+  background: #eafaf0;
+}
+.qa-blue {
+  background: #eef4ff;
+}
+.qa-orange {
+  background: #fff3e6;
+}
+.qa-purple {
+  background: #f3ecff;
+}
+.qa-label {
+  font-size: 12px;
+  color: #4b5563;
+  font-weight: 600;
+}
+.coming-soon {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: #ecfdf5;
+  color: var(--color-primary-dark);
+  font-size: 13px;
+  text-align: center;
 }
 
 /* ===== 分区标题 ===== */
@@ -397,19 +714,37 @@ function accountDot(type: AccountType): string {
 }
 .day-h {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 8px;
   padding: 0 4px 6px;
   font-size: 12px;
   color: var(--color-muted);
 }
+.day-date {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
 .day-sum {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
 }
 .day-sum .inc {
   color: var(--color-primary);
 }
 .day-sum .exp {
+  color: var(--color-danger);
+}
+.day-sum .net {
+  font-weight: 700;
+}
+.day-sum .net.pos {
+  color: var(--color-primary-dark);
+}
+.day-sum .net.neg {
   color: var(--color-danger);
 }
 
@@ -420,14 +755,22 @@ function accountDot(type: AccountType): string {
   overflow: hidden;
 }
 .tx-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 13px 14px;
-  border-bottom: 1px solid var(--color-border);
+  border: none;
+  border-top: 1px solid var(--color-border);
+  background: none;
+  text-align: left;
+  cursor: pointer;
 }
-.tx-item:last-child {
-  border-bottom: none;
+.tx-list li:first-child .tx-item {
+  border-top: none;
+}
+.tx-item:active {
+  background: var(--color-bg);
 }
 .ico {
   flex: 0 0 auto;
@@ -545,7 +888,7 @@ function accountDot(type: AccountType): string {
 .fab {
   position: fixed;
   right: clamp(16px, 5vw, 40px);
-  bottom: calc(76px + var(--safe-bottom));
+  bottom: calc(24px + var(--safe-bottom));
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -561,6 +904,104 @@ function accountDot(type: AccountType): string {
 }
 .fab:active {
   filter: brightness(0.95);
+}
+
+/* ===== 月份选择底部面板 ===== */
+.picker-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+}
+.picker {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-surface);
+  border-radius: 18px 18px 0 0;
+  padding: 14px 16px calc(20px + var(--safe-bottom));
+}
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pk-cancel {
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.pk-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+.pk-spacer {
+  width: 28px;
+}
+.year-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+.y-val {
+  font-size: 20px;
+  font-weight: 800;
+  min-width: 72px;
+  text-align: center;
+}
+.y-arrow {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  font-size: 16px;
+  cursor: pointer;
+}
+.y-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.months {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.mo {
+  height: 46px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-surface);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.mo.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+.mo.future,
+.mo:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+@media (min-width: 768px) {
+  .picker-mask {
+    align-items: center;
+  }
+  .picker {
+    max-width: 420px;
+    border-radius: 16px;
+  }
 }
 
 /* ===== 加载失败横幅 ===== */
@@ -588,14 +1029,17 @@ function accountDot(type: AccountType): string {
 
 /* ===== 宽屏：两栏 + 隐藏悬浮按钮（改用侧栏/顶部入口场景） ===== */
 @media (min-width: 768px) {
-  .greet h1 {
-    font-size: 26px;
+  .m-label {
+    font-size: 28px;
   }
   .overview {
-    margin: 0 0 22px;
+    margin: 0 0 16px;
   }
   .ov-balance {
-    font-size: 44px;
+    font-size: 40px;
+  }
+  .quick-row {
+    margin-bottom: 22px;
   }
   .body-grid {
     display: grid;

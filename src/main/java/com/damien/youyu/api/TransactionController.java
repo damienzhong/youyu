@@ -1,5 +1,8 @@
 package com.damien.youyu.api;
 
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +23,7 @@ import com.damien.youyu.api.dto.TransactionCreateRequest;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransactionUpdateRequest;
 import com.damien.youyu.domain.Transaction;
+import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.TransactionService;
 
@@ -68,18 +72,44 @@ public class TransactionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
     }
 
-    /** 分页列出本人交易（按时间倒序）。 */
+    /**
+     * 列出本人交易（按时间倒序）。
+     * <ul>
+     *   <li>指定 {@code month=YYYY-MM}：返回该自然月（Asia/Shanghai）全部交易（首页「当月流水」）。</li>
+     *   <li>否则：按 {@code page}/{@code size} 分页返回。</li>
+     * </ul>
+     */
     @GetMapping
     public ResponseEntity<List<TransactionResponse>> list(
+            @RequestParam(name = "month", required = false) String month,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "50") int size) {
         Long userId = currentUser.requireUserId();
+
+        if (month != null && !month.isBlank()) {
+            YearMonth ym = parseMonth(month);
+            LocalDateTime from = ym.atDay(1).atStartOfDay();
+            LocalDateTime to = ym.plusMonths(1).atDay(1).atStartOfDay();
+            List<TransactionResponse> body = transactionService.listByRange(userId, from, to).stream()
+                    .map(TransactionResponse::from)
+                    .toList();
+            return ResponseEntity.ok(body);
+        }
+
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize);
         List<TransactionResponse> body = transactionService.list(userId, pageable).stream()
                 .map(TransactionResponse::from)
                 .toList();
         return ResponseEntity.ok(body);
+    }
+
+    private YearMonth parseMonth(String raw) {
+        try {
+            return YearMonth.parse(raw.trim());
+        } catch (DateTimeParseException ex) {
+            throw ApiException.reportParamInvalid("month", "月份格式应为 YYYY-MM");
+        }
     }
 
     /** 单条读取本人交易（校验归属）。 */

@@ -190,6 +190,20 @@ public class ApiException extends RuntimeException {
                 "导入失败，未还原任何数据", null);
     }
 
+    // ---- 常用工厂方法（Budget 域） ----
+
+    /** 预算金额非法（&lt;0.01、&gt;上限或小数位超过 2 位）。 */
+    public static ApiException budgetAmountInvalid() {
+        return new ApiException("BUDGET_AMOUNT_INVALID", HttpStatus.BAD_REQUEST,
+                "预算金额必须在 0.01 到 9,999,999,999,999,999.99 之间且最多两位小数", "amount");
+    }
+
+    /** 预算月份格式非法（应为 YYYY-MM）。 */
+    public static ApiException budgetMonthInvalid() {
+        return new ApiException("BUDGET_MONTH_INVALID", HttpStatus.BAD_REQUEST,
+                "月份格式应为 YYYY-MM", "month");
+    }
+
     // ---- 常用工厂方法（User / plan-role 域） ----
 
     /**
