@@ -72,6 +72,7 @@ async function onSubmit() {
 
     <!-- 表单卡片 -->
     <section class="sheet">
+      <div class="sheet-inner">
       <h1 class="title">欢迎回来</h1>
       <p class="sub">登录继续记账，让每一笔都心里有数</p>
 
@@ -132,6 +133,7 @@ async function onSubmit() {
       <p class="switch">
         还没有账号？<RouterLink to="/register">立即注册</RouterLink>
       </p>
+      </div>
     </section>
   </div>
 </template>
@@ -333,4 +335,35 @@ async function onSubmit() {
   color: var(--color-muted);
 }
 .switch a { color: var(--color-primary); font-weight: 600; }
+
+.sheet-inner { width: 100%; }
+
+/* 宽屏（PC / 平板横屏）：左右双栏——左品牌区，右表单垂直居中 */
+@media (min-width: 900px) {
+  .auth-page { flex-direction: row; }
+  .hero {
+    flex: 1 1 46%;
+    padding: 64px 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .logo { width: 72px; height: 72px; border-radius: 22px; font-size: 40px; }
+  .brand-name { margin-top: 26px; font-size: 40px; }
+  .brand-slogan { margin-top: 12px; font-size: 18px; }
+  .sheet {
+    flex: 1 1 54%;
+    margin-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    animation: none;
+  }
+  .sheet-inner { max-width: 380px; margin: 0 auto; }
+  .title { font-size: 26px; }
+  .sub { font-size: 14px; margin-bottom: 26px; }
+}
 </style>

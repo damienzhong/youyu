@@ -100,6 +100,7 @@ async function onSubmit() {
 
     <!-- 表单卡片 -->
     <section class="sheet">
+      <div class="sheet-inner">
       <h1 class="title">创建账号</h1>
       <p class="sub">几秒注册，开始记好每一笔</p>
 
@@ -192,6 +193,7 @@ async function onSubmit() {
       <p class="switch">
         已有账号？<RouterLink to="/login">去登录</RouterLink>
       </p>
+      </div>
     </section>
   </div>
 </template>
@@ -302,4 +304,36 @@ async function onSubmit() {
 
 .switch { margin-top: 18px; text-align: center; font-size: 14px; color: var(--color-muted); }
 .switch a { color: var(--color-primary); font-weight: 600; }
+
+.sheet-inner { width: 100%; }
+
+/* 宽屏（PC / 平板横屏）：左右双栏——左品牌区，右表单垂直居中；表单较长时右栏可滚动 */
+@media (min-width: 900px) {
+  .auth-page { flex-direction: row; height: 100vh; }
+  .hero {
+    flex: 1 1 46%;
+    padding: 64px 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .logo { width: 72px; height: 72px; border-radius: 22px; font-size: 40px; }
+  .brand-name { margin-top: 26px; font-size: 40px; }
+  .brand-slogan { margin-top: 12px; font-size: 18px; }
+  .sheet {
+    flex: 1 1 54%;
+    margin-top: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 40px 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow-y: auto;
+    animation: none;
+  }
+  .sheet-inner { max-width: 380px; margin: 0 auto; }
+  .title { font-size: 26px; }
+  .sub { font-size: 14px; margin-bottom: 22px; }
+}
 </style>
