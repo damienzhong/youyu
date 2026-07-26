@@ -165,6 +165,9 @@ const categoryOptions = computed<CatOption[]>(() => {
 
 const isTransfer = computed(() => type.value === 'transfer')
 
+/** 记账可选账户：排除已隐藏账户（历史流水仍保留，仅不在此处提供选择）。 */
+const visibleAccounts = computed(() => accounts.value.filter((a) => !a.hidden))
+
 // === 账户展示 ===
 const ACCOUNT_DOT: Record<AccountType, string> = {
   CASH: '#16a34a',
@@ -244,13 +247,14 @@ async function load() {
 }
 
 function initDefaults() {
-  const firstAccount = accounts.value[0]
+  const list = visibleAccounts.value
+  const firstAccount = list[0]
   if (!firstAccount) return
   const last = defaults.lastAccountId
-  const useLast = last != null && accounts.value.some((a) => a.id === last)
+  const useLast = last != null && list.some((a) => a.id === last)
   const first = useLast ? (last as number) : firstAccount.id
   accountId.value = first
-  const other = accounts.value.find((a) => a.id !== first)
+  const other = list.find((a) => a.id !== first)
   destinationAccountId.value = other ? other.id : null
 }
 
@@ -694,7 +698,7 @@ function toOccurredAt(local: string): string {
           {{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}
         </div>
         <button
-          v-for="a in accounts"
+          v-for="a in visibleAccounts"
           :key="a.id"
           type="button"
           class="sheet-item"
@@ -717,7 +721,7 @@ function toOccurredAt(local: string): string {
         {{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}
       </div>
       <button
-        v-for="a in accounts"
+        v-for="a in visibleAccounts"
         :key="a.id"
         type="button"
         class="sheet-item"

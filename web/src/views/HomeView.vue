@@ -12,6 +12,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import TransactionEditModal from '@/components/TransactionEditModal.vue'
+import { useSessionStore } from '@/stores/session'
 import {
   fetchAccounts,
   fetchCategories,
@@ -53,6 +54,20 @@ const isCurrentMonth = computed(() => month.value === currentMonth())
 const netAssets = computed(() => sumBalances(accounts.value))
 
 const router = useRouter()
+
+// === 左上角菜单抽屉（管理入口 + 退出登录） ===
+const session = useSessionStore()
+const menuOpen = ref(false)
+const currentUsername = computed(() => session.user?.username ?? '')
+function goMenu(path: string) {
+  menuOpen.value = false
+  router.push(path)
+}
+function onLogout() {
+  menuOpen.value = false
+  session.signOut()
+  router.replace('/login')
+}
 
 // 点击某笔流水 → 打开编辑弹窗（可改/删）。
 const editing = ref<Transaction | null>(null)
@@ -294,7 +309,10 @@ function accountDot(type: AccountType): string {
       <!-- 概览主卡：品牌露出 + 月份选择 + 收支（截图分享自带品牌与数据） -->
       <div class="overview">
         <div class="ov-top">
-          <div class="brand"><span class="brand-mk">¥</span>有余</div>
+          <div class="ov-lead">
+            <button type="button" class="menu-btn" aria-label="菜单" @click="menuOpen = true">☰</button>
+            <div class="brand"><span class="brand-mk">¥</span>有余</div>
+          </div>
           <button type="button" class="month-chip" :class="{ dim: reportLoading }" @click="openPicker">
             {{ monthLabel(month) }} <span class="car">▾</span>
           </button>
@@ -410,6 +428,21 @@ function accountDot(type: AccountType): string {
     <!-- 悬浮记一笔按钮 -->
     <RouterLink class="fab" to="/quick" aria-label="记一笔">＋</RouterLink>
 
+    <!-- 左上角菜单抽屉 -->
+    <div v-if="menuOpen" class="drawer-mask" @click.self="menuOpen = false">
+      <aside class="drawer" role="dialog" aria-label="菜单">
+        <div class="drawer-acct">
+          <span class="da-k">当前账号</span>
+          <strong>{{ currentUsername || '—' }}</strong>
+        </div>
+        <div class="drawer-sec">管理</div>
+        <button type="button" class="drawer-item" @click="goMenu('/categories')">🏷️ 分类管理</button>
+        <button type="button" class="drawer-item" @click="goMenu('/export')">📤 数据导出</button>
+        <div class="drawer-sec">账号</div>
+        <button type="button" class="drawer-item danger" @click="onLogout">↩︎ 退出登录</button>
+      </aside>
+    </div>
+
     <!-- 点击流水 → 编辑/删除弹窗 -->
     <TransactionEditModal
       v-if="editing"
@@ -480,6 +513,25 @@ function accountDot(type: AccountType): string {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
+}
+.ov-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.menu-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 .brand {
   display: flex;
@@ -904,6 +956,77 @@ function accountDot(type: AccountType): string {
 }
 .fab:active {
   filter: brightness(0.95);
+}
+
+/* ===== 左上角菜单抽屉 ===== */
+.drawer-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  z-index: 60;
+  display: flex;
+}
+.drawer {
+  width: 78%;
+  max-width: 300px;
+  height: 100%;
+  background: var(--color-surface);
+  padding: calc(20px + var(--safe-top)) 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.18);
+  animation: drawer-in 0.18s ease-out;
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.drawer-acct {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 8px;
+}
+.drawer-acct .da-k {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.drawer-acct strong {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.drawer-sec {
+  font-size: 12px;
+  color: var(--color-muted);
+  padding: 12px 12px 4px;
+}
+.drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: none;
+  background: none;
+  border-radius: 11px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+.drawer-item:active {
+  background: var(--color-bg);
+}
+.drawer-item.danger {
+  color: var(--color-danger);
 }
 
 /* ===== 月份选择底部面板 ===== */

@@ -52,6 +52,18 @@ public class Account {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
 
+    /** 余额是否计入净资产（默认计入）。列 tinyint(1)，MySQL 驱动按 BIT 映射，与 Hibernate boolean 默认一致。 */
+    @Column(name = "include_in_total", nullable = false)
+    private boolean includeInTotal = true;
+
+    /** 是否隐藏账户：记账选择账户时不展示（历史流水保留）。 */
+    @Column(name = "hidden", nullable = false)
+    private boolean hidden = false;
+
+    /** 账户备注，<=200。 */
+    @Column(name = "note", length = 200)
+    private String note;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -116,6 +128,30 @@ public class Account {
 
     public void setSortOrder(int sortOrder) {
         this.sortOrder = sortOrder;
+    }
+
+    public boolean isIncludeInTotal() {
+        return includeInTotal;
+    }
+
+    public void setIncludeInTotal(boolean includeInTotal) {
+        this.includeInTotal = includeInTotal;
+    }
+
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    public void setHidden(boolean hidden) {
+        this.hidden = hidden;
+    }
+
+    public String getNote() {
+        return note;
+    }
+
+    public void setNote(String note) {
+        this.note = note;
     }
 
     public LocalDateTime getCreatedAt() {

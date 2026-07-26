@@ -50,7 +50,10 @@ public class AccountController {
     public ResponseEntity<AccountResponse> create(@RequestBody AccountCreateRequest req) {
         Long userId = currentUser.requireUserId();
         Account account = accountService.create(
-                userId, req.name(), req.type(), req.initialBalance(), req.sortOrder());
+                userId, req.name(), req.type(), req.initialBalance(), req.sortOrder(),
+                req.includeInTotal() == null || req.includeInTotal(),
+                req.hidden() != null && req.hidden(),
+                req.note());
         return ResponseEntity.status(HttpStatus.CREATED).body(AccountResponse.from(account));
     }
 
@@ -69,7 +72,11 @@ public class AccountController {
     public ResponseEntity<AccountResponse> update(
             @PathVariable Long id, @RequestBody AccountUpdateRequest req) {
         Long userId = currentUser.requireUserId();
-        Account account = accountService.update(userId, id, req.name(), req.type());
+        Account account = accountService.update(
+                userId, id, req.name(), req.type(),
+                req.includeInTotal() == null || req.includeInTotal(),
+                req.hidden() != null && req.hidden(),
+                req.note());
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 

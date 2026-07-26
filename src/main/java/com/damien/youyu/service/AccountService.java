@@ -67,9 +67,25 @@ public class AccountService {
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder) {
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null);
+    }
+
+    /**
+     * 创建账户（含扩展字段）：校验通过后 {@code current_balance = initial_balance}。
+     *
+     * @param includeInTotal 余额是否计入净资产（默认 true）
+     * @param hidden         是否隐藏账户（默认 false）
+     * @param rawNote        账户备注（可选，<=200）
+     * @throws ApiException ACCOUNT_FIELD_INVALID（名称/类型/初始余额/备注任一非法，需求 3.3）
+     */
+    @Transactional
+    public Account create(Long userId, String rawName, String rawType,
+            BigDecimal rawInitialBalance, Integer sortOrder,
+            boolean includeInTotal, boolean hidden, String rawNote) {
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
         BigDecimal initialBalance = validateBalance(rawInitialBalance);
+        String note = validateNote(rawNote);
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
@@ -81,6 +97,9 @@ public class AccountService {
         // 需求 3.1：current_balance 初始化为初始余额。
         account.setCurrentBalance(initialBalance);
         account.setSortOrder(sortOrder == null ? 0 : sortOrder);
+        account.setIncludeInTotal(includeInTotal);
+        account.setHidden(hidden);
+        account.setNote(note);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         return accountRepository.save(account);
@@ -108,6 +127,31 @@ public class AccountService {
 
         account.setName(name);
         account.setType(type);
+        // 需求 3.6：保留 current_balance 与 initial_balance 不变。
+        account.setUpdatedAt(LocalDateTime.now(clock));
+        return accountRepository.save(account);
+    }
+
+    /**
+     * 修改账户名称/类型及扩展字段（计入总资产/隐藏/备注），保留余额（需求 3.6）。
+     *
+     * @throws ApiException NOT_FOUND / ACCOUNT_FIELD_INVALID
+     */
+    @Transactional
+    public Account update(Long userId, Long id, String rawName, String rawType,
+            boolean includeInTotal, boolean hidden, String rawNote) {
+        Account account = accountRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> ApiException.notFound("账户不存在"));
+
+        String name = validateName(rawName);
+        AccountType type = validateType(rawType);
+        String note = validateNote(rawNote);
+
+        account.setName(name);
+        account.setType(type);
+        account.setIncludeInTotal(includeInTotal);
+        account.setHidden(hidden);
+        account.setNote(note);
         // 需求 3.6：保留 current_balance 与 initial_balance 不变。
         account.setUpdatedAt(LocalDateTime.now(clock));
         return accountRepository.save(account);
@@ -199,6 +243,20 @@ public class AccountService {
         } catch (IllegalArgumentException ex) {
             throw ApiException.accountFieldInvalid("type", "不支持的账户类型");
         }
+    }
+
+    private String validateNote(String rawNote) {
+        if (rawNote == null) {
+            return null;
+        }
+        String note = rawNote.trim();
+        if (note.isEmpty()) {
+            return null;
+        }
+        if (note.length() > 200) {
+            throw ApiException.accountFieldInvalid("note", "备注最多 200 个字符");
+        }
+        return note;
     }
 
     private BigDecimal validateBalance(BigDecimal rawBalance) {

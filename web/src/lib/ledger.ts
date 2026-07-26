@@ -28,8 +28,15 @@ export interface Account {
   id: number
   name: string
   type: AccountType
+  initialBalance?: string
   currentBalance: string
   sortOrder: number
+  /** 余额是否计入净资产（后端默认 true；旧数据/构造时可缺省，按 true 处理）。 */
+  includeInTotal?: boolean
+  /** 是否隐藏账户（记账选账户时不展示，默认 false）。 */
+  hidden?: boolean
+  /** 账户备注（可空）。 */
+  note?: string | null
 }
 
 /** 分类类型：支出 / 收入。 */
@@ -401,9 +408,30 @@ export function formatAmount(value: string | number): string {
   return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-/** 净资产 = 全部账户当前余额之和（以分为单位求和避免浮点误差）。 */
+/**
+ * 净资产 = 计入净资产（includeInTotal）的账户当前余额之和（以分为单位求和避免浮点误差）。
+ * 关闭「计入总资产」的账户不参与合计。
+ */
 export function sumBalances(accounts: Account[]): string {
-  const cents = accounts.reduce((acc, a) => acc + Math.round(Number(a.currentBalance) * 100), 0)
+  const cents = accounts
+    .filter((a) => a.includeInTotal !== false)
+    .reduce((acc, a) => acc + Math.round(Number(a.currentBalance) * 100), 0)
+  return (cents / 100).toFixed(2)
+}
+
+/** 总资产 = 计入净资产账户中，余额为正的部分之和。 */
+export function sumAssets(accounts: Account[]): string {
+  const cents = accounts
+    .filter((a) => a.includeInTotal !== false)
+    .reduce((acc, a) => acc + Math.max(0, Math.round(Number(a.currentBalance) * 100)), 0)
+  return (cents / 100).toFixed(2)
+}
+
+/** 总负债 = 计入净资产账户中，余额为负部分的绝对值之和。 */
+export function sumLiabilities(accounts: Account[]): string {
+  const cents = accounts
+    .filter((a) => a.includeInTotal !== false)
+    .reduce((acc, a) => acc + Math.max(0, -Math.round(Number(a.currentBalance) * 100)), 0)
   return (cents / 100).toFixed(2)
 }
 
@@ -515,11 +543,17 @@ export interface CreateAccountPayload {
   type: AccountType
   initialBalance: string
   sortOrder?: number
+  includeInTotal?: boolean
+  hidden?: boolean
+  note?: string | null
 }
 
 export interface UpdateAccountPayload {
   name: string
   type: AccountType
+  includeInTotal?: boolean
+  hidden?: boolean
+  note?: string | null
 }
 
 /** 创建账户（需求 3.1–3.4）。 */
