@@ -27,8 +27,20 @@ import {
   sumLiabilities,
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_OPTIONS,
+  fetchLoans,
+  createLoan,
+  updateLoan,
+  settleLoan,
+  deleteLoan,
+  validateCounterparty,
+  validateAmount,
+  toLoanErrorMessage,
+  LOAN_DIRECTION_LABELS,
   type Account,
   type AccountType,
+  type Loan,
+  type LoanList,
+  type LoanDirection,
 } from '@/lib/ledger'
 
 const loading = ref(true)
@@ -57,20 +69,32 @@ const ACCOUNT_ICON: Record<AccountType, { emoji: string; tint: string }> = {
   ALIPAY: { emoji: '💠', tint: '#eef4ff' },
   WECHAT: { emoji: '💬', tint: '#ecfdf3' },
   CREDIT_CARD: { emoji: '💳', tint: '#fff7e6' },
+  INVESTMENT: { emoji: '📈', tint: '#f3ecff' },
 }
 
-// 分组：资金账户 vs 信贷账户。
-const fundAccounts = computed(() => accounts.value.filter((a) => a.type !== 'CREDIT_CARD'))
+// 分组：资金账户 / 信贷账户 / 投资理财。
+const FUND_TYPES: AccountType[] = ['CASH', 'BANK_CARD', 'ALIPAY', 'WECHAT']
+const fundAccounts = computed(() => accounts.value.filter((a) => FUND_TYPES.includes(a.type)))
 const creditAccounts = computed(() => accounts.value.filter((a) => a.type === 'CREDIT_CARD'))
+const investAccounts = computed(() => accounts.value.filter((a) => a.type === 'INVESTMENT'))
 function sumOf(list: Account[]): string {
   const cents = list.reduce((acc, a) => acc + Math.round(Number(a.currentBalance) * 100), 0)
   return (cents / 100).toFixed(2)
 }
 const fundSubtotal = computed(() => sumOf(fundAccounts.value))
 const creditSubtotal = computed(() => sumOf(creditAccounts.value))
+const investSubtotal = computed(() => sumOf(investAccounts.value))
 
 const collapsedFund = ref(false)
 const collapsedCredit = ref(false)
+const collapsedInvest = ref(false)
+
+/** 信用卡可用余额 = 授信额度 + 当前余额（欠款为负）；无额度返回 null。 */
+function availableCredit(acc: Account): string | null {
+  if (acc.creditLimit == null || acc.creditLimit === '') return null
+  const cents = Math.round(Number(acc.creditLimit) * 100) + Math.round(Number(acc.currentBalance) * 100)
+  return (cents / 100).toFixed(2)
+}
 
 onMounted(load)
 
@@ -78,7 +102,9 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    accounts.value = await fetchAccounts()
+    const [accs, loanData] = await Promise.all([fetchAccounts(), fetchLoans()])
+    accounts.value = accs
+    loans.value = loanData
     loaded.value = true
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : '加载失败，请重试'
@@ -96,6 +122,7 @@ const formBalance = ref('0.00')
 const formIncludeInTotal = ref(true)
 const formHidden = ref(false)
 const formNote = ref('')
+const formCreditLimit = ref('')
 const formCurrentBalance = ref('0.00') // 编辑时展示（只读）
 const formError = ref('')
 const submitting = ref(false)
@@ -109,6 +136,7 @@ function openCreate() {
   formIncludeInTotal.value = true
   formHidden.value = false
   formNote.value = ''
+  formCreditLimit.value = ''
   formError.value = ''
   showForm.value = true
 }
@@ -121,6 +149,7 @@ function openEdit(acc: Account) {
   formIncludeInTotal.value = acc.includeInTotal !== false
   formHidden.value = !!acc.hidden
   formNote.value = acc.note ?? ''
+  formCreditLimit.value = acc.creditLimit ?? ''
   formError.value = ''
   showForm.value = true
 }
@@ -147,6 +176,17 @@ async function onSubmit() {
     formError.value = '备注最多 200 个字符'
     return
   }
+  // 信用卡授信额度（可选）：填了就校验非负、两位小数。
+  const isCredit = formType.value === 'CREDIT_CARD'
+  let creditLimit: string | null = null
+  if (isCredit && formCreditLimit.value.trim()) {
+    const v = formCreditLimit.value.trim()
+    if (!/^\d+(\.\d{1,2})?$/.test(v)) {
+      formError.value = '授信额度需为非负数且最多两位小数'
+      return
+    }
+    creditLimit = v
+  }
 
   submitting.value = true
   try {
@@ -154,6 +194,7 @@ async function onSubmit() {
       includeInTotal: formIncludeInTotal.value,
       hidden: formHidden.value,
       note: formNote.value.trim() || null,
+      creditLimit,
     }
     if (isEditing.value && editingId.value != null) {
       await updateAccount(editingId.value, { name: formName.value.trim(), type: formType.value, ...extras })
@@ -211,6 +252,121 @@ async function confirmDelete() {
 function isNegative(balance: string): boolean {
   return Number(balance) < 0
 }
+
+// =========================== 借贷往来 ===========================
+const loans = ref<LoanList | null>(null)
+const showLoans = ref(false) // 借贷管理抽屉
+function openLoans() {
+  showLoans.value = true
+}
+function closeLoans() {
+  showLoans.value = false
+}
+
+// 借贷新增/编辑表单
+const showLoanForm = ref(false)
+const loanEditingId = ref<number | null>(null)
+const loanDirection = ref<LoanDirection>('BORROW')
+const loanCounterparty = ref('')
+const loanAmount = ref('')
+const loanNote = ref('')
+const loanError = ref('')
+const loanSubmitting = ref(false)
+const isLoanEditing = computed(() => loanEditingId.value != null)
+
+function openLoanCreate(direction: LoanDirection) {
+  loanEditingId.value = null
+  loanDirection.value = direction
+  loanCounterparty.value = ''
+  loanAmount.value = ''
+  loanNote.value = ''
+  loanError.value = ''
+  showLoanForm.value = true
+}
+function openLoanEdit(loan: Loan) {
+  loanEditingId.value = loan.id
+  loanDirection.value = loan.direction
+  loanCounterparty.value = loan.counterparty
+  loanAmount.value = loan.amount
+  loanNote.value = loan.note ?? ''
+  loanError.value = ''
+  showLoanForm.value = true
+}
+function closeLoanForm() {
+  showLoanForm.value = false
+}
+
+async function reloadLoans() {
+  try {
+    loans.value = await fetchLoans()
+  } catch {
+    /* 借贷刷新失败不阻断，保留现有 */
+  }
+}
+
+async function onLoanSubmit() {
+  loanError.value = ''
+  const cpErr = validateCounterparty(loanCounterparty.value)
+  if (cpErr) {
+    loanError.value = cpErr
+    return
+  }
+  const amtErr = validateAmount(loanAmount.value)
+  if (amtErr) {
+    loanError.value = amtErr
+    return
+  }
+  if (loanNote.value.length > 200) {
+    loanError.value = '备注最多 200 个字符'
+    return
+  }
+  loanSubmitting.value = true
+  try {
+    const payload = {
+      direction: loanDirection.value,
+      counterparty: loanCounterparty.value.trim(),
+      amount: loanAmount.value.trim(),
+      note: loanNote.value.trim() || null,
+    }
+    if (isLoanEditing.value && loanEditingId.value != null) {
+      await updateLoan(loanEditingId.value, payload)
+    } else {
+      await createLoan(payload)
+    }
+    showLoanForm.value = false
+    await reloadLoans()
+  } catch (e) {
+    loanError.value = toLoanErrorMessage(e)
+  } finally {
+    loanSubmitting.value = false
+  }
+}
+
+/** 切换结清状态。 */
+async function onToggleSettle(loan: Loan) {
+  try {
+    await settleLoan(loan.id, !loan.settled)
+    await reloadLoans()
+  } catch {
+    /* 失败静默，下次刷新纠正 */
+  }
+}
+
+async function onDeleteLoan(loan: Loan) {
+  try {
+    await deleteLoan(loan.id)
+    await reloadLoans()
+  } catch {
+    /* 失败静默 */
+  }
+}
+
+/** 借贷发生日期短标签。 */
+function loanDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
 </script>
 
 <template>
@@ -242,6 +398,24 @@ function isNegative(balance: string): boolean {
           <div class="cell r"><div class="k">总负债</div><div class="v num">{{ money(totalLiabilities) }}</div></div>
         </div>
       </div>
+
+      <!-- 借贷往来汇总（点开管理） -->
+      <button v-if="loans" type="button" class="loan-row card" @click="openLoans">
+        <div class="lr-cell">
+          <div class="lr-k">借入 / 待还</div>
+          <div class="lr-v num" :class="{ hot: Number(loans.borrowOutstanding) > 0 }">
+            {{ money(loans.borrowOutstanding) }}
+          </div>
+        </div>
+        <div class="lr-div"></div>
+        <div class="lr-cell">
+          <div class="lr-k">借出 / 待收</div>
+          <div class="lr-v num" :class="{ hot: Number(loans.lendOutstanding) > 0 }">
+            {{ money(loans.lendOutstanding) }}
+          </div>
+        </div>
+        <span class="lr-chev">›</span>
+      </button>
 
       <p v-if="accounts.length === 0" class="card text-muted empty">
         还没有账户，点下方「添加账户」创建一个吧。
@@ -291,6 +465,40 @@ function isNegative(balance: string): boolean {
           <template v-if="!collapsedCredit">
             <button
               v-for="acc in creditAccounts"
+              :key="acc.id"
+              type="button"
+              class="acc"
+              @click="openEdit(acc)"
+            >
+              <span class="ic" :style="{ background: ACCOUNT_ICON[acc.type].tint }">{{ ACCOUNT_ICON[acc.type].emoji }}</span>
+              <span class="nm">
+                {{ acc.name }}
+                <small>
+                  {{ ACCOUNT_TYPE_LABELS[acc.type] }}
+                  <em v-if="acc.hidden" class="tag">已隐藏</em>
+                  <em v-if="!acc.includeInTotal" class="tag">不计入</em>
+                </small>
+              </span>
+              <span class="bal-wrap">
+                <span class="bal num" :class="{ neg: isNegative(acc.currentBalance) }">{{ money(acc.currentBalance) }}</span>
+                <small v-if="availableCredit(acc) != null" class="avail">可用 {{ money(availableCredit(acc)!) }}</small>
+              </span>
+            </button>
+          </template>
+        </div>
+
+        <!-- 投资理财 -->
+        <div v-if="investAccounts.length" class="group card">
+          <button type="button" class="g-head" @click="collapsedInvest = !collapsedInvest">
+            <span class="gt">投资理财</span>
+            <span class="g-right">
+              <span class="sub num" :class="{ neg: isNegative(investSubtotal) }">{{ money(investSubtotal) }}</span>
+              <span class="chev">{{ collapsedInvest ? '▸' : '▾' }}</span>
+            </span>
+          </button>
+          <template v-if="!collapsedInvest">
+            <button
+              v-for="acc in investAccounts"
               :key="acc.id"
               type="button"
               class="acc"
@@ -359,6 +567,12 @@ function isNegative(balance: string): boolean {
             <span class="hint text-muted">余额由流水决定，如需修正请增删对应流水。</span>
           </div>
 
+          <label v-if="formType === 'CREDIT_CARD'" class="field">
+            <span class="flabel">授信额度 <small class="text-muted">可选</small></span>
+            <input v-model="formCreditLimit" type="text" inputmode="decimal" placeholder="如：50000.00" />
+            <span class="hint text-muted">填写后展示「可用余额 = 授信额度 − 已用」。</span>
+          </label>
+
           <div class="field switch-row">
             <div>
               <div class="flabel">计入总资产</div>
@@ -409,6 +623,117 @@ function isNegative(balance: string): boolean {
             {{ deleting ? '删除中…' : '删除' }}
           </button>
         </footer>
+      </div>
+    </div>
+
+    <!-- 借贷管理抽屉 -->
+    <div v-if="showLoans" class="modal-mask" @click.self="closeLoans">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="借贷往来">
+        <header class="modal-head">
+          <button class="txt-btn" type="button" @click="closeLoans">关闭</button>
+          <h2>借贷往来</h2>
+          <span class="sp"></span>
+        </header>
+        <div class="modal-body">
+          <div class="loan-sum">
+            <div class="ls-cell">
+              <div class="ls-k">借入 / 待还</div>
+              <div class="ls-v num">¥{{ formatAmount(loans?.borrowOutstanding ?? '0') }}</div>
+            </div>
+            <div class="ls-cell">
+              <div class="ls-k">借出 / 待收</div>
+              <div class="ls-v num">¥{{ formatAmount(loans?.lendOutstanding ?? '0') }}</div>
+            </div>
+          </div>
+
+          <div class="loan-actions">
+            <button type="button" class="la-btn borrow" @click="openLoanCreate('BORROW')">＋ 记一笔借入</button>
+            <button type="button" class="la-btn lend" @click="openLoanCreate('LEND')">＋ 记一笔借出</button>
+          </div>
+
+          <p v-if="!loans || loans.loans.length === 0" class="text-muted loan-empty">
+            还没有借贷记录。借入=别人借给你（待还），借出=你借给别人（待收）。
+          </p>
+
+          <ul v-else class="loan-list">
+            <li v-for="loan in loans.loans" :key="loan.id" class="loan-item" :class="{ done: loan.settled }">
+              <span class="li-dir" :class="loan.direction.toLowerCase()">
+                {{ LOAN_DIRECTION_LABELS[loan.direction] }}
+              </span>
+              <div class="li-main" @click="openLoanEdit(loan)">
+                <div class="li-cp">
+                  {{ loan.counterparty }}
+                  <em v-if="loan.settled" class="li-tag">已结清</em>
+                </div>
+                <div class="li-sub text-muted">
+                  {{ loanDate(loan.occurredAt) }}<template v-if="loan.note"> · {{ loan.note }}</template>
+                </div>
+              </div>
+              <div class="li-right">
+                <span class="li-amt num">¥{{ formatAmount(loan.amount) }}</span>
+                <span class="li-ops">
+                  <button type="button" class="li-op" @click.stop="onToggleSettle(loan)">
+                    {{ loan.settled ? '恢复' : '结清' }}
+                  </button>
+                  <button type="button" class="li-op del" @click.stop="onDeleteLoan(loan)">删除</button>
+                </span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- 借贷新增/编辑表单 -->
+    <div v-if="showLoanForm" class="modal-mask" @click.self="closeLoanForm">
+      <div class="modal" role="dialog" aria-modal="true" :aria-label="isLoanEditing ? '编辑借贷' : '新增借贷'">
+        <header class="modal-head">
+          <button class="txt-btn" type="button" @click="closeLoanForm">取消</button>
+          <h2>{{ isLoanEditing ? '编辑借贷' : '新增借贷' }}</h2>
+          <button class="txt-btn ok" type="button" :disabled="loanSubmitting" @click="onLoanSubmit">
+            {{ loanSubmitting ? '保存中…' : '保存' }}
+          </button>
+        </header>
+        <div class="modal-body">
+          <div class="field">
+            <span class="flabel">类型</span>
+            <div class="seg">
+              <button
+                type="button"
+                class="seg-btn"
+                :class="{ active: loanDirection === 'BORROW' }"
+                @click="loanDirection = 'BORROW'"
+              >
+                借入（待还）
+              </button>
+              <button
+                type="button"
+                class="seg-btn"
+                :class="{ active: loanDirection === 'LEND' }"
+                @click="loanDirection = 'LEND'"
+              >
+                借出（待收）
+              </button>
+            </div>
+          </div>
+
+          <label class="field">
+            <span class="flabel">对方 <small class="text-muted">{{ loanCounterparty.length }}/50</small></span>
+            <input v-model="loanCounterparty" type="text" maxlength="50" placeholder="如：张三 / 公司" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">金额</span>
+            <input v-model="loanAmount" type="text" inputmode="decimal" placeholder="0.00" />
+          </label>
+
+          <label class="field">
+            <span class="flabel">备注 <small class="text-muted">{{ loanNote.length }}/200</small></span>
+            <textarea v-model="loanNote" maxlength="200" rows="2" placeholder="备注（可选）"></textarea>
+          </label>
+
+          <p v-if="loanError" class="banner banner-err" role="alert">{{ loanError }}</p>
+        </div>
       </div>
     </div>
   </section>
@@ -830,5 +1155,215 @@ function isNegative(balance: string): boolean {
 .banner-err {
   background: #fef2f2;
   color: var(--color-danger);
+}
+
+/* 余额 + 可用余额 */
+.bal-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.bal-wrap .avail {
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+/* 借贷汇总行 */
+.loan-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border: none;
+  background: var(--color-surface);
+  cursor: pointer;
+  text-align: left;
+}
+.loan-row .lr-cell {
+  flex: 1;
+  min-width: 0;
+}
+.loan-row .lr-k {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.loan-row .lr-v {
+  font-size: 17px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.loan-row .lr-v.hot {
+  color: var(--color-primary-dark);
+}
+.loan-row .lr-div {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-border);
+  margin: 2px 12px;
+}
+.loan-row .lr-chev {
+  color: var(--color-muted);
+  font-size: 18px;
+  margin-left: 6px;
+}
+
+/* 借贷抽屉 */
+.loan-sum {
+  display: flex;
+  gap: 12px;
+}
+.loan-sum .ls-cell {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--color-bg);
+}
+.loan-sum .ls-k {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.loan-sum .ls-v {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+.loan-actions {
+  display: flex;
+  gap: 12px;
+}
+.la-btn {
+  flex: 1;
+  padding: 11px 0;
+  border-radius: 11px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+.la-btn.borrow {
+  color: var(--color-primary-dark);
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.la-btn.lend {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.loan-empty {
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  padding: 8px 4px;
+}
+.loan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.loan-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.loan-item.done {
+  opacity: 0.6;
+}
+.li-dir {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+.li-dir.borrow {
+  color: var(--color-primary-dark);
+  background: #ecfdf5;
+}
+.li-dir.lend {
+  color: #b45309;
+  background: #fffbeb;
+}
+.li-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.li-cp {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.li-tag {
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-muted);
+}
+.li-sub {
+  font-size: 12px;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.li-right {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.li-amt {
+  font-size: 15px;
+  font-weight: 800;
+}
+.li-ops {
+  display: flex;
+  gap: 6px;
+}
+.li-op {
+  border: none;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.li-op.del {
+  color: var(--color-danger);
+}
+
+/* 借贷类型分段 */
+.seg {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  overflow: hidden;
+}
+.seg-btn {
+  flex: 1;
+  padding: 11px 0;
+  border: none;
+  background: var(--color-surface);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.seg-btn.active {
+  background: var(--color-primary);
+  color: #fff;
 }
 </style>

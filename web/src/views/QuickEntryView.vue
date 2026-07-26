@@ -175,6 +175,7 @@ const ACCOUNT_DOT: Record<AccountType, string> = {
   ALIPAY: '#1677ff',
   WECHAT: '#07c160',
   CREDIT_CARD: '#f59e0b',
+  INVESTMENT: '#8b5cf6',
 }
 function accountDot(t: AccountType): string {
   return ACCOUNT_DOT[t] ?? '#94a3b8'

@@ -53,7 +53,8 @@ public class AccountController {
                 userId, req.name(), req.type(), req.initialBalance(), req.sortOrder(),
                 req.includeInTotal() == null || req.includeInTotal(),
                 req.hidden() != null && req.hidden(),
-                req.note());
+                req.note(),
+                req.creditLimit());
         return ResponseEntity.status(HttpStatus.CREATED).body(AccountResponse.from(account));
     }
 
@@ -76,7 +77,8 @@ public class AccountController {
                 userId, id, req.name(), req.type(),
                 req.includeInTotal() == null || req.includeInTotal(),
                 req.hidden() != null && req.hidden(),
-                req.note());
+                req.note(),
+                req.creditLimit());
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 

@@ -64,6 +64,10 @@ public class Account {
     @Column(name = "note", length = 200)
     private String note;
 
+    /** 信用卡授信额度（可空，仅信用卡有意义）：可用余额 = credit_limit + current_balance。 */
+    @Column(name = "credit_limit", precision = 18, scale = 2)
+    private BigDecimal creditLimit;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -152,6 +156,14 @@ public class Account {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public BigDecimal getCreditLimit() {
+        return creditLimit;
+    }
+
+    public void setCreditLimit(BigDecimal creditLimit) {
+        this.creditLimit = creditLimit;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -204,6 +204,13 @@ public class ApiException extends RuntimeException {
                 "月份格式应为 YYYY-MM", "month");
     }
 
+    // ---- 常用工厂方法（Loan 借贷域） ----
+
+    /** 借贷字段非法（方向/对方/金额/发生时间/备注），携带具体无效字段。 */
+    public static ApiException loanFieldInvalid(String field, String message) {
+        return new ApiException("LOAN_FIELD_INVALID", HttpStatus.BAD_REQUEST, message, field);
+    }
+
     // ---- 常用工厂方法（User / plan-role 域） ----
 
     /**

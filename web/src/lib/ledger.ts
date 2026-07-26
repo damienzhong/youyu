@@ -13,7 +13,7 @@ import axios from 'axios'
 import http, { ApiError, getToken } from '@/lib/http'
 
 /** 账户类型枚举（见 design「Account 模块」）。 */
-export type AccountType = 'CASH' | 'BANK_CARD' | 'ALIPAY' | 'WECHAT' | 'CREDIT_CARD'
+export type AccountType = 'CASH' | 'BANK_CARD' | 'ALIPAY' | 'WECHAT' | 'CREDIT_CARD' | 'INVESTMENT'
 
 /** 账户类型中文标签。 */
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
@@ -22,6 +22,7 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   ALIPAY: '支付宝',
   WECHAT: '微信',
   CREDIT_CARD: '信用卡',
+  INVESTMENT: '投资理财',
 }
 
 export interface Account {
@@ -37,6 +38,8 @@ export interface Account {
   hidden?: boolean
   /** 账户备注（可空）。 */
   note?: string | null
+  /** 信用卡授信额度（可空，仅信用卡有意义）：可用余额 = creditLimit + currentBalance。 */
+  creditLimit?: string | null
 }
 
 /** 分类类型：支出 / 收入。 */
@@ -510,7 +513,14 @@ export function timeLabelOf(occurredAt: string): string {
 // =====================================================================
 
 /** 账户类型选项（用于下拉/选择器），顺序即展示顺序。 */
-export const ACCOUNT_TYPE_OPTIONS: AccountType[] = ['CASH', 'BANK_CARD', 'ALIPAY', 'WECHAT', 'CREDIT_CARD']
+export const ACCOUNT_TYPE_OPTIONS: AccountType[] = [
+  'CASH',
+  'BANK_CARD',
+  'ALIPAY',
+  'WECHAT',
+  'CREDIT_CARD',
+  'INVESTMENT',
+]
 
 /** 初始余额范围（需求 3.1）：DECIMAL(18,2)，最多两位小数，允许负值（信用卡欠款，需求 3.4）。 */
 export const BALANCE_MIN = -9_999_999_999_999_999.99
@@ -546,6 +556,7 @@ export interface CreateAccountPayload {
   includeInTotal?: boolean
   hidden?: boolean
   note?: string | null
+  creditLimit?: string | null
 }
 
 export interface UpdateAccountPayload {
@@ -554,6 +565,7 @@ export interface UpdateAccountPayload {
   includeInTotal?: boolean
   hidden?: boolean
   note?: string | null
+  creditLimit?: string | null
 }
 
 /** 创建账户（需求 3.1–3.4）。 */
@@ -905,6 +917,122 @@ export function toBudgetErrorMessage(err: unknown): string {
       return '月份格式不正确'
     case 'NOT_FOUND':
       return '分类不存在，请刷新后重试'
+    case 'NETWORK_ERROR':
+      return '网络异常，操作未成功，请重试'
+    default:
+      return err.message || '操作失败，请稍后重试'
+  }
+}
+
+// =====================================================================
+// 借贷往来（借入/待还 + 借出/待收）
+// 对接后端（见 LoanController）：
+//   GET    /loans                          列表 + 待还/待收汇总
+//   POST   /loans        {direction, counterparty, amount, occurredAt?, note?}
+//   PUT    /loans/{id}   {direction, counterparty, amount, occurredAt?, note?}
+//   POST   /loans/{id}/settle?settled=true|false   切换结清
+//   DELETE /loans/{id}                      删除
+// 借贷为独立台账，不参与账户余额与净资产计算。金额一律字符串传输。
+// =====================================================================
+
+/** 借贷方向：借入(待还) / 借出(待收)。 */
+export type LoanDirection = 'BORROW' | 'LEND'
+
+/** 借贷方向中文标签。 */
+export const LOAN_DIRECTION_LABELS: Record<LoanDirection, string> = {
+  BORROW: '借入',
+  LEND: '借出',
+}
+
+export interface Loan {
+  id: number
+  direction: LoanDirection
+  counterparty: string
+  amount: string
+  occurredAt: string
+  settled: boolean
+  settledAt: string | null
+  note: string | null
+}
+
+/** 借贷列表 + 汇总。 */
+export interface LoanList {
+  /** 借入/待还合计（未结清 BORROW 之和）。 */
+  borrowOutstanding: string
+  /** 借出/待收合计（未结清 LEND 之和）。 */
+  lendOutstanding: string
+  loans: Loan[]
+}
+
+function normalizeLoan(raw: any): Loan {
+  const dir = String(raw?.direction ?? 'BORROW').toUpperCase()
+  return {
+    id: Number(raw?.id),
+    direction: dir === 'LEND' ? 'LEND' : 'BORROW',
+    counterparty: String(raw?.counterparty ?? ''),
+    amount: String(raw?.amount ?? '0'),
+    occurredAt: String(raw?.occurredAt ?? raw?.occurred_at ?? ''),
+    settled: Boolean(raw?.settled),
+    settledAt: raw?.settledAt ?? raw?.settled_at ?? null,
+    note: raw?.note ?? null,
+  }
+}
+
+/** 拉取本人借贷列表与待还/待收汇总。 */
+export async function fetchLoans(): Promise<LoanList> {
+  const data = await http.get<unknown, any>('/loans')
+  const rawList: any[] = Array.isArray(data?.loans) ? data.loans : Array.isArray(data) ? data : []
+  return {
+    borrowOutstanding: String(data?.borrowOutstanding ?? '0'),
+    lendOutstanding: String(data?.lendOutstanding ?? '0'),
+    loans: rawList.map(normalizeLoan),
+  }
+}
+
+export interface LoanPayload {
+  direction: LoanDirection
+  counterparty: string
+  amount: string
+  occurredAt?: string
+  note?: string | null
+}
+
+/** 新建一笔借贷。 */
+export function createLoan(payload: LoanPayload): Promise<Loan> {
+  return http.post<unknown, Loan>('/loans', payload)
+}
+
+/** 修改一笔借贷。 */
+export function updateLoan(id: number, payload: LoanPayload): Promise<Loan> {
+  return http.put<unknown, Loan>(`/loans/${id}`, payload)
+}
+
+/** 切换结清状态（settled 缺省 true）。 */
+export function settleLoan(id: number, settled = true): Promise<Loan> {
+  return http.post<unknown, Loan>(`/loans/${id}/settle`, null, { params: { settled } })
+}
+
+/** 删除一笔借贷。 */
+export function deleteLoan(id: number): Promise<unknown> {
+  return http.delete<unknown, unknown>(`/loans/${id}`)
+}
+
+/** 借贷对方名称校验（去空白后 1-50）；合法返回 null。 */
+export function validateCounterparty(name: string): string | null {
+  const trimmed = name.trim()
+  if (!trimmed) return '请输入对方名称'
+  if (trimmed.length > 50) return '对方名称不能超过 50 个字符'
+  return null
+}
+
+/** 把借贷相关后端错误码映射为友好中文提示。 */
+export function toLoanErrorMessage(err: unknown): string {
+  if (!(err instanceof ApiError)) return '操作失败，请稍后重试'
+  switch (err.code) {
+    case 'LOAN_FIELD_INVALID':
+      return err.message || '借贷信息不合法：请检查方向、对方与金额'
+    case 'NOT_FOUND':
+      return '借贷记录不存在，请刷新后重试'
     case 'NETWORK_ERROR':
       return '网络异常，操作未成功，请重试'
     default:

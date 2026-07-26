@@ -19,5 +19,6 @@ public record AccountCreateRequest(
         Integer sortOrder,
         Boolean includeInTotal,
         Boolean hidden,
-        String note) {
+        String note,
+        BigDecimal creditLimit) {
 }

@@ -19,7 +19,8 @@ public record AccountResponse(
         int sortOrder,
         boolean includeInTotal,
         boolean hidden,
-        String note) {
+        String note,
+        BigDecimal creditLimit) {
 
     public static AccountResponse from(Account account) {
         return new AccountResponse(
@@ -31,6 +32,7 @@ public record AccountResponse(
                 account.getSortOrder(),
                 account.isIncludeInTotal(),
                 account.isHidden(),
-                account.getNote());
+                account.getNote(),
+                account.getCreditLimit());
     }
 }

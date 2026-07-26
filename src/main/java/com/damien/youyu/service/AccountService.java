@@ -67,7 +67,16 @@ public class AccountService {
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder) {
-        return create(userId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null);
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null, null);
+    }
+
+    /** 向后兼容重载（不含信用额度）。 */
+    @Transactional
+    public Account create(Long userId, String rawName, String rawType,
+            BigDecimal rawInitialBalance, Integer sortOrder,
+            boolean includeInTotal, boolean hidden, String rawNote) {
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
+                includeInTotal, hidden, rawNote, null);
     }
 
     /**
@@ -81,11 +90,12 @@ public class AccountService {
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
-            boolean includeInTotal, boolean hidden, String rawNote) {
+            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
         BigDecimal initialBalance = validateBalance(rawInitialBalance);
         String note = validateNote(rawNote);
+        BigDecimal creditLimit = validateCreditLimit(rawCreditLimit);
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
@@ -100,6 +110,8 @@ public class AccountService {
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(note);
+        // 信用额度仅信用卡有意义，非信用卡忽略传入值。
+        account.setCreditLimit(type == AccountType.CREDIT_CARD ? creditLimit : null);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         return accountRepository.save(account);
@@ -140,18 +152,32 @@ public class AccountService {
     @Transactional
     public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote) {
+        return update(userId, id, rawName, rawType, includeInTotal, hidden, rawNote, null);
+    }
+
+    /**
+     * 修改账户名称/类型及扩展字段（计入总资产/隐藏/备注/信用额度），保留余额（需求 3.6）。
+     *
+     * @throws ApiException NOT_FOUND / ACCOUNT_FIELD_INVALID
+     */
+    @Transactional
+    public Account update(Long userId, Long id, String rawName, String rawType,
+            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
         Account account = accountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
         String note = validateNote(rawNote);
+        BigDecimal creditLimit = validateCreditLimit(rawCreditLimit);
 
         account.setName(name);
         account.setType(type);
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(note);
+        // 信用额度仅信用卡有意义；改成非信用卡则清空。
+        account.setCreditLimit(type == AccountType.CREDIT_CARD ? creditLimit : null);
         // 需求 3.6：保留 current_balance 与 initial_balance 不变。
         account.setUpdatedAt(LocalDateTime.now(clock));
         return accountRepository.save(account);
@@ -257,6 +283,24 @@ public class AccountService {
             throw ApiException.accountFieldInvalid("note", "备注最多 200 个字符");
         }
         return note;
+    }
+
+    /** 校验信用额度（可空）：非负、最多两位小数、不超过金额上限。 */
+    private BigDecimal validateCreditLimit(BigDecimal rawCreditLimit) {
+        if (rawCreditLimit == null) {
+            return null;
+        }
+        BigDecimal normalized;
+        try {
+            normalized = rawCreditLimit.setScale(2, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException ex) {
+            throw ApiException.accountFieldInvalid("creditLimit", "授信额度最多两位小数");
+        }
+        if (normalized.signum() < 0 || normalized.compareTo(BALANCE_MAX) > 0) {
+            throw ApiException.accountFieldInvalid("creditLimit",
+                    "授信额度需为非负且不超过 9,999,999,999,999,999.99");
+        }
+        return normalized;
     }
 
     private BigDecimal validateBalance(BigDecimal rawBalance) {
