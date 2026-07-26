@@ -13,6 +13,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useSessionStore } from '@/stores/session'
 
 const routes: RouteRecordRaw[] = [
+  { path: '/welcome', component: () => import('@/views/LandingView.vue'), meta: { public: true } },
   { path: '/login', component: () => import('@/views/auth/LoginView.vue'), meta: { public: true } },
   { path: '/register', component: () => import('@/views/auth/RegisterView.vue'), meta: { public: true } },
   {
@@ -44,16 +45,16 @@ const router = createRouter({
 router.beforeEach((to) => {
   const session = useSessionStore()
 
-  // 已登录访问登录/注册页 → 回首页。
-  if ((to.path === '/login' || to.path === '/register') && session.isLoggedIn) {
+  // 已登录访问落地/登录/注册页 → 回首页。
+  if ((to.path === '/welcome' || to.path === '/login' || to.path === '/register') && session.isLoggedIn) {
     return '/'
   }
 
   if (to.meta.public) return true
 
-  // 受保护路由未登录 → 跳登录。
+  // 受保护路由未登录 → 先看落地页（访客一进来先被产品吸引，再引导注册/登录）。
   if (!session.isLoggedIn) {
-    return { path: '/login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : undefined }
+    return '/welcome'
   }
 
   return true
