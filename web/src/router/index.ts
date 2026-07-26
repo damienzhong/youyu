@@ -28,7 +28,8 @@ const routes: RouteRecordRaw[] = [
       { path: '', component: () => import('@/views/HomeView.vue') },
       // 记一笔：PC 保留侧边栏（与首页一致）；移动端隐藏底部 tab、占满全屏（flush）。
       { path: 'quick', component: () => import('@/views/QuickEntryView.vue'), meta: { flush: true } },
-      { path: 'accounts', component: () => import('@/views/AccountsView.vue') },
+      // 资产页自带竞品式顶栏（返回 + 居中标题 + ··· 菜单），隐藏 AppShell 通用返回条。
+      { path: 'accounts', component: () => import('@/views/AccountsView.vue'), meta: { hideBackBar: true } },
       { path: 'categories', component: () => import('@/views/CategoriesView.vue') },
       { path: 'reports', component: () => import('@/views/ReportsView.vue') },
       { path: 'budget', component: () => import('@/views/BudgetView.vue') },

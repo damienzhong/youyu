@@ -20,7 +20,9 @@ const navItems = [
 ]
 
 // 移动端返回条：仅在非首页、且非全屏页（记一笔自带关闭）时显示。
-const showBackBar = computed(() => route.path !== '/' && !route.meta.flush)
+const showBackBar = computed(
+  () => route.path !== '/' && !route.meta.flush && !route.meta.hideBackBar,
+)
 
 function goBack() {
   if (window.history.length > 1) router.back()

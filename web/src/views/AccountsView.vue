@@ -12,7 +12,7 @@
  * 加载失败保留上次数据 + 重试（需求 11.5）。
  */
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import {
   fetchAccounts,
   createAccount,
@@ -41,6 +41,15 @@ import {
   type LoanList,
   type LoanDirection,
 } from '@/lib/ledger'
+
+const router = useRouter()
+
+// 顶栏返回 + 「···」更多菜单（数据导出等）。
+const moreOpen = ref(false)
+function goBack() {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
+}
 
 const loading = ref(true)
 const loaded = ref(false)
@@ -394,9 +403,17 @@ function loanDate(iso: string): string {
 
 <template>
   <section class="assets">
-    <header class="head">
-      <h1>资产</h1>
-      <RouterLink class="export-link" to="/export">数据导出</RouterLink>
+    <!-- 竞品式顶栏：返回 + 居中标题 + ··· 更多菜单 -->
+    <header class="appbar">
+      <button type="button" class="ab-btn" aria-label="返回" @click="goBack">←</button>
+      <h1 class="ab-title">资产</h1>
+      <div class="more-wrap">
+        <button type="button" class="ab-btn more" aria-label="更多" @click="moreOpen = !moreOpen">⋯</button>
+        <div v-if="moreOpen" class="menu-mask" @click="moreOpen = false"></div>
+        <div v-if="moreOpen" class="ab-menu" role="menu">
+          <RouterLink class="ab-menu-item" to="/export" @click="moreOpen = false">📤 数据导出</RouterLink>
+        </div>
+      </div>
     </header>
 
     <div v-if="loadError" class="banner banner-err" role="alert">
@@ -772,20 +789,88 @@ function loanDate(iso: string): string {
 .assets {
   padding-bottom: 24px;
 }
-.head {
+
+/* 竞品式顶栏：全宽（破出容器内边距）+ sticky */
+.appbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 4px;
+  margin: -16px calc(-1 * clamp(12px, 4vw, 32px)) 14px;
+  padding: calc(6px + var(--safe-top)) 6px 6px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
 }
-.head h1 {
+.ab-btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  font-size: 20px;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.ab-btn.more {
+  font-size: 24px;
+}
+.ab-title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  font-size: 22px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 700;
 }
-.export-link {
+.more-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+.menu-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+}
+.ab-menu {
+  position: absolute;
+  top: 44px;
+  right: 4px;
+  z-index: 40;
+  min-width: 148px;
+  padding: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+.ab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+.ab-menu-item:active {
+  background: var(--color-bg);
+}
+@media (min-width: 768px) {
+  /* PC 侧栏布局：顶栏无需上移盖返回条，回退顶部间距 */
+  .appbar {
+    margin-top: 0;
+  }
 }
 .loading {
   padding: 24px 0;
