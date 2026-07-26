@@ -11,7 +11,8 @@
  * 加载失败保留上次数据 + 重试（需求 11.5）。
  */
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useSessionStore } from '@/stores/session'
 import {
   fetchAccounts,
   createAccount,
@@ -34,6 +35,16 @@ const loadError = ref('')
 const accounts = ref<Account[]>([])
 
 const netAssets = computed(() => sumBalances(accounts.value))
+
+// 会话：展示当前账号并提供退出登录（需求 1.x 会话管理）。
+const session = useSessionStore()
+const router = useRouter()
+const currentUsername = computed(() => session.user?.username ?? '')
+
+function onLogout() {
+  session.signOut()
+  router.replace('/login')
+}
 
 onMounted(load)
 
@@ -164,6 +175,15 @@ function isNegative(balance: string): boolean {
       <RouterLink class="export-link" to="/export">数据导出</RouterLink>
     </header>
 
+    <!-- 当前登录账号 + 退出登录 -->
+    <div class="card session-bar">
+      <span class="session-user">
+        <span class="text-muted">当前账号</span>
+        <strong>{{ currentUsername || '—' }}</strong>
+      </span>
+      <button class="logout-btn" type="button" @click="onLogout">退出登录</button>
+    </div>
+
     <div v-if="loadError" class="banner banner-err" role="alert">
       <span>{{ loadError }}</span>
       <button class="link-btn" type="button" @click="load">重试</button>
@@ -290,6 +310,41 @@ function isNegative(balance: string): boolean {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-primary);
+}
+
+.session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.session-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.session-user .text-muted {
+  font-size: 12px;
+}
+.session-user strong {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.logout-btn {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 600;
+}
+.logout-btn:active {
+  background: #fef2f2;
 }
 .loading {
   padding: 24px 0;

@@ -53,7 +53,7 @@ describe('toAuthFeedback', () => {
   it('maps BAD_CREDENTIALS to a form-level error', () => {
     const fb = toAuthFeedback(new ApiError('BAD_CREDENTIALS', 'x', undefined, 401))
     expect(fb.field).toBe('form')
-    expect(fb.message).toContain('账号或口令')
+    expect(fb.message).toContain('账号或密码')
   })
 
   it('maps ACCOUNT_LOCKED to a form-level lock hint', () => {

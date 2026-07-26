@@ -57,14 +57,14 @@ export function toAuthFeedback(err: unknown): AuthErrorFeedback {
     case 'USERNAME_TAKEN':
       return { field: 'username', message: '该账号已被占用，换一个试试' }
     case 'BAD_CREDENTIALS':
-      return { field: 'form', message: '账号或口令错误' }
+      return { field: 'form', message: '账号或密码错误' }
     case 'ACCOUNT_LOCKED':
       return { field: 'form', message: '登录失败次数过多，账号已被临时锁定，请 15 分钟后再试' }
     case 'PASSWORD_WEAK':
-      return { field: 'password', message: '口令长度需为 8–64 个字符' }
+      return { field: 'password', message: '密码长度需为 8–64 个字符' }
     case 'FIELD_REQUIRED': {
       const field: AuthField = err.field === 'username' || err.field === 'password' ? err.field : 'form'
-      const label = field === 'password' ? '口令' : field === 'username' ? '账号' : '必填项'
+      const label = field === 'password' ? '密码' : field === 'username' ? '账号' : '必填项'
       return { field, message: `${label}不能为空` }
     }
     case 'UNAUTHENTICATED':
@@ -91,7 +91,7 @@ export function validateCredentials(rawUsername: string, password: string): Part
     errors.username = '账号长度不能超过 64 个字符'
   }
   if (password.length < 8 || password.length > 64) {
-    errors.password = '口令长度需为 8–64 个字符'
+    errors.password = '密码长度需为 8–64 个字符'
   }
   return errors
 }

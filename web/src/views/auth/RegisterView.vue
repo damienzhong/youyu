@@ -77,7 +77,7 @@ async function onSubmit() {
         </label>
 
         <label class="field">
-          <span>口令（8–64 字符）</span>
+          <span>密码（8–64 字符）</span>
           <input
             v-model="password"
             type="password"

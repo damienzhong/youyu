@@ -51,7 +51,8 @@ export default defineConfig({
   server: {
     port: 5275,
     proxy: {
-      '/api': 'http://localhost:8080',
+      // 后端地址默认 8080，可用环境变量 YOUYU_API_TARGET 覆盖（本地多实例/换端口时用）。
+      '/api': process.env.YOUYU_API_TARGET || 'http://localhost:8080',
     },
   },
   build: {

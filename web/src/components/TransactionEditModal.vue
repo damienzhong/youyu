@@ -148,9 +148,12 @@ function toInputValue(occurredAt: string): string {
   if (Number.isNaN(d.getTime())) return occurredAt.slice(0, 16)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-/** datetime-local 值 → 落库时间（视作北京时间 UTC+8）。 */
+/**
+ * datetime-local 值 → 落库时间。后端 occurredAt 为 LocalDateTime（无时区），
+ * 整体按 Asia/Shanghai 处理，提交本地墙钟时间即可，不能带时区偏移。
+ */
 function toOccurredAt(local: string): string {
-  return `${local}:00+08:00`
+  return `${local}:00`
 }
 </script>
 

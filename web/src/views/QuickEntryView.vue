@@ -246,9 +246,13 @@ function nowForInput(): string {
   const d = new Date()
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
-/** 把 datetime-local 值视作北京时间（UTC+8），补秒与时区偏移用于落库。 */
+/**
+ * 把 datetime-local 值补秒后作为落库时间。
+ * 后端 occurredAt 为 LocalDateTime（无时区），整体按 Asia/Shanghai 处理，
+ * 因此提交本地墙钟时间即可，不能带时区偏移（带偏移会被后端拒绝）。
+ */
 function toOccurredAt(local: string): string {
-  return `${local}:00+08:00`
+  return `${local}:00`
 }
 </script>
 
