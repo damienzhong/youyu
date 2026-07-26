@@ -26,7 +26,6 @@ import {
   sumAssets,
   sumLiabilities,
   ACCOUNT_TYPE_LABELS,
-  ACCOUNT_TYPE_OPTIONS,
   fetchLoans,
   createLoan,
   updateLoan,
@@ -47,10 +46,28 @@ const loading = ref(true)
 const loaded = ref(false)
 const loadError = ref('')
 const accounts = ref<Account[]>([])
+const loans = ref<LoanList | null>(null)
 
-const netAssets = computed(() => sumBalances(accounts.value))
-const totalAssets = computed(() => sumAssets(accounts.value))
-const totalLiabilities = computed(() => sumLiabilities(accounts.value))
+// 借贷未结金额：借入待还=负债，借出待收=债权(资产)，一并纳入净资产口径。
+const borrowOutstanding = computed(() => Number(loans.value?.borrowOutstanding ?? 0))
+const lendOutstanding = computed(() => Number(loans.value?.lendOutstanding ?? 0))
+
+/** 多个金额（字符串/数字，可负）按分求和，返回两位小数字符串，避免浮点误差。 */
+function sumAmounts(...vals: Array<string | number>): string {
+  const cents = vals.reduce<number>((acc, v) => acc + Math.round(Number(v) * 100), 0)
+  return (cents / 100).toFixed(2)
+}
+
+// 净资产 = 账户余额 + 借出待收 − 借入待还。
+const netAssets = computed(() =>
+  sumAmounts(sumBalances(accounts.value), lendOutstanding.value, -borrowOutstanding.value),
+)
+// 总资产 = 账户正余额 + 借出待收。
+const totalAssets = computed(() => sumAmounts(sumAssets(accounts.value), lendOutstanding.value))
+// 总负债 = 账户负余额绝对值 + 借入待还。
+const totalLiabilities = computed(() =>
+  sumAmounts(sumLiabilities(accounts.value), borrowOutstanding.value),
+)
 
 // 金额隐私开关（本地记住）。
 const hideAmounts = ref(localStorage.getItem('youyu_hide_assets') === '1')
@@ -71,6 +88,13 @@ const ACCOUNT_ICON: Record<AccountType, { emoji: string; tint: string }> = {
   CREDIT_CARD: { emoji: '💳', tint: '#fff7e6' },
   INVESTMENT: { emoji: '📈', tint: '#f3ecff' },
 }
+
+// 账户大类（与竞品一致）：新增/编辑表单按大类分组展示类型，资产页也按大类分组。
+const TYPE_GROUPS: Array<{ label: string; types: AccountType[] }> = [
+  { label: '资金账户', types: ['CASH', 'BANK_CARD', 'ALIPAY', 'WECHAT'] },
+  { label: '信贷账户', types: ['CREDIT_CARD'] },
+  { label: '投资理财', types: ['INVESTMENT'] },
+]
 
 // 分组：资金账户 / 信贷账户 / 投资理财。
 const FUND_TYPES: AccountType[] = ['CASH', 'BANK_CARD', 'ALIPAY', 'WECHAT']
@@ -254,7 +278,6 @@ function isNegative(balance: string): boolean {
 }
 
 // =========================== 借贷往来 ===========================
-const loans = ref<LoanList | null>(null)
 const showLoans = ref(false) // 借贷管理抽屉
 function openLoans() {
   showLoans.value = true
@@ -536,18 +559,21 @@ function loanDate(iso: string): string {
         <div class="modal-body">
           <div class="field">
             <span class="flabel">账户类型</span>
-            <div class="type-grid">
-              <button
-                v-for="t in ACCOUNT_TYPE_OPTIONS"
-                :key="t"
-                type="button"
-                class="type"
-                :class="{ active: formType === t }"
-                @click="formType = t"
-              >
-                <span class="tc" :style="{ background: ACCOUNT_ICON[t].tint }">{{ ACCOUNT_ICON[t].emoji }}</span>
-                <span class="tn">{{ ACCOUNT_TYPE_LABELS[t] }}</span>
-              </button>
+            <div v-for="g in TYPE_GROUPS" :key="g.label" class="type-cat">
+              <div class="type-cat-lbl">{{ g.label }}</div>
+              <div class="type-grid">
+                <button
+                  v-for="t in g.types"
+                  :key="t"
+                  type="button"
+                  class="type"
+                  :class="{ active: formType === t }"
+                  @click="formType = t"
+                >
+                  <span class="tc" :style="{ background: ACCOUNT_ICON[t].tint }">{{ ACCOUNT_ICON[t].emoji }}</span>
+                  <span class="tn">{{ ACCOUNT_TYPE_LABELS[t] }}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1036,7 +1062,15 @@ function loanDate(iso: string): string {
   font-size: 13px;
 }
 
-/* 类型网格 */
+/* 类型网格（按大类分组） */
+.type-cat + .type-cat {
+  margin-top: 14px;
+}
+.type-cat-lbl {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-bottom: 10px;
+}
 .type-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
