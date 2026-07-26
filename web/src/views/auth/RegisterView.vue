@@ -173,7 +173,12 @@ async function onSubmit() {
         <!-- 协议 -->
         <label class="agree">
           <input v-model="agreed" type="checkbox" />
-          <span>我已阅读并同意 <a>《用户协议》</a> 与 <a>《隐私政策》</a></span>
+          <span>
+            我已阅读并同意
+            <RouterLink to="/legal/agreement" @click.stop>《用户协议》</RouterLink>
+            与
+            <RouterLink to="/legal/privacy" @click.stop>《隐私政策》</RouterLink>
+          </span>
         </label>
 
         <p v-if="errors.form" class="msg err form-err" role="alert">{{ errors.form }}</p>

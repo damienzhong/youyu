@@ -16,6 +16,11 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', component: () => import('@/views/auth/LoginView.vue'), meta: { public: true } },
   { path: '/register', component: () => import('@/views/auth/RegisterView.vue'), meta: { public: true } },
   {
+    path: '/legal/:doc(agreement|privacy)',
+    component: () => import('@/views/LegalView.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/',
     component: () => import('@/components/layout/AppShell.vue'),
     children: [
