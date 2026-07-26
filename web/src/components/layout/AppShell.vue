@@ -33,7 +33,6 @@ function goBack() {
     <!-- 移动端子页返回条（PC 隐藏，用侧栏导航） -->
     <header v-if="showBackBar" class="mobile-back">
       <button type="button" class="back-btn" aria-label="返回" @click="goBack">←</button>
-      <RouterLink to="/" class="home-btn" aria-label="回首页">🏠</RouterLink>
     </header>
 
     <!-- 侧边栏导航（仅 PC 显示） -->
@@ -84,8 +83,7 @@ function goBack() {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
-.back-btn,
-.home-btn {
+.back-btn {
   width: 40px;
   height: 40px;
   display: flex;
