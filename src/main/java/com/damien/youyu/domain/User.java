@@ -1,0 +1,159 @@
+package com.damien.youyu.domain;
+
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+/**
+ * 用户实体，对应 {@code users} 表。
+ *
+ * <p>用户是多租户隔离的根：其余业务实体(Account/Category/Transaction)均通过
+ * {@code user_id} 归属到某个用户。{@code plan/plan_started_at/plan_expires_at/role}
+ * 本期仅预留存储，不做功能门控。</p>
+ */
+@Entity
+@Table(name = "users")
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    /** 账号标识(登录名)，去空白后 1-64，全局唯一。 */
+    @Column(name = "username", nullable = false, length = 64, unique = true)
+    private String username;
+
+    /** BCrypt 加盐哈希(盐内嵌)。 */
+    @Column(name = "password_hash", nullable = false, length = 100)
+    private String passwordHash;
+
+    /** 套餐：free/pro/lifetime。 */
+    @Convert(converter = PlanConverter.class)
+    @Column(name = "plan", nullable = false, length = 16)
+    private Plan plan = Plan.FREE;
+
+    /** 注册时刻。 */
+    @Column(name = "plan_started_at", nullable = false)
+    private LocalDateTime planStartedAt;
+
+    /** plan_started_at + 365 天。 */
+    @Column(name = "plan_expires_at", nullable = false)
+    private LocalDateTime planExpiresAt;
+
+    /** 角色：user/admin。 */
+    @Convert(converter = RoleConverter.class)
+    @Column(name = "role", nullable = false, length = 16)
+    private Role role = Role.USER;
+
+    /** 连续登录失败次数。 */
+    @Column(name = "failed_login_count", nullable = false)
+    private int failedLoginCount = 0;
+
+    /** 锁定截止时刻，未锁定为 null。 */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    public User() {
+        // JPA / 服务层构造
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public Plan getPlan() {
+        return plan;
+    }
+
+    public void setPlan(Plan plan) {
+        this.plan = plan;
+    }
+
+    public LocalDateTime getPlanStartedAt() {
+        return planStartedAt;
+    }
+
+    public void setPlanStartedAt(LocalDateTime planStartedAt) {
+        this.planStartedAt = planStartedAt;
+    }
+
+    public LocalDateTime getPlanExpiresAt() {
+        return planExpiresAt;
+    }
+
+    public void setPlanExpiresAt(LocalDateTime planExpiresAt) {
+        this.planExpiresAt = planExpiresAt;
+    }
+
+    public Role getRole() {
+        return role;
+    }
+
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    public int getFailedLoginCount() {
+        return failedLoginCount;
+    }
+
+    public void setFailedLoginCount(int failedLoginCount) {
+        this.failedLoginCount = failedLoginCount;
+    }
+
+    public LocalDateTime getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void setLockedUntil(LocalDateTime lockedUntil) {
+        this.lockedUntil = lockedUntil;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+}

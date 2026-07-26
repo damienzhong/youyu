@@ -8,7 +8,9 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: none
+      # 测试环境由 Hibernate 依据实体生成 H2 表结构（生产由 Flyway 管理）。
+      # 这样切片/集成测试无需依赖 MySQL 方言的迁移脚本即可验证实体映射。
+      ddl-auto: create-drop
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect

@@ -44,6 +44,10 @@ app:
     secret: ${YOUYU_JWT_SECRET:change-me-in-production-please-use-a-long-random-secret-key}
     # 令牌有效期（毫秒），默认 7 天
     expiration-ms: ${YOUYU_JWT_EXPIRATION_MS:604800000}
+  # 登录锁定策略：连续失败达到阈值后锁定一段时间（需求 1.7）
+  auth:
+    max-failed-attempts: ${YOUYU_AUTH_MAX_FAILED:5}
+    lock-duration-minutes: ${YOUYU_AUTH_LOCK_MINUTES:15}
 
 # 健康检查端点
 management:
