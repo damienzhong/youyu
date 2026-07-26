@@ -84,18 +84,30 @@ export async function fetchCategories(): Promise<Category[]> {
 
 function normalizeCategories(data: unknown): Category[] {
   const raw: any[] = []
+
+  // 递归展开一个节点及其 children：后端父分类把子分类内嵌在 children 里
+  // （CategoryListResponse.Node，需求 5.6），必须一并抓进扁平列表，
+  // 否则子分类（如「外卖」）解析不到、流水只能显示父级/占位。
+  const collect = (item: any, kindHint?: CategoryKind) => {
+    if (!item || typeof item !== 'object') return
+    raw.push(kindHint && !('kind' in item) ? { ...item, kind: kindHint } : item)
+    const children = (item as { children?: unknown }).children
+    if (Array.isArray(children)) {
+      for (const child of children) collect(child, kindHint)
+    }
+  }
+
   if (Array.isArray(data)) {
-    raw.push(...data)
+    for (const item of data) collect(item)
   } else if (data && typeof data === 'object') {
     // 兼容按 kind 分组：{ expense: [...], income: [...] } 或大写键。
     for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
       if (!Array.isArray(val)) continue
       const kindHint = key.toUpperCase().includes('INCOME') ? 'INCOME' : key.toUpperCase().includes('EXPENSE') ? 'EXPENSE' : undefined
-      for (const item of val) {
-        raw.push(kindHint && item && typeof item === 'object' && !('kind' in item) ? { ...item, kind: kindHint } : item)
-      }
+      for (const item of val) collect(item, kindHint)
     }
   }
+
   return raw
     .filter((c) => c && typeof c === 'object')
     .map((c) => ({
