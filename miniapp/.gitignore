@@ -5,3 +5,11 @@ unpackage/
 .env.local
 *.log
 .DS_Store
+
+# 微信代码上传私钥与预览产物，切勿提交
+.keys/
+*.key
+preview-qr.png
+
+# 本地自带的 Node 运行时（供 miniprogram-ci 在旧版 Node 下运行）
+.node/

@@ -6,6 +6,7 @@
   "scripts": {
     "dev:mp-weixin": "uni -p mp-weixin",
     "build:mp-weixin": "uni build -p mp-weixin",
+    "preview:mp-weixin": "node scripts/preview.cjs",
     "dev:h5": "uni",
     "build:h5": "uni build"
   },
@@ -21,6 +22,7 @@
     "@dcloudio/types": "^3.4.8",
     "@dcloudio/uni-cli-shared": "3.0.0-5010520260709002",
     "@dcloudio/vite-plugin-uni": "3.0.0-5010520260709002",
+    "miniprogram-ci": "^2.1.42",
     "vite": "5.2.8"
   }
 }
