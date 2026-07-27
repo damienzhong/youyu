@@ -6,7 +6,7 @@
   "versionCode": "100",
   "vueVersion": "3",
   "mp-weixin": {
-    "appid": "填写你的微信小程序 AppID",
+    "appid": "wx58eeb3784f3d644f",
     "setting": {
       "urlCheck": true,
       "es6": true,
