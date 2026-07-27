@@ -1,0 +1,22 @@
+{
+  "name": "有余",
+  "appid": "",
+  "description": "记好每一笔，日子有余",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "vueVersion": "3",
+  "mp-weixin": {
+    "appid": "填写你的微信小程序 AppID",
+    "setting": {
+      "urlCheck": true,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true
+  },
+  "h5": {
+    "router": {
+      "base": "/"
+    }
+  }
+}
