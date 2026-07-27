@@ -74,6 +74,10 @@ function timeOf(t) {
   return (t.occurredAt || '').slice(11, 16)
 }
 
+function goEdit(t) {
+  uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
+}
+
 function confirmDelete(t) {
   uni.showModal({
     title: '删除记录',
@@ -101,6 +105,7 @@ function confirmDelete(t) {
         v-for="t in g.items"
         :key="t.id"
         class="item"
+        @click="goEdit(t)"
         @longpress="confirmDelete(t)"
       >
         <view class="item-main">
@@ -113,7 +118,7 @@ function confirmDelete(t) {
       </view>
     </view>
 
-    <text v-if="transactions.length" class="hint">长按记录可删除</text>
+    <text v-if="transactions.length" class="hint">点击编辑 · 长按删除</text>
   </view>
 </template>
 

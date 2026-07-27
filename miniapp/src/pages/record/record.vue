@@ -1,9 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { listCategories, flattenCategories } from '../../api/category'
-import { createTransaction } from '../../api/transaction'
+import {
+  createTransaction,
+  getTransaction,
+  updateTransaction
+} from '../../api/transaction'
 
 const TYPES = [
   { value: 'expense', label: '支出' },
@@ -23,10 +27,19 @@ const destIndex = ref(0)
 const categoryTree = ref({ expense: [], income: [] })
 const categoryIndex = ref(0)
 
-// 当前类型对应的可选分类（支出/收入各自独立；转账无分类）
+// 编辑模式：存在 editingId 时为改单，需保留原始 occurredAt
+const editingId = ref(null)
+const editingOccurredAt = ref(null)
+const isEditing = computed(() => editingId.value !== null)
+
 const categoryOptions = computed(() => {
   if (type.value === 'transfer') return []
   return flattenCategories(categoryTree.value[type.value])
+})
+
+onLoad((query) => {
+  editingId.value = query && query.id ? Number(query.id) : null
+  load()
 })
 
 async function load() {
@@ -37,18 +50,45 @@ async function load() {
     accountIndex.value = 0
     destIndex.value = accs.length > 1 ? 1 : 0
     categoryIndex.value = 0
+
+    if (isEditing.value) {
+      await prefill()
+      uni.setNavigationBarTitle({ title: '编辑记录' })
+    }
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   }
 }
 
-onShow(load)
+// 编辑：拉取原交易并回填表单与各选择器索引
+async function prefill() {
+  const tx = await getTransaction(editingId.value)
+  type.value = tx.type
+  amount.value = String(tx.amount)
+  note.value = tx.note || ''
+  editingOccurredAt.value = tx.occurredAt
+
+  if (tx.type === 'transfer') {
+    accountIndex.value = idxById(accounts.value, tx.sourceAccountId)
+    destIndex.value = idxById(accounts.value, tx.destinationAccountId)
+  } else {
+    accountIndex.value = idxById(accounts.value, tx.accountId)
+    categoryIndex.value = Math.max(
+      categoryOptions.value.findIndex((o) => o.id === tx.categoryId),
+      0
+    )
+  }
+}
+
+function idxById(list, id) {
+  const i = list.findIndex((x) => x.id === id)
+  return i >= 0 ? i : 0
+}
 
 function selectType(t) {
   type.value = t
   categoryIndex.value = 0
 }
-
 function onAccountChange(e) {
   accountIndex.value = Number(e.detail.value)
 }
@@ -70,6 +110,10 @@ async function submit() {
   }
 
   const payload = { type: type.value, amount: amount.value, note: note.value.trim() || undefined }
+  // 编辑时保留原始发生时间，避免被后端重置为当前时间
+  if (isEditing.value && editingOccurredAt.value) {
+    payload.occurredAt = editingOccurredAt.value
+  }
 
   if (type.value === 'transfer') {
     const src = accounts.value[accountIndex.value]
@@ -88,12 +132,18 @@ async function submit() {
 
   submitting.value = true
   try {
-    await createTransaction(payload)
-    uni.showToast({ title: '已记录', icon: 'success' })
-    amount.value = ''
-    note.value = ''
+    if (isEditing.value) {
+      await updateTransaction(editingId.value, payload)
+      uni.showToast({ title: '已保存', icon: 'success' })
+      setTimeout(() => uni.navigateBack(), 600)
+    } else {
+      await createTransaction(payload)
+      uni.showToast({ title: '已记录', icon: 'success' })
+      amount.value = ''
+      note.value = ''
+    }
   } catch (e) {
-    uni.showToast({ title: e.message || '记录失败', icon: 'none' })
+    uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   } finally {
     submitting.value = false
   }
@@ -119,7 +169,6 @@ async function submit() {
       <input v-model="amount" class="amount" type="digit" placeholder="0.00" />
     </view>
 
-    <!-- 支出/收入：账户 + 分类 -->
     <template v-if="type !== 'transfer'">
       <picker class="row" :range="accounts" range-key="name" @change="onAccountChange">
         <text class="row-label">账户</text>
@@ -136,7 +185,6 @@ async function submit() {
       </picker>
     </template>
 
-    <!-- 转账：源 + 目标 -->
     <template v-else>
       <picker class="row" :range="accounts" range-key="name" @change="onAccountChange">
         <text class="row-label">转出</text>
@@ -150,7 +198,9 @@ async function submit() {
 
     <input v-model="note" class="note" placeholder="备注（可选）" maxlength="200" />
 
-    <button class="submit" :loading="submitting" @click="submit">保存</button>
+    <button class="submit" :loading="submitting" @click="submit">
+      {{ isEditing ? '保存修改' : '保存' }}
+    </button>
   </view>
 </template>
 
