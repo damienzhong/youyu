@@ -1,0 +1,28 @@
+# ============================================================
+# 本地开发配置（dev 环境零依赖运行）
+# 用法： ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+#
+# 目的：无需本地 MySQL，即可把后端完整跑起来用于前端联调/UI 预览。
+# 数据存于 H2 内存库，进程退出即清空；仅供开发，切勿用于生产。
+# 生产仍走默认配置(application.yml) + 环境变量注入的 MySQL。
+# ============================================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:youyu-dev;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      # 由 Hibernate 依据实体自动建表（生产由 Flyway 管理）
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        jdbc:
+          time_zone: Asia/Shanghai
+
+  # dev 下由 Hibernate 建表，关闭 Flyway（其迁移脚本为 MySQL 方言）
+  flyway:
+    enabled: false

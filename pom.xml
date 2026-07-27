@@ -93,11 +93,12 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- 内存数据库，供切片测试与冒烟测试使用 -->
+        <!-- 内存数据库：供测试，以及本地 dev 配置（application-dev.yml）零依赖运行。
+             生产使用 MySQL 数据源，classpath 上存在 H2 不影响（已显式配置 datasource url/driver）。 -->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- jqwik 属性测试（Property-Based Testing, JUnit5 Platform 引擎） -->

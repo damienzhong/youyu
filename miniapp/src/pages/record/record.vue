@@ -125,9 +125,25 @@ async function submit() {
     payload.sourceAccountId = src.id
     payload.destinationAccountId = dst.id
   } else {
-    payload.accountId = accounts.value[accountIndex.value].id
+    // 后端要求支出/收入必须有分类（需求 4.8），此处强制校验
+    if (!categoryOptions.value.length) {
+      uni.showModal({
+        title: '还没有分类',
+        content: '支出和收入需要选择分类，先去创建一个分类吧。',
+        confirmText: '去创建',
+        success: (r) => {
+          if (r.confirm) uni.navigateTo({ url: '/pages/categories/categories' })
+        }
+      })
+      return
+    }
     const opt = categoryOptions.value[categoryIndex.value]
-    if (opt) payload.categoryId = opt.id
+    if (!opt) {
+      uni.showToast({ title: '请选择分类', icon: 'none' })
+      return
+    }
+    payload.accountId = accounts.value[accountIndex.value].id
+    payload.categoryId = opt.id
   }
 
   submitting.value = true
@@ -181,7 +197,7 @@ async function submit() {
         @change="onCategoryChange"
       >
         <text class="row-label">分类</text>
-        <text class="row-value">{{ categoryOptions[categoryIndex]?.label || '无（可选）' }}</text>
+        <text class="row-value">{{ categoryOptions[categoryIndex]?.label || '请先创建分类' }}</text>
       </picker>
     </template>
 
