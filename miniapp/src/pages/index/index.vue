@@ -54,6 +54,9 @@ function goReport() {
 function goAccounts() {
   uni.navigateTo({ url: '/pages/accounts/accounts' })
 }
+function goCategories() {
+  uni.navigateTo({ url: '/pages/categories/categories' })
+}
 function handleLogout() {
   auth.logout()
   uni.reLaunch({ url: '/pages/login/login' })
@@ -81,6 +84,7 @@ function handleLogout() {
       <view class="action" @click="goRecords">本月明细</view>
       <view class="action" @click="goReport">分类报表</view>
       <view class="action" @click="goAccounts">账户管理</view>
+      <view class="action" @click="goCategories">分类管理</view>
     </view>
     <button class="logout" @click="handleLogout">退出登录</button>
   </view>

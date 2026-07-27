@@ -35,6 +35,12 @@
       "style": {
         "navigationBarTitleText": "分类报表"
       }
+    },
+    {
+      "path": "pages/categories/categories",
+      "style": {
+        "navigationBarTitleText": "分类管理"
+      }
     }
   ],
   "globalStyle": {

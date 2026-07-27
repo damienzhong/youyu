@@ -9,6 +9,24 @@ export function listCategories() {
 }
 
 /**
+ * 创建分类。kind 须为大写 EXPENSE/INCOME（后端按枚举校验）；
+ * parentId 为空创建父分类，指向父分类则创建子分类（子分类 kind 以父级为准）。
+ */
+export function createCategory({ kind, name, parentId = null }) {
+  return http.post('/categories', { kind, name, parentId })
+}
+
+/** 重命名分类（仅改名称，保留 kind/父级/交易关联）。 */
+export function renameCategory(id, name) {
+  return http.put(`/categories/${id}`, { name })
+}
+
+/** 删除分类（无交易引用、无子分类才允许）。 */
+export function deleteCategory(id) {
+  return http.del(`/categories/${id}`)
+}
+
+/**
  * 把两级分类树拍平为可选项列表：父分类与子分类都可选，子分类带父级前缀便于区分。
  * @param {Array} nodes 某一 kind 下的顶级节点数组
  * @returns {{id:number,label:string}[]}
