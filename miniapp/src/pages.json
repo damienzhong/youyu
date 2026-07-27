@@ -29,6 +29,12 @@
       "style": {
         "navigationBarTitleText": "本月明细"
       }
+    },
+    {
+      "path": "pages/report/report",
+      "style": {
+        "navigationBarTitleText": "分类报表"
+      }
     }
   ],
   "globalStyle": {

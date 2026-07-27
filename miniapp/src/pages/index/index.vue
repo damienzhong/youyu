@@ -48,6 +48,9 @@ function goRecord() {
 function goRecords() {
   uni.navigateTo({ url: '/pages/records/records' })
 }
+function goReport() {
+  uni.navigateTo({ url: '/pages/report/report' })
+}
 function goAccounts() {
   uni.navigateTo({ url: '/pages/accounts/accounts' })
 }
@@ -76,10 +79,9 @@ function handleLogout() {
     <view class="actions">
       <view class="action primary" @click="goRecord">记一笔</view>
       <view class="action" @click="goRecords">本月明细</view>
+      <view class="action" @click="goReport">分类报表</view>
       <view class="action" @click="goAccounts">账户管理</view>
     </view>
-
-    <text class="placeholder">分类报表待接入</text>
     <button class="logout" @click="handleLogout">退出登录</button>
   </view>
 </template>
