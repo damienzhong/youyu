@@ -70,6 +70,10 @@ public class Transaction {
     @Column(name = "note", length = 200)
     private String note;
 
+    /** 第三方账单唯一标识（导入去重用，形如 "alipay:订单号"）；手动记账为 null。 */
+    @Column(name = "external_id", length = 64)
+    private String externalId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -158,6 +162,14 @@ public class Transaction {
 
     public void setNote(String note) {
         this.note = note;
+    }
+
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public void setExternalId(String externalId) {
+        this.externalId = externalId;
     }
 
     public LocalDateTime getCreatedAt() {

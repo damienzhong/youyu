@@ -1,6 +1,7 @@
 package com.damien.youyu.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -79,6 +80,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /** 某分类是否被该用户的任一交易引用（用于「被引用分类不可删除」校验，需求 5.5）。 */
     boolean existsByUserIdAndCategoryId(Long userId, Long categoryId);
+
+    /** 该用户已存在的第三方账单标识（账单导入去重用）：返回给定候选集中已入库的 external_id。 */
+    @Query("SELECT t.externalId FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.externalId IN :externalIds")
+    List<String> findExistingExternalIds(
+            @Param("userId") Long userId, @Param("externalIds") Collection<String> externalIds);
 
     // ---------------- 余额可重算校验的聚合查询（需求 4.13）----------------
     //

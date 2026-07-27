@@ -158,7 +158,7 @@ const quickActions: QuickAction[] = [
   { key: 'assets', label: '资产', icon: '💎', tint: 'qa-green', to: '/accounts' },
   { key: 'stats', label: '统计', icon: '📊', tint: 'qa-blue', to: '/reports' },
   { key: 'budget', label: '预算', icon: '🧮', tint: 'qa-orange', to: '/budget' },
-  { key: 'import', label: '导入', icon: '📥', tint: 'qa-purple', soon: true },
+  { key: 'import', label: '导入', icon: '📥', tint: 'qa-purple', to: '/import' },
 ]
 const comingSoon = ref('')
 let comingSoonTimer: ReturnType<typeof setTimeout> | undefined

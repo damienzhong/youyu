@@ -1071,6 +1071,45 @@ export function validateCounterparty(name: string): string | null {
   return null
 }
 
+// =====================================================================
+// 账单导入（支付宝/微信 CSV，前端解析后批量提交）
+// 对接后端 POST /imports/bills：{ accountId, defaultExpenseCategoryId, defaultIncomeCategoryId, entries[] }
+// =====================================================================
+
+/** 单笔归一化账单（提交给后端）。 */
+export interface BillEntryPayload {
+  type: 'expense' | 'income'
+  amount: string
+  occurredAt: string
+  note?: string | null
+  externalId?: string | null
+  categoryId?: number | null
+}
+
+export interface BillImportPayload {
+  accountId: number
+  defaultExpenseCategoryId?: number | null
+  defaultIncomeCategoryId?: number | null
+  entries: BillEntryPayload[]
+}
+
+/** 导入结果计数。 */
+export interface BillImportResult {
+  imported: number
+  skippedDuplicate: number
+  skippedInvalid: number
+}
+
+/** 批量导入账单流水。 */
+export async function importBills(payload: BillImportPayload): Promise<BillImportResult> {
+  const data = await http.post<unknown, any>('/imports/bills', payload)
+  return {
+    imported: Number(data?.imported ?? 0),
+    skippedDuplicate: Number(data?.skippedDuplicate ?? 0),
+    skippedInvalid: Number(data?.skippedInvalid ?? 0),
+  }
+}
+
 /** 把借贷相关后端错误码映射为友好中文提示。 */
 export function toLoanErrorMessage(err: unknown): string {
   if (!(err instanceof ApiError)) return '操作失败，请稍后重试'

@@ -35,6 +35,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { hideBackBar: true } },
       { path: 'budget', component: () => import('@/views/BudgetView.vue') },
       { path: 'export', component: () => import('@/views/ExportView.vue') },
+      // 账单导入：自带竞品式顶栏，隐藏 AppShell 通用返回条。
+      { path: 'import', component: () => import('@/views/ImportView.vue'), meta: { hideBackBar: true } },
     ],
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },
