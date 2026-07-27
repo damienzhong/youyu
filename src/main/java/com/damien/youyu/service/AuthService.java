@@ -13,6 +13,8 @@ import com.damien.youyu.domain.Role;
 import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.UserRepository;
+import com.damien.youyu.wechat.WeChatClient;
+import com.damien.youyu.wechat.WxSession;
 
 /**
  * 鉴权服务：用户注册、登录、账号锁定与令牌签发所依赖的业务逻辑。
@@ -37,6 +39,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
+    private final WeChatClient weChatClient;
     private final int maxFailedAttempts;
     private final int lockDurationMinutes;
 
@@ -44,11 +47,13 @@ public class AuthService {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             Clock clock,
+            WeChatClient weChatClient,
             @Value("${app.auth.max-failed-attempts:5}") int maxFailedAttempts,
             @Value("${app.auth.lock-duration-minutes:15}") int lockDurationMinutes) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
+        this.weChatClient = weChatClient;
         this.maxFailedAttempts = maxFailedAttempts;
         this.lockDurationMinutes = lockDurationMinutes;
     }
@@ -143,6 +148,53 @@ public class AuthService {
         // 成功：清零失败计数与锁定（需求 1.5/1.7）。
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
+        user.setUpdatedAt(now);
+        return userRepository.save(user);
+    }
+
+    /**
+     * 微信小程序授权登录：用一次性 {@code code} 换取 openid，按 openid 找到或创建用户。
+     *
+     * <p>首次登录（openid 未知）自动创建一名"纯微信"用户：无登录名与口令，套餐/角色初始化
+     * 与账号密码注册一致。已存在则在有新 unionid 时补写。返回的用户由调用方签发 JWT，
+     * 之后所有业务接口的鉴权与账号密码用户完全一致。</p>
+     *
+     * @throws ApiException WX_CODE_REQUIRED(code 缺失) / WX_LOGIN_FAILED(换取 openid 失败)
+     */
+    @Transactional
+    public User wxLogin(String rawCode) {
+        String code = rawCode == null ? "" : rawCode.trim();
+        if (code.isEmpty()) {
+            throw ApiException.wxCodeRequired();
+        }
+
+        WxSession session = weChatClient.jscode2session(code);
+        String openid = session.openid();
+        LocalDateTime now = LocalDateTime.now(clock);
+
+        User existing = userRepository.findByWxOpenid(openid).orElse(null);
+        if (existing != null) {
+            // 补写首次未下发、后续才获得的 unionid。
+            if (existing.getWxUnionid() == null && session.unionid() != null) {
+                existing.setWxUnionid(session.unionid());
+                existing.setUpdatedAt(now);
+                return userRepository.save(existing);
+            }
+            return existing;
+        }
+
+        User user = new User();
+        user.setUsername(null);
+        user.setPasswordHash(null);
+        user.setWxOpenid(openid);
+        user.setWxUnionid(session.unionid());
+        user.setPlan(Plan.FREE);
+        user.setRole(Role.USER);
+        user.setPlanStartedAt(now);
+        user.setPlanExpiresAt(now.plusDays(365));
+        user.setFailedLoginCount(0);
+        user.setLockedUntil(null);
+        user.setCreatedAt(now);
         user.setUpdatedAt(now);
         return userRepository.save(user);
     }

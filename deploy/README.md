@@ -84,5 +84,6 @@ certbot 会自动改 nginx 配置并续期。上 HTTPS 后 PWA「添加到主屏
 ## 注意
 
 - `env.conf` 含密码/密钥，权限 600，**不进仓库**（`.gitignore` 已忽略）。
-- 数据库迁移由 Flyway 在启动时执行；升级只需换 jar 重启，新迁移会自动应用。
+- 数据库迁移由 Flyway 在启动时执行；升级只需换 jar 重启，新迁移会自动应用（本次含用户表微信字段 V7）。
+- 启用微信小程序登录需在 `env.conf` 补 `YOUYU_WX_APPID` / `YOUYU_WX_SECRET`（见 `env.conf.example`），改完 `systemctl restart youyu` 生效。
 - 首次上线后建议改掉演示账号或不导入 seed（生产不需要 demo 数据）。

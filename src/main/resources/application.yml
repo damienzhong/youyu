@@ -48,6 +48,12 @@ app:
   auth:
     max-failed-attempts: ${YOUYU_AUTH_MAX_FAILED:5}
     lock-duration-minutes: ${YOUYU_AUTH_LOCK_MINUTES:15}
+  # 微信小程序登录：appid/secret 生产环境务必通过环境变量注入，切勿提交明文
+  wechat:
+    api-base-url: ${YOUYU_WX_API_BASE:https://api.weixin.qq.com}
+    miniapp:
+      appid: ${YOUYU_WX_APPID:}
+      secret: ${YOUYU_WX_SECRET:}
 
 # 健康检查端点
 management:

@@ -120,7 +120,7 @@ class PlanRolePropertyTest {
 
         InMemoryUserRepository repository = new InMemoryUserRepository();
         MutableClock clock = new MutableClock(Instant.ofEpochSecond(epoch1), ZONE);
-        AuthService service = new AuthService(repository, encoder, clock, 5, 15);
+        AuthService service = new AuthService(repository, encoder, clock, null, 5, 15);
 
         // 用户 1 在 epoch1 注册
         clock.setInstant(Instant.ofEpochSecond(epoch1));

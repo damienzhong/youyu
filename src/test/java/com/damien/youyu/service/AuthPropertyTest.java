@@ -46,7 +46,7 @@ class AuthPropertyTest {
 
     private AuthService newService() {
         repository = new InMemoryUserRepository();
-        return new AuthService(repository, encoder, Clock.fixed(T0, ZONE),
+        return new AuthService(repository, encoder, Clock.fixed(T0, ZONE), null,
                 MAX_FAILED_ATTEMPTS, LOCK_MINUTES);
     }
 

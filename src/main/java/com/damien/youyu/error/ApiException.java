@@ -73,6 +73,18 @@ public class ApiException extends RuntimeException {
                 "账号已被临时锁定，请稍后再试", null);
     }
 
+    /** 微信登录 code 缺失或为空。 */
+    public static ApiException wxCodeRequired() {
+        return new ApiException("WX_CODE_REQUIRED", HttpStatus.BAD_REQUEST,
+                "缺少微信登录凭证 code", "code");
+    }
+
+    /** 微信登录失败：code 无效/过期，或换取 openid 时被微信拒绝。 */
+    public static ApiException wxLoginFailed(String message) {
+        return new ApiException("WX_LOGIN_FAILED", HttpStatus.UNAUTHORIZED,
+                message == null ? "微信登录失败，请重试" : message, null);
+    }
+
     /** 未认证（缺少/无效令牌）。 */
     public static ApiException unauthenticated() {
         return new ApiException("UNAUTHENTICATED", HttpStatus.UNAUTHORIZED, "未认证", null);

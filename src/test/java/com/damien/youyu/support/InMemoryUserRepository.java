@@ -45,6 +45,13 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<User> findByWxOpenid(String wxOpenid) {
+        return byId.values().stream()
+                .filter(u -> u.getWxOpenid() != null && u.getWxOpenid().equals(wxOpenid))
+                .findFirst();
+    }
+
+    @Override
     public <S extends User> S save(S entity) {
         if (entity.getId() == null) {
             entity.setId(sequence.incrementAndGet());

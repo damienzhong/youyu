@@ -21,4 +21,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     /** 账号标识是否已被占用。 */
     boolean existsByUsername(String username);
+
+    /** 按微信 openid 查找用户（微信授权登录用）。 */
+    Optional<User> findByWxOpenid(String wxOpenid);
 }

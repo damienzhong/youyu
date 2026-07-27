@@ -11,6 +11,7 @@ import com.damien.youyu.api.dto.LoginRequest;
 import com.damien.youyu.api.dto.LoginResponse;
 import com.damien.youyu.api.dto.RegisterRequest;
 import com.damien.youyu.api.dto.UserSummaryResponse;
+import com.damien.youyu.api.dto.WxLoginRequest;
 import com.damien.youyu.domain.User;
 import com.damien.youyu.security.JwtService;
 import com.damien.youyu.service.AuthService;
@@ -45,6 +46,17 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
         User user = authService.login(req.username(), req.password());
+        String token = jwtService.generateToken(user);
+        return ResponseEntity.ok(LoginResponse.of(token, UserSummaryResponse.from(user)));
+    }
+
+    /**
+     * 微信小程序登录：用一次性 code 换取 openid，找到或创建用户后返回令牌与用户摘要。
+     * 返回结构与账号密码登录一致，前端拿到 token 后的处理无需区分登录方式。
+     */
+    @PostMapping("/wx-login")
+    public ResponseEntity<LoginResponse> wxLogin(@RequestBody WxLoginRequest req) {
+        User user = authService.wxLogin(req.code());
         String token = jwtService.generateToken(user);
         return ResponseEntity.ok(LoginResponse.of(token, UserSummaryResponse.from(user)));
     }

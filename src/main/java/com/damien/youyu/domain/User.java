@@ -25,13 +25,21 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 账号标识(登录名)，去空白后 1-64，全局唯一。 */
-    @Column(name = "username", nullable = false, length = 64, unique = true)
+    /** 账号标识(登录名)，去空白后 1-64，全局唯一。纯微信用户可为空。 */
+    @Column(name = "username", length = 64, unique = true)
     private String username;
 
-    /** BCrypt 加盐哈希(盐内嵌)。 */
-    @Column(name = "password_hash", nullable = false, length = 100)
+    /** BCrypt 加盐哈希(盐内嵌)。纯微信用户可为空。 */
+    @Column(name = "password_hash", length = 100)
     private String passwordHash;
+
+    /** 微信小程序 openid（同一小程序内唯一），微信用户的稳定标识。 */
+    @Column(name = "wx_openid", length = 64, unique = true)
+    private String wxOpenid;
+
+    /** 微信开放平台 unionid（多端/公众号打通用），可为空。 */
+    @Column(name = "wx_unionid", length = 64)
+    private String wxUnionid;
 
     /** 套餐：free/pro/lifetime。 */
     @Convert(converter = PlanConverter.class)
@@ -91,6 +99,22 @@ public class User {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getWxOpenid() {
+        return wxOpenid;
+    }
+
+    public void setWxOpenid(String wxOpenid) {
+        this.wxOpenid = wxOpenid;
+    }
+
+    public String getWxUnionid() {
+        return wxUnionid;
+    }
+
+    public void setWxUnionid(String wxUnionid) {
+        this.wxUnionid = wxUnionid;
     }
 
     public Plan getPlan() {

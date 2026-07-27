@@ -41,7 +41,7 @@ class AuthServiceTest {
     private final PasswordEncoder encoder = new BCryptPasswordEncoder();
 
     private AuthService serviceAt(Instant instant) {
-        return new AuthService(userRepository, encoder, Clock.fixed(instant, ZONE), 5, 15);
+        return new AuthService(userRepository, encoder, Clock.fixed(instant, ZONE), null, 5, 15);
     }
 
     // ---------------- 注册 ----------------
