@@ -223,6 +223,67 @@ class ReportServiceTest {
         assertThat(ex.getCode()).isEqualTo("REPORT_RANGE_INVALID");
     }
 
+    // ---------------- 分类占比：笔数 + 收入类别 ----------------
+
+    @Test
+    void categoryReport_includesPerCategoryCount() {
+        Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
+        expenseWithCategory(USER, "20.00", food.getId(), dt("2025-06-03T12:00:00"));
+        expenseWithCategory(USER, "30.00", food.getId(), dt("2025-06-04T12:00:00"));
+
+        CategoryReportResponse r = service().categoryReport(
+                USER, LocalDate.of(2025, 6, 1), LocalDate.of(2025, 6, 30));
+
+        assertThat(r.categories()).hasSize(1);
+        assertThat(r.categories().get(0).amount()).isEqualByComparingTo("50.00");
+        assertThat(r.categories().get(0).count()).isEqualTo(2);
+    }
+
+    @Test
+    void categoryReport_incomeKind_aggregatesIncomeOnly() {
+        Category salary = category(USER, CategoryKind.INCOME, "工资");
+        incomeWithCategory(USER, "8000.00", salary.getId(), dt("2025-06-10T09:00:00"));
+        expense(USER, "100.00", dt("2025-06-11T12:00:00")); // 支出不计入收入类别
+
+        CategoryReportResponse r = service().categoryReport(
+                USER, LocalDate.of(2025, 6, 1), LocalDate.of(2025, 6, 30), TransactionType.INCOME);
+
+        assertThat(r.totalExpense()).isEqualByComparingTo("8000.00"); // 字段承载所选类别总额
+        assertThat(r.categories()).hasSize(1);
+        assertThat(r.categories().get(0).categoryId()).isEqualTo(salary.getId());
+        assertThat(r.categories().get(0).count()).isEqualTo(1);
+    }
+
+    // ---------------- 区间收支报表 ----------------
+
+    @Test
+    void rangeReport_totalsAndSparseDailyPoints_excludeTransfer() {
+        income(USER, "1000.00", dt("2025-06-01T09:00:00"));
+        expense(USER, "40.00", dt("2025-06-01T20:00:00"));
+        expense(USER, "60.00", dt("2025-06-03T12:00:00"));
+        transfer(USER, "500.00", dt("2025-06-02T10:00:00")); // 排除
+
+        var r = service().rangeReport(USER, LocalDate.of(2025, 6, 1), LocalDate.of(2025, 6, 30));
+
+        assertThat(r.income()).isEqualByComparingTo("1000.00");
+        assertThat(r.expense()).isEqualByComparingTo("100.00");
+        assertThat(r.balance()).isEqualByComparingTo("900.00");
+        // 仅 6/1 与 6/3 有活动（6/2 只有转账，被排除）。
+        assertThat(r.days()).hasSize(2);
+        assertThat(r.days().get(0).date()).isEqualTo("2025-06-01");
+        assertThat(r.days().get(0).income()).isEqualByComparingTo("1000.00");
+        assertThat(r.days().get(0).expense()).isEqualByComparingTo("40.00");
+        assertThat(r.days().get(1).date()).isEqualTo("2025-06-03");
+        assertThat(r.days().get(1).expense()).isEqualByComparingTo("60.00");
+    }
+
+    @Test
+    void rangeReport_overMaxDays_rejected() {
+        ApiException ex = catchThrowableOfType(() -> service().rangeReport(
+                USER, LocalDate.of(2024, 1, 1), LocalDate.of(2025, 1, 2)), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("REPORT_RANGE_INVALID");
+    }
+
     // ---------------- 测试数据构造 ----------------
 
     private static LocalDateTime dt(String iso) {
@@ -249,6 +310,10 @@ class ReportServiceTest {
 
     private void expenseWithCategory(long userId, String amount, Long categoryId, LocalDateTime when) {
         save(userId, TransactionType.EXPENSE, amount, when, categoryId, null, null);
+    }
+
+    private void incomeWithCategory(long userId, String amount, Long categoryId, LocalDateTime when) {
+        save(userId, TransactionType.INCOME, amount, when, categoryId, null, null);
     }
 
     private void transfer(long userId, String amount, LocalDateTime when) {

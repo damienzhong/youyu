@@ -13,7 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
+import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
+import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.ReportService;
@@ -55,15 +57,28 @@ public class ReportController {
         return ResponseEntity.ok(reportService.monthlyReport(userId, ym));
     }
 
-    /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界。 */
+    /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）。 */
     @GetMapping("/category")
     public ResponseEntity<CategoryReportResponse> category(
+            @RequestParam(name = "from") String from,
+            @RequestParam(name = "to") String to,
+            @RequestParam(name = "kind", required = false) String kind) {
+        Long userId = currentUser.requireUserId();
+        LocalDate fromDate = parseDate(from, "from");
+        LocalDate toDate = parseDate(to, "to");
+        TransactionType type = parseKind(kind);
+        return ResponseEntity.ok(reportService.categoryReport(userId, fromDate, toDate, type));
+    }
+
+    /** 区间收支报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；返回总收支 + 按日明细。 */
+    @GetMapping("/range")
+    public ResponseEntity<RangeReportResponse> range(
             @RequestParam(name = "from") String from,
             @RequestParam(name = "to") String to) {
         Long userId = currentUser.requireUserId();
         LocalDate fromDate = parseDate(from, "from");
         LocalDate toDate = parseDate(to, "to");
-        return ResponseEntity.ok(reportService.categoryReport(userId, fromDate, toDate));
+        return ResponseEntity.ok(reportService.rangeReport(userId, fromDate, toDate));
     }
 
     /** 月度趋势报表：fromMonth/toMonth 为 {@code YYYY-MM}。 */
@@ -91,5 +106,20 @@ public class ReportController {
         } catch (DateTimeParseException ex) {
             throw ApiException.reportParamInvalid(field, "日期格式应为 YYYY-MM-DD");
         }
+    }
+
+    /** 解析分类统计类别；缺省为支出，仅接受 expense/income（大小写不敏感）。 */
+    private TransactionType parseKind(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return TransactionType.EXPENSE;
+        }
+        String v = raw.trim().toUpperCase();
+        if ("INCOME".equals(v)) {
+            return TransactionType.INCOME;
+        }
+        if ("EXPENSE".equals(v)) {
+            return TransactionType.EXPENSE;
+        }
+        throw ApiException.reportParamInvalid("kind", "统计类别仅支持 expense 或 income");
     }
 }

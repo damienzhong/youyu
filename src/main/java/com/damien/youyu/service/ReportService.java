@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.CategoryReportResponse.CategoryShare;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
+import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse.MonthPoint;
 import com.damien.youyu.domain.Category;
@@ -54,6 +55,9 @@ public class ReportService {
 
     /** 月度趋势允许的最大自然月数（含起止，需求 7.6）。 */
     static final int TREND_MAX_MONTHS = 24;
+
+    /** 区间报表允许的最大自然日数（含起止），约一年，防止超大区间。 */
+    static final int RANGE_MAX_DAYS = 366;
 
     private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(SCALE, RoundingMode.HALF_UP);
     private static final BigDecimal HUNDRED = new BigDecimal("100");
@@ -96,25 +100,39 @@ public class ReportService {
      */
     @Transactional(readOnly = true)
     public CategoryReportResponse categoryReport(Long userId, LocalDate from, LocalDate to) {
+        return categoryReport(userId, from, to, TransactionType.EXPENSE);
+    }
+
+    /**
+     * 分类占比报表（按类别：支出/收入）：选定日期范围（含起止边界）内各分类的金额、占该类别总额百分比
+     * 与笔数（需求 7.2、7.3、7.5、7.7）。
+     *
+     * @param kind 统计类别：{@link TransactionType#EXPENSE} 支出 / {@link TransactionType#INCOME} 收入
+     */
+    @Transactional(readOnly = true)
+    public CategoryReportResponse categoryReport(Long userId, LocalDate from, LocalDate to,
+            TransactionType kind) {
         // 含起止边界：覆盖 to 当日整天，用半开区间 [from 00:00, (to+1) 00:00)。
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.plusDays(1).atStartOfDay();
 
         List<Transaction> txs = fetchHalfOpen(userId, fromDt, toDt).stream()
-                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getType() == kind)
                 .toList();
 
-        // 按分类聚合支出金额（保持稳定顺序），并求总支出。
+        // 按分类聚合金额与笔数（保持稳定顺序），并求总额。
         Map<Long, BigDecimal> amountByCategory = new LinkedHashMap<>();
+        Map<Long, Long> countByCategory = new LinkedHashMap<>();
         BigDecimal total = BigDecimal.ZERO;
         for (Transaction t : txs) {
             amountByCategory.merge(t.getCategoryId(), t.getAmount(), BigDecimal::add);
+            countByCategory.merge(t.getCategoryId(), 1L, Long::sum);
             total = total.add(t.getAmount());
         }
 
-        BigDecimal totalExpense = scale(total);
-        if (amountByCategory.isEmpty() || totalExpense.compareTo(ZERO) == 0) {
-            // 需求 7.7：范围内无支出，返回 0 与空分类列表。
+        BigDecimal totalAmount = scale(total);
+        if (amountByCategory.isEmpty() || totalAmount.compareTo(ZERO) == 0) {
+            // 需求 7.7：范围内无该类别交易，返回 0 与空分类列表。
             return new CategoryReportResponse(from.toString(), to.toString(), ZERO, List.of());
         }
 
@@ -138,14 +156,69 @@ public class ReportService {
             } else {
                 pct = e.getValue()
                         .multiply(HUNDRED)
-                        .divide(totalExpense, SCALE, RoundingMode.HALF_UP);
+                        .divide(totalAmount, SCALE, RoundingMode.HALF_UP);
                 accumulatedPct = accumulatedPct.add(pct);
             }
             shares.add(new CategoryShare(
-                    e.getKey(), nameById.get(e.getKey()), amount, pct));
+                    e.getKey(), nameById.get(e.getKey()), amount, pct,
+                    countByCategory.getOrDefault(e.getKey(), 0L)));
         }
 
-        return new CategoryReportResponse(from.toString(), to.toString(), totalExpense, shares);
+        return new CategoryReportResponse(from.toString(), to.toString(), totalAmount, shares);
+    }
+
+    /**
+     * 区间收支报表：给定日期范围（含起止边界）的总收入/支出/结余，以及有活动自然日的按日明细（需求 7.1、7.5、7.7）。
+     *
+     * <p>供统计页「周/月/自定义」视角的 KPI、按日柱状图与收支明细表使用。区间跨度超过
+     * {@value #RANGE_MAX_DAYS} 天则拒绝（{@code REPORT_RANGE_INVALID}）。</p>
+     *
+     * @throws ApiException REPORT_RANGE_INVALID（起始晚于结束，或跨度超过上限）
+     */
+    @Transactional(readOnly = true)
+    public RangeReportResponse rangeReport(Long userId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw ApiException.reportRangeInvalid();
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > RANGE_MAX_DAYS) {
+            throw ApiException.reportRangeInvalid();
+        }
+
+        LocalDateTime fromDt = from.atStartOfDay();
+        LocalDateTime toDt = to.plusDays(1).atStartOfDay();
+        List<Transaction> txs = fetchHalfOpen(userId, fromDt, toDt);
+
+        BigDecimal income = BigDecimal.ZERO;
+        BigDecimal expense = BigDecimal.ZERO;
+        // 按日聚合（稀疏，仅有活动的日期），保持日期升序。
+        Map<LocalDate, BigDecimal[]> byDay = new java.util.TreeMap<>();
+        for (Transaction t : txs) {
+            if (t.getType() == TransactionType.TRANSFER) {
+                continue; // 报表排除转账（需求 7.5）
+            }
+            LocalDate day = t.getOccurredAt().toLocalDate();
+            BigDecimal[] slot = byDay.computeIfAbsent(day,
+                    d -> new BigDecimal[] { BigDecimal.ZERO, BigDecimal.ZERO });
+            if (t.getType() == TransactionType.INCOME) {
+                slot[0] = slot[0].add(t.getAmount());
+                income = income.add(t.getAmount());
+            } else {
+                slot[1] = slot[1].add(t.getAmount());
+                expense = expense.add(t.getAmount());
+            }
+        }
+
+        List<RangeReportResponse.DayPoint> days = new ArrayList<>(byDay.size());
+        for (Map.Entry<LocalDate, BigDecimal[]> e : byDay.entrySet()) {
+            days.add(new RangeReportResponse.DayPoint(
+                    e.getKey().toString(), scale(e.getValue()[0]), scale(e.getValue()[1])));
+        }
+
+        BigDecimal incomeS = scale(income);
+        BigDecimal expenseS = scale(expense);
+        return new RangeReportResponse(
+                from.toString(), to.toString(),
+                incomeS, expenseS, scale(incomeS.subtract(expenseS)), days);
     }
 
     /**

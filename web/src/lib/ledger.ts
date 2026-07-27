@@ -287,27 +287,34 @@ export async function fetchMonthlyReport(month: string): Promise<MonthlyReport> 
   return { month, totalIncome, totalExpense, balance }
 }
 
-/** 分类占比报表中的单个分类项（金额 + 占该范围总支出的百分比）。 */
+/** 分类占比报表中的单个分类项（金额 + 占该类别总额的百分比 + 笔数）。 */
 export interface CategoryReportItem {
   categoryId: number
   amount: string
-  /** 占总支出百分比（保留两位小数，各项之和约为 100，见需求 7.3）。 */
+  /** 占该类别（支出/收入）总额百分比（保留两位小数，各项之和约为 100，见需求 7.3）。 */
   percentage: number
+  /** 该分类在范围内的交易笔数。 */
+  count: number
 }
 
 /** 分类占比报表（见 design「Report 模块」，GET /reports/category）。 */
 export interface CategoryReport {
+  /** 所选类别（支出/收入）在范围内的总额（字段名沿用 totalExpense）。 */
   totalExpense: string
   categories: CategoryReportItem[]
 }
 
 /**
- * 拉取分类占比报表；from / to 为闭区间日期（`YYYY-MM-DD`，按 UTC+8）。
- * 后端返回 { totalExpense, categories:[{ categoryId, amount, percentage }] }（排除转账）。
- * 前端按金额降序排序，便于图例展示。
+ * 拉取分类占比报表；from / to 为闭区间日期（`YYYY-MM-DD`，按 UTC+8）；kind 为 expense/income（缺省 expense）。
+ * 后端返回 { totalExpense, categories:[{ categoryId, amount, percentage, count }] }（排除转账）。
+ * 前端按金额降序排序，便于排行/图例展示。
  */
-export async function fetchCategoryReport(from: string, to: string): Promise<CategoryReport> {
-  const data = await http.get<unknown, any>('/reports/category', { params: { from, to } })
+export async function fetchCategoryReport(
+  from: string,
+  to: string,
+  kind: 'expense' | 'income' = 'expense',
+): Promise<CategoryReport> {
+  const data = await http.get<unknown, any>('/reports/category', { params: { from, to, kind } })
   const totalExpense = String(data?.totalExpense ?? data?.total_expense ?? '0')
   const rawList: any[] = Array.isArray(data?.categories) ? data.categories : []
   const categories = rawList
@@ -315,9 +322,48 @@ export async function fetchCategoryReport(from: string, to: string): Promise<Cat
       categoryId: Number(c?.categoryId ?? c?.category_id),
       amount: String(c?.amount ?? '0'),
       percentage: Number(c?.percentage ?? 0),
+      count: Number(c?.count ?? 0),
     }))
     .sort((a, b) => Number(b.amount) - Number(a.amount))
   return { totalExpense, categories }
+}
+
+/** 区间收支报表中的按日明细项。 */
+export interface RangeDayPoint {
+  date: string
+  income: string
+  expense: string
+}
+
+/** 区间收支报表（GET /reports/range）：总收支 + 有活动自然日明细（稀疏）。 */
+export interface RangeReport {
+  from: string
+  to: string
+  income: string
+  expense: string
+  balance: string
+  days: RangeDayPoint[]
+}
+
+/**
+ * 拉取区间收支报表；from / to 为闭区间日期（`YYYY-MM-DD`）。
+ * 后端返回总收入/支出/结余与「有收支活动」的自然日明细（升序，稀疏）。跨度上限约一年。
+ */
+export async function fetchRangeReport(from: string, to: string): Promise<RangeReport> {
+  const data = await http.get<unknown, any>('/reports/range', { params: { from, to } })
+  const rawDays: any[] = Array.isArray(data?.days) ? data.days : []
+  return {
+    from: String(data?.from ?? from),
+    to: String(data?.to ?? to),
+    income: String(data?.income ?? '0'),
+    expense: String(data?.expense ?? '0'),
+    balance: String(data?.balance ?? '0'),
+    days: rawDays.map((d) => ({
+      date: String(d?.date ?? ''),
+      income: String(d?.income ?? '0'),
+      expense: String(d?.expense ?? '0'),
+    })),
+  }
 }
 
 /** 月度趋势中的单月收支（无数据月各项为 0，见需求 7.4）。 */

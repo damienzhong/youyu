@@ -18,11 +18,12 @@ public record CategoryReportResponse(
         BigDecimal totalExpense,
         List<CategoryShare> categories) {
 
-    /** 单个支出分类的金额与占总支出的百分比。 */
+    /** 单个分类的金额、占所选类别（支出/收入）总额的百分比与笔数。 */
     public record CategoryShare(
             Long categoryId,
             String categoryName,
             BigDecimal amount,
-            BigDecimal percentage) {
+            BigDecimal percentage,
+            long count) {
     }
 }

@@ -31,7 +31,8 @@ const routes: RouteRecordRaw[] = [
       // 资产页自带竞品式顶栏（返回 + 居中标题 + ··· 菜单），隐藏 AppShell 通用返回条。
       { path: 'accounts', component: () => import('@/views/AccountsView.vue'), meta: { hideBackBar: true } },
       { path: 'categories', component: () => import('@/views/CategoriesView.vue') },
-      { path: 'reports', component: () => import('@/views/ReportsView.vue') },
+      // 统计页自带竞品式顶栏（返回 + 居中标题），隐藏 AppShell 通用返回条。
+      { path: 'reports', component: () => import('@/views/ReportsView.vue'), meta: { hideBackBar: true } },
       { path: 'budget', component: () => import('@/views/BudgetView.vue') },
       { path: 'export', component: () => import('@/views/ExportView.vue') },
     ],
