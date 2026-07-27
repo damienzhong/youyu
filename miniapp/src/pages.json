@@ -11,6 +11,18 @@
       "style": {
         "navigationBarTitleText": "有余"
       }
+    },
+    {
+      "path": "pages/record/record",
+      "style": {
+        "navigationBarTitleText": "记一笔"
+      }
+    },
+    {
+      "path": "pages/accounts/accounts",
+      "style": {
+        "navigationBarTitleText": "账户"
+      }
     }
   ],
   "globalStyle": {
