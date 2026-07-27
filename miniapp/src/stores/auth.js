@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { STORAGE_KEYS } from '../utils/config'
-import { wxLogin as apiWxLogin } from '../api/auth'
+import {
+  wxLogin as apiWxLogin,
+  passwordLogin as apiPasswordLogin,
+  register as apiRegister
+} from '../api/auth'
 
 /**
  * 登录态：持有 token 与用户摘要，负责微信登录与登出。
@@ -26,6 +30,19 @@ export const useAuthStore = defineStore('auth', {
       const res = await apiWxLogin(code)
       this.setSession(res.token, res.user)
       return res.user
+    },
+
+    /** 账号密码登录（浏览器/H5 联调或备用）。 */
+    async loginWithPassword(username, password) {
+      const res = await apiPasswordLogin(username, password)
+      this.setSession(res.token, res.user)
+      return res.user
+    },
+
+    /** 注册后自动登录，返回用户摘要。 */
+    async registerAndLogin(username, password) {
+      await apiRegister(username, password)
+      return this.loginWithPassword(username, password)
     },
 
     setSession(token, user) {
