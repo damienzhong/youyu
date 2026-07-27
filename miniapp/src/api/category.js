@@ -23,3 +23,17 @@ export function flattenCategories(nodes) {
   }
   return out
 }
+
+/**
+ * 把完整分类树（含 expense/income）映射为 { [id]: label }，供明细列表按 categoryId 显示名称。
+ * @param {{expense:Array,income:Array}} tree
+ */
+export function buildCategoryLabelMap(tree) {
+  const map = {}
+  for (const kind of ['expense', 'income']) {
+    for (const opt of flattenCategories(tree?.[kind])) {
+      map[opt.id] = opt.label
+    }
+  }
+  return map
+}

@@ -14,3 +14,8 @@ export function createTransaction(payload) {
 export function listTransactionsByMonth(month) {
   return http.get(`/transactions?month=${encodeURIComponent(month)}`)
 }
+
+/** 删除交易（后端会回滚其对账户余额的影响）。 */
+export function deleteTransaction(id) {
+  return http.del(`/transactions/${id}`)
+}

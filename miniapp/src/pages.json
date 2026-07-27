@@ -23,6 +23,12 @@
       "style": {
         "navigationBarTitleText": "账户"
       }
+    },
+    {
+      "path": "pages/records/records",
+      "style": {
+        "navigationBarTitleText": "本月明细"
+      }
     }
   ],
   "globalStyle": {
