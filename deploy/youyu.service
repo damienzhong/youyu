@@ -1,0 +1,19 @@
+[Unit]
+Description=Youyu Ledger (有余记账)
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=youyu
+Group=youyu
+WorkingDirectory=/opt/youyu/app
+EnvironmentFile=/opt/youyu/app/env.conf
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar youyu.jar
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

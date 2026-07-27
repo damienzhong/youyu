@@ -5,6 +5,9 @@
 .env
 *.local
 application-local.yml
+# 部署环境变量（含密码/密钥）；只提交 env.conf.example
+deploy/env.conf
+env.conf
 
 # Java / Maven
 target/
