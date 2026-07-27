@@ -13,6 +13,14 @@ export function createAccount(payload) {
   return http.post('/accounts', payload)
 }
 
+/**
+ * 更新账户（名称/类型/是否计入总资产等；余额不变）。
+ * 注意：includeInTotal/hidden/note 会被整体覆盖，编辑时应带上现值以免被重置。
+ */
+export function updateAccount(id, payload) {
+  return http.put(`/accounts/${id}`, payload)
+}
+
 /** 删除账户（无关联交易才允许）。 */
 export function deleteAccount(id) {
   return http.del(`/accounts/${id}`)
