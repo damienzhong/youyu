@@ -9,7 +9,11 @@ import {
   accountTypeLabel,
   ACCOUNT_TYPES
 } from '../../api/account'
+import { listAllAccounts } from '../../api/aggregate'
+import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
+
+const ledgerStore = useLedgerStore()
 
 const ACCOUNT_DOT = {
   CASH: '#16a34a', BANK_CARD: '#0ea5e9', ALIPAY: '#1677ff',
@@ -34,7 +38,9 @@ const isEditing = computed(() => form.value.id !== null)
 async function load() {
   loading.value = true
   try {
-    accounts.value = await listAccounts()
+    // 「全部」模式：聚合用户级账户 + 可访问协作账本的账本级账户（只读）。
+    // 具体账本模式：request 层自动带当前账本头，后端按账本类型返回对应账户池。
+    accounts.value = ledgerStore.isAll ? await listAllAccounts() : await listAccounts()
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
@@ -52,7 +58,8 @@ function openEdit(acc) {
   const idx = Math.max(ACCOUNT_TYPES.findIndex((t) => t.value === acc.type), 0)
   form.value = {
     id: acc.id, name: acc.name, typeIndex: idx, initialBalance: '',
-    includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note, _creditLimit: acc.creditLimit
+    includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note,
+    _creditLimit: acc.creditLimit, _ledgerId: acc.ledgerId
   }
   showForm.value = true
 }
@@ -76,7 +83,7 @@ async function submit() {
       await updateAccount(form.value.id, {
         name, type, includeInTotal: form.value.includeInTotal,
         hidden: form.value._hidden, note: form.value._note, creditLimit: form.value._creditLimit
-      })
+      }, form.value._ledgerId)
     } else {
       await createAccount({
         name, type,
@@ -100,7 +107,7 @@ function confirmDelete(acc) {
     success: async (r) => {
       if (!r.confirm) return
       try {
-        await deleteAccount(acc.id)
+        await deleteAccount(acc.id, acc.ledgerId)
         await load()
       } catch (e) {
         uni.showToast({ title: e.message || '删除失败', icon: 'none' })
