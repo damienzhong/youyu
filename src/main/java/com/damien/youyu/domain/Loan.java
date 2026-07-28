@@ -31,6 +31,10 @@ public class Loan {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /** 归属账本 id（多账本隔离键）。 */
+    @Column(name = "ledger_id")
+    private Long ledgerId;
+
     /** 借贷方向：BORROW 借入 / LEND 借出。 */
     @Enumerated(EnumType.STRING)
     @Column(name = "direction", nullable = false, length = 10)
@@ -84,6 +88,14 @@ public class Loan {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long getLedgerId() {
+        return ledgerId;
+    }
+
+    public void setLedgerId(Long ledgerId) {
+        this.ledgerId = ledgerId;
     }
 
     public LoanDirection getDirection() {

@@ -28,6 +28,10 @@ public class CategoryBudget {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /** 归属账本 id（多账本隔离键）。 */
+    @Column(name = "ledger_id")
+    private Long ledgerId;
+
     @Column(name = "budget_month", nullable = false, length = 7)
     private String month;
 
@@ -61,6 +65,14 @@ public class CategoryBudget {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long getLedgerId() {
+        return ledgerId;
+    }
+
+    public void setLedgerId(Long ledgerId) {
+        this.ledgerId = ledgerId;
     }
 
     public String getMonth() {

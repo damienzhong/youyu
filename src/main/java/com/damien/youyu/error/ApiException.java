@@ -73,6 +73,18 @@ public class ApiException extends RuntimeException {
                 "账号已被临时锁定，请稍后再试", null);
     }
 
+    /** 账本名称非法（去空白后为空或长度超过 50）。 */
+    public static ApiException ledgerNameInvalid() {
+        return new ApiException("LEDGER_NAME_INVALID", HttpStatus.BAD_REQUEST,
+                "账本名称长度需为 1 到 50 个字符", "name");
+    }
+
+    /** 不可删除最后一个账本（每个用户至少保留一个账本）。 */
+    public static ApiException ledgerLastOne() {
+        return new ApiException("LEDGER_LAST_ONE", HttpStatus.CONFLICT,
+                "至少保留一个账本，不能删除最后一个", null);
+    }
+
     /** 微信登录 code 缺失或为空。 */
     public static ApiException wxCodeRequired() {
         return new ApiException("WX_CODE_REQUIRED", HttpStatus.BAD_REQUEST,

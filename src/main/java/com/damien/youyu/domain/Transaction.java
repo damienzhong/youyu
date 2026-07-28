@@ -37,6 +37,10 @@ public class Transaction {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /** 归属账本 id（多账本隔离键）。 */
+    @Column(name = "ledger_id")
+    private Long ledgerId;
+
     /** 交易类型：expense/income/transfer。 */
     @Convert(converter = TransactionTypeConverter.class)
     @Column(name = "type", nullable = false, length = 10)
@@ -98,6 +102,14 @@ public class Transaction {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long getLedgerId() {
+        return ledgerId;
+    }
+
+    public void setLedgerId(Long ledgerId) {
+        this.ledgerId = ledgerId;
     }
 
     public TransactionType getType() {

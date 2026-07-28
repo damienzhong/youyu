@@ -29,6 +29,10 @@ public class Category {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
+    /** 归属账本 id（多账本隔离键）。 */
+    @Column(name = "ledger_id")
+    private Long ledgerId;
+
     /** 父分类 id，空=父分类。 */
     @Column(name = "parent_id")
     private Long parentId;
@@ -66,6 +70,14 @@ public class Category {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public Long getLedgerId() {
+        return ledgerId;
+    }
+
+    public void setLedgerId(Long ledgerId) {
+        this.ledgerId = ledgerId;
     }
 
     public Long getParentId() {
