@@ -18,8 +18,11 @@ function parseFilename(disposition, format) {
  */
 export function exportData(format) {
   const token = uni.getStorageSync(STORAGE_KEYS.token)
+  const ledgerId = uni.getStorageSync(STORAGE_KEYS.ledgerId)
   const url = `${API_BASE}/export?format=${format}`
-  const header = token ? { Authorization: `Bearer ${token}` } : {}
+  const header = {}
+  if (token) header.Authorization = `Bearer ${token}`
+  if (ledgerId) header['X-Ledger-Id'] = String(ledgerId)
 
   // #ifdef H5
   return fetch(url, { headers: header }).then((res) => {
@@ -62,6 +65,7 @@ export function exportData(format) {
  */
 export function importRestore(jsonText) {
   const token = uni.getStorageSync(STORAGE_KEYS.token)
+  const ledgerId = uni.getStorageSync(STORAGE_KEYS.ledgerId)
   return new Promise((resolve, reject) => {
     uni.request({
       url: `${API_BASE}/import`,
@@ -69,7 +73,8 @@ export function importRestore(jsonText) {
       data: jsonText,
       header: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(ledgerId ? { 'X-Ledger-Id': String(ledgerId) } : {})
       },
       success: (res) => {
         if (res.statusCode >= 200 && res.statusCode < 300) resolve(res.data)

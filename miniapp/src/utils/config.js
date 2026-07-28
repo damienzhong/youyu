@@ -5,5 +5,6 @@ export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8090/
 // 本地存储键，集中管理避免散落魔法字符串。
 export const STORAGE_KEYS = {
   token: 'youyu_token',
-  user: 'youyu_user'
+  user: 'youyu_user',
+  ledgerId: 'youyu_ledger_id'
 }

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
+import { useLedgerStore } from '../../stores/ledger'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth } from '../../api/transaction'
@@ -16,6 +17,7 @@ import {
 } from '../../utils/format'
 
 const auth = useAuthStore()
+const ledgerStore = useLedgerStore()
 
 const month = ref(currentMonth())
 const loading = ref(false)
@@ -66,13 +68,44 @@ async function load() {
   }
 }
 
-onShow(() => {
+onShow(async () => {
   if (!auth.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/login' })
     return
   }
+  // 先确保当前账本已解析（设置 X-Ledger-Id），再拉取该账本数据
+  try {
+    await ledgerStore.load()
+  } catch (e) {
+    /* 账本加载失败不阻断，后端会回退默认账本 */
+  }
   load()
 })
+
+// 账本切换器：账本数≤5 用动作面板快速切换，更多则进管理页
+function openLedgerSwitcher() {
+  const list = ledgerStore.ledgers
+  if (!list.length || list.length > 5) {
+    uni.navigateTo({ url: '/pages/ledgers/ledgers' })
+    return
+  }
+  const items = list.map((l) => (l.id === ledgerStore.currentLedgerId ? `${l.name}（当前）` : l.name))
+  items.push('⚙️ 管理账本')
+  uni.showActionSheet({
+    itemList: items,
+    success: (r) => {
+      if (r.tapIndex === list.length) {
+        uni.navigateTo({ url: '/pages/ledgers/ledgers' })
+        return
+      }
+      const picked = list[r.tapIndex]
+      if (picked && picked.id !== ledgerStore.currentLedgerId) {
+        ledgerStore.setCurrent(picked.id)
+        uni.reLaunch({ url: '/pages/index/index' })
+      }
+    }
+  })
+}
 
 // 按天分组（后端已倒序）
 const grouped = computed(() => {
@@ -142,7 +175,11 @@ function goAccounts() {
     <!-- 概览主卡：品牌绿渐变 -->
     <view class="overview">
       <view class="ov-top">
-        <view class="brand"><text class="brand-mk">¥</text><text>有余</text></view>
+        <view class="brand" @click="openLedgerSwitcher">
+          <text class="brand-mk">¥</text>
+          <text>{{ ledgerStore.currentName }}</text>
+          <text class="brand-caret">▾</text>
+        </view>
         <view class="month-chip">{{ monthLabel(month) }}</view>
       </view>
       <text class="ov-label">本月结余</text>
@@ -252,6 +289,10 @@ function goAccounts() {
   line-height: 48rpx;
   font-size: 28rpx;
   font-weight: 800;
+}
+.brand-caret {
+  font-size: 22rpx;
+  opacity: 0.9;
 }
 .month-chip {
   padding: 8rpx 22rpx;

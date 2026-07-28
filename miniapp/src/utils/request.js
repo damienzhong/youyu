@@ -14,6 +14,11 @@ export function request(options) {
   if (auth && token) {
     header.Authorization = `Bearer ${token}`
   }
+  // 当前账本：后端据此做多账本隔离；未设置时后端回退到默认账本。
+  const ledgerId = uni.getStorageSync(STORAGE_KEYS.ledgerId)
+  if (ledgerId) {
+    header['X-Ledger-Id'] = String(ledgerId)
+  }
 
   return new Promise((resolve, reject) => {
     uni.request({

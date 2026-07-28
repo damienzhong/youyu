@@ -57,6 +57,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       uni.removeStorageSync(STORAGE_KEYS.token)
       uni.removeStorageSync(STORAGE_KEYS.user)
+      uni.removeStorageSync(STORAGE_KEYS.ledgerId)
     }
   }
 })

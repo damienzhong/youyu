@@ -16,6 +16,7 @@ onShow(() => {
 })
 
 const entries = [
+  { key: 'ledgers', icon: '📚', label: '账本管理', url: '/pages/ledgers/ledgers' },
   { key: 'budget', icon: '🧮', label: '预算管理', url: '/pages/budget/budget' },
   { key: 'bills', icon: '📥', label: '账单导入', url: '/pages/billimport/billimport' },
   { key: 'categories', icon: '🏷️', label: '分类管理', url: '/pages/categories/categories' },

@@ -65,6 +65,12 @@
       "style": {
         "navigationBarTitleText": "账单导入"
       }
+    },
+    {
+      "path": "pages/ledgers/ledgers",
+      "style": {
+        "navigationBarTitleText": "账本管理"
+      }
     }
   ],
   "globalStyle": {
