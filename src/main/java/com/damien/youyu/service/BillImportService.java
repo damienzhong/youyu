@@ -70,6 +70,11 @@ public class BillImportService {
      */
     @Transactional
     public BillImportResponse importBills(Long userId, Long ledgerId, BillImportRequest req) {
+        return importBills(AccountScope.independent(userId), ledgerId, req);
+    }
+
+    @Transactional
+    public BillImportResponse importBills(AccountScope scope, Long ledgerId, BillImportRequest req) {
         if (req == null || req.accountId() == null) {
             throw ApiException.importInvalid("请选择导入目标账户");
         }
@@ -78,8 +83,10 @@ public class BillImportService {
             throw ApiException.importInvalid("没有可导入的账单条目");
         }
 
-        // 目标账户为用户级：按 userId 加锁（导入结束一次性更新余额）。
-        Account account = accountRepository.findForUpdateByIdAndUserId(req.accountId(), userId)
+        // 目标账户按作用域加锁（独立账本用户级 / 协作账本账本级），导入结束一次性更新余额。
+        Account account = (scope.isCollaborative()
+                ? accountRepository.findForUpdateByIdAndLedgerId(req.accountId(), scope.ledgerId())
+                : accountRepository.findForUpdateByIdAndUserIdAndLedgerIdIsNull(req.accountId(), scope.userId()))
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         Category defExpense = resolveDefault(ledgerId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);

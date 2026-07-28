@@ -99,7 +99,12 @@ public class ExportService {
      */
     @Transactional(readOnly = true)
     public void writeJson(Long userId, Long ledgerId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+        writeJson(AccountScope.independent(userId), ledgerId, out);
+    }
+
+    @Transactional(readOnly = true)
+    public void writeJson(AccountScope scope, Long ledgerId, OutputStream out) {
+        List<Account> accounts = scopedAccounts(scope);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
@@ -161,7 +166,12 @@ public class ExportService {
      */
     @Transactional(readOnly = true)
     public void writeCsv(Long userId, Long ledgerId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+        writeCsv(AccountScope.independent(userId), ledgerId, out);
+    }
+
+    @Transactional(readOnly = true)
+    public void writeCsv(AccountScope scope, Long ledgerId, OutputStream out) {
+        List<Account> accounts = scopedAccounts(scope);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
@@ -243,6 +253,13 @@ public class ExportService {
             g.writeNullField("note");
         }
         g.writeEndObject();
+    }
+
+    /** 按作用域取账户：独立账本用户级、协作账本账本级。 */
+    private List<Account> scopedAccounts(AccountScope scope) {
+        return scope.isCollaborative()
+                ? accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(scope.ledgerId())
+                : accountRepository.findByUserIdAndLedgerIdIsNullOrderBySortOrderAscIdAsc(scope.userId());
     }
 
     /** 分类排序：父分类（parentId 为空）在前、再按 id 升序，保证 parentRef 先于其子分类出现（利于导入）。 */

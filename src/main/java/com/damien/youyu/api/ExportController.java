@@ -70,16 +70,18 @@ public class ExportController {
     public ResponseEntity<StreamingResponseBody> export(
             @RequestParam(name = "format", defaultValue = "json") String format) {
         // 在请求线程内解析会话用户/账本，供流式回调（可能在其他线程执行）使用（需求 8.4）。
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
+        com.damien.youyu.domain.Ledger ledger = currentLedger.requireLedger();
+        com.damien.youyu.service.AccountScope scope =
+                com.damien.youyu.service.AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long ledgerId = ledger.getId();
         String fmt = format == null ? "" : format.trim().toLowerCase(Locale.ROOT);
         String date = LocalDate.now(clock).format(FILE_DATE);
 
         return switch (fmt) {
             case "csv" -> build(CSV, "youyu-export-" + date + ".csv",
-                    out -> exportService.writeCsv(userId, ledgerId, out));
+                    out -> exportService.writeCsv(scope, ledgerId, out));
             case "json" -> build(JSON, "youyu-export-" + date + ".json",
-                    out -> exportService.writeJson(userId, ledgerId, out));
+                    out -> exportService.writeJson(scope, ledgerId, out));
             default -> throw ApiException.exportFormatUnsupported();
         };
     }
@@ -103,10 +105,11 @@ public class ExportController {
      */
     @PostMapping("/import")
     public ImportService.ImportResult importJson(@RequestBody byte[] body) {
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
+        com.damien.youyu.domain.Ledger ledger = currentLedger.requireLedger();
+        com.damien.youyu.service.AccountScope scope =
+                com.damien.youyu.service.AccountScope.forLedger(currentUser.requireUserId(), ledger);
         try (InputStream in = new ByteArrayInputStream(body == null ? new byte[0] : body)) {
-            return importService.importJson(userId, ledgerId, in);
+            return importService.importJson(scope, ledger.getId(), in);
         } catch (IOException e) {
             throw ApiException.importFailed();
         }

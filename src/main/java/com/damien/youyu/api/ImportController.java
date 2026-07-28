@@ -40,8 +40,9 @@ public class ImportController {
     /** 批量导入账单流水。 */
     @PostMapping("/bills")
     public ResponseEntity<BillImportResponse> importBills(@RequestBody BillImportRequest req) {
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
-        return ResponseEntity.ok(billImportService.importBills(userId, ledgerId, req));
+        com.damien.youyu.domain.Ledger ledger = currentLedger.requireLedger();
+        com.damien.youyu.service.AccountScope scope =
+                com.damien.youyu.service.AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        return ResponseEntity.ok(billImportService.importBills(scope, ledger.getId(), req));
     }
 }

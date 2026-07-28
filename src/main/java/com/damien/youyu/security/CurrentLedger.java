@@ -28,12 +28,17 @@ public class CurrentLedger {
 
     /** 返回当前请求应作用的账本 id；无有效会话时抛未认证。 */
     public Long requireLedgerId() {
+        return requireLedger().getId();
+    }
+
+    /** 返回当前请求应作用的账本实体（校验成员可访问）；无有效会话时抛未认证。 */
+    public com.damien.youyu.domain.Ledger requireLedger() {
         Long userId = currentUser.requireUserId();
         Long headerLedgerId = readHeaderLedgerId();
         if (headerLedgerId != null) {
-            return ledgerService.requireOwned(userId, headerLedgerId).getId();
+            return ledgerService.requireAccessible(userId, headerLedgerId);
         }
-        return ledgerService.ensureDefaultLedger(userId).getId();
+        return ledgerService.ensureDefaultLedger(userId);
     }
 
     private Long readHeaderLedgerId() {

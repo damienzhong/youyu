@@ -199,7 +199,9 @@ public class LedgerService {
             }
         }
 
-        // 级联清除该账本的业务数据（账户除外，属用户级）。
+        boolean collaborative = "COLLABORATIVE".equals(ledger.getType());
+
+        // 级联清除该账本的业务数据。
         transactionRepository.deleteByLedgerId(id);
         categoryBudgetRepository.deleteByLedgerId(id);
         budgetRepository.deleteByLedgerId(id);
@@ -207,16 +209,22 @@ public class LedgerService {
         categoryRepository.deleteByLedgerId(id);
         inviteRepository.deleteByLedgerId(id);
         memberRepository.deleteByLedgerId(id);
+        if (collaborative) {
+            // 协作账本的账户为账本级，随账本删除。
+            accountRepository.deleteByLedgerId(id);
+        }
         ledgerRepository.delete(ledger);
 
-        // 重算受影响账户余额（初始余额 + 其余账本剩余流水）。
-        LocalDateTime now = LocalDateTime.now(clock);
-        for (Long accountId : affectedAccountIds) {
-            accountRepository.findByIdAndUserId(accountId, userId).ifPresent(account -> {
-                account.setCurrentBalance(accountService.recomputeBalance(userId, accountId));
-                account.setUpdatedAt(now);
-                accountRepository.save(account);
-            });
+        if (!collaborative) {
+            // 独立账本的账户为用户级、跨账本共享：不删账户，重算受影响账户余额（初始余额 + 其余账本剩余流水）。
+            LocalDateTime now = LocalDateTime.now(clock);
+            for (Long accountId : affectedAccountIds) {
+                accountRepository.findByIdAndUserIdAndLedgerIdIsNull(accountId, userId).ifPresent(account -> {
+                    account.setCurrentBalance(accountService.recomputeBalance(userId, accountId));
+                    account.setUpdatedAt(now);
+                    accountRepository.save(account);
+                });
+            }
         }
 
         // 若删的是默认账本，把默认标记转移到剩余排序第一的账本。

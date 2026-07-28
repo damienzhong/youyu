@@ -23,9 +23,11 @@ import com.damien.youyu.api.dto.TransactionCreateRequest;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransactionUpdateRequest;
 import com.damien.youyu.domain.Transaction;
+import com.damien.youyu.domain.Ledger;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.security.CurrentUser;
+import com.damien.youyu.service.AccountScope;
 import com.damien.youyu.service.TransactionService;
 
 /**
@@ -62,11 +64,11 @@ public class TransactionController {
     /** 创建交易：成功返回 201 与交易信息。 */
     @PostMapping
     public ResponseEntity<TransactionResponse> create(@RequestBody TransactionCreateRequest req) {
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
         Transaction tx = transactionService.create(
-                userId,
-                ledgerId,
+                scope,
+                ledger.getId(),
                 req.type(),
                 req.amount(),
                 req.accountId(),
@@ -130,11 +132,11 @@ public class TransactionController {
     @PutMapping("/{id}")
     public ResponseEntity<TransactionResponse> update(
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
         Transaction tx = transactionService.update(
-                userId,
-                ledgerId,
+                scope,
+                ledger.getId(),
                 id,
                 req.type(),
                 req.amount(),
@@ -150,9 +152,9 @@ public class TransactionController {
     /** 删除交易：回滚原影响后删除，成功返回 204（需求 4.6、4.7）。 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Long userId = currentUser.requireUserId();
-        Long ledgerId = currentLedger.requireLedgerId();
-        transactionService.delete(userId, ledgerId, id);
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        transactionService.delete(scope, ledger.getId(), id);
         return ResponseEntity.noContent().build();
     }
 }
