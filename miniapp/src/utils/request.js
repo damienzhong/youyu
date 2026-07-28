@@ -15,8 +15,9 @@ export function request(options) {
     header.Authorization = `Bearer ${token}`
   }
   // 当前账本：后端据此做多账本隔离；未设置时后端回退到默认账本。
+  // 「全部账本」(all) 是前端聚合视图，不走单账本隔离头，故不发送。
   const ledgerId = uni.getStorageSync(STORAGE_KEYS.ledgerId)
-  if (ledgerId) {
+  if (ledgerId && String(ledgerId) !== 'all') {
     header['X-Ledger-Id'] = String(ledgerId)
   }
 

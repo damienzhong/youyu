@@ -13,9 +13,11 @@ export const useLedgerStore = defineStore('ledger', {
   }),
 
   getters: {
+    isAll: (state) => state.currentLedgerId === 'all',
     current: (state) =>
       state.ledgers.find((l) => l.id === state.currentLedgerId) || state.ledgers[0] || null,
     currentName() {
+      if (this.currentLedgerId === 'all') return '全部账本'
       return this.current?.name || '默认账本'
     }
   },
@@ -25,10 +27,13 @@ export const useLedgerStore = defineStore('ledger', {
     async load() {
       const list = await listLedgers()
       this.ledgers = list
-      const exists = list.some((l) => l.id === this.currentLedgerId)
-      if (!exists) {
-        const def = list.find((l) => l.isDefault) || list[0]
-        this.setCurrent(def ? def.id : null)
+      // 'all' 是合法的聚合选项；否则若当前账本已不存在，回退默认/第一个。
+      if (this.currentLedgerId !== 'all') {
+        const exists = list.some((l) => l.id === this.currentLedgerId)
+        if (!exists) {
+          const def = list.find((l) => l.isDefault) || list[0]
+          this.setCurrent(def ? def.id : null)
+        }
       }
       return list
     },

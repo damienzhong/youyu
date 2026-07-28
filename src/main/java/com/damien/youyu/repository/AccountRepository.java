@@ -39,6 +39,9 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     /** 某账本排序第一（sort_order 最小、其次 id 最小）的账户，供快速记账默认账户回退（需求 6.2）。 */
     Optional<Account> findFirstByLedgerIdOrderBySortOrderAscIdAsc(Long ledgerId);
 
+    /** 跨多个账本列出账户（「全部账本」聚合只读视图用）。 */
+    List<Account> findByLedgerIdInOrderBySortOrderAscIdAsc(java.util.Collection<Long> ledgerIds);
+
     /** 删除某账本的全部账户（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 }

@@ -6,6 +6,7 @@ import { useLedgerStore } from '../../stores/ledger'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth } from '../../api/transaction'
+import { listAllAccounts, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
 import { createLedger } from '../../api/ledger'
 import {
@@ -45,20 +46,37 @@ const totals = computed(() => {
 
 async function load() {
   try {
-    const [accs, cats, txs] = await Promise.all([
-      listAccounts(),
-      listCategories(),
-      listTransactionsByMonth(month.value)
-    ])
-    accounts.value = accs
-    accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+    const cats = await listCategories()
     categoryMap.value = buildCategoryLabelMap(cats)
-    transactions.value = txs
+    if (ledgerStore.isAll) {
+      // 全部账本：跨账本聚合只读视图
+      const [accs, txs] = await Promise.all([
+        listAllAccounts(),
+        listAllTransactionsByMonth(month.value)
+      ])
+      accounts.value = accs
+      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+      transactions.value = txs
+      remainingBudget.value = null
+    } else {
+      const [accs, txs] = await Promise.all([
+        listAccounts(),
+        listTransactionsByMonth(month.value)
+      ])
+      accounts.value = accs
+      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+      transactions.value = txs
+      loadBudget()
+    }
     loaded.value = true
-    loadBudget()
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   }
+}
+
+function onMonthChange(e) {
+  month.value = e.detail.value
+  load()
 }
 
 async function loadBudget() {
@@ -89,10 +107,10 @@ function ledgerEmoji(i) {
   return LEDGER_EMOJI[i % LEDGER_EMOJI.length]
 }
 const showLedgerSheet = ref(false)
-function pickLedger(l) {
+function pickLedger(id) {
   showLedgerSheet.value = false
-  if (l.id !== ledgerStore.currentLedgerId) {
-    ledgerStore.setCurrent(l.id)
+  if (id !== ledgerStore.currentLedgerId) {
+    ledgerStore.setCurrent(id)
     uni.reLaunch({ url: '/pages/index/index' })
   }
 }
@@ -158,6 +176,11 @@ function signed(t) {
 }
 
 function goRecord() {
+  if (ledgerStore.isAll) {
+    uni.showToast({ title: '「全部」下请先选择具体账本', icon: 'none' })
+    showLedgerSheet.value = true
+    return
+  }
   uni.navigateTo({ url: '/pages/record/record' })
 }
 function goEdit(t) {
@@ -192,10 +215,12 @@ function goImport() {
       </view>
 
       <view class="summary">
-        <view class="sum-month">
-          <text class="sm-year">{{ yearLabel }}</text>
-          <text class="sm-month">{{ monthLabelShort }}</text>
-        </view>
+        <picker mode="date" fields="month" :value="month" @change="onMonthChange">
+          <view class="sum-month">
+            <text class="sm-year">{{ yearLabel }}</text>
+            <text class="sm-month">{{ monthLabelShort }} ▾</text>
+          </view>
+        </picker>
         <view class="sum-figs">
           <view class="fig">
             <text class="fig-k">支出</text>
@@ -265,11 +290,16 @@ function goImport() {
           <text class="sheet-spacer"></text>
         </view>
         <scroll-view scroll-y class="sheet-list">
+          <view class="sheet-item" @click="pickLedger('all')">
+            <text class="li-ic">🗂️</text>
+            <text class="li-name">全部账本</text>
+            <text class="li-radio" :class="{ on: ledgerStore.currentLedgerId === 'all' }"></text>
+          </view>
           <view
             v-for="(l, i) in ledgerStore.ledgers"
             :key="l.id"
             class="sheet-item"
-            @click="pickLedger(l)"
+            @click="pickLedger(l.id)"
           >
             <text class="li-ic">{{ ledgerEmoji(i) }}</text>
             <text class="li-name">{{ l.name }}</text>

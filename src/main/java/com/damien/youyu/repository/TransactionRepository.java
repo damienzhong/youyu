@@ -54,6 +54,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** 某账本最近一笔交易，供快速记账默认账户选择（需求 6.1）。 */
     Optional<Transaction> findFirstByLedgerIdOrderByOccurredAtDescIdDesc(Long ledgerId);
 
+    /** 跨多个账本、在半开区间内的交易，按时间倒序（「全部账本」聚合只读视图用）。 */
+    List<Transaction> findByLedgerIdInAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
+            Collection<Long> ledgerIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
     /**
      * 某账户是否被该账本的任一交易引用（作为普通账户、转账源或转账目标）。
      * 用于「有交易的账户不可删除」校验（需求 3.7）。
