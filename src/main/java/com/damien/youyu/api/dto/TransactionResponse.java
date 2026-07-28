@@ -8,10 +8,12 @@ import com.damien.youyu.domain.Transaction;
 /**
  * 交易响应体。{@code type} 以小写编码（expense/income/transfer）返回，{@code amount} 恒为正
  * （DECIMAL(18,2)），方向由 type 决定。转账仅含 source/destination；支出/收入仅含 account/category。
+ * {@code createdBy} 为记账人 id（协作账本区分成员）。
  */
 public record TransactionResponse(
         Long id,
         Long ledgerId,
+        Long createdBy,
         String type,
         BigDecimal amount,
         Long accountId,
@@ -25,6 +27,7 @@ public record TransactionResponse(
         return new TransactionResponse(
                 tx.getId(),
                 tx.getLedgerId(),
+                tx.getCreatedBy(),
                 tx.getType().getCode(),
                 tx.getAmount(),
                 tx.getAccountId(),

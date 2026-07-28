@@ -138,6 +138,7 @@ public class TransactionService {
 
         Transaction tx = new Transaction();
         tx.setLedgerId(ledgerId);
+        tx.setCreatedBy(scope.userId());
         tx.setCreatedAt(now);
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);

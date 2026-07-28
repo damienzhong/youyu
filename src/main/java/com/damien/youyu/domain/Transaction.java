@@ -41,6 +41,10 @@ public class Transaction {
     @Column(name = "ledger_id", nullable = false)
     private Long ledgerId;
 
+    /** 记账人 id（协作账本区分是哪位成员记的账）。 */
+    @Column(name = "created_by")
+    private Long createdBy;
+
     /** 交易类型：expense/income/transfer。 */
     @Convert(converter = TransactionTypeConverter.class)
     @Column(name = "type", nullable = false, length = 10)
@@ -110,6 +114,14 @@ public class Transaction {
 
     public void setLedgerId(Long ledgerId) {
         this.ledgerId = ledgerId;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public TransactionType getType() {

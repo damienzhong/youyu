@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth, deleteTransaction } from '../../api/transaction'
+import { listMembers } from '../../api/ledger'
 import {
   listAllAccounts,
   listAllCategories,
@@ -25,7 +26,13 @@ const month = ref(currentMonth())
 const transactions = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
+const memberMap = ref({})
 const loading = ref(false)
+
+// 协作账本（非「全部」模式）才显示记账人。
+const isCollab = computed(
+  () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE'
+)
 
 const totals = computed(() => {
   let income = 0
@@ -49,6 +56,19 @@ async function load() {
     accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
     categoryMap.value = buildCategoryLabelMap(cats)
     transactions.value = txs
+
+    if (isCollab.value) {
+      try {
+        const ms = await listMembers(ledgerStore.currentLedgerId)
+        memberMap.value = Object.fromEntries(
+          ms.map((m) => [m.userId, m.displayName || '用户' + m.userId])
+        )
+      } catch (e) {
+        memberMap.value = {}
+      }
+    } else {
+      memberMap.value = {}
+    }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
@@ -86,6 +106,9 @@ function subtitleOf(t) {
   const tm = timeLabelOf(t.occurredAt)
   if (tm) parts.push(tm)
   if (t.note) parts.push(t.note)
+  if (isCollab.value && t.createdBy != null && memberMap.value[t.createdBy]) {
+    parts.push(`👤${memberMap.value[t.createdBy]}`)
+  }
   return parts.filter(Boolean).join(' · ')
 }
 function iconOf(t) {

@@ -140,6 +140,7 @@ public class BillImportService {
 
             Transaction tx = new Transaction();
             tx.setLedgerId(ledgerId);
+            tx.setCreatedBy(scope.userId());
             tx.setType(type);
             tx.setAmount(amount);
             tx.setAccountId(account.getId());

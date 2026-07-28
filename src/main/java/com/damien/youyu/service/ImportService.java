@@ -115,7 +115,7 @@ public class ImportService {
         Map<String, Account> accountByRef = restoreAccounts(scope, root.path("accounts"), now);
         Map<String, Category> categoryByRef = restoreCategories(ledgerId, root.path("categories"), now);
         int txCount = restoreTransactions(
-                ledgerId, root.path("transactions"), accountByRef, categoryByRef, now);
+                ledgerId, scope.userId(), root.path("transactions"), accountByRef, categoryByRef, now);
 
         // 逐笔交易已在内存中累加余额增量，统一持久化更新后的 current_balance。
         accountRepository.saveAll(accountByRef.values());
@@ -216,7 +216,7 @@ public class ImportService {
     // ---------------- 交易还原（解析引用键 + 累加余额增量） ----------------
 
     private int restoreTransactions(
-            Long ledgerId, JsonNode transactions,
+            Long ledgerId, Long createdBy, JsonNode transactions,
             Map<String, Account> accountByRef, Map<String, Category> categoryByRef,
             LocalDateTime now) {
         if (transactions.isMissingNode() || transactions.isNull()) {
@@ -233,6 +233,7 @@ public class ImportService {
 
             Transaction tx = new Transaction();
             tx.setLedgerId(ledgerId);
+            tx.setCreatedBy(createdBy);
             tx.setType(type);
             tx.setAmount(amount);
             tx.setOccurredAt(parseTs(requireText(node, "occurredAt", "交易")));

@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.Category;
+import com.damien.youyu.domain.CategoryKind;
 import com.damien.youyu.domain.Ledger;
 import com.damien.youyu.domain.LedgerInvite;
 import com.damien.youyu.domain.LedgerMember;
@@ -155,7 +157,11 @@ public class LedgerService {
     public Ledger create(Long userId, String rawName, String rawType) {
         String name = validateName(rawName);
         String type = normalizeType(rawType);
-        return createLedger(userId, name, type, nextSortOrder(userId), false);
+        Ledger ledger = createLedger(userId, name, type, nextSortOrder(userId), false);
+        // 用户主动创建的新账本预置一套默认收支分类，避免空账本、记第一笔前还得先建分类。
+        // （自动创建的默认账本不种子，保持与既有行为一致。）
+        seedDefaultCategories(userId, ledger.getId(), ledger.getCreatedAt());
+        return ledger;
     }
 
     private String normalizeType(String rawType) {
@@ -256,6 +262,35 @@ public class LedgerService {
         owner.setCreatedAt(now);
         memberRepository.save(owner);
         return saved;
+    }
+
+    /** 新账本默认分类（扁平，收支各一组常用项）。 */
+    private static final String[] DEFAULT_EXPENSE_CATEGORIES = {
+            "餐饮", "交通", "购物", "居住", "娱乐", "医疗", "通讯", "人情"
+    };
+    private static final String[] DEFAULT_INCOME_CATEGORIES = {
+            "工资", "兼职", "理财", "红包"
+    };
+
+    private void seedDefaultCategories(Long userId, Long ledgerId, LocalDateTime now) {
+        for (String name : DEFAULT_EXPENSE_CATEGORIES) {
+            categoryRepository.save(newCategory(userId, ledgerId, CategoryKind.EXPENSE, name, now));
+        }
+        for (String name : DEFAULT_INCOME_CATEGORIES) {
+            categoryRepository.save(newCategory(userId, ledgerId, CategoryKind.INCOME, name, now));
+        }
+    }
+
+    private Category newCategory(Long userId, Long ledgerId, CategoryKind kind, String name,
+            LocalDateTime now) {
+        Category c = new Category();
+        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
+        c.setKind(kind);
+        c.setName(name);
+        c.setCreatedAt(now);
+        c.setUpdatedAt(now);
+        return c;
     }
 
     // ---------------- 协作：邀请 / 加入 / 成员管理 ----------------
