@@ -85,6 +85,30 @@ public class ApiException extends RuntimeException {
                 "至少保留一个账本，不能删除最后一个", null);
     }
 
+    /** 仅账本 OWNER 可执行该操作（改名/删除/邀请/移除成员）。 */
+    public static ApiException ledgerForbidden() {
+        return new ApiException("LEDGER_FORBIDDEN", HttpStatus.FORBIDDEN,
+                "只有账本创建者可执行该操作", null);
+    }
+
+    /** 该操作仅适用于协作账本。 */
+    public static ApiException ledgerNotCollaborative() {
+        return new ApiException("LEDGER_NOT_COLLABORATIVE", HttpStatus.BAD_REQUEST,
+                "只有协作账本可以邀请成员", null);
+    }
+
+    /** 邀请码无效或已过期。 */
+    public static ApiException inviteInvalid() {
+        return new ApiException("INVITE_INVALID", HttpStatus.BAD_REQUEST,
+                "邀请码无效或已过期", "code");
+    }
+
+    /** 不能移除账本创建者（OWNER）。 */
+    public static ApiException memberOwnerImmutable() {
+        return new ApiException("MEMBER_OWNER_IMMUTABLE", HttpStatus.CONFLICT,
+                "不能移除账本创建者", null);
+    }
+
     /** 微信登录 code 缺失或为空。 */
     public static ApiException wxCodeRequired() {
         return new ApiException("WX_CODE_REQUIRED", HttpStatus.BAD_REQUEST,

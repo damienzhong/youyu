@@ -29,16 +29,19 @@ public class AggregateService {
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final com.damien.youyu.repository.LedgerMemberRepository memberRepository;
 
     public AggregateService(
             LedgerRepository ledgerRepository,
             AccountRepository accountRepository,
             TransactionRepository transactionRepository,
-            CategoryRepository categoryRepository) {
+            CategoryRepository categoryRepository,
+            com.damien.youyu.repository.LedgerMemberRepository memberRepository) {
         this.ledgerRepository = ledgerRepository;
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
+        this.memberRepository = memberRepository;
     }
 
     /** 当前用户全部账本的分类（跨账本聚合，供「全部」视图解析分类名）。 */
@@ -69,8 +72,9 @@ public class AggregateService {
     }
 
     private List<Long> ledgerIds(Long userId) {
-        return ledgerRepository.findByUserIdOrderBySortOrderAscIdAsc(userId).stream()
-                .map(Ledger::getId)
+        // 「全部」聚合覆盖用户可访问的所有账本（自己拥有的 + 已加入的协作账本）。
+        return memberRepository.findByUserId(userId).stream()
+                .map(com.damien.youyu.domain.LedgerMember::getLedgerId)
                 .toList();
     }
 }

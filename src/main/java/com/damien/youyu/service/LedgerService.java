@@ -1,7 +1,9 @@
 package com.damien.youyu.service;
 
+import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -11,12 +13,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.Ledger;
+import com.damien.youyu.domain.LedgerInvite;
+import com.damien.youyu.domain.LedgerMember;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.LedgerInviteRepository;
+import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.TransactionRepository;
@@ -40,8 +46,16 @@ public class LedgerService {
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
     private final LoanRepository loanRepository;
+    private final LedgerMemberRepository memberRepository;
+    private final LedgerInviteRepository inviteRepository;
     private final AccountService accountService;
     private final Clock clock;
+
+    /** 邀请码有效期（天）。 */
+    private static final int INVITE_TTL_DAYS = 7;
+    private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
+    private static final int CODE_LEN = 8;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public LedgerService(
             LedgerRepository ledgerRepository,
@@ -51,6 +65,8 @@ public class LedgerService {
             BudgetRepository budgetRepository,
             CategoryBudgetRepository categoryBudgetRepository,
             LoanRepository loanRepository,
+            LedgerMemberRepository memberRepository,
+            LedgerInviteRepository inviteRepository,
             AccountService accountService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
@@ -60,15 +76,26 @@ public class LedgerService {
         this.budgetRepository = budgetRepository;
         this.categoryBudgetRepository = categoryBudgetRepository;
         this.loanRepository = loanRepository;
+        this.memberRepository = memberRepository;
+        this.inviteRepository = inviteRepository;
         this.accountService = accountService;
         this.clock = clock;
     }
 
-    /** 列出某用户全部账本；若一个都没有则先创建默认账本。 */
+    /** 列出某用户可访问的全部账本（自己拥有的 + 已加入的协作账本）；若一个都没有则先创建默认账本。 */
     @Transactional
     public List<Ledger> list(Long userId) {
         ensureDefaultLedger(userId);
-        return ledgerRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+        List<Long> ledgerIds = memberRepository.findByUserId(userId).stream()
+                .map(LedgerMember::getLedgerId)
+                .toList();
+        List<Ledger> ledgers = ledgerRepository.findAllById(ledgerIds);
+        // 排序：自己的默认账本置顶，其余按 sort_order、id 升序（加入的协作账本按其 owner 的排序值）。
+        ledgers.sort(Comparator
+                .comparing((Ledger l) -> !(l.getUserId().equals(userId) && l.isDefault()))
+                .thenComparing(Ledger::getSortOrder)
+                .thenComparing(Ledger::getId));
+        return ledgers;
     }
 
     /**
@@ -81,11 +108,46 @@ public class LedgerService {
                 .orElseGet(() -> createLedger(userId, DEFAULT_NAME, "INDEPENDENT", 0, true));
     }
 
-    /** 校验某账本属于当前用户并返回；不匹配抛 NOT_FOUND。 */
+    /**
+     * 校验当前用户可访问某账本（任一成员：OWNER/EDITOR）并返回；非成员抛 NOT_FOUND（不泄漏存在性）。
+     * 读写业务数据（流水/分类/账户/预算）均以此为准。
+     */
+    @Transactional(readOnly = true)
+    public Ledger requireAccessible(Long userId, Long ledgerId) {
+        if (!memberRepository.existsByLedgerIdAndUserId(ledgerId, userId)) {
+            throw ApiException.notFound("账本不存在");
+        }
+        return ledgerRepository.findById(ledgerId)
+                .orElseThrow(() -> ApiException.notFound("账本不存在"));
+    }
+
+    /**
+     * 校验当前用户为某账本 OWNER 并返回；非成员抛 NOT_FOUND，成员但非 OWNER 抛 FORBIDDEN。
+     * 改名/删除/邀请/移除成员等管理操作以此为准。
+     */
+    @Transactional(readOnly = true)
+    public Ledger requireOwner(Long userId, Long ledgerId) {
+        LedgerMember member = memberRepository.findByLedgerIdAndUserId(ledgerId, userId)
+                .orElseThrow(() -> ApiException.notFound("账本不存在"));
+        if (!member.isOwner()) {
+            throw ApiException.ledgerForbidden();
+        }
+        return ledgerRepository.findById(ledgerId)
+                .orElseThrow(() -> ApiException.notFound("账本不存在"));
+    }
+
+    /** 兼容旧调用：等价于 {@link #requireAccessible(Long, Long)}。 */
     @Transactional(readOnly = true)
     public Ledger requireOwned(Long userId, Long ledgerId) {
-        return ledgerRepository.findByIdAndUserId(ledgerId, userId)
-                .orElseThrow(() -> ApiException.notFound("账本不存在"));
+        return requireAccessible(userId, ledgerId);
+    }
+
+    /** 返回当前用户在某账本的角色（OWNER/EDITOR），非成员返回 null。 */
+    @Transactional(readOnly = true)
+    public String roleOf(Long userId, Long ledgerId) {
+        return memberRepository.findByLedgerIdAndUserId(ledgerId, userId)
+                .map(LedgerMember::getRole)
+                .orElse(null);
     }
 
     /** 创建新账本。type：INDEPENDENT（默认）/ COLLABORATIVE。 */
@@ -108,7 +170,7 @@ public class LedgerService {
     @Transactional
     public Ledger rename(Long userId, Long id, String rawName) {
         String name = validateName(rawName);
-        Ledger ledger = requireOwned(userId, id);
+        Ledger ledger = requireOwner(userId, id);
         ledger.setName(name);
         ledger.setUpdatedAt(LocalDateTime.now(clock));
         return ledgerRepository.save(ledger);
@@ -119,7 +181,7 @@ public class LedgerService {
      */
     @Transactional
     public void delete(Long userId, Long id) {
-        Ledger ledger = requireOwned(userId, id);
+        Ledger ledger = requireOwner(userId, id);
         if (ledgerRepository.countByUserId(userId) <= 1) {
             throw ApiException.ledgerLastOne();
         }
@@ -143,6 +205,8 @@ public class LedgerService {
         budgetRepository.deleteByLedgerId(id);
         loanRepository.deleteByLedgerId(id);
         categoryRepository.deleteByLedgerId(id);
+        inviteRepository.deleteByLedgerId(id);
+        memberRepository.deleteByLedgerId(id);
         ledgerRepository.delete(ledger);
 
         // 重算受影响账户余额（初始余额 + 其余账本剩余流水）。
@@ -175,7 +239,104 @@ public class LedgerService {
         ledger.setDefault(isDefault);
         ledger.setCreatedAt(now);
         ledger.setUpdatedAt(now);
-        return ledgerRepository.save(ledger);
+        Ledger saved = ledgerRepository.save(ledger);
+        // 创建者即 OWNER 成员（访问控制真源）。
+        LedgerMember owner = new LedgerMember();
+        owner.setLedgerId(saved.getId());
+        owner.setUserId(userId);
+        owner.setRole(LedgerMember.ROLE_OWNER);
+        owner.setCreatedAt(now);
+        memberRepository.save(owner);
+        return saved;
+    }
+
+    // ---------------- 协作：邀请 / 加入 / 成员管理 ----------------
+
+    /** OWNER 为协作账本生成一个带有效期的邀请码。 */
+    @Transactional
+    public LedgerInvite createInvite(Long userId, Long ledgerId) {
+        Ledger ledger = requireOwner(userId, ledgerId);
+        if (!"COLLABORATIVE".equals(ledger.getType())) {
+            throw ApiException.ledgerNotCollaborative();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        LedgerInvite invite = new LedgerInvite();
+        invite.setCode(generateUniqueCode());
+        invite.setLedgerId(ledgerId);
+        invite.setCreatedBy(userId);
+        invite.setExpiresAt(now.plusDays(INVITE_TTL_DAYS));
+        invite.setCreatedAt(now);
+        return inviteRepository.save(invite);
+    }
+
+    /** 凭邀请码加入协作账本为 EDITOR 成员（已是成员则幂等返回）。返回目标账本。 */
+    @Transactional
+    public Ledger join(Long userId, String rawCode) {
+        String code = rawCode == null ? "" : rawCode.trim().toUpperCase();
+        if (code.isEmpty()) {
+            throw ApiException.inviteInvalid();
+        }
+        LedgerInvite invite = inviteRepository.findByCode(code)
+                .orElseThrow(ApiException::inviteInvalid);
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (invite.getExpiresAt().isBefore(now)) {
+            throw ApiException.inviteInvalid();
+        }
+        Ledger ledger = ledgerRepository.findById(invite.getLedgerId())
+                .orElseThrow(ApiException::inviteInvalid);
+        if (!"COLLABORATIVE".equals(ledger.getType())) {
+            throw ApiException.ledgerNotCollaborative();
+        }
+        if (!memberRepository.existsByLedgerIdAndUserId(ledger.getId(), userId)) {
+            LedgerMember member = new LedgerMember();
+            member.setLedgerId(ledger.getId());
+            member.setUserId(userId);
+            member.setRole(LedgerMember.ROLE_EDITOR);
+            member.setCreatedAt(now);
+            memberRepository.save(member);
+        }
+        return ledger;
+    }
+
+    /** 列出某账本全部成员（需为成员）。 */
+    @Transactional(readOnly = true)
+    public List<LedgerMember> members(Long userId, Long ledgerId) {
+        requireAccessible(userId, ledgerId);
+        return memberRepository.findByLedgerId(ledgerId);
+    }
+
+    /**
+     * 移除成员：OWNER 可移除任一 EDITOR；成员可移除自己（退出）。不可移除 OWNER。
+     */
+    @Transactional
+    public void removeMember(Long userId, Long ledgerId, Long targetUserId) {
+        LedgerMember target = memberRepository.findByLedgerIdAndUserId(ledgerId, targetUserId)
+                .orElseThrow(() -> ApiException.notFound("成员不存在"));
+        if (target.isOwner()) {
+            throw ApiException.memberOwnerImmutable();
+        }
+        boolean isSelfLeave = targetUserId.equals(userId);
+        if (!isSelfLeave) {
+            requireOwner(userId, ledgerId); // 移除他人须为 OWNER
+        } else {
+            requireAccessible(userId, ledgerId); // 退出须为成员
+        }
+        memberRepository.deleteByLedgerIdAndUserId(ledgerId, targetUserId);
+    }
+
+    private String generateUniqueCode() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            StringBuilder sb = new StringBuilder(CODE_LEN);
+            for (int i = 0; i < CODE_LEN; i++) {
+                sb.append(CODE_ALPHABET[RANDOM.nextInt(CODE_ALPHABET.length)]);
+            }
+            String code = sb.toString();
+            if (inviteRepository.findByCode(code).isEmpty()) {
+                return code;
+            }
+        }
+        throw new ApiException("INVITE_CODE_GEN_FAILED",
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "邀请码生成失败，请重试", null);
     }
 
     private int nextSortOrder(Long userId) {
