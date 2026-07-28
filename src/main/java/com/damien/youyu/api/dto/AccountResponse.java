@@ -12,6 +12,7 @@ import com.damien.youyu.domain.Account;
  */
 public record AccountResponse(
         Long id,
+        Long ledgerId,
         String name,
         String type,
         BigDecimal initialBalance,
@@ -25,6 +26,7 @@ public record AccountResponse(
     public static AccountResponse from(Account account) {
         return new AccountResponse(
                 account.getId(),
+                account.getLedgerId(),
                 account.getName(),
                 account.getType().name(),
                 account.getInitialBalance(),

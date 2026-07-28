@@ -95,7 +95,8 @@ function signedAmount(t) {
 }
 
 function goEdit(t) {
-  uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
+  const suffix = t.ledgerId ? `&ledgerId=${t.ledgerId}` : ''
+  uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
 }
 function confirmDelete(t) {
   uni.showModal({
@@ -104,7 +105,7 @@ function confirmDelete(t) {
     success: async (r) => {
       if (!r.confirm) return
       try {
-        await deleteTransaction(t.id)
+        await deleteTransaction(t.id, t.ledgerId)
         await load()
       } catch (e) {
         uni.showToast({ title: e.message || '删除失败', icon: 'none' })

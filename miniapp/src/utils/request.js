@@ -8,17 +8,20 @@ import { API_BASE, STORAGE_KEYS } from './config'
  * - 401 视为登录态失效：清除本地 token 并跳回登录页
  */
 export function request(options) {
-  const { url, method = 'GET', data, header = {}, auth = true } = options
+  const { url, method = 'GET', data, header = {}, auth = true, ledgerId } = options
 
   const token = uni.getStorageSync(STORAGE_KEYS.token)
   if (auth && token) {
     header.Authorization = `Bearer ${token}`
   }
-  // 当前账本：后端据此做多账本隔离；未设置时后端回退到默认账本。
-  // 「全部账本」(all) 是前端聚合视图，不走单账本隔离头，故不发送。
-  const ledgerId = uni.getStorageSync(STORAGE_KEYS.ledgerId)
-  if (ledgerId && String(ledgerId) !== 'all') {
-    header['X-Ledger-Id'] = String(ledgerId)
+  // 当前账本：后端据此做多账本隔离。
+  // 优先用调用方显式传入的 ledgerId（在「全部」视图下按某笔流水/账户自己的账本路由读写）；
+  // 否则用全局当前账本；「全部」(all) 是聚合视图，不发送单账本头。
+  const stored = uni.getStorageSync(STORAGE_KEYS.ledgerId)
+  const effectiveLedger =
+    ledgerId != null ? ledgerId : stored && String(stored) !== 'all' ? stored : null
+  if (effectiveLedger != null) {
+    header['X-Ledger-Id'] = String(effectiveLedger)
   }
 
   return new Promise((resolve, reject) => {

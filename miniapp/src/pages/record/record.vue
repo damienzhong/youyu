@@ -8,7 +8,10 @@ import {
   getTransaction,
   updateTransaction
 } from '../../api/transaction'
+import { useLedgerStore } from '../../stores/ledger'
 import { categoryEmoji, formatAmount } from '../../utils/format'
+
+const ledgerStore = useLedgerStore()
 
 const TYPES = [
   { value: 'expense', label: '支出' },
@@ -43,6 +46,13 @@ const editingId = ref(null)
 const editingOccurredAt = ref(null)
 const isEditing = computed(() => editingId.value !== null)
 
+// 目标账本：编辑时取该笔流水自己的账本；新增时若处于「全部」则让用户选择归到哪个账本。
+const targetLedgerId = ref(null)
+const ledgerChoices = ref([])
+const ledgerChoiceIndex = ref(0)
+// 是否需要显示「归属账本」选择（新增 + 全部模式）
+const showLedgerPicker = computed(() => !isEditing.value && ledgerStore.isAll)
+
 // 账户选择底部面板：'account' | 'source' | 'dest' | null
 const sheetTarget = ref(null)
 
@@ -63,14 +73,31 @@ const accountById = (id) => accounts.value.find((a) => a.id === id)
 const sourceAccount = computed(() => accountById(accountId.value))
 const destAccount = computed(() => accountById(destId.value))
 
-onLoad((q) => {
+onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
+  // 编辑：用该笔流水自己的账本；新增+全部：先选一个目标账本（默认账本）。
+  if (q && q.ledgerId) {
+    targetLedgerId.value = Number(q.ledgerId)
+  } else if (!isEditing.value && ledgerStore.isAll) {
+    try {
+      if (!ledgerStore.ledgers.length) await ledgerStore.load()
+    } catch (e) {
+      /* ignore */
+    }
+    ledgerChoices.value = ledgerStore.ledgers
+    const defIdx = Math.max(ledgerChoices.value.findIndex((l) => l.isDefault), 0)
+    ledgerChoiceIndex.value = defIdx
+    targetLedgerId.value = ledgerChoices.value[defIdx]?.id ?? null
+  }
   load()
 })
 
 async function load() {
   try {
-    const [accs, cats] = await Promise.all([listAccounts(), listCategories()])
+    const [accs, cats] = await Promise.all([
+      listAccounts(targetLedgerId.value),
+      listCategories(targetLedgerId.value)
+    ])
     accounts.value = accs
     categoryTree.value = cats
     accountId.value = accs[0]?.id ?? null
@@ -84,8 +111,17 @@ async function load() {
   }
 }
 
+// 新增+全部：切换归属账本 → 重新加载该账本的账户与分类
+function onLedgerChoiceChange(e) {
+  const idx = Number(e.detail.value)
+  ledgerChoiceIndex.value = idx
+  targetLedgerId.value = ledgerChoices.value[idx]?.id ?? null
+  categoryId.value = null
+  load()
+}
+
 async function prefill() {
-  const tx = await getTransaction(editingId.value)
+  const tx = await getTransaction(editingId.value, targetLedgerId.value)
   type.value = tx.type
   amount.value = String(tx.amount)
   note.value = tx.note || ''
@@ -157,11 +193,11 @@ async function submit() {
   submitting.value = true
   try {
     if (isEditing.value) {
-      await updateTransaction(editingId.value, payload)
+      await updateTransaction(editingId.value, payload, targetLedgerId.value)
       uni.showToast({ title: '已保存', icon: 'success' })
       setTimeout(() => uni.navigateBack(), 600)
     } else {
-      await createTransaction(payload)
+      await createTransaction(payload, targetLedgerId.value)
       uni.showToast({ title: '已记录', icon: 'success' })
       amount.value = ''
       note.value = ''
@@ -188,6 +224,19 @@ async function submit() {
         {{ t.label }}
       </view>
     </view>
+
+    <!-- 归属账本（仅在「全部」下新增时选择记到哪个账本） -->
+    <picker
+      v-if="showLedgerPicker"
+      class="ledger-row"
+      :range="ledgerChoices"
+      range-key="name"
+      :value="ledgerChoiceIndex"
+      @change="onLedgerChoiceChange"
+    >
+      <text class="lr-k">记到账本</text>
+      <text class="lr-v">{{ ledgerChoices[ledgerChoiceIndex]?.name || '默认账本' }} ›</text>
+    </picker>
 
     <!-- 金额 -->
     <view class="amount-card">
@@ -310,6 +359,26 @@ async function submit() {
   height: 6rpx;
   border-radius: 4rpx;
   background: #16a34a;
+}
+
+/* 归属账本行 */
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 30rpx 32rpx;
+  margin-bottom: 20rpx;
+}
+.lr-k {
+  font-size: 30rpx;
+  color: #6b7280;
+}
+.lr-v {
+  font-size: 30rpx;
+  color: #16a34a;
+  font-weight: 600;
 }
 
 /* 金额 */

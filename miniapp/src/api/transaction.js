@@ -1,34 +1,31 @@
 import { http } from '../utils/request'
 
-/**
- * 创建交易（支出/收入/转账）。amount 恒为正，方向由 type 决定。
- * occurredAt 省略时后端取当前时间。
- * @param {{type:string,amount:string,accountId?:number,categoryId?:number,
- *          sourceAccountId?:number,destinationAccountId?:number,note?:string}} payload
- */
-export function createTransaction(payload) {
-  return http.post('/transactions', payload)
+/** 可选 ledgerId：在「全部」视图下按目标账本路由；缺省用全局当前账本。 */
+function opts(ledgerId) {
+  return ledgerId != null ? { ledgerId } : undefined
+}
+
+/** 创建交易（支出/收入/转账）。 */
+export function createTransaction(payload, ledgerId) {
+  return http.post('/transactions', payload, opts(ledgerId))
 }
 
 /** 列出某自然月交易（month=YYYY-MM，按时间倒序）。 */
-export function listTransactionsByMonth(month) {
-  return http.get(`/transactions?month=${encodeURIComponent(month)}`)
+export function listTransactionsByMonth(month, ledgerId) {
+  return http.get(`/transactions?month=${encodeURIComponent(month)}`, opts(ledgerId))
 }
 
 /** 读取单条交易。 */
-export function getTransaction(id) {
-  return http.get(`/transactions/${id}`)
+export function getTransaction(id, ledgerId) {
+  return http.get(`/transactions/${id}`, opts(ledgerId))
 }
 
-/**
- * 更新交易（整体覆盖：后端先回滚原影响再应用新影响）。
- * 注意：occurredAt 省略时后端会重置为当前时间，编辑时务必带上原始 occurredAt。
- */
-export function updateTransaction(id, payload) {
-  return http.put(`/transactions/${id}`, payload)
+/** 更新交易（整体覆盖：后端先回滚原影响再应用新影响）。 */
+export function updateTransaction(id, payload, ledgerId) {
+  return http.put(`/transactions/${id}`, payload, opts(ledgerId))
 }
 
-/** 删除交易（后端会回滚其对账户余额的影响）。 */
-export function deleteTransaction(id) {
-  return http.del(`/transactions/${id}`)
+/** 删除交易（后端回滚其对账户余额的影响）。 */
+export function deleteTransaction(id, ledgerId) {
+  return http.del(`/transactions/${id}`, opts(ledgerId))
 }

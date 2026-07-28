@@ -11,6 +11,7 @@ import com.damien.youyu.domain.Transaction;
  */
 public record TransactionResponse(
         Long id,
+        Long ledgerId,
         String type,
         BigDecimal amount,
         Long accountId,
@@ -23,6 +24,7 @@ public record TransactionResponse(
     public static TransactionResponse from(Transaction tx) {
         return new TransactionResponse(
                 tx.getId(),
+                tx.getLedgerId(),
                 tx.getType().getCode(),
                 tx.getAmount(),
                 tx.getAccountId(),

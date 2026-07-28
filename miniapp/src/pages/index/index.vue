@@ -180,15 +180,12 @@ function signed(t) {
 }
 
 function goRecord() {
-  if (ledgerStore.isAll) {
-    uni.showToast({ title: '「全部」下请先选择具体账本', icon: 'none' })
-    showLedgerSheet.value = true
-    return
-  }
+  // 全部模式下记账页会让用户选择归到哪个账本
   uni.navigateTo({ url: '/pages/record/record' })
 }
 function goEdit(t) {
-  uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
+  const suffix = t.ledgerId ? `&ledgerId=${t.ledgerId}` : ''
+  uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
 }
 function goAccounts() {
   uni.switchTab({ url: '/pages/accounts/accounts' })

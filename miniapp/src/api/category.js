@@ -4,8 +4,8 @@ import { http } from '../utils/request'
  * 列出本人分类，返回 { expense: Node[], income: Node[] }。
  * Node: { id, name, parentId, children: Node[] }（两级）。
  */
-export function listCategories() {
-  return http.get('/categories')
+export function listCategories(ledgerId) {
+  return http.get('/categories', ledgerId != null ? { ledgerId } : undefined)
 }
 
 /**
