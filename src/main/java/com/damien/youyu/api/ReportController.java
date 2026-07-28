@@ -11,12 +11,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 import com.damien.youyu.api.dto.CategoryReportResponse;
+import com.damien.youyu.api.dto.MemberReportResponse;
+import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
 import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.domain.TransactionType;
+import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.UserRepository;
 import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.ReportService;
 
@@ -38,11 +44,14 @@ public class ReportController {
 
     private final ReportService reportService;
     private final CurrentLedger currentLedger;
+    private final UserRepository userRepository;
     private final Clock clock;
 
-    public ReportController(ReportService reportService, CurrentLedger currentLedger, Clock clock) {
+    public ReportController(ReportService reportService, CurrentLedger currentLedger,
+            UserRepository userRepository, Clock clock) {
         this.reportService = reportService;
         this.currentLedger = currentLedger;
+        this.userRepository = userRepository;
         this.clock = clock;
     }
 
@@ -79,6 +88,34 @@ public class ReportController {
         LocalDate fromDate = parseDate(from, "from");
         LocalDate toDate = parseDate(to, "to");
         return ResponseEntity.ok(reportService.rangeReport(ledgerId, fromDate, toDate));
+    }
+
+    /**
+     * 成员消费占比报表（协作账本）：from/to 为 {@code YYYY-MM-DD}，含起止边界；返回各成员支出占比。
+     * 独立账本亦可调用（结果为单一成员=自己）。
+     */
+    @GetMapping("/members")
+    public ResponseEntity<MemberReportResponse> members(
+            @RequestParam(name = "from") String from,
+            @RequestParam(name = "to") String to) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        LocalDate fromDate = parseDate(from, "from");
+        LocalDate toDate = parseDate(to, "to");
+        MemberReportResponse report = reportService.memberReport(ledgerId, fromDate, toDate);
+        // 补齐成员显示名（记账人账号标识）。
+        List<MemberShare> named = report.members().stream()
+                .map(m -> new MemberShare(m.userId(), displayName(m.userId()),
+                        m.amount(), m.percentage(), m.count()))
+                .toList();
+        return ResponseEntity.ok(new MemberReportResponse(
+                report.from(), report.to(), report.totalExpense(), named));
+    }
+
+    private String displayName(Long userId) {
+        if (userId == null || userId == 0L) {
+            return "未知";
+        }
+        return userRepository.findById(userId).map(User::getUsername).orElse("用户" + userId);
     }
 
     /** 月度趋势报表：fromMonth/toMonth 为 {@code YYYY-MM}。 */

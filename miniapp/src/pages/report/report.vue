@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { categoryReport, monthRange, shiftMonth } from '../../api/report'
+import { categoryReport, memberReport, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
@@ -18,7 +18,13 @@ const kind = ref('expense')
 const month = ref(currentMonth())
 const total = ref('0.00')
 const rows = ref([])
+const members = ref([])
 const loading = ref(false)
+
+// 协作账本（非「全部」）且看支出时，展示成员消费占比。
+const showMembers = computed(
+  () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE' && kind.value === 'expense'
+)
 
 const COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#e64340', '#8b5cf6', '#1677ff', '#f7b500']
 function colorAt(i) {
@@ -30,11 +36,13 @@ async function load() {
   try {
     if (ledgerStore.isAll) {
       await loadAllAggregate()
+      members.value = []
     } else {
       const { from, to } = monthRange(month.value)
       const res = await categoryReport(from, to, kind.value)
       total.value = res.totalExpense
       rows.value = res.categories || []
+      members.value = showMembers.value ? (await memberReport(from, to)).members || [] : []
     }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -140,6 +148,31 @@ function nextMonth() {
         </view>
       </view>
     </view>
+
+    <!-- 协作账本：成员支出占比 -->
+    <template v-if="showMembers && members.length">
+      <text class="section-title">成员支出</text>
+      <view class="list">
+        <view v-for="(m, i) in members" :key="m.userId ?? i" class="row">
+          <text class="row-ic member-ic" :style="{ background: colorAt(i) }">
+            {{ (m.displayName || '?').slice(0, 1).toUpperCase() }}
+          </text>
+          <view class="row-body">
+            <view class="row-head">
+              <text class="row-name">{{ m.displayName || '未知' }}</text>
+              <text class="row-amount">¥{{ formatAmount(m.amount) }}</text>
+            </view>
+            <view class="bar-bg">
+              <view class="bar" :style="{ width: m.percentage + '%', background: colorAt(i) }"></view>
+            </view>
+            <view class="row-foot">
+              <text class="row-pct">{{ m.percentage }}%</text>
+              <text class="row-count">{{ m.count }} 笔</text>
+            </view>
+          </view>
+        </view>
+      </view>
+    </template>
   </view>
 </template>
 
@@ -206,6 +239,17 @@ function nextMonth() {
   text-align: center;
   color: #9ca3af;
   font-size: 28rpx;
+}
+.section-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 28rpx 8rpx 14rpx;
+}
+.member-ic {
+  color: #fff;
+  font-weight: 700;
 }
 .list {
   background: #fff;

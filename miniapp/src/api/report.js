@@ -11,6 +11,14 @@ export function categoryReport(from, to, kind = 'expense') {
   return http.get(`/reports/category?from=${from}&to=${to}&kind=${kind}`)
 }
 
+/**
+ * 成员消费占比报表（协作账本）。
+ * 返回 { from, to, totalExpense, members:[{userId,displayName,amount,percentage,count}] }
+ */
+export function memberReport(from, to) {
+  return http.get(`/reports/members?from=${from}&to=${to}`)
+}
+
 /** 给定 YYYY-MM，返回该自然月的起止日期 { from, to }（YYYY-MM-DD）。 */
 export function monthRange(month) {
   const [y, m] = month.split('-').map(Number)

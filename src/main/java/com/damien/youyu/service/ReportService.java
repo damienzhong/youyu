@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.CategoryReportResponse.CategoryShare;
+import com.damien.youyu.api.dto.MemberReportResponse;
+import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
 import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
@@ -269,6 +271,68 @@ public class ReportService {
         }
 
         return new TrendReportResponse(points);
+    }
+
+    /**
+     * 成员消费占比报表：选定日期范围（含起止边界）内各成员的支出金额、占总支出百分比与笔数
+     * （协作账本用）。转账一律排除；各成员占比之和恒为 100.00（末项余数校正）。返回的
+     * {@code displayName} 为空，由上层按 {@code userId} 补齐。
+     *
+     * @throws ApiException REPORT_RANGE_INVALID（起始晚于结束，或跨度超过上限）
+     */
+    @Transactional(readOnly = true)
+    public MemberReportResponse memberReport(Long ledgerId, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            throw ApiException.reportRangeInvalid();
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > RANGE_MAX_DAYS) {
+            throw ApiException.reportRangeInvalid();
+        }
+
+        LocalDateTime fromDt = from.atStartOfDay();
+        LocalDateTime toDt = to.plusDays(1).atStartOfDay();
+        List<Transaction> txs = fetchHalfOpen(ledgerId, fromDt, toDt).stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .toList();
+
+        // 按记账人聚合金额与笔数（createdBy 为空归入 0L「未知」）。
+        Map<Long, BigDecimal> amountByMember = new LinkedHashMap<>();
+        Map<Long, Long> countByMember = new LinkedHashMap<>();
+        BigDecimal total = BigDecimal.ZERO;
+        for (Transaction t : txs) {
+            Long who = t.getCreatedBy() == null ? 0L : t.getCreatedBy();
+            amountByMember.merge(who, t.getAmount(), BigDecimal::add);
+            countByMember.merge(who, 1L, Long::sum);
+            total = total.add(t.getAmount());
+        }
+
+        BigDecimal totalAmount = scale(total);
+        if (amountByMember.isEmpty() || totalAmount.compareTo(ZERO) == 0) {
+            return new MemberReportResponse(from.toString(), to.toString(), ZERO, List.of());
+        }
+
+        List<Map.Entry<Long, BigDecimal>> ordered = new ArrayList<>(amountByMember.entrySet());
+        ordered.sort(Comparator
+                .comparing((Map.Entry<Long, BigDecimal> e) -> e.getValue()).reversed()
+                .thenComparing(Map.Entry::getKey));
+
+        List<MemberShare> shares = new ArrayList<>(ordered.size());
+        BigDecimal accumulatedPct = BigDecimal.ZERO;
+        for (int i = 0; i < ordered.size(); i++) {
+            Map.Entry<Long, BigDecimal> e = ordered.get(i);
+            BigDecimal amount = scale(e.getValue());
+            BigDecimal pct;
+            if (i == ordered.size() - 1) {
+                pct = HUNDRED.setScale(SCALE, RoundingMode.HALF_UP).subtract(accumulatedPct);
+            } else {
+                pct = e.getValue().multiply(HUNDRED).divide(totalAmount, SCALE, RoundingMode.HALF_UP);
+                accumulatedPct = accumulatedPct.add(pct);
+            }
+            shares.add(new MemberShare(e.getKey(), null, amount, pct,
+                    countByMember.getOrDefault(e.getKey(), 0L)));
+        }
+
+        return new MemberReportResponse(from.toString(), to.toString(), totalAmount, shares);
     }
 
     // ---------------- 内部工具 ----------------
