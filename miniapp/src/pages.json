@@ -59,6 +59,12 @@
       "style": {
         "navigationBarTitleText": "数据导出 / 导入"
       }
+    },
+    {
+      "path": "pages/billimport/billimport",
+      "style": {
+        "navigationBarTitleText": "账单导入"
+      }
     }
   ],
   "globalStyle": {

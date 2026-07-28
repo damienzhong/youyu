@@ -17,6 +17,7 @@ onShow(() => {
 
 const entries = [
   { key: 'budget', icon: '🧮', label: '预算管理', url: '/pages/budget/budget' },
+  { key: 'bills', icon: '📥', label: '账单导入', url: '/pages/billimport/billimport' },
   { key: 'categories', icon: '🏷️', label: '分类管理', url: '/pages/categories/categories' },
   { key: 'data', icon: '🗂️', label: '数据导出 / 导入', url: '/pages/data/data' }
 ]

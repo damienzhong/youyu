@@ -43,6 +43,24 @@ export function flattenCategories(nodes) {
 }
 
 /**
+ * 把分类树拍平为带 kind/parentId 的扁平列表，供账单导入的关键字匹配。
+ * @param {{expense:Array,income:Array}} tree
+ * @returns {{id:number,name:string,kind:'EXPENSE'|'INCOME',parentId:number|null}[]}
+ */
+export function flattenAll(tree) {
+  const out = []
+  for (const [key, kind] of [['expense', 'EXPENSE'], ['income', 'INCOME']]) {
+    for (const parent of tree?.[key] || []) {
+      out.push({ id: parent.id, name: parent.name, kind, parentId: null })
+      for (const child of parent.children || []) {
+        out.push({ id: child.id, name: child.name, kind, parentId: parent.id })
+      }
+    }
+  }
+  return out
+}
+
+/**
  * 把完整分类树（含 expense/income）映射为 { [id]: label }，供明细列表按 categoryId 显示名称。
  * @param {{expense:Array,income:Array}} tree
  */
