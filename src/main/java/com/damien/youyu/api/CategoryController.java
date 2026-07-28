@@ -59,6 +59,13 @@ public class CategoryController {
         return ResponseEntity.ok(CategoryListResponse.from(categoryService.list(ledgerId)));
     }
 
+    /** 给当前账本补齐默认分类（仅当为空时），供新手引导使用。幂等。 */
+    @PostMapping("/seed-defaults")
+    public ResponseEntity<CategoryListResponse> seedDefaults() {
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(CategoryListResponse.from(categoryService.seedDefaultsIfEmpty(ledgerId)));
+    }
+
     /** 重命名分类（保留关联，需求 5.4）。 */
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponse> rename(

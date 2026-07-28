@@ -110,6 +110,39 @@ public class CategoryService {
         return categoryRepository.findByLedgerId(ledgerId);
     }
 
+    /** 新账本默认分类（与 LedgerService 保持一致，供 onboarding 给空账本补齐）。 */
+    static final String[] DEFAULT_EXPENSE = {"餐饮", "交通", "购物", "居住", "娱乐", "医疗", "通讯", "人情"};
+    static final String[] DEFAULT_INCOME = {"工资", "兼职", "理财", "红包"};
+
+    /**
+     * 若当前账本尚无任何分类，则预置一套默认收支分类；否则原样返回。幂等，供新手引导调用。
+     */
+    @Transactional
+    public List<Category> seedDefaultsIfEmpty(Long ledgerId) {
+        List<Category> existing = categoryRepository.findByLedgerId(ledgerId);
+        if (!existing.isEmpty()) {
+            return existing;
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (String name : DEFAULT_EXPENSE) {
+            categoryRepository.save(newCategory(ledgerId, CategoryKind.EXPENSE, name, now));
+        }
+        for (String name : DEFAULT_INCOME) {
+            categoryRepository.save(newCategory(ledgerId, CategoryKind.INCOME, name, now));
+        }
+        return categoryRepository.findByLedgerId(ledgerId);
+    }
+
+    private Category newCategory(Long ledgerId, CategoryKind kind, String name, LocalDateTime now) {
+        Category c = new Category();
+        c.setLedgerId(ledgerId);
+        c.setKind(kind);
+        c.setName(name);
+        c.setCreatedAt(now);
+        c.setUpdatedAt(now);
+        return c;
+    }
+
     /**
      * 重命名分类：仅改名称，保持 kind、parentId 与交易关联不变（需求 5.4）。
      *

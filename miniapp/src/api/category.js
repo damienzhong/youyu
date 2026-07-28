@@ -26,6 +26,11 @@ export function deleteCategory(id) {
   return http.del(`/categories/${id}`)
 }
 
+/** 给当前账本补齐默认分类（仅当为空时，幂等），供新手引导使用。 */
+export function seedDefaultCategories() {
+  return http.post('/categories/seed-defaults')
+}
+
 /**
  * 把两级分类树拍平为可选项列表：父分类与子分类都可选，子分类带父级前缀便于区分。
  * @param {Array} nodes 某一 kind 下的顶级节点数组

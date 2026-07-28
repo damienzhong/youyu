@@ -1,9 +1,26 @@
 <script setup>
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { listAccounts } from '../../api/account'
 
 const auth = useAuthStore()
 const loading = ref(false)
+
+// 登录后路由：无账户且未走过引导的新用户 → 新手引导；否则进首页。
+async function routeAfterLogin() {
+  if (!uni.getStorageSync('youyu_onboarded')) {
+    try {
+      const accs = await listAccounts()
+      if (!accs || !accs.length) {
+        uni.reLaunch({ url: '/pages/onboarding/onboarding' })
+        return
+      }
+    } catch (e) {
+      /* 拉账户失败则按老用户处理 */
+    }
+  }
+  uni.reLaunch({ url: '/pages/index/index' })
+}
 
 const showPwd = ref(false)
 const isRegister = ref(false)
@@ -16,7 +33,7 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.loginWithWeixin()
-    uni.reLaunch({ url: '/pages/index/index' })
+    await routeAfterLogin()
   } catch (e) {
     uni.showToast({ title: e.message || '登录失败', icon: 'none' })
   } finally {
@@ -34,7 +51,7 @@ async function handlePwdSubmit() {
   try {
     if (isRegister.value) await auth.registerAndLogin(u, password.value)
     else await auth.loginWithPassword(u, password.value)
-    uni.reLaunch({ url: '/pages/index/index' })
+    await routeAfterLogin()
   } catch (e) {
     uni.showToast({ title: e.message || '操作失败', icon: 'none' })
   } finally {
