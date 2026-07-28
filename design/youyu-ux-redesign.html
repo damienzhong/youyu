@@ -207,7 +207,7 @@
     <div class="audit-card fix"><span class="tag good">处方</span><h4>分组 + 图标 + 卡面</h4><p>资金/信用/储蓄分组，信用卡展示额度与已用进度。</p></div>
 
     <div class="audit-card"><span class="tag bad">新手</span><h4>首屏空白无引导</h4><p>新用户看到空列表 + 一句话，缺 onboarding。</p></div>
-    <div class="audit-card fix"><span class="tag good">处方</span><h4>三步开始 + 友好空状态</h4><p>引导建账户、记一笔、看报表；每个空态都有插画与主行动。</p></div>
+    <div class="audit-card fix"><span class="tag good">处方</span><h4>选场景开局 + 友好空状态</h4><p>第一步「选记账场景」隐式建好账本（不暴露术语，注册已自动建默认账本），再选常用账户、记第一笔；每个空态都有插画与主行动。</p></div>
   </div>
 
   <div class="section-title">03 · 导航模型</div>
@@ -243,26 +243,32 @@
 
     <!-- Onboarding -->
     <div class="phone-wrap">
-      <p class="phone-cap"><span class="n">2</span> 新手三步</p>
-      <p class="phone-note">首次登录引导：建账户 → 记一笔 → 看报表，进度可视，可跳过。</p>
+      <p class="phone-cap"><span class="n">2</span> 新手引导 · 选场景</p>
+      <p class="phone-note">第一步不暴露「账本」术语：选场景即隐式建好账本（个人=默认独立；家庭/情侣=协作）。默认账本已在注册时自动创建，无需手动建。</p>
       <div class="phone"><div class="notch"></div><div class="screen">
         <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
         <div class="body pad" style="padding-top:14px;">
-          <div class="row between"><span class="tiny t3">第 1 / 3 步</span><span class="tiny t3">跳过</span></div>
+          <div class="row between"><span class="tiny t3">第 1 / 3 步 · 选择记账场景</span><span class="tiny t3">跳过</span></div>
           <div class="barbg mt8"><div class="bar" style="width:33%"></div></div>
-          <div style="text-align:center;margin-top:44px;">
-            <div style="font-size:80px;">👛</div>
-            <div style="font-size:24px;font-weight:800;margin-top:16px;">先建一个账户</div>
-            <div class="muted" style="margin-top:10px;line-height:1.7;">现金、银行卡、支付宝…<br/>有了账户，记账才有去向。</div>
+          <div style="text-align:center;margin-top:32px;">
+            <div style="font-size:64px;">🧭</div>
+            <div style="font-size:23px;font-weight:800;margin-top:12px;">你想怎么记？</div>
+            <div class="muted tiny" style="margin-top:8px;line-height:1.7;">随时可以再改，也能建更多账本</div>
           </div>
-          <div class="card mt20" style="padding:8px 0;">
-            <div class="list-item"><div class="ic-badge" style="background:var(--brand-weak)">💵</div><div style="flex:1;font-weight:600;">现金</div><span class="t3">选用</span></div>
+          <div class="card mt20" style="padding:6px 16px;">
+            <div class="list-item" style="padding-left:0;box-shadow:none;">
+              <div class="ic-badge" style="background:var(--brand-weak);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--brand);">🙋</div>
+              <div style="flex:1;"><div style="font-weight:700;">个人记账</div><div class="tiny t3">只有自己 · 用默认账本</div></div><span class="inc">●</span></div>
             <div class="divider"></div>
-            <div class="list-item"><div class="ic-badge" style="background:#e8f0fe">🏦</div><div style="flex:1;font-weight:600;">储蓄卡</div><span class="t3">选用</span></div>
+            <div class="list-item" style="padding-left:0;">
+              <div class="ic-badge" style="background:var(--amber-weak)">🏠</div>
+              <div style="flex:1;"><div style="font-weight:700;">家庭 / 情侣协作</div><div class="tiny t3">可邀请他人共同记账</div></div><span class="t3">○</span></div>
             <div class="divider"></div>
-            <div class="list-item"><div class="ic-badge" style="background:#eef4ff">💳</div><div style="flex:1;font-weight:600;">信用卡</div><span class="t3">选用</span></div>
+            <div class="list-item" style="padding-left:0;">
+              <div class="ic-badge" style="background:#eef4ff">✈️</div>
+              <div style="flex:1;"><div style="font-weight:700;">旅行 / AA</div><div class="tiny t3">和朋友一起，按人分摊</div></div><span class="t3">○</span></div>
           </div>
-          <div class="btn mt20" style="width:100%;">下一步</div>
+          <div class="btn mt20" style="width:100%;">下一步 · 选常用账户</div>
         </div>
       </div></div>
     </div>
