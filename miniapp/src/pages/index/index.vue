@@ -41,8 +41,12 @@ const totals = computed(() => {
     if (t.type === 'income') income += Number(t.amount)
     else if (t.type === 'expense') expense += Number(t.amount)
   }
-  return { income, expense }
+  return { income, expense, net: income - expense }
 })
+
+function signedNet(n) {
+  return (n >= 0 ? '+' : '-') + formatAmount(Math.abs(n))
+}
 
 async function load() {
   try {
@@ -231,6 +235,10 @@ function goImport() {
             <text class="fig-v">{{ formatAmount(totals.income) }}</text>
           </view>
           <view class="fig">
+            <text class="fig-k">净收支</text>
+            <text class="fig-v">{{ signedNet(totals.net) }}</text>
+          </view>
+          <view class="fig">
             <text class="fig-k">剩余预算</text>
             <text class="fig-v">{{ remainingBudget != null ? formatAmount(remainingBudget) : '未设' }}</text>
           </view>
@@ -359,33 +367,39 @@ function goImport() {
 .sum-month {
   display: flex;
   flex-direction: column;
-  margin-right: 32rpx;
+  margin-right: 20rpx;
 }
 .sm-year {
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.9;
 }
 .sm-month {
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
 }
 .sum-figs {
   flex: 1;
   display: flex;
-  justify-content: space-between;
+  gap: 12rpx;
 }
 .fig {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6rpx;
 }
 .fig-k {
-  font-size: 22rpx;
+  font-size: 20rpx;
   opacity: 0.85;
+  white-space: nowrap;
 }
 .fig-v {
-  font-size: 32rpx;
+  font-size: 27rpx;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 快捷入口白卡上浮 */
