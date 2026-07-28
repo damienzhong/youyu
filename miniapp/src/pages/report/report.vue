@@ -21,9 +21,9 @@ const rows = ref([])
 const members = ref([])
 const loading = ref(false)
 
-// 协作账本（非「全部」）且看支出时，展示成员消费占比。
+// 协作账本（非「全部」）展示成员占比（支出/收入随当前类别）。
 const showMembers = computed(
-  () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE' && kind.value === 'expense'
+  () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE'
 )
 
 const COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#e64340', '#8b5cf6', '#1677ff', '#f7b500']
@@ -42,7 +42,9 @@ async function load() {
       const res = await categoryReport(from, to, kind.value)
       total.value = res.totalExpense
       rows.value = res.categories || []
-      members.value = showMembers.value ? (await memberReport(from, to)).members || [] : []
+      members.value = showMembers.value
+        ? (await memberReport(from, to, kind.value)).members || []
+        : []
     }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -151,7 +153,7 @@ function nextMonth() {
 
     <!-- 协作账本：成员支出占比 -->
     <template v-if="showMembers && members.length">
-      <text class="section-title">成员支出</text>
+      <text class="section-title">{{ kind === 'expense' ? '成员支出' : '成员收入' }}</text>
       <view class="list">
         <view v-for="(m, i) in members" :key="m.userId ?? i" class="row">
           <text class="row-ic member-ic" :style="{ background: colorAt(i) }">

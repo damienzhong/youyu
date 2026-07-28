@@ -282,6 +282,17 @@ public class ReportService {
      */
     @Transactional(readOnly = true)
     public MemberReportResponse memberReport(Long ledgerId, LocalDate from, LocalDate to) {
+        return memberReport(ledgerId, from, to, TransactionType.EXPENSE);
+    }
+
+    /**
+     * 成员占比报表（按类别：支出/收入）：选定日期范围内各成员在该类别的金额、占比与笔数。
+     *
+     * @param kind {@link TransactionType#EXPENSE} 支出 / {@link TransactionType#INCOME} 收入
+     */
+    @Transactional(readOnly = true)
+    public MemberReportResponse memberReport(Long ledgerId, LocalDate from, LocalDate to,
+            TransactionType kind) {
         if (from.isAfter(to)) {
             throw ApiException.reportRangeInvalid();
         }
@@ -292,7 +303,7 @@ public class ReportService {
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.plusDays(1).atStartOfDay();
         List<Transaction> txs = fetchHalfOpen(ledgerId, fromDt, toDt).stream()
-                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .filter(t -> t.getType() == kind)
                 .toList();
 
         // 按记账人聚合金额与笔数（createdBy 为空归入 0L「未知」）。

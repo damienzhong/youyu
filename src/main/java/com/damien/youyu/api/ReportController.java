@@ -91,24 +91,26 @@ public class ReportController {
     }
 
     /**
-     * 成员消费占比报表（协作账本）：from/to 为 {@code YYYY-MM-DD}，含起止边界；返回各成员支出占比。
-     * 独立账本亦可调用（结果为单一成员=自己）。
+     * 成员占比报表（协作账本）：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）；
+     * 返回各成员在该类别的占比。独立账本亦可调用（结果为单一成员=自己）。
      */
     @GetMapping("/members")
     public ResponseEntity<MemberReportResponse> members(
             @RequestParam(name = "from") String from,
-            @RequestParam(name = "to") String to) {
+            @RequestParam(name = "to") String to,
+            @RequestParam(name = "kind", required = false) String kind) {
         Long ledgerId = currentLedger.requireLedgerId();
         LocalDate fromDate = parseDate(from, "from");
         LocalDate toDate = parseDate(to, "to");
-        MemberReportResponse report = reportService.memberReport(ledgerId, fromDate, toDate);
+        TransactionType type = parseKind(kind);
+        MemberReportResponse report = reportService.memberReport(ledgerId, fromDate, toDate, type);
         // 补齐成员显示名（记账人账号标识）。
         List<MemberShare> named = report.members().stream()
                 .map(m -> new MemberShare(m.userId(), displayName(m.userId()),
                         m.amount(), m.percentage(), m.count()))
                 .toList();
         return ResponseEntity.ok(new MemberReportResponse(
-                report.from(), report.to(), report.totalExpense(), named));
+                report.from(), report.to(), report.total(), named));
     }
 
     private String displayName(Long userId) {

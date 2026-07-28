@@ -8,7 +8,7 @@ import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth } from '../../api/transaction'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
-import { createLedger } from '../../api/ledger'
+import { createLedger, listMembers } from '../../api/ledger'
 import {
   formatAmount,
   categoryEmoji,
@@ -28,6 +28,25 @@ const accountMap = ref({})
 const categoryMap = ref({})
 const transactions = ref([])
 const remainingBudget = ref(null)
+const memberMap = ref({})
+
+// 协作账本（非「全部」）才显示记账人与成员支出。
+const isCollab = computed(
+  () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE'
+)
+
+// 本月各成员支出（客户端按 createdBy 聚合，降序）。
+const memberExpenses = computed(() => {
+  if (!isCollab.value) return []
+  const by = new Map()
+  for (const t of transactions.value) {
+    if (t.type !== 'expense' || t.createdBy == null) continue
+    by.set(t.createdBy, (by.get(t.createdBy) || 0) + Number(t.amount))
+  }
+  return [...by.entries()]
+    .map(([uid, amt]) => ({ userId: uid, name: memberMap.value[uid] || '成员' + uid, amount: amt }))
+    .sort((a, b) => b.amount - a.amount)
+})
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
@@ -73,6 +92,18 @@ async function load() {
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
       transactions.value = txs
       loadBudget()
+      if (isCollab.value) {
+        try {
+          const ms = await listMembers(ledgerStore.currentLedgerId)
+          memberMap.value = Object.fromEntries(
+            ms.map((m) => [m.userId, m.displayName || '用户' + m.userId])
+          )
+        } catch (e) {
+          memberMap.value = {}
+        }
+      } else {
+        memberMap.value = {}
+      }
     }
     loaded.value = true
   } catch (e) {
@@ -163,8 +194,11 @@ function titleOf(t) {
   return categoryMap.value[t.categoryId] || (t.type === 'income' ? '收入' : '支出')
 }
 function subOf(t) {
-  if (t.type === 'transfer') return t.note || '转账'
-  return accountMap.value[t.accountId] || ''
+  let base = t.type === 'transfer' ? t.note || '转账' : accountMap.value[t.accountId] || ''
+  if (isCollab.value && t.createdBy != null && memberMap.value[t.createdBy]) {
+    base = (base ? base + ' · ' : '') + '👤' + memberMap.value[t.createdBy]
+  }
+  return base
 }
 function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
@@ -258,6 +292,17 @@ function goImport() {
       </view>
       <view class="qa" @click="goImport">
         <text class="qa-ic" style="background:#f3ecff">📥</text><text class="qa-l">导入</text>
+      </view>
+    </view>
+
+    <!-- 协作账本：本月成员支出小卡 -->
+    <view v-if="isCollab && memberExpenses.length" class="mcard">
+      <text class="mcard-title">本月成员支出</text>
+      <view class="mcard-chips">
+        <view v-for="m in memberExpenses" :key="m.userId" class="mchip">
+          <text class="mchip-name">{{ m.name }}</text>
+          <text class="mchip-amt">¥{{ formatAmount(m.amount) }}</text>
+        </view>
       </view>
     </view>
 
@@ -428,6 +473,43 @@ function goImport() {
 .qa-l {
   font-size: 24rpx;
   color: #4b5563;
+}
+
+/* 成员支出小卡 */
+.mcard {
+  margin: 24rpx 24rpx 0;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
+}
+.mcard-title {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #1f2937;
+}
+.mcard-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 16rpx;
+}
+.mchip {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  background: #f5f6f7;
+  border-radius: 999rpx;
+  padding: 10rpx 20rpx;
+}
+.mchip-name {
+  font-size: 24rpx;
+  color: #4b5563;
+}
+.mchip-amt {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #e64340;
 }
 
 /* 流水 */

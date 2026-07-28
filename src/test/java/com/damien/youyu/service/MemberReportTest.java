@@ -73,7 +73,7 @@ class MemberReportTest {
         MemberReportResponse r = service().memberReport(
                 LEDGER, LocalDate.parse("2025-06-01"), LocalDate.parse("2025-06-30"));
 
-        assertThat(r.totalExpense()).isEqualByComparingTo("100.00");
+        assertThat(r.total()).isEqualByComparingTo("100.00");
         assertThat(r.members()).hasSize(2);
         // 金额降序：Bob(60) 在前，Alice(40) 在后。
         assertThat(r.members().get(0).userId()).isEqualTo(BOB);
@@ -90,11 +90,42 @@ class MemberReportTest {
         assertThat(sumPct).isEqualByComparingTo("100.00");
     }
 
+    private void income(long createdBy, String amount, String day) {
+        Transaction t = new Transaction();
+        t.setLedgerId(LEDGER);
+        t.setCreatedBy(createdBy);
+        t.setType(TransactionType.INCOME);
+        t.setAmount(new BigDecimal(amount));
+        t.setAccountId(1L);
+        t.setCategoryId(1L);
+        t.setOccurredAt(LocalDateTime.parse(day + "T12:00:00"));
+        t.setCreatedAt(LocalDateTime.parse(day + "T12:00:00"));
+        t.setUpdatedAt(LocalDateTime.parse(day + "T12:00:00"));
+        transactionRepository.save(t);
+    }
+
+    @Test
+    void memberReport_income_aggregatesByRecorder() {
+        income(ALICE, "800.00", "2025-06-05");
+        income(BOB, "200.00", "2025-06-06");
+        expense(ALICE, "50.00", "2025-06-07"); // 支出不计入收入报表
+
+        MemberReportResponse r = service().memberReport(
+                LEDGER, LocalDate.parse("2025-06-01"), LocalDate.parse("2025-06-30"),
+                TransactionType.INCOME);
+
+        assertThat(r.total()).isEqualByComparingTo("1000.00");
+        assertThat(r.members()).hasSize(2);
+        assertThat(r.members().get(0).userId()).isEqualTo(ALICE);
+        assertThat(r.members().get(0).amount()).isEqualByComparingTo("800.00");
+        assertThat(r.members().get(0).percentage()).isEqualByComparingTo("80.00");
+    }
+
     @Test
     void memberReport_empty_returnsZero() {
         MemberReportResponse r = service().memberReport(
                 LEDGER, LocalDate.parse("2025-06-01"), LocalDate.parse("2025-06-30"));
-        assertThat(r.totalExpense()).isEqualByComparingTo("0.00");
+        assertThat(r.total()).isEqualByComparingTo("0.00");
         assertThat(r.members()).isEmpty();
     }
 }
