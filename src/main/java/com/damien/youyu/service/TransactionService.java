@@ -93,6 +93,7 @@ public class TransactionService {
      */
     @Transactional
     public Transaction create(
+            Long userId,
             Long ledgerId,
             String rawType,
             BigDecimal rawAmount,
@@ -113,10 +114,10 @@ public class TransactionService {
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime when = occurredAt == null ? now : occurredAt;
 
-        // 需求 4.9 + 加锁：涉及账户须存在且属于当前用户，按 id 升序加锁；4.1/4.2/4.3：应用余额增量。
+        // 账户为用户级：按 userId 加锁校验；交易归属账本 ledgerId。
         Map<Long, BigDecimal> deltas = effectDeltas(
                 type, amount, accountId, sourceAccountId, destinationAccountId);
-        Map<Long, Account> locked = lockAll(deltas.keySet(), ledgerId);
+        Map<Long, Account> locked = lockAll(deltas.keySet(), userId);
         applyDeltas(locked, deltas, now);
 
         Transaction tx = new Transaction();
@@ -137,6 +138,7 @@ public class TransactionService {
      */
     @Transactional
     public Transaction update(
+            Long userId,
             Long ledgerId,
             Long id,
             String rawType,
@@ -171,7 +173,7 @@ public class TransactionService {
                 .forEach((acc, delta) -> net.merge(acc, delta, BigDecimal::add));
 
         // 需求 4.9 + 加锁：新形态引用的不存在账户在此触发 NOT_FOUND（净增量非零，必被锁定校验）。
-        Map<Long, Account> locked = lockAll(net.keySet(), ledgerId);
+        Map<Long, Account> locked = lockAll(net.keySet(), userId);
         applyDeltas(locked, net, now);
 
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
@@ -186,7 +188,7 @@ public class TransactionService {
      * @throws ApiException NOT_FOUND
      */
     @Transactional
-    public void delete(Long ledgerId, Long id) {
+    public void delete(Long userId, Long ledgerId, Long id) {
         Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
 
@@ -198,7 +200,7 @@ public class TransactionService {
                 tx.getSourceAccountId(), tx.getDestinationAccountId())
                 .forEach((acc, delta) -> rollback.merge(acc, delta.negate(), BigDecimal::add));
 
-        Map<Long, Account> locked = lockAll(rollback.keySet(), ledgerId);
+        Map<Long, Account> locked = lockAll(rollback.keySet(), userId);
         applyDeltas(locked, rollback, now);
 
         transactionRepository.delete(tx);
@@ -341,10 +343,10 @@ public class TransactionService {
      * 对给定账户 id 集合按 id 升序加行级悲观写锁并返回 id→账户映射；
      * 任一账户不存在或不属于当前用户即 NOT_FOUND（需求 4.9）。升序加锁降低死锁风险。
      */
-    private Map<Long, Account> lockAll(Collection<Long> accountIds, Long ledgerId) {
+    private Map<Long, Account> lockAll(Collection<Long> accountIds, Long userId) {
         Map<Long, Account> locked = new LinkedHashMap<>();
         accountIds.stream().sorted().forEach(accId -> {
-            Account account = accountRepository.findForUpdateByIdAndLedgerId(accId, ledgerId)
+            Account account = accountRepository.findForUpdateByIdAndUserId(accId, userId)
                     .orElseThrow(() -> ApiException.notFound("账户不存在"));
             locked.put(accId, account);
         });

@@ -69,7 +69,7 @@ public class BillImportService {
      * @throws ApiException IMPORT_INVALID（缺目标账户/无有效条目）、NOT_FOUND（账户/默认分类不属于当前用户）
      */
     @Transactional
-    public BillImportResponse importBills(Long ledgerId, BillImportRequest req) {
+    public BillImportResponse importBills(Long userId, Long ledgerId, BillImportRequest req) {
         if (req == null || req.accountId() == null) {
             throw ApiException.importInvalid("请选择导入目标账户");
         }
@@ -78,8 +78,8 @@ public class BillImportService {
             throw ApiException.importInvalid("没有可导入的账单条目");
         }
 
-        // 目标账户加锁（导入结束一次性更新余额）。
-        Account account = accountRepository.findForUpdateByIdAndLedgerId(req.accountId(), ledgerId)
+        // 目标账户为用户级：按 userId 加锁（导入结束一次性更新余额）。
+        Account account = accountRepository.findForUpdateByIdAndUserId(req.accountId(), userId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         Category defExpense = resolveDefault(ledgerId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);

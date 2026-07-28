@@ -20,6 +20,7 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentLedger;
+import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.ExportService;
 import com.damien.youyu.service.ImportService;
 
@@ -48,13 +49,15 @@ public class ExportController {
     private final ExportService exportService;
     private final ImportService importService;
     private final CurrentLedger currentLedger;
+    private final CurrentUser currentUser;
     private final Clock clock;
 
     public ExportController(ExportService exportService, ImportService importService,
-            CurrentLedger currentLedger, Clock clock) {
+            CurrentLedger currentLedger, CurrentUser currentUser, Clock clock) {
         this.exportService = exportService;
         this.importService = importService;
         this.currentLedger = currentLedger;
+        this.currentUser = currentUser;
         this.clock = clock;
     }
 
@@ -66,16 +69,17 @@ public class ExportController {
     @GetMapping("/export")
     public ResponseEntity<StreamingResponseBody> export(
             @RequestParam(name = "format", defaultValue = "json") String format) {
-        // 在请求线程内解析会话用户，供流式回调（可能在其他线程执行）使用（需求 8.4）。
+        // 在请求线程内解析会话用户/账本，供流式回调（可能在其他线程执行）使用（需求 8.4）。
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
         String fmt = format == null ? "" : format.trim().toLowerCase(Locale.ROOT);
         String date = LocalDate.now(clock).format(FILE_DATE);
 
         return switch (fmt) {
             case "csv" -> build(CSV, "youyu-export-" + date + ".csv",
-                    out -> exportService.writeCsv(ledgerId, out));
+                    out -> exportService.writeCsv(userId, ledgerId, out));
             case "json" -> build(JSON, "youyu-export-" + date + ".json",
-                    out -> exportService.writeJson(ledgerId, out));
+                    out -> exportService.writeJson(userId, ledgerId, out));
             default -> throw ApiException.exportFormatUnsupported();
         };
     }
@@ -99,9 +103,10 @@ public class ExportController {
      */
     @PostMapping("/import")
     public ImportService.ImportResult importJson(@RequestBody byte[] body) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
         try (InputStream in = new ByteArrayInputStream(body == null ? new byte[0] : body)) {
-            return importService.importJson(ledgerId, in);
+            return importService.importJson(userId, ledgerId, in);
         } catch (IOException e) {
             throw ApiException.importFailed();
         }

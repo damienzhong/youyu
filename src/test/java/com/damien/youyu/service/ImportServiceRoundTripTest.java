@@ -98,21 +98,21 @@ class ImportServiceRoundTripTest {
         byte[] exportA = exportJson(USER_A);
 
         // ---- 导入到空账户用户 B ----
-        assertThat(accountRepository.countByLedgerId(USER_B)).isZero();
+        assertThat(accountRepository.countByUserId(USER_B)).isZero();
         ImportService.ImportResult result = importService()
-                .importJson(USER_B, new ByteArrayInputStream(exportA));
+                .importJson(USER_B, USER_B, new ByteArrayInputStream(exportA));
 
         // 记录数与 A 一致。
         assertThat(result.accounts()).isEqualTo(2);
         assertThat(result.categories()).isEqualTo(3);
         assertThat(result.transactions()).isEqualTo(3);
-        assertThat(accountRepository.countByLedgerId(USER_B)).isEqualTo(2);
+        assertThat(accountRepository.countByUserId(USER_B)).isEqualTo(2);
         assertThat(categoryRepository.countByLedgerId(USER_B)).isEqualTo(3);
         assertThat(transactionRepository.findByLedgerId(USER_B)).hasSize(3);
 
         // ---- 账户业务字段逐一相等（按 name 配对，忽略 id/ledgerId）----
-        Map<String, Account> accountsA = byName(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_A));
-        Map<String, Account> accountsB = byName(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_B));
+        Map<String, Account> accountsA = byName(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_A));
+        Map<String, Account> accountsB = byName(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_B));
         assertThat(accountsB.keySet()).isEqualTo(accountsA.keySet());
         for (String name : accountsA.keySet()) {
             Account a = accountsA.get(name);
@@ -123,7 +123,7 @@ class ImportServiceRoundTripTest {
             // current_balance 与 A 一致。
             assertThat(b.getCurrentBalance()).isEqualByComparingTo(a.getCurrentBalance());
             // user_id 强制为会话用户 B（需求 2.2）。
-            assertThat(b.getLedgerId()).isEqualTo(USER_B);
+            assertThat(b.getUserId()).isEqualTo(USER_B);
         }
 
         // ---- 分类父子引用被正确重建 ----
@@ -151,7 +151,7 @@ class ImportServiceRoundTripTest {
 
         // ---- 还原后 current_balance 与重算结果一致（余额守恒不变式，需求 4.13）----
         AccountService accountService = accountService();
-        for (Account b : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_B)) {
+        for (Account b : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_B)) {
             BigDecimal recomputed = accountService.recomputeBalance(USER_B, b.getId());
             assertThat(b.getCurrentBalance()).isEqualByComparingTo(recomputed);
         }
@@ -166,7 +166,7 @@ class ImportServiceRoundTripTest {
 
     /** 将某用户全部交易归一化为可比较的业务字段串（用引用目标的名称替代自增 id）。 */
     private List<String> normalizeTransactions(long ledgerId) {
-        Map<Long, String> accountName = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId).stream()
+        Map<Long, String> accountName = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(ledgerId).stream()
                 .collect(Collectors.toMap(Account::getId, Account::getName));
         Map<Long, String> categoryName = categoryRepository.findByLedgerId(ledgerId).stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName));
@@ -201,7 +201,7 @@ class ImportServiceRoundTripTest {
 
     private byte[] exportJson(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeJson(ledgerId, out);
+        exportService().writeJson(ledgerId, ledgerId, out);
         return out.toByteArray();
     }
 
@@ -210,7 +210,7 @@ class ImportServiceRoundTripTest {
     private Account account(long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
-        a.setLedgerId(ledgerId);
+        a.setUserId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));

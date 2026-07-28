@@ -56,7 +56,7 @@ class RepositoryMappingTest {
 
     private Account newAccount(Long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         Account a = new Account();
-        a.setLedgerId(ledgerId);
+        a.setUserId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));
@@ -118,22 +118,22 @@ class RepositoryMappingTest {
         newAccount(alice.getId(), "现金", AccountType.CASH, "0.00", 1);
         newAccount(bob.getId(), "支付宝", AccountType.ALIPAY, "0.00", 0);
 
-        var aliceAccounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(alice.getId());
+        var aliceAccounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(alice.getId());
         assertThat(aliceAccounts).hasSize(2);
         assertThat(aliceAccounts.get(0).getName()).isEqualTo("现金");
         assertThat(aliceAccounts.get(1).getName()).isEqualTo("银行卡");
-        assertThat(accountRepository.countByLedgerId(alice.getId())).isEqualTo(2);
+        assertThat(accountRepository.countByUserId(alice.getId())).isEqualTo(2);
 
         // 默认账户回退：排序第一
-        assertThat(accountRepository.findFirstByLedgerIdOrderBySortOrderAscIdAsc(alice.getId()))
+        assertThat(accountRepository.findFirstByUserIdOrderBySortOrderAscIdAsc(alice.getId()))
                 .get()
                 .extracting(Account::getName)
                 .isEqualTo("现金");
 
         // 越权：用 bob 的 id 无法通过 alice 的 user_id 取到账户
-        Long bobAccountId = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(bob.getId()).get(0).getId();
-        assertThat(accountRepository.findByIdAndLedgerId(bobAccountId, alice.getId())).isEmpty();
-        assertThat(accountRepository.findByIdAndLedgerId(bobAccountId, bob.getId())).isPresent();
+        Long bobAccountId = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(bob.getId()).get(0).getId();
+        assertThat(accountRepository.findByIdAndUserId(bobAccountId, alice.getId())).isEmpty();
+        assertThat(accountRepository.findByIdAndUserId(bobAccountId, bob.getId())).isPresent();
     }
 
     @Test
@@ -149,7 +149,7 @@ class RepositoryMappingTest {
         assertThat(reloaded.getAmount()).isEqualByComparingTo("23.50");
 
         // 账户被引用 -> 不可删除校验为 true
-        assertThat(transactionRepository.existsByLedgerIdAndAccountReferenced(user.getId(), acc.getId())).isTrue();
+        assertThat(transactionRepository.existsByAccountReferenced(acc.getId())).isTrue();
         // 分类被引用
         assertThat(transactionRepository.existsByLedgerIdAndCategoryId(user.getId(), food.getId())).isTrue();
 

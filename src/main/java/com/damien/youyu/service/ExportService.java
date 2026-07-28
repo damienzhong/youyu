@@ -98,8 +98,8 @@ public class ExportService {
      * 空数据时 accounts/categories/transactions 三个数组均为空，文档结构仍有效（需求 8.7）。</p>
      */
     @Transactional(readOnly = true)
-    public void writeJson(Long ledgerId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId);
+    public void writeJson(Long userId, Long ledgerId, OutputStream out) {
+        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
@@ -160,8 +160,8 @@ public class ExportService {
      * 各段首行为表头。三段之间以空行分隔。引用键与 JSON 一致，保证 CSV 自洽可再导入。</p>
      */
     @Transactional(readOnly = true)
-    public void writeCsv(Long ledgerId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId);
+    public void writeCsv(Long userId, Long ledgerId, OutputStream out) {
+        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);

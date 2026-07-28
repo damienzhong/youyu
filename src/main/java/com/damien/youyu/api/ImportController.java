@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.damien.youyu.api.dto.BillImportRequest;
 import com.damien.youyu.api.dto.BillImportResponse;
 import com.damien.youyu.security.CurrentLedger;
+import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.BillImportService;
 
 /**
@@ -27,16 +28,20 @@ public class ImportController {
 
     private final BillImportService billImportService;
     private final CurrentLedger currentLedger;
+    private final CurrentUser currentUser;
 
-    public ImportController(BillImportService billImportService, CurrentLedger currentLedger) {
+    public ImportController(BillImportService billImportService,
+            CurrentLedger currentLedger, CurrentUser currentUser) {
         this.billImportService = billImportService;
         this.currentLedger = currentLedger;
+        this.currentUser = currentUser;
     }
 
     /** 批量导入账单流水。 */
     @PostMapping("/bills")
     public ResponseEntity<BillImportResponse> importBills(@RequestBody BillImportRequest req) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
-        return ResponseEntity.ok(billImportService.importBills(ledgerId, req));
+        return ResponseEntity.ok(billImportService.importBills(userId, ledgerId, req));
     }
 }

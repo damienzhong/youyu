@@ -201,13 +201,13 @@ class ExportServiceTest {
 
     private String json(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        service().writeJson(ledgerId, out);
+        service().writeJson(ledgerId, ledgerId, out);
         return out.toString(StandardCharsets.UTF_8);
     }
 
     private byte[] csv(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        service().writeCsv(ledgerId, out);
+        service().writeCsv(ledgerId, ledgerId, out);
         return out.toByteArray();
     }
 
@@ -223,7 +223,7 @@ class ExportServiceTest {
     private Account account(long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
-        a.setLedgerId(ledgerId);
+        a.setUserId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));

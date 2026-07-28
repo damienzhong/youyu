@@ -173,19 +173,19 @@ class ExportIntegrationTest {
 
     private byte[] exportJson() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeJson(USER, out);
+        exportService().writeJson(USER, USER, out);
         return out.toByteArray();
     }
 
     private byte[] exportCsv() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeCsv(USER, out);
+        exportService().writeCsv(USER, USER, out);
         return out.toByteArray();
     }
 
     private Account account(String name, AccountType type, String initial, int sortOrder) {
         Account a = new Account();
-        a.setLedgerId(USER);
+        a.setUserId(USER);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));

@@ -47,7 +47,7 @@ class TransactionTransferRollbackIntegrationTest {
     private Account persistAccount(long ledgerId, String name, BigDecimal balance) {
         LocalDateTime now = LocalDateTime.now(clock);
         Account a = new Account();
-        a.setLedgerId(ledgerId);
+        a.setUserId(ledgerId);
         a.setName(name);
         a.setType(AccountType.CASH);
         a.setInitialBalance(balance);
@@ -71,7 +71,7 @@ class TransactionTransferRollbackIntegrationTest {
         // 合法的大额转账：金额在允许范围内，但会使目标账户余额溢出 DECIMAL(18,2) 列精度，
         // 在提交/刷库阶段触发数据库异常（真实的转账中途失败）。
         Throwable thrown = catchThrowable(() -> transactionService.create(
-                ledgerId, "transfer", MAX, null, null,
+                ledgerId, ledgerId, "transfer", MAX, null, null,
                 source.getId(), dest.getId(), null, "溢出触发回滚"));
 
         // 需求 4.10：转账中途失败 → 抛出异常。
@@ -81,8 +81,8 @@ class TransactionTransferRollbackIntegrationTest {
         assertThat(transactionRepository.findByLedgerId(ledgerId)).isEmpty();
 
         // 需求 4.10：源账户扣减被回滚，目标账户未变，两账户余额均保持不变。
-        Account sourceAfter = accountRepository.findByIdAndLedgerId(source.getId(), ledgerId).orElseThrow();
-        Account destAfter = accountRepository.findByIdAndLedgerId(dest.getId(), ledgerId).orElseThrow();
+        Account sourceAfter = accountRepository.findByIdAndUserId(source.getId(), ledgerId).orElseThrow();
+        Account destAfter = accountRepository.findByIdAndUserId(dest.getId(), ledgerId).orElseThrow();
         assertThat(sourceAfter.getCurrentBalance()).isEqualByComparingTo(sourceBefore);
         assertThat(destAfter.getCurrentBalance()).isEqualByComparingTo(destBefore);
     }

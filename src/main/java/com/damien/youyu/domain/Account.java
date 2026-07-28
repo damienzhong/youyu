@@ -28,11 +28,12 @@ public class Account {
     private Long id;
 
     /** 归属用户 id。 */
-    @Column(name = "user_id")
+    /** 归属用户（账户为用户级：独立账本共享同一批账户）。 */
+    @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** 归属账本 id（多账本隔离键）。 */
-    @Column(name = "ledger_id", nullable = false)
+    /** 归属账本：仅协作账本的账本级账户使用；用户级账户为空。 */
+    @Column(name = "ledger_id")
     private Long ledgerId;
 
     /** 账户名称，去空白后 1-50。 */

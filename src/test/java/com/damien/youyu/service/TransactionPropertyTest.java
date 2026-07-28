@@ -128,7 +128,7 @@ class TransactionPropertyTest {
     }
 
     private BigDecimal balanceOf(long ledgerId, Long accountId) {
-        return accountRepository.findByIdAndLedgerId(accountId, ledgerId).orElseThrow().getCurrentBalance();
+        return accountRepository.findByIdAndUserId(accountId, ledgerId).orElseThrow().getCurrentBalance();
     }
 
     // ---------------- Property 1：余额守恒不变式（有状态操作序列） ----------------
@@ -178,7 +178,7 @@ class TransactionPropertyTest {
                     case 0 -> { // 创建支出
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(ledgerId, "expense", amount, acc, expenseCat,
+                        Transaction t = tx.create(ledgerId, ledgerId, "expense", amount, acc, expenseCat,
                                 null, null, null, "e");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.EXPENSE, amount, acc, null, null));
@@ -186,7 +186,7 @@ class TransactionPropertyTest {
                     case 1 -> { // 创建收入
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(ledgerId, "income", amount, acc, incomeCat,
+                        Transaction t = tx.create(ledgerId, ledgerId, "income", amount, acc, incomeCat,
                                 null, null, null, "i");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.INCOME, amount, acc, null, null));
@@ -200,7 +200,7 @@ class TransactionPropertyTest {
                         Long src = accountIds.get(si);
                         Long dst = accountIds.get(di);
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(ledgerId, "transfer", amount, null, null,
+                        Transaction t = tx.create(ledgerId, ledgerId, "transfer", amount, null, null,
                                 src, dst, null, "t");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.TRANSFER, amount, null, src, dst));
@@ -210,7 +210,7 @@ class TransactionPropertyTest {
                         Long targetId = ids.get(rng.nextInt(ids.size()));
                         if (rng.nextBoolean()) {
                             // 删除：回滚原影响。
-                            tx.delete(ledgerId, targetId);
+                            tx.delete(ledgerId, ledgerId, targetId);
                             live.remove(targetId);
                         } else {
                             // 修改：随机生成新的合法形态，替换记录。
@@ -224,7 +224,7 @@ class TransactionPropertyTest {
                                 }
                                 Long src = accountIds.get(si);
                                 Long dst = accountIds.get(di);
-                                tx.update(ledgerId, targetId, "transfer", amount, null, null,
+                                tx.update(ledgerId, ledgerId, targetId, "transfer", amount, null, null,
                                         src, dst, null, "t2");
                                 live.put(targetId, new TxRecord(
                                         com.damien.youyu.domain.TransactionType.TRANSFER,
@@ -233,7 +233,7 @@ class TransactionPropertyTest {
                                 Long acc = accountIds.get(rng.nextInt(accCount));
                                 String type = newType == 0 ? "expense" : "income";
                                 Long cat = newType == 0 ? expenseCat : incomeCat;
-                                tx.update(ledgerId, targetId, type, amount, acc, cat,
+                                tx.update(ledgerId, ledgerId, targetId, type, amount, acc, cat,
                                         null, null, null, "u");
                                 live.put(targetId, new TxRecord(newType == 0
                                         ? com.damien.youyu.domain.TransactionType.EXPENSE
@@ -388,7 +388,7 @@ class TransactionPropertyTest {
                 }
             }
 
-            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, type, amount,
+            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, ledgerId, type, amount,
                     accountId, categoryId, null, null, null, null), ApiException.class);
 
             assertThat(ex).as("badCase=%d 应被拒绝", badCase).isNotNull();
@@ -416,7 +416,7 @@ class TransactionPropertyTest {
             BigDecimal balanceBefore = acc.getCurrentBalance();
             BigDecimal amount = validAmount(rng, 1_000_000L);
 
-            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, "transfer", amount,
+            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, ledgerId, "transfer", amount,
                     null, null, acc.getId(), acc.getId(), null, null), ApiException.class);
 
             assertThat(ex).isNotNull();

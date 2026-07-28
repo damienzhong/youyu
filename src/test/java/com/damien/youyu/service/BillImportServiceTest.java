@@ -61,7 +61,7 @@ class BillImportServiceTest {
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
         Category salary = category(USER, CategoryKind.INCOME, "工资");
 
-        BillImportResponse r = service().importBills(USER, new BillImportRequest(
+        BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), food.getId(), salary.getId(),
                 List.of(
                         entry("expense", "38.00", "alipay:1", food.getId()),
@@ -84,11 +84,11 @@ class BillImportServiceTest {
         Category salary = category(USER, CategoryKind.INCOME, "工资");
 
         // 首次导入 alipay:1。
-        service().importBills(USER, new BillImportRequest(acc.getId(), food.getId(), salary.getId(),
+        service().importBills(USER, USER, new BillImportRequest(acc.getId(), food.getId(), salary.getId(),
                 List.of(entry("expense", "38.00", "alipay:1", null))));
 
         // 再次导入：alipay:1 已存在（跳过），alipay:9 同批出现两次（一入一跳）。
-        BillImportResponse r = service().importBills(USER, new BillImportRequest(
+        BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), food.getId(), salary.getId(),
                 List.of(
                         entry("expense", "38.00", "alipay:1", null),
@@ -105,7 +105,7 @@ class BillImportServiceTest {
         Account acc = account(USER, "支付宝", "0.00");
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
-        BillImportResponse r = service().importBills(USER, new BillImportRequest(
+        BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), food.getId(), null,
                 List.of(
                         entry("expense", "0.00", "a:1", null),    // ≤0 非法
@@ -122,7 +122,7 @@ class BillImportServiceTest {
         // 无默认收入分类，且条目无分类 → 收入行无兜底，跳过为非法。
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
-        BillImportResponse r = service().importBills(USER, new BillImportRequest(
+        BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), food.getId(), null,
                 List.of(
                         entry("income", "100.00", "a:1", null),
@@ -137,7 +137,7 @@ class BillImportServiceTest {
         Account acc = account(OTHER, "别人支付宝", "0.00");
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
-        ApiException ex = catchThrowableOfType(() -> service().importBills(USER, new BillImportRequest(
+        ApiException ex = catchThrowableOfType(() -> service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), food.getId(), null,
                 List.of(entry("expense", "10.00", "a:1", null)))), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
@@ -146,7 +146,7 @@ class BillImportServiceTest {
     @Test
     void import_emptyEntries_rejected() {
         Account acc = account(USER, "支付宝", "0.00");
-        ApiException ex = catchThrowableOfType(() -> service().importBills(USER, new BillImportRequest(
+        ApiException ex = catchThrowableOfType(() -> service().importBills(USER, USER, new BillImportRequest(
                 acc.getId(), null, null, List.of())), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("IMPORT_INVALID");
     }
@@ -160,7 +160,7 @@ class BillImportServiceTest {
 
     private Account account(long ledgerId, String name, String balance) {
         Account a = new Account();
-        a.setLedgerId(ledgerId);
+        a.setUserId(ledgerId);
         a.setName(name);
         a.setType(AccountType.ALIPAY);
         a.setInitialBalance(new BigDecimal(balance));

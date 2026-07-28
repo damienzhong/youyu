@@ -48,13 +48,10 @@ public class AggregateService {
         return ledgerIds.isEmpty() ? List.of() : categoryRepository.findByLedgerIdIn(ledgerIds);
     }
 
-    /** 当前用户全部账本的账户（跨账本聚合）。 */
+    /** 当前用户的全部账户（账户为用户级，「全部」视图等同用户账户全集）。 */
     @Transactional(readOnly = true)
     public List<Account> allAccounts(Long userId) {
-        List<Long> ledgerIds = ledgerIds(userId);
-        return ledgerIds.isEmpty()
-                ? List.of()
-                : accountRepository.findByLedgerIdInOrderBySortOrderAscIdAsc(ledgerIds);
+        return accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
     }
 
     /** 当前用户全部账本在指定自然月的交易（跨账本聚合，按时间倒序）。 */

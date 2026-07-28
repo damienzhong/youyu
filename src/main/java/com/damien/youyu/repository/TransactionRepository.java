@@ -59,18 +59,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             Collection<Long> ledgerIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);
 
     /**
-     * 某账户是否被该账本的任一交易引用（作为普通账户、转账源或转账目标）。
-     * 用于「有交易的账户不可删除」校验（需求 3.7）。
+     * 某账户是否被任一交易引用（作为普通账户、转账源或转账目标）。账户为用户级，其流水可跨账本，
+     * 故按 accountId 判断（accountId 全局唯一，仅其自身流水引用）。用于「有交易的账户不可删除」（需求 3.7）。
      */
     @Query("""
             SELECT COUNT(t) > 0 FROM Transaction t
-            WHERE t.ledgerId = :ledgerId
-              AND (t.accountId = :accountId
-                   OR t.sourceAccountId = :accountId
-                   OR t.destinationAccountId = :accountId)
+            WHERE t.accountId = :accountId
+               OR t.sourceAccountId = :accountId
+               OR t.destinationAccountId = :accountId
             """)
-    boolean existsByLedgerIdAndAccountReferenced(
-            @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
+    boolean existsByAccountReferenced(@Param("accountId") Long accountId);
 
     /** 某分类是否被该账本的任一交易引用（用于「被引用分类不可删除」校验，需求 5.5）。 */
     boolean existsByLedgerIdAndCategoryId(Long ledgerId, Long categoryId);
@@ -86,33 +84,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     // ---------------- 余额可重算校验的聚合查询（需求 4.13）----------------
 
-    /** 某账本在指定账户上、指定类型(expense/income)的金额合计；无匹配行返回 0。 */
+    /** 指定账户上、指定类型(expense/income)的金额合计（跨账本，按账户汇总）；无匹配行返回 0。 */
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
-            WHERE t.ledgerId = :ledgerId
-              AND t.accountId = :accountId
+            WHERE t.accountId = :accountId
               AND t.type = :type
             """)
-    BigDecimal sumAmountByLedgerIdAndAccountIdAndType(
-            @Param("ledgerId") Long ledgerId,
-            @Param("accountId") Long accountId,
-            @Param("type") TransactionType type);
+    BigDecimal sumAmountByAccountIdAndType(
+            @Param("accountId") Long accountId, @Param("type") TransactionType type);
 
-    /** 某账本以指定账户为转账<b>目标</b>的转账金额合计（流入）；无匹配行返回 0（需求 4.3、4.13）。 */
+    /** 以指定账户为转账<b>目标</b>的转账金额合计（流入，跨账本）；无匹配行返回 0（需求 4.3、4.13）。 */
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
-            WHERE t.ledgerId = :ledgerId
-              AND t.destinationAccountId = :accountId
+            WHERE t.destinationAccountId = :accountId
             """)
-    BigDecimal sumTransferInByLedgerIdAndAccountId(
-            @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
+    BigDecimal sumTransferInByAccountId(@Param("accountId") Long accountId);
 
-    /** 某账本以指定账户为转账<b>源</b>的转账金额合计（流出）；无匹配行返回 0（需求 4.3、4.13）。 */
+    /** 以指定账户为转账<b>源</b>的转账金额合计（流出，跨账本）；无匹配行返回 0（需求 4.3、4.13）。 */
     @Query("""
             SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
-            WHERE t.ledgerId = :ledgerId
-              AND t.sourceAccountId = :accountId
+            WHERE t.sourceAccountId = :accountId
             """)
-    BigDecimal sumTransferOutByLedgerIdAndAccountId(
-            @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
+    BigDecimal sumTransferOutByAccountId(@Param("accountId") Long accountId);
 }

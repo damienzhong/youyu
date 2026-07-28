@@ -94,7 +94,7 @@ public class ImportService {
      * @throws ApiException IMPORT_INVALID（文档结构/引用键/字段值非法）；IMPORT_FAILED（解析失败）
      */
     @Transactional
-    public ImportResult importJson(Long ledgerId, InputStream in) {
+    public ImportResult importJson(Long userId, Long ledgerId, InputStream in) {
         JsonNode root;
         try {
             root = mapper.readTree(in);
@@ -107,7 +107,7 @@ public class ImportService {
 
         LocalDateTime now = LocalDateTime.now(clock);
 
-        Map<String, Account> accountByRef = restoreAccounts(ledgerId, root.path("accounts"), now);
+        Map<String, Account> accountByRef = restoreAccounts(userId, root.path("accounts"), now);
         Map<String, Category> categoryByRef = restoreCategories(ledgerId, root.path("categories"), now);
         int txCount = restoreTransactions(
                 ledgerId, root.path("transactions"), accountByRef, categoryByRef, now);
@@ -120,7 +120,7 @@ public class ImportService {
 
     // ---------------- 账户还原 ----------------
 
-    private Map<String, Account> restoreAccounts(Long ledgerId, JsonNode accounts, LocalDateTime now) {
+    private Map<String, Account> restoreAccounts(Long userId, JsonNode accounts, LocalDateTime now) {
         Map<String, Account> byRef = new HashMap<>();
         if (accounts.isMissingNode() || accounts.isNull()) {
             return byRef;
@@ -133,7 +133,9 @@ public class ImportService {
             BigDecimal initial = money(requireText(node, "initialBalance", "账户"));
 
             Account account = new Account();
-            account.setLedgerId(ledgerId);
+            // 账户为用户级：归属会话用户，ledger_id 为空。
+            account.setUserId(userId);
+            account.setLedgerId(null);
             account.setName(requireText(node, "name", "账户"));
             account.setType(parseAccountType(requireText(node, "type", "账户")));
             account.setInitialBalance(initial);

@@ -2,12 +2,16 @@ package com.damien.youyu.service;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.Ledger;
+import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.BudgetRepository;
@@ -36,6 +40,7 @@ public class LedgerService {
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
     private final LoanRepository loanRepository;
+    private final AccountService accountService;
     private final Clock clock;
 
     public LedgerService(
@@ -46,6 +51,7 @@ public class LedgerService {
             BudgetRepository budgetRepository,
             CategoryBudgetRepository categoryBudgetRepository,
             LoanRepository loanRepository,
+            AccountService accountService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
@@ -54,6 +60,7 @@ public class LedgerService {
         this.budgetRepository = budgetRepository;
         this.categoryBudgetRepository = categoryBudgetRepository;
         this.loanRepository = loanRepository;
+        this.accountService = accountService;
         this.clock = clock;
     }
 
@@ -116,14 +123,37 @@ public class LedgerService {
         if (ledgerRepository.countByUserId(userId) <= 1) {
             throw ApiException.ledgerLastOne();
         }
-        // 级联清除该账本的业务数据（顺序无外键约束依赖，但先清引用方更稳妥）。
+        // 账户为用户级、跨账本共享，删除账本不删账户；先记录受影响账户，删除该账本流水后重算其余额。
+        Set<Long> affectedAccountIds = new LinkedHashSet<>();
+        for (Transaction t : transactionRepository.findByLedgerId(id)) {
+            if (t.getAccountId() != null) {
+                affectedAccountIds.add(t.getAccountId());
+            }
+            if (t.getSourceAccountId() != null) {
+                affectedAccountIds.add(t.getSourceAccountId());
+            }
+            if (t.getDestinationAccountId() != null) {
+                affectedAccountIds.add(t.getDestinationAccountId());
+            }
+        }
+
+        // 级联清除该账本的业务数据（账户除外，属用户级）。
         transactionRepository.deleteByLedgerId(id);
         categoryBudgetRepository.deleteByLedgerId(id);
         budgetRepository.deleteByLedgerId(id);
         loanRepository.deleteByLedgerId(id);
         categoryRepository.deleteByLedgerId(id);
-        accountRepository.deleteByLedgerId(id);
         ledgerRepository.delete(ledger);
+
+        // 重算受影响账户余额（初始余额 + 其余账本剩余流水）。
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (Long accountId : affectedAccountIds) {
+            accountRepository.findByIdAndUserId(accountId, userId).ifPresent(account -> {
+                account.setCurrentBalance(accountService.recomputeBalance(userId, accountId));
+                account.setUpdatedAt(now);
+                accountRepository.save(account);
+            });
+        }
 
         // 若删的是默认账本，把默认标记转移到剩余排序第一的账本。
         if (ledger.isDefault()) {

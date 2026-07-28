@@ -71,10 +71,10 @@ class MultiTenantIsolationPropertyTest {
             List<Long> txsA = persistTransactions(ledgerA, smallCountGen.next(rng).value(), rng);
             List<Long> txsB = persistTransactions(ledgerB, smallCountGen.next(rng).value(), rng);
 
-            assertOwnedOnly(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerA),
-                    accountsA, Account::getId, Account::getLedgerId, ledgerA);
-            assertOwnedOnly(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerB),
-                    accountsB, Account::getId, Account::getLedgerId, ledgerB);
+            assertOwnedOnly(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(ledgerA),
+                    accountsA, Account::getId, Account::getUserId, ledgerA);
+            assertOwnedOnly(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(ledgerB),
+                    accountsB, Account::getId, Account::getUserId, ledgerB);
             assertOwnedOnly(categoryRepository.findByLedgerId(ledgerA),
                     categoriesA, Category::getId, Category::getLedgerId, ledgerA);
             assertOwnedOnly(categoryRepository.findByLedgerId(ledgerB),
@@ -86,8 +86,8 @@ class MultiTenantIsolationPropertyTest {
 
             // 跨账本单条读取隔离：B 的资源用 A 的 ledger_id 读取返回空；用本账本读取可取到。
             for (Long bAccountId : accountsB) {
-                assertThat(accountRepository.findByIdAndLedgerId(bAccountId, ledgerA)).isEmpty();
-                assertThat(accountRepository.findByIdAndLedgerId(bAccountId, ledgerB)).isPresent();
+                assertThat(accountRepository.findByIdAndUserId(bAccountId, ledgerA)).isEmpty();
+                assertThat(accountRepository.findByIdAndUserId(bAccountId, ledgerB)).isPresent();
             }
             for (Long bCategoryId : categoriesB) {
                 assertThat(categoryRepository.findByIdAndLedgerId(bCategoryId, ledgerA)).isEmpty();
@@ -112,7 +112,7 @@ class MultiTenantIsolationPropertyTest {
             List<Long> createdIds = new ArrayList<>();
             for (int i = 0; i < n; i++) {
                 Account account = new Account();
-                account.setLedgerId(ledger);
+                account.setUserId(ledger);
                 account.setName("acc" + i);
                 account.setType(AccountType.CASH);
                 account.setInitialBalance(BigDecimal.ZERO);
@@ -121,13 +121,13 @@ class MultiTenantIsolationPropertyTest {
                 account.setCreatedAt(FIXED_TIME);
                 account.setUpdatedAt(FIXED_TIME);
                 Account saved = accountRepository.save(account);
-                assertThat(saved.getLedgerId()).isEqualTo(ledger);
+                assertThat(saved.getUserId()).isEqualTo(ledger);
                 createdIds.add(saved.getId());
             }
 
             for (Long id : createdIds) {
-                assertThat(accountRepository.findByIdAndLedgerId(id, ledger)).isPresent();
-                assertThat(accountRepository.findByIdAndLedgerId(id, otherLedger)).isEmpty();
+                assertThat(accountRepository.findByIdAndUserId(id, ledger)).isPresent();
+                assertThat(accountRepository.findByIdAndUserId(id, otherLedger)).isEmpty();
             }
         }
     }
@@ -148,7 +148,7 @@ class MultiTenantIsolationPropertyTest {
         List<Long> ids = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             Account a = new Account();
-            a.setLedgerId(ledgerId);
+            a.setUserId(ledgerId);
             a.setName("acc" + i);
             a.setType(AccountType.CASH);
             a.setInitialBalance(BigDecimal.ZERO);

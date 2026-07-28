@@ -207,7 +207,7 @@ class AccountPropertyTest {
             assertThat(ex.getCode()).isEqualTo("ACCOUNT_FIELD_INVALID");
             assertThat(ex.getField()).isEqualTo(expectedField);
             // 零副作用：未持久化任何账户。
-            assertThat(accountRepository.countByLedgerId(ledgerId)).isZero();
+            assertThat(accountRepository.countByUserId(ledgerId)).isZero();
         }
     }
 
@@ -270,7 +270,7 @@ class AccountPropertyTest {
             List<Account> listA = service.list(userA);
             // 数量一致、内容一致、且全部归属 userA。
             assertThat(listA).hasSize(nA);
-            assertThat(listA).allSatisfy(a -> assertThat(a.getLedgerId()).isEqualTo(userA));
+            assertThat(listA).allSatisfy(a -> assertThat(a.getUserId()).isEqualTo(userA));
             assertThat(listA.stream().map(Account::getId).toList())
                     .containsExactlyInAnyOrderElementsOf(idsA);
             // 隔离：不含 userB 的任何账户（仅当 userB 确有账户时校验，避免空集断言前置条件）。
@@ -309,7 +309,7 @@ class AccountPropertyTest {
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("ACCOUNT_IN_USE");
             // 账户仍存在，余额未变。
-            Account after = accountRepository.findByIdAndLedgerId(account.getId(), ledgerId).orElseThrow();
+            Account after = accountRepository.findByIdAndUserId(account.getId(), ledgerId).orElseThrow();
             assertThat(after.getCurrentBalance()).isEqualTo(balanceBefore);
             assertThat(after.getInitialBalance()).isEqualByComparingTo(balance);
         }

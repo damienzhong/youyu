@@ -108,7 +108,7 @@ class ExportPropertyTest {
             DatasetCounts countsA = buildDataset(userA, rng, "");
             // 将 A 的 current_balance 校正为重算值，便于与 B 比对（导出本身不含 current_balance）。
             AccountService accountService = accountService();
-            for (Account a : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(userA)) {
+            for (Account a : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userA)) {
                 a.setCurrentBalance(accountService.recomputeBalance(userA, a.getId()));
                 accountRepository.save(a);
             }
@@ -116,15 +116,15 @@ class ExportPropertyTest {
             byte[] exportA = exportJson(userA);
 
             // 导入到空账户用户 B。
-            assertThat(accountRepository.countByLedgerId(userB)).isZero();
+            assertThat(accountRepository.countByUserId(userB)).isZero();
             ImportService.ImportResult result = importService()
-                    .importJson(userB, new ByteArrayInputStream(exportA));
+                    .importJson(userB, userB, new ByteArrayInputStream(exportA));
 
             // (1) 记录数分别相等。
             assertThat(result.accounts()).as("iter=%d 账户数", iter).isEqualTo(countsA.accounts());
             assertThat(result.categories()).as("iter=%d 分类数", iter).isEqualTo(countsA.categories());
             assertThat(result.transactions()).as("iter=%d 交易数", iter).isEqualTo(countsA.transactions());
-            assertThat(accountRepository.countByLedgerId(userB)).isEqualTo(countsA.accounts());
+            assertThat(accountRepository.countByUserId(userB)).isEqualTo(countsA.accounts());
             assertThat(categoryRepository.countByLedgerId(userB)).isEqualTo(countsA.categories());
             assertThat(transactionRepository.findByLedgerId(userB)).hasSize(countsA.transactions());
 
@@ -136,14 +136,14 @@ class ExportPropertyTest {
 
             // (3) current_balance 与重算一致，且按名称配对与 A 相等（余额守恒还原，需求 4.13）。
             Map<String, Account> accountsA = accountRepository
-                    .findByLedgerIdOrderBySortOrderAscIdAsc(userA).stream()
+                    .findByUserIdOrderBySortOrderAscIdAsc(userA).stream()
                     .collect(Collectors.toMap(Account::getName, a -> a));
-            for (Account b : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(userB)) {
+            for (Account b : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userB)) {
                 BigDecimal recomputed = accountService.recomputeBalance(userB, b.getId());
                 assertThat(b.getCurrentBalance())
                         .as("iter=%d 账户[%s] current_balance == 重算值", iter, b.getName())
                         .isEqualByComparingTo(recomputed);
-                assertThat(b.getLedgerId()).isEqualTo(userB);
+                assertThat(b.getUserId()).isEqualTo(userB);
                 Account a = accountsA.get(b.getName());
                 assertThat(a).as("iter=%d B 账户[%s] 应有同名 A 账户", iter, b.getName()).isNotNull();
                 assertThat(b.getCurrentBalance())
@@ -191,7 +191,7 @@ class ExportPropertyTest {
 
             // (1) 记录数等于目标用户在库中的记录数。
             assertThat(root.get("accounts")).as("iter=%d accounts 数", iter)
-                    .hasSize((int) accountRepository.countByLedgerId(target));
+                    .hasSize((int) accountRepository.countByUserId(target));
             assertThat(root.get("categories")).as("iter=%d categories 数", iter)
                     .hasSize((int) categoryRepository.countByLedgerId(target));
             assertThat(root.get("transactions")).as("iter=%d transactions 数", iter)
@@ -238,7 +238,7 @@ class ExportPropertyTest {
         List<Long> accountIds = new ArrayList<>();
         for (int i = 0; i < accCount; i++) {
             Account a = new Account();
-            a.setLedgerId(ledgerId);
+            a.setUserId(ledgerId);
             a.setName(token + "acc" + i);
             a.setType(AccountType.values()[rng.nextInt(AccountType.values().length)]);
             BigDecimal init = randomInitialBalance(rng);
@@ -349,7 +349,7 @@ class ExportPropertyTest {
 
     private byte[] exportJson(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeJson(ledgerId, out);
+        exportService().writeJson(ledgerId, ledgerId, out);
         return out.toByteArray();
     }
 }

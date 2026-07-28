@@ -54,7 +54,7 @@ class AccountServiceTest {
         Account account = service().create(USER, "现金", "CASH", new BigDecimal("100.50"), 0);
 
         assertThat(account.getId()).isNotNull();
-        assertThat(account.getLedgerId()).isEqualTo(USER);
+        assertThat(account.getUserId()).isEqualTo(USER);
         assertThat(account.getName()).isEqualTo("现金");
         assertThat(account.getType()).isEqualTo(AccountType.CASH);
         assertThat(account.getInitialBalance()).isEqualByComparingTo("100.50");
@@ -89,7 +89,7 @@ class AccountServiceTest {
         assertThat(tooLong.getField()).isEqualTo("name");
 
         // 需求 3.3：不持久化任何数据。
-        assertThat(accountRepository.countByLedgerId(USER)).isZero();
+        assertThat(accountRepository.countByUserId(USER)).isZero();
     }
 
     @Test
@@ -98,7 +98,7 @@ class AccountServiceTest {
                 () -> service().create(USER, "账户", "BITCOIN", BigDecimal.ZERO, 0), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("ACCOUNT_FIELD_INVALID");
         assertThat(ex.getField()).isEqualTo("type");
-        assertThat(accountRepository.countByLedgerId(USER)).isZero();
+        assertThat(accountRepository.countByUserId(USER)).isZero();
     }
 
     @Test
@@ -114,7 +114,7 @@ class AccountServiceTest {
                 ApiException.class);
         assertThat(overMax.getField()).isEqualTo("initialBalance");
 
-        assertThat(accountRepository.countByLedgerId(USER)).isZero();
+        assertThat(accountRepository.countByUserId(USER)).isZero();
     }
 
     @Test
@@ -189,7 +189,7 @@ class AccountServiceTest {
 
         service.delete(USER, created.getId());
 
-        assertThat(accountRepository.findByIdAndLedgerId(created.getId(), USER)).isEmpty();
+        assertThat(accountRepository.findByIdAndUserId(created.getId(), USER)).isEmpty();
     }
 
     @Test
@@ -203,7 +203,7 @@ class AccountServiceTest {
 
         assertThat(ex.getCode()).isEqualTo("ACCOUNT_IN_USE");
         // 需求 3.7：账户保持不变。
-        assertThat(accountRepository.findByIdAndLedgerId(created.getId(), USER)).isPresent();
+        assertThat(accountRepository.findByIdAndUserId(created.getId(), USER)).isPresent();
     }
 
     @Test
