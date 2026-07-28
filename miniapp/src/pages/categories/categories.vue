@@ -7,26 +7,26 @@ import {
   renameCategory,
   deleteCategory
 } from '../../api/category'
+import { categoryEmoji } from '../../utils/format'
 
 const KINDS = [
-  { value: 'EXPENSE', label: '支出' },
-  { value: 'INCOME', label: '收入' }
+  { value: 'EXPENSE', label: '支出', emojiKind: 'expense' },
+  { value: 'INCOME', label: '收入', emojiKind: 'income' }
 ]
 
 const kind = ref('EXPENSE')
 const tree = ref({ expense: [], income: [] })
 const loading = ref(false)
 
-const roots = computed(() =>
-  kind.value === 'EXPENSE' ? tree.value.expense : tree.value.income
-)
+const roots = computed(() => (kind.value === 'EXPENSE' ? tree.value.expense : tree.value.income))
+const emojiKind = computed(() => (kind.value === 'EXPENSE' ? 'expense' : 'income'))
 
 async function load() {
   loading.value = true
   try {
     tree.value = await listCategories()
   } catch (e) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
@@ -34,7 +34,6 @@ async function load() {
 
 onShow(load)
 
-// 新建父分类
 function addParent() {
   uni.showModal({
     title: `新建${kind.value === 'EXPENSE' ? '支出' : '收入'}分类`,
@@ -46,8 +45,6 @@ function addParent() {
     }
   })
 }
-
-// 在某父分类下新建子分类
 function addChild(parent) {
   uni.showModal({
     title: `在「${parent.name}」下新建子分类`,
@@ -55,13 +52,10 @@ function addChild(parent) {
     placeholderText: '子分类名称',
     success: async (r) => {
       if (!r.confirm || !r.content?.trim()) return
-      await mutate(() =>
-        createCategory({ kind: kind.value, name: r.content.trim(), parentId: parent.id })
-      )
+      await mutate(() => createCategory({ kind: kind.value, name: r.content.trim(), parentId: parent.id }))
     }
   })
 }
-
 function rename(node) {
   uni.showModal({
     title: '重命名',
@@ -73,7 +67,6 @@ function rename(node) {
     }
   })
 }
-
 function remove(node) {
   uni.showModal({
     title: '删除分类',
@@ -84,8 +77,6 @@ function remove(node) {
     }
   })
 }
-
-// 统一执行写操作并刷新，错误弹 toast
 async function mutate(fn) {
   try {
     await fn()
@@ -114,6 +105,7 @@ async function mutate(fn) {
 
     <view v-for="parent in roots" :key="parent.id" class="parent">
       <view class="parent-head">
+        <text class="p-ic">{{ categoryEmoji(parent.name, emojiKind) }}</text>
         <text class="parent-name">{{ parent.name }}</text>
         <view class="ops">
           <text class="op" @click="addChild(parent)">＋子</text>
@@ -122,6 +114,7 @@ async function mutate(fn) {
         </view>
       </view>
       <view v-for="child in parent.children" :key="child.id" class="child">
+        <text class="c-ic">{{ categoryEmoji(parent.name + child.name, emojiKind) }}</text>
         <text class="child-name">{{ child.name }}</text>
         <view class="ops">
           <text class="op" @click="rename(child)">改名</text>
@@ -142,54 +135,75 @@ async function mutate(fn) {
 .kinds {
   display: flex;
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   overflow: hidden;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 }
 .kind {
   flex: 1;
   text-align: center;
-  padding: 26rpx 0;
+  padding: 28rpx 0;
   font-size: 30rpx;
-  color: #666;
+  color: #6b7280;
 }
 .kind.active {
-  background: #07c160;
+  background: #16a34a;
   color: #fff;
+  font-weight: 700;
 }
 .empty {
   margin-top: 160rpx;
   text-align: center;
-  color: #999;
+  color: #9ca3af;
   font-size: 28rpx;
 }
 .parent {
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: 24rpx;
   padding: 8rpx 32rpx;
   margin-bottom: 20rpx;
 }
 .parent-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  gap: 16rpx;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid #eef0f2;
+}
+.p-ic {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 16rpx;
+  background: #eafaf0;
+  text-align: center;
+  line-height: 60rpx;
+  font-size: 30rpx;
 }
 .parent-name {
+  flex: 1;
   font-size: 32rpx;
-  font-weight: 600;
-  color: #1a1a1a;
+  font-weight: 700;
+  color: #1f2937;
 }
 .child {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 20rpx 0 20rpx 32rpx;
+  gap: 16rpx;
+  padding: 22rpx 0 22rpx 24rpx;
+}
+.c-ic {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 12rpx;
+  background: #f5f6f7;
+  text-align: center;
+  line-height: 48rpx;
+  font-size: 26rpx;
 }
 .child-name {
+  flex: 1;
   font-size: 28rpx;
-  color: #555;
+  color: #4b5563;
 }
 .ops {
   display: flex;
@@ -197,10 +211,10 @@ async function mutate(fn) {
 }
 .op {
   font-size: 24rpx;
-  color: #576b95;
+  color: #16a34a;
 }
 .op.danger {
-  color: #e64340;
+  color: #dc2626;
 }
 .fab {
   position: fixed;
@@ -209,11 +223,11 @@ async function mutate(fn) {
   width: 96rpx;
   height: 96rpx;
   border-radius: 50%;
-  background: #07c160;
+  background: linear-gradient(135deg, #1eb257, #128a3f);
   color: #fff;
   font-size: 56rpx;
   line-height: 96rpx;
   text-align: center;
-  box-shadow: 0 6rpx 20rpx rgba(7, 193, 96, 0.4);
+  box-shadow: 0 12rpx 30rpx rgba(22, 163, 74, 0.4);
 }
 </style>

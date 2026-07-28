@@ -1,13 +1,14 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { listAccounts } from '../../api/account'
+import { listAccounts, accountTypeLabel } from '../../api/account'
 import { listCategories, flattenCategories } from '../../api/category'
 import {
   createTransaction,
   getTransaction,
   updateTransaction
 } from '../../api/transaction'
+import { categoryEmoji, formatAmount } from '../../utils/format'
 
 const TYPES = [
   { value: 'expense', label: '支出' },
@@ -15,30 +16,55 @@ const TYPES = [
   { value: 'transfer', label: '转账' }
 ]
 
+const CAT_TINTS = [
+  '#e9f7ef', '#e8f0fe', '#fff1e6', '#f3ecff', '#fdeaf3',
+  '#e6f6ff', '#fff6e0', '#eafaf0', '#fdeae8', '#e6fbf7'
+]
+const ACCOUNT_DOT = {
+  CASH: '#16a34a', BANK_CARD: '#0ea5e9', ALIPAY: '#1677ff',
+  WECHAT: '#07c160', CREDIT_CARD: '#f59e0b'
+}
+function accountDot(t) {
+  return ACCOUNT_DOT[t] || '#94a3b8'
+}
+
 const type = ref('expense')
 const amount = ref('')
 const note = ref('')
 const submitting = ref(false)
 
 const accounts = ref([])
-const accountIndex = ref(0)
-const destIndex = ref(0)
-
 const categoryTree = ref({ expense: [], income: [] })
-const categoryIndex = ref(0)
+const accountId = ref(null)
+const destId = ref(null)
+const categoryId = ref(null)
 
-// 编辑模式：存在 editingId 时为改单，需保留原始 occurredAt
 const editingId = ref(null)
 const editingOccurredAt = ref(null)
 const isEditing = computed(() => editingId.value !== null)
 
+// 账户选择底部面板：'account' | 'source' | 'dest' | null
+const sheetTarget = ref(null)
+
+const isTransfer = computed(() => type.value === 'transfer')
+
+// 分类网格选项（当前类型），带 emoji 与配色
 const categoryOptions = computed(() => {
-  if (type.value === 'transfer') return []
-  return flattenCategories(categoryTree.value[type.value])
+  const nodes = type.value === 'income' ? categoryTree.value.income : categoryTree.value.expense
+  return flattenCategories(nodes).map((o, i) => ({
+    id: o.id,
+    label: o.label,
+    emoji: categoryEmoji(o.label, type.value),
+    tint: CAT_TINTS[i % CAT_TINTS.length]
+  }))
 })
 
-onLoad((query) => {
-  editingId.value = query && query.id ? Number(query.id) : null
+const accountById = (id) => accounts.value.find((a) => a.id === id)
+const sourceAccount = computed(() => accountById(accountId.value))
+const destAccount = computed(() => accountById(destId.value))
+
+onLoad((q) => {
+  editingId.value = q && q.id ? Number(q.id) : null
   load()
 })
 
@@ -47,10 +73,8 @@ async function load() {
     const [accs, cats] = await Promise.all([listAccounts(), listCategories()])
     accounts.value = accs
     categoryTree.value = cats
-    accountIndex.value = 0
-    destIndex.value = accs.length > 1 ? 1 : 0
-    categoryIndex.value = 0
-
+    accountId.value = accs[0]?.id ?? null
+    destId.value = accs.length > 1 ? accs[1].id : null
     if (isEditing.value) {
       await prefill()
       uni.setNavigationBarTitle({ title: '编辑记录' })
@@ -60,43 +84,35 @@ async function load() {
   }
 }
 
-// 编辑：拉取原交易并回填表单与各选择器索引
 async function prefill() {
   const tx = await getTransaction(editingId.value)
   type.value = tx.type
   amount.value = String(tx.amount)
   note.value = tx.note || ''
   editingOccurredAt.value = tx.occurredAt
-
   if (tx.type === 'transfer') {
-    accountIndex.value = idxById(accounts.value, tx.sourceAccountId)
-    destIndex.value = idxById(accounts.value, tx.destinationAccountId)
+    accountId.value = tx.sourceAccountId
+    destId.value = tx.destinationAccountId
   } else {
-    accountIndex.value = idxById(accounts.value, tx.accountId)
-    categoryIndex.value = Math.max(
-      categoryOptions.value.findIndex((o) => o.id === tx.categoryId),
-      0
-    )
+    accountId.value = tx.accountId
+    categoryId.value = tx.categoryId
   }
 }
 
-function idxById(list, id) {
-  const i = list.findIndex((x) => x.id === id)
-  return i >= 0 ? i : 0
+function setType(t) {
+  if (type.value === t) return
+  type.value = t
+  categoryId.value = null
+  if (t === 'transfer' && destId.value === accountId.value) {
+    const other = accounts.value.find((a) => a.id !== accountId.value)
+    destId.value = other ? other.id : null
+  }
 }
 
-function selectType(t) {
-  type.value = t
-  categoryIndex.value = 0
-}
-function onAccountChange(e) {
-  accountIndex.value = Number(e.detail.value)
-}
-function onDestChange(e) {
-  destIndex.value = Number(e.detail.value)
-}
-function onCategoryChange(e) {
-  categoryIndex.value = Number(e.detail.value)
+function pickAccount(a) {
+  if (sheetTarget.value === 'dest') destId.value = a.id
+  else accountId.value = a.id
+  sheetTarget.value = null
 }
 
 async function submit() {
@@ -108,28 +124,21 @@ async function submit() {
     uni.showToast({ title: '请先创建账户', icon: 'none' })
     return
   }
-
   const payload = { type: type.value, amount: amount.value, note: note.value.trim() || undefined }
-  // 编辑时保留原始发生时间，避免被后端重置为当前时间
-  if (isEditing.value && editingOccurredAt.value) {
-    payload.occurredAt = editingOccurredAt.value
-  }
+  if (isEditing.value && editingOccurredAt.value) payload.occurredAt = editingOccurredAt.value
 
-  if (type.value === 'transfer') {
-    const src = accounts.value[accountIndex.value]
-    const dst = accounts.value[destIndex.value]
-    if (src.id === dst.id) {
+  if (isTransfer.value) {
+    if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
       return
     }
-    payload.sourceAccountId = src.id
-    payload.destinationAccountId = dst.id
+    payload.sourceAccountId = accountId.value
+    payload.destinationAccountId = destId.value
   } else {
-    // 后端要求支出/收入必须有分类（需求 4.8），此处强制校验
     if (!categoryOptions.value.length) {
       uni.showModal({
         title: '还没有分类',
-        content: '支出和收入需要选择分类，先去创建一个分类吧。',
+        content: '支出和收入需要选择分类，先去创建一个吧。',
         confirmText: '去创建',
         success: (r) => {
           if (r.confirm) uni.navigateTo({ url: '/pages/categories/categories' })
@@ -137,13 +146,12 @@ async function submit() {
       })
       return
     }
-    const opt = categoryOptions.value[categoryIndex.value]
-    if (!opt) {
+    if (!categoryId.value) {
       uni.showToast({ title: '请选择分类', icon: 'none' })
       return
     }
-    payload.accountId = accounts.value[accountIndex.value].id
-    payload.categoryId = opt.id
+    payload.accountId = accountId.value
+    payload.categoryId = categoryId.value
   }
 
   submitting.value = true
@@ -167,128 +175,360 @@ async function submit() {
 </script>
 
 <template>
-  <view class="page">
+  <view class="page" :class="type">
+    <!-- 类型 tab -->
     <view class="tabs">
       <view
         v-for="t in TYPES"
         :key="t.value"
         class="tab"
         :class="{ active: type === t.value }"
-        @click="selectType(t.value)"
+        @click="setType(t.value)"
       >
         {{ t.label }}
       </view>
     </view>
 
-    <view class="amount-row">
-      <text class="cny">¥</text>
+    <!-- 金额 -->
+    <view class="amount-card">
+      <text class="cur">¥</text>
       <input v-model="amount" class="amount" type="digit" placeholder="0.00" />
     </view>
 
-    <template v-if="type !== 'transfer'">
-      <picker class="row" :range="accounts" range-key="name" @change="onAccountChange">
+    <!-- 支出/收入：分类网格 -->
+    <template v-if="!isTransfer">
+      <view v-if="!categoryOptions.length" class="cats-empty">
+        还没有{{ type === 'income' ? '收入' : '支出' }}分类，
+        <text class="link" @click="uni.navigateTo({ url: '/pages/categories/categories' })">去添加</text>
+      </view>
+      <view v-else class="cats">
+        <view
+          v-for="opt in categoryOptions"
+          :key="opt.id"
+          class="cat"
+          :class="{ active: categoryId === opt.id }"
+          @click="categoryId = opt.id"
+        >
+          <text class="cat-circle" :style="{ background: opt.tint }">{{ opt.emoji }}</text>
+          <text class="cat-nm">{{ opt.label }}</text>
+        </view>
+      </view>
+
+      <!-- 账户 chip -->
+      <view class="row" @click="sheetTarget = 'account'">
         <text class="row-label">账户</text>
-        <text class="row-value">{{ accounts[accountIndex]?.name || '请先创建账户' }}</text>
-      </picker>
-      <picker
-        class="row"
-        :range="categoryOptions"
-        range-key="label"
-        @change="onCategoryChange"
-      >
-        <text class="row-label">分类</text>
-        <text class="row-value">{{ categoryOptions[categoryIndex]?.label || '请先创建分类' }}</text>
-      </picker>
+        <view class="row-value">
+          <text class="dot" v-if="sourceAccount" :style="{ background: accountDot(sourceAccount.type) }"></text>
+          <text>{{ sourceAccount ? sourceAccount.name : '选择账户' }}</text>
+          <text class="caret">▾</text>
+        </view>
+      </view>
     </template>
 
+    <!-- 转账：两账户 -->
     <template v-else>
-      <picker class="row" :range="accounts" range-key="name" @change="onAccountChange">
-        <text class="row-label">转出</text>
-        <text class="row-value">{{ accounts[accountIndex]?.name || '-' }}</text>
-      </picker>
-      <picker class="row" :range="accounts" range-key="name" @change="onDestChange">
-        <text class="row-label">转入</text>
-        <text class="row-value">{{ accounts[destIndex]?.name || '-' }}</text>
-      </picker>
+      <view class="transfer">
+        <view class="acc-pick" @click="sheetTarget = 'source'">
+          <text class="ai out">↗</text>
+          <text class="at">{{ sourceAccount ? sourceAccount.name : '选择转出账户' }}</text>
+          <text class="av out">-{{ amount ? formatAmount(amount) : '0.00' }}</text>
+        </view>
+        <text class="swap">⇅</text>
+        <view class="acc-pick" @click="sheetTarget = 'dest'">
+          <text class="ai in">↘</text>
+          <text class="at">{{ destAccount ? destAccount.name : '选择转入账户' }}</text>
+          <text class="av in">+{{ amount ? formatAmount(amount) : '0.00' }}</text>
+        </view>
+      </view>
     </template>
 
-    <input v-model="note" class="note" placeholder="备注（可选）" maxlength="200" />
+    <input v-model="note" class="note" placeholder="添加备注（可选）" maxlength="200" />
 
-    <button class="submit" :loading="submitting" @click="submit">
+    <button class="submit" :class="type" :loading="submitting" @click="submit">
       {{ isEditing ? '保存修改' : '保存' }}
     </button>
+
+    <!-- 账户选择底部面板 -->
+    <view v-if="sheetTarget" class="mask" @click="sheetTarget = null">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">
+          {{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}
+        </text>
+        <view
+          v-for="a in accounts"
+          :key="a.id"
+          class="sheet-item"
+          @click="pickAccount(a)"
+        >
+          <text class="dot" :style="{ background: accountDot(a.type) }"></text>
+          <view class="s-name">
+            <text>{{ a.name }}</text>
+            <text class="s-type">{{ accountTypeLabel(a.type) }}</text>
+          </view>
+          <text class="s-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
 <style scoped>
 .page {
+  --accent: #dc2626;
   min-height: 100vh;
   padding: 24rpx;
 }
+.page.income,
+.page.transfer {
+  --accent: #16a34a;
+}
+
+/* 类型 tab（下划线激活） */
 .tabs {
   display: flex;
-  background: #fff;
-  border-radius: 16rpx;
-  overflow: hidden;
-  margin-bottom: 32rpx;
+  justify-content: center;
+  gap: 56rpx;
+  padding: 16rpx 0 24rpx;
 }
 .tab {
-  flex: 1;
-  text-align: center;
-  padding: 28rpx 0;
-  font-size: 30rpx;
-  color: #666;
+  position: relative;
+  font-size: 32rpx;
+  color: #9ca3af;
+  padding: 8rpx 4rpx;
 }
 .tab.active {
-  background: #07c160;
-  color: #fff;
+  color: #1f2937;
+  font-weight: 800;
 }
-.amount-row {
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: -4rpx;
+  width: 44rpx;
+  height: 6rpx;
+  border-radius: 4rpx;
+  background: #16a34a;
+}
+
+/* 金额 */
+.amount-card {
   display: flex;
   align-items: center;
   background: #fff;
-  border-radius: 16rpx;
-  padding: 24rpx 32rpx;
+  border-radius: 24rpx;
+  padding: 28rpx 36rpx;
   margin-bottom: 24rpx;
 }
-.cny {
-  font-size: 48rpx;
-  color: #1a1a1a;
+.cur {
+  font-size: 52rpx;
+  color: var(--accent);
+  font-weight: 700;
   margin-right: 16rpx;
 }
 .amount {
   flex: 1;
-  font-size: 56rpx;
-  color: #1a1a1a;
+  font-size: 64rpx;
+  font-weight: 800;
+  color: var(--accent);
 }
+
+/* 分类网格 */
+.cats {
+  display: flex;
+  flex-wrap: wrap;
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 12rpx;
+  margin-bottom: 24rpx;
+}
+.cat {
+  width: 20%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  padding: 14rpx 0;
+}
+.cat-circle {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 96rpx;
+  font-size: 44rpx;
+}
+.cat.active .cat-circle {
+  box-shadow: 0 0 0 4rpx #fff, 0 0 0 8rpx #16a34a;
+}
+.cat-nm {
+  font-size: 22rpx;
+  color: #4b5563;
+  max-width: 130rpx;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.cat.active .cat-nm {
+  color: #15803d;
+  font-weight: 700;
+}
+.cats-empty {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 48rpx;
+  text-align: center;
+  color: #6b7280;
+  font-size: 28rpx;
+  margin-bottom: 24rpx;
+}
+.link {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+/* 账户行 */
 .row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   padding: 32rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 }
 .row-label {
   font-size: 30rpx;
-  color: #666;
+  color: #6b7280;
 }
 .row-value {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
   font-size: 30rpx;
-  color: #1a1a1a;
+  color: #1f2937;
 }
+.caret {
+  color: #9ca3af;
+  font-size: 22rpx;
+}
+.dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+}
+
+/* 转账 */
+.transfer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 24rpx;
+}
+.acc-pick {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  box-sizing: border-box;
+}
+.ai {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 16rpx;
+  text-align: center;
+  line-height: 60rpx;
+  font-size: 30rpx;
+  background: #ecfdf3;
+  color: #16a34a;
+}
+.at {
+  flex: 1;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+.av.out { color: #dc2626; font-weight: 800; }
+.av.in { color: #16a34a; font-weight: 800; }
+.swap {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  border: 2rpx solid #e5e7eb;
+  text-align: center;
+  line-height: 60rpx;
+  color: #9ca3af;
+}
+
 .note {
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   padding: 32rpx;
   font-size: 30rpx;
-  margin-bottom: 40rpx;
+  margin-bottom: 32rpx;
 }
 .submit {
-  background: #07c160;
+  background: #16a34a;
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
+}
+.submit.expense {
+  background: #dc2626;
+}
+
+/* 底部面板 */
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: flex-end;
+}
+.sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 36rpx 32rpx calc(36rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.sheet-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+  margin-bottom: 20rpx;
+}
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 26rpx 8rpx;
+  border-top: 1rpx solid #eef0f2;
+}
+.sheet-item:first-of-type {
+  border-top: none;
+}
+.s-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+.s-type {
+  font-size: 22rpx;
+  color: #9ca3af;
+}
+.s-bal {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1f2937;
+}
+.s-bal.neg {
+  color: #dc2626;
 }
 </style>

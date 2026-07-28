@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { categoryReport, monthRange, shiftMonth } from '../../api/report'
+import { formatAmount, categoryEmoji, currentMonth, monthLabel } from '../../utils/format'
 
 const KINDS = [
   { value: 'expense', label: '支出' },
@@ -9,18 +10,12 @@ const KINDS = [
 ]
 
 const kind = ref('expense')
-const month = ref(thisMonth())
+const month = ref(currentMonth())
 const total = ref('0.00')
 const rows = ref([])
 const loading = ref(false)
 
-function thisMonth() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-// 占比条颜色轮转，视觉区分各分类
-const COLORS = ['#07c160', '#576b95', '#f0883a', '#e64340', '#8a6de9', '#3aa1ff', '#f7b500']
+const COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#e64340', '#8b5cf6', '#1677ff', '#f7b500']
 function colorAt(i) {
   return COLORS[i % COLORS.length]
 }
@@ -33,7 +28,7 @@ async function load() {
     total.value = res.totalExpense
     rows.value = res.categories || []
   } catch (e) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
@@ -69,31 +64,40 @@ function nextMonth() {
       </view>
     </view>
 
-    <view class="month-bar">
-      <text class="nav" @click="prevMonth">‹</text>
-      <text class="month">{{ month }}</text>
-      <text class="nav" @click="nextMonth">›</text>
-    </view>
-
+    <!-- 概览卡 -->
     <view class="total-card">
-      <text class="total-label">合计</text>
-      <text class="total-value">{{ total }}</text>
+      <view class="month-bar">
+        <text class="nav" @click="prevMonth">‹</text>
+        <text class="month">{{ monthLabel(month) }}</text>
+        <text class="nav" @click="nextMonth">›</text>
+      </view>
+      <text class="total-label">{{ kind === 'expense' ? '总支出' : '总收入' }}</text>
+      <text class="total-value">¥{{ formatAmount(total) }}</text>
     </view>
 
-    <view v-if="!rows.length && !loading" class="empty">当月暂无{{ kind === 'expense' ? '支出' : '收入' }}</view>
+    <view v-if="!rows.length && !loading" class="empty">
+      当月暂无{{ kind === 'expense' ? '支出' : '收入' }}
+    </view>
 
-    <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row">
-      <view class="row-head">
-        <text class="row-name">{{ r.categoryName || '未分类' }}</text>
-        <text class="row-amount">{{ r.amount }}（{{ r.percentage }}%）</text>
+    <view class="list" v-if="rows.length">
+      <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row">
+        <text class="row-ic" :style="{ background: colorAt(i) + '22' }">
+          {{ categoryEmoji(r.categoryName, kind) }}
+        </text>
+        <view class="row-body">
+          <view class="row-head">
+            <text class="row-name">{{ r.categoryName || '未分类' }}</text>
+            <text class="row-amount">¥{{ formatAmount(r.amount) }}</text>
+          </view>
+          <view class="bar-bg">
+            <view class="bar" :style="{ width: r.percentage + '%', background: colorAt(i) }"></view>
+          </view>
+          <view class="row-foot">
+            <text class="row-pct">{{ r.percentage }}%</text>
+            <text class="row-count">{{ r.count }} 笔</text>
+          </view>
+        </view>
       </view>
-      <view class="bar-bg">
-        <view
-          class="bar"
-          :style="{ width: r.percentage + '%', background: colorAt(i) }"
-        ></view>
-      </view>
-      <text class="row-count">{{ r.count }} 笔</text>
     </view>
   </view>
 </template>
@@ -106,82 +110,107 @@ function nextMonth() {
 .kinds {
   display: flex;
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: 20rpx;
   overflow: hidden;
-  margin-bottom: 20rpx;
+  margin-bottom: 24rpx;
 }
 .kind {
   flex: 1;
   text-align: center;
-  padding: 26rpx 0;
+  padding: 28rpx 0;
   font-size: 30rpx;
-  color: #666;
+  color: #6b7280;
 }
 .kind.active {
-  background: #07c160;
+  background: #16a34a;
   color: #fff;
+  font-weight: 700;
+}
+.total-card {
+  border-radius: 28rpx;
+  padding: 32rpx 36rpx 40rpx;
+  margin-bottom: 24rpx;
+  color: #fff;
+  background: linear-gradient(150deg, #22c55e, #16a34a 55%, #0b6b34);
+  box-shadow: 0 20rpx 44rpx rgba(22, 163, 74, 0.26);
 }
 .month-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 48rpx;
+  gap: 40rpx;
   margin-bottom: 20rpx;
 }
 .nav {
-  font-size: 48rpx;
-  color: #576b95;
-  padding: 0 24rpx;
+  font-size: 44rpx;
+  padding: 0 20rpx;
+  opacity: 0.9;
 }
 .month {
-  font-size: 32rpx;
-  color: #1a1a1a;
-}
-.total-card {
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 36rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-bottom: 24rpx;
+  font-size: 30rpx;
+  font-weight: 700;
 }
 .total-label {
   font-size: 24rpx;
-  color: #999;
+  opacity: 0.9;
 }
 .total-value {
-  font-size: 48rpx;
-  font-weight: 600;
-  color: #1a1a1a;
+  display: block;
+  margin-top: 8rpx;
+  font-size: 64rpx;
+  font-weight: 800;
 }
 .empty {
   margin-top: 120rpx;
   text-align: center;
-  color: #999;
+  color: #9ca3af;
   font-size: 28rpx;
 }
-.row {
+.list {
   background: #fff;
-  border-radius: 16rpx;
-  padding: 28rpx 32rpx;
-  margin-bottom: 16rpx;
+  border-radius: 24rpx;
+  padding: 12rpx 28rpx;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 26rpx 0;
+  border-top: 1rpx solid #eef0f2;
+}
+.list .row:first-child {
+  border-top: none;
+}
+.row-ic {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  text-align: center;
+  line-height: 72rpx;
+  font-size: 34rpx;
+  flex: 0 0 auto;
+}
+.row-body {
+  flex: 1;
+  min-width: 0;
 }
 .row-head {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16rpx;
+  margin-bottom: 12rpx;
 }
 .row-name {
-  font-size: 30rpx;
-  color: #1a1a1a;
+  font-size: 28rpx;
+  color: #1f2937;
+  font-weight: 600;
 }
 .row-amount {
-  font-size: 26rpx;
-  color: #666;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #1f2937;
 }
 .bar-bg {
-  height: 16rpx;
+  height: 14rpx;
   background: #f0f0f0;
   border-radius: 8rpx;
   overflow: hidden;
@@ -190,9 +219,17 @@ function nextMonth() {
   height: 100%;
   border-radius: 8rpx;
 }
+.row-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10rpx;
+}
+.row-pct {
+  font-size: 22rpx;
+  color: #6b7280;
+  font-weight: 600;
+}
 .row-count {
-  display: block;
-  margin-top: 12rpx;
   font-size: 22rpx;
   color: #bbb;
 }

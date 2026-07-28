@@ -4,23 +4,30 @@ import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth, deleteTransaction } from '../../api/transaction'
+import {
+  formatAmount,
+  categoryEmoji,
+  dayKeyOf,
+  dayLabel,
+  timeLabelOf,
+  currentMonth
+} from '../../utils/format'
 
-const month = ref(thisMonth())
+const month = ref(currentMonth())
 const transactions = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
 const loading = ref(false)
 
-function thisMonth() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-const TYPE_META = {
-  expense: { label: '支出', sign: '-', color: '#e64340' },
-  income: { label: '收入', sign: '+', color: '#07c160' },
-  transfer: { label: '转账', sign: '', color: '#576b95' }
-}
+const totals = computed(() => {
+  let income = 0
+  let expense = 0
+  for (const t of transactions.value) {
+    if (t.type === 'income') income += Number(t.amount)
+    else if (t.type === 'expense') expense += Number(t.amount)
+  }
+  return { income, expense }
+})
 
 async function load() {
   loading.value = true
@@ -34,7 +41,7 @@ async function load() {
     categoryMap.value = buildCategoryLabelMap(cats)
     transactions.value = txs
   } catch (e) {
-    uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
@@ -42,17 +49,18 @@ async function load() {
 
 onShow(load)
 
-// 按天分组（交易已按时间倒序返回），每组含当天列表
 const grouped = computed(() => {
   const groups = []
   let cur = null
   for (const t of transactions.value) {
-    const day = (t.occurredAt || '').slice(0, 10)
+    const day = dayKeyOf(t.occurredAt)
     if (!cur || cur.day !== day) {
-      cur = { day, items: [] }
+      cur = { day, label: dayLabel(day), income: 0, expense: 0, items: [] }
       groups.push(cur)
     }
     cur.items.push(t)
+    if (t.type === 'income') cur.income += Number(t.amount)
+    else if (t.type === 'expense') cur.expense += Number(t.amount)
   }
   return groups
 })
@@ -61,23 +69,34 @@ function titleOf(t) {
   if (t.type === 'transfer') {
     return `${accountMap.value[t.sourceAccountId] || '?'} → ${accountMap.value[t.destinationAccountId] || '?'}`
   }
-  return categoryMap.value[t.categoryId] || TYPE_META[t.type].label
+  return categoryMap.value[t.categoryId] || (t.type === 'income' ? '收入' : '支出')
 }
-
 function subtitleOf(t) {
-  if (t.type === 'transfer') return t.note || '转账'
-  const acc = accountMap.value[t.accountId] || ''
-  return t.note ? `${acc} · ${t.note}` : acc
+  const parts = []
+  if (t.type !== 'transfer') parts.push(accountMap.value[t.accountId] || '')
+  const tm = timeLabelOf(t.occurredAt)
+  if (tm) parts.push(tm)
+  if (t.note) parts.push(t.note)
+  return parts.filter(Boolean).join(' · ')
 }
-
-function timeOf(t) {
-  return (t.occurredAt || '').slice(11, 16)
+function iconOf(t) {
+  if (t.type === 'transfer') return '🔁'
+  return categoryEmoji(categoryMap.value[t.categoryId], t.type)
+}
+function iconBgClass(t) {
+  if (t.type === 'income') return 'inc-bg'
+  if (t.type === 'transfer') return 'gray-bg'
+  return 'exp-bg'
+}
+function signedAmount(t) {
+  if (t.type === 'expense') return `-${formatAmount(t.amount)}`
+  if (t.type === 'income') return `+${formatAmount(t.amount)}`
+  return formatAmount(t.amount)
 }
 
 function goEdit(t) {
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
 }
-
 function confirmDelete(t) {
   uni.showModal({
     title: '删除记录',
@@ -97,24 +116,40 @@ function confirmDelete(t) {
 
 <template>
   <view class="page">
-    <view v-if="!transactions.length && !loading" class="empty">{{ month }} 暂无记录</view>
+    <!-- 月度小结条 -->
+    <view class="summary">
+      <text class="s-month">{{ month }}</text>
+      <view class="s-figs">
+        <text class="s-inc">收 {{ formatAmount(totals.income) }}</text>
+        <text class="s-exp">支 {{ formatAmount(totals.expense) }}</text>
+      </view>
+    </view>
 
-    <view v-for="g in grouped" :key="g.day" class="group">
-      <text class="day">{{ g.day }}</text>
-      <view
-        v-for="t in g.items"
-        :key="t.id"
-        class="item"
-        @click="goEdit(t)"
-        @longpress="confirmDelete(t)"
-      >
-        <view class="item-main">
-          <text class="item-title">{{ titleOf(t) }}</text>
-          <text class="item-sub">{{ timeOf(t) }} · {{ subtitleOf(t) }}</text>
-        </view>
-        <text class="item-amount" :style="{ color: TYPE_META[t.type].color }">
-          {{ TYPE_META[t.type].sign }}{{ t.amount }}
+    <view v-if="!transactions.length && !loading" class="empty">本月暂无记录</view>
+
+    <view v-for="g in grouped" :key="g.day" class="day">
+      <view class="day-h">
+        <text class="day-date">{{ g.label }}</text>
+        <text class="day-sum">
+          <text class="inc">收 {{ formatAmount(g.income) }}</text>
+          <text class="exp">支 {{ formatAmount(g.expense) }}</text>
         </text>
+      </view>
+      <view class="tx-list">
+        <view
+          v-for="t in g.items"
+          :key="t.id"
+          class="tx-item"
+          @click="goEdit(t)"
+          @longpress="confirmDelete(t)"
+        >
+          <text class="ico" :class="iconBgClass(t)">{{ iconOf(t) }}</text>
+          <view class="tx-info">
+            <text class="tx-title">{{ titleOf(t) }}</text>
+            <text class="tx-sub">{{ subtitleOf(t) }}</text>
+          </view>
+          <text class="tx-amount" :class="t.type">{{ signedAmount(t) }}</text>
+        </view>
       </view>
     </view>
 
@@ -127,47 +162,104 @@ function confirmDelete(t) {
   min-height: 100vh;
   padding: 24rpx;
 }
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx 32rpx;
+  margin-bottom: 20rpx;
+}
+.s-month {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1f2937;
+}
+.s-figs {
+  display: flex;
+  gap: 24rpx;
+  font-size: 26rpx;
+}
+.s-inc { color: #16a34a; }
+.s-exp { color: #dc2626; }
+
 .empty {
-  margin-top: 200rpx;
+  margin-top: 120rpx;
   text-align: center;
-  color: #999;
+  color: #9ca3af;
   font-size: 28rpx;
 }
-.group {
+.day {
   margin-bottom: 24rpx;
 }
-.day {
-  display: block;
-  font-size: 24rpx;
-  color: #999;
-  margin: 12rpx 8rpx;
-}
-.item {
+.day-h {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 28rpx 32rpx;
-  margin-bottom: 12rpx;
-}
-.item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-.item-title {
-  font-size: 30rpx;
-  color: #1a1a1a;
-}
-.item-sub {
+  align-items: baseline;
+  padding: 0 8rpx 12rpx;
   font-size: 24rpx;
-  color: #999;
+  color: #6b7280;
 }
-.item-amount {
-  font-size: 32rpx;
+.day-date {
   font-weight: 600;
 }
+.day-sum {
+  display: flex;
+  gap: 20rpx;
+}
+.day-sum .inc { color: #16a34a; }
+.day-sum .exp { color: #dc2626; }
+
+.tx-list {
+  background: #fff;
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+.tx-item {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  padding: 26rpx 28rpx;
+  border-top: 1rpx solid #eef0f2;
+}
+.tx-list .tx-item:first-child {
+  border-top: none;
+}
+.ico {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 22rpx;
+  text-align: center;
+  line-height: 76rpx;
+  font-size: 36rpx;
+}
+.exp-bg { background: #fef2f2; }
+.inc-bg { background: #ecfdf5; }
+.gray-bg { background: #f1f5f9; }
+.tx-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.tx-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1f2937;
+}
+.tx-sub {
+  font-size: 24rpx;
+  color: #6b7280;
+}
+.tx-amount {
+  font-size: 32rpx;
+  font-weight: 800;
+}
+.tx-amount.expense { color: #dc2626; }
+.tx-amount.income { color: #16a34a; }
+.tx-amount.transfer { color: #6b7280; }
 .hint {
   display: block;
   text-align: center;
