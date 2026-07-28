@@ -54,9 +54,9 @@ class RepositoryMappingTest {
         return userRepository.save(u);
     }
 
-    private Account newAccount(Long userId, String name, AccountType type, String initial, int sortOrder) {
+    private Account newAccount(Long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));
@@ -68,9 +68,9 @@ class RepositoryMappingTest {
         return accountRepository.save(a);
     }
 
-    private Category newCategory(Long userId, CategoryKind kind, Long parentId, String name) {
+    private Category newCategory(Long ledgerId, CategoryKind kind, Long parentId, String name) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setParentId(parentId);
         c.setName(name);
@@ -80,9 +80,9 @@ class RepositoryMappingTest {
         return categoryRepository.save(c);
     }
 
-    private Transaction newExpense(Long userId, Long accountId, Long categoryId, String amount) {
+    private Transaction newExpense(Long ledgerId, Long accountId, Long categoryId, String amount) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(TransactionType.EXPENSE);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(accountId);
@@ -118,22 +118,22 @@ class RepositoryMappingTest {
         newAccount(alice.getId(), "现金", AccountType.CASH, "0.00", 1);
         newAccount(bob.getId(), "支付宝", AccountType.ALIPAY, "0.00", 0);
 
-        var aliceAccounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(alice.getId());
+        var aliceAccounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(alice.getId());
         assertThat(aliceAccounts).hasSize(2);
         assertThat(aliceAccounts.get(0).getName()).isEqualTo("现金");
         assertThat(aliceAccounts.get(1).getName()).isEqualTo("银行卡");
-        assertThat(accountRepository.countByUserId(alice.getId())).isEqualTo(2);
+        assertThat(accountRepository.countByLedgerId(alice.getId())).isEqualTo(2);
 
         // 默认账户回退：排序第一
-        assertThat(accountRepository.findFirstByUserIdOrderBySortOrderAscIdAsc(alice.getId()))
+        assertThat(accountRepository.findFirstByLedgerIdOrderBySortOrderAscIdAsc(alice.getId()))
                 .get()
                 .extracting(Account::getName)
                 .isEqualTo("现金");
 
         // 越权：用 bob 的 id 无法通过 alice 的 user_id 取到账户
-        Long bobAccountId = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(bob.getId()).get(0).getId();
-        assertThat(accountRepository.findByIdAndUserId(bobAccountId, alice.getId())).isEmpty();
-        assertThat(accountRepository.findByIdAndUserId(bobAccountId, bob.getId())).isPresent();
+        Long bobAccountId = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(bob.getId()).get(0).getId();
+        assertThat(accountRepository.findByIdAndLedgerId(bobAccountId, alice.getId())).isEmpty();
+        assertThat(accountRepository.findByIdAndLedgerId(bobAccountId, bob.getId())).isPresent();
     }
 
     @Test
@@ -144,22 +144,22 @@ class RepositoryMappingTest {
         Transaction tx = newExpense(user.getId(), acc.getId(), food.getId(), "23.50");
 
         // 交易类型枚举以小写编码存储并正确回读
-        Transaction reloaded = transactionRepository.findByIdAndUserId(tx.getId(), user.getId()).orElseThrow();
+        Transaction reloaded = transactionRepository.findByIdAndLedgerId(tx.getId(), user.getId()).orElseThrow();
         assertThat(reloaded.getType()).isEqualTo(TransactionType.EXPENSE);
         assertThat(reloaded.getAmount()).isEqualByComparingTo("23.50");
 
         // 账户被引用 -> 不可删除校验为 true
-        assertThat(transactionRepository.existsByUserIdAndAccountReferenced(user.getId(), acc.getId())).isTrue();
+        assertThat(transactionRepository.existsByLedgerIdAndAccountReferenced(user.getId(), acc.getId())).isTrue();
         // 分类被引用
-        assertThat(transactionRepository.existsByUserIdAndCategoryId(user.getId(), food.getId())).isTrue();
+        assertThat(transactionRepository.existsByLedgerIdAndCategoryId(user.getId(), food.getId())).isTrue();
 
         // 分页倒序 + user_id 过滤
-        var page = transactionRepository.findByUserIdOrderByOccurredAtDescIdDesc(
+        var page = transactionRepository.findByLedgerIdOrderByOccurredAtDescIdDesc(
                 user.getId(), PageRequest.of(0, 10));
         assertThat(page.getTotalElements()).isEqualTo(1);
 
         // 最近一笔（默认账户来源）
-        assertThat(transactionRepository.findFirstByUserIdOrderByOccurredAtDescIdDesc(user.getId()))
+        assertThat(transactionRepository.findFirstByLedgerIdOrderByOccurredAtDescIdDesc(user.getId()))
                 .get()
                 .extracting(Transaction::getAccountId)
                 .isEqualTo(acc.getId());
@@ -172,16 +172,16 @@ class RepositoryMappingTest {
         newCategory(user.getId(), CategoryKind.EXPENSE, parent.getId(), "外卖");
 
         // 父级范围内重名（子分类）
-        assertThat(categoryRepository.existsByUserIdAndKindAndParentIdAndName(
+        assertThat(categoryRepository.existsByLedgerIdAndKindAndParentIdAndName(
                 user.getId(), CategoryKind.EXPENSE, parent.getId(), "外卖")).isTrue();
         // 父分类(parent_id 为 NULL)重名的应用层补充校验
-        assertThat(categoryRepository.existsByUserIdAndKindAndParentIdIsNullAndName(
+        assertThat(categoryRepository.existsByLedgerIdAndKindAndParentIdIsNullAndName(
                 user.getId(), CategoryKind.EXPENSE, "餐饮")).isTrue();
         // 含子分类 -> 禁止删除校验为 true
-        assertThat(categoryRepository.existsByUserIdAndParentId(user.getId(), parent.getId())).isTrue();
+        assertThat(categoryRepository.existsByLedgerIdAndParentId(user.getId(), parent.getId())).isTrue();
 
         // 收入分类与支出分类各自独立
-        assertThat(categoryRepository.findByUserIdAndKind(user.getId(), CategoryKind.INCOME)).isEmpty();
-        assertThat(categoryRepository.findByUserIdAndKind(user.getId(), CategoryKind.EXPENSE)).hasSize(2);
+        assertThat(categoryRepository.findByLedgerIdAndKind(user.getId(), CategoryKind.INCOME)).isEmpty();
+        assertThat(categoryRepository.findByLedgerIdAndKind(user.getId(), CategoryKind.EXPENSE)).hasSize(2);
     }
 }

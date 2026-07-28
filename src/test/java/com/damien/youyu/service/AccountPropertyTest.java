@@ -144,13 +144,13 @@ class AccountPropertyTest {
         AccountService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 4_000_000L + iter;
+            long ledgerId = 4_000_000L + iter;
             String name = validName(rng);
             AccountType type = validType(rng);
             BigDecimal submitted = validBalance(rng);
             int sortOrder = rng.nextInt(101);
 
-            Account account = service.create(userId, name, type.name(), submitted, sortOrder);
+            Account account = service.create(ledgerId, name, type.name(), submitted, sortOrder);
 
             // current_balance 严格等于提交的初始余额（数值与 scale 均一致）。
             assertThat(account.getCurrentBalance()).isEqualByComparingTo(submitted);
@@ -171,7 +171,7 @@ class AccountPropertyTest {
         AccountService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 5_000_000L + iter;
+            long ledgerId = 5_000_000L + iter;
             int badCase = rng.nextInt(3);
 
             // 仅让被测字段非法，其余字段保持合法，使期望的无效字段确定。
@@ -201,13 +201,13 @@ class AccountPropertyTest {
             }
 
             ApiException ex = catchThrowableOfType(
-                    () -> service.create(userId, name, type, balance, 0), ApiException.class);
+                    () -> service.create(ledgerId, name, type, balance, 0), ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("ACCOUNT_FIELD_INVALID");
             assertThat(ex.getField()).isEqualTo(expectedField);
             // 零副作用：未持久化任何账户。
-            assertThat(accountRepository.countByUserId(userId)).isZero();
+            assertThat(accountRepository.countByLedgerId(ledgerId)).isZero();
         }
     }
 
@@ -221,15 +221,15 @@ class AccountPropertyTest {
         AccountService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 6_000_000L + iter;
+            long ledgerId = 6_000_000L + iter;
             BigDecimal balance = validBalance(rng);
-            Account created = service.create(userId, validName(rng), validType(rng).name(),
+            Account created = service.create(ledgerId, validName(rng), validType(rng).name(),
                     balance, rng.nextInt(101));
             BigDecimal balanceBefore = created.getCurrentBalance();
 
             String newName = validName(rng);
             AccountType newType = validType(rng);
-            Account updated = service.update(userId, created.getId(), newName, newType.name());
+            Account updated = service.update(ledgerId, created.getId(), newName, newType.name());
 
             assertThat(updated.getName()).isEqualTo(newName);
             assertThat(updated.getType()).isEqualTo(newType);
@@ -270,7 +270,7 @@ class AccountPropertyTest {
             List<Account> listA = service.list(userA);
             // 数量一致、内容一致、且全部归属 userA。
             assertThat(listA).hasSize(nA);
-            assertThat(listA).allSatisfy(a -> assertThat(a.getUserId()).isEqualTo(userA));
+            assertThat(listA).allSatisfy(a -> assertThat(a.getLedgerId()).isEqualTo(userA));
             assertThat(listA.stream().map(Account::getId).toList())
                     .containsExactlyInAnyOrderElementsOf(idsA);
             // 隔离：不含 userB 的任何账户（仅当 userB 确有账户时校验，避免空集断言前置条件）。
@@ -294,22 +294,22 @@ class AccountPropertyTest {
         AccountService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 8_000_000L + iter;
+            long ledgerId = 8_000_000L + iter;
             BigDecimal balance = validBalance(rng);
-            Account account = service.create(userId, validName(rng), validType(rng).name(),
+            Account account = service.create(ledgerId, validName(rng), validType(rng).name(),
                     balance, rng.nextInt(101));
             BigDecimal balanceBefore = account.getCurrentBalance();
 
             // 以账户/源账户/目标账户三种引用方式之一持久化至少一笔交易。
-            persistReferencingTransaction(userId, account.getId(), rng.nextInt(3), rng);
+            persistReferencingTransaction(ledgerId, account.getId(), rng.nextInt(3), rng);
 
             ApiException ex = catchThrowableOfType(
-                    () -> service.delete(userId, account.getId()), ApiException.class);
+                    () -> service.delete(ledgerId, account.getId()), ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("ACCOUNT_IN_USE");
             // 账户仍存在，余额未变。
-            Account after = accountRepository.findByIdAndUserId(account.getId(), userId).orElseThrow();
+            Account after = accountRepository.findByIdAndLedgerId(account.getId(), ledgerId).orElseThrow();
             assertThat(after.getCurrentBalance()).isEqualTo(balanceBefore);
             assertThat(after.getInitialBalance()).isEqualByComparingTo(balance);
         }
@@ -317,10 +317,10 @@ class AccountPropertyTest {
 
     // ---------------- 持久化辅助 ----------------
 
-    private void persistReferencingTransaction(long userId, Long accountId, int refKind, Random rng) {
+    private void persistReferencingTransaction(long ledgerId, Long accountId, int refKind, Random rng) {
         BigDecimal amount = new BigDecimal(1 + rng.nextInt(9_999_999)).movePointLeft(2);
         Transaction tx = new Transaction();
-        tx.setUserId(userId);
+        tx.setLedgerId(ledgerId);
         tx.setAmount(amount);
         tx.setOccurredAt(FIXED_TIME);
         tx.setCreatedAt(FIXED_TIME);

@@ -30,7 +30,7 @@ import com.damien.youyu.repository.TransactionRepository;
  *       {@code CATEGORY_HAS_CHILDREN}；两者皆无方可删除。</li>
  * </ul>
  *
- * <p>所有操作均按会话 {@code userId} 隔离：写入以传入 userId 为准，读取/修改/删除他人分类
+ * <p>所有操作均按会话 {@code ledgerId} 隔离：写入以传入 ledgerId 为准，读取/修改/删除他人分类
  * 一律返回 {@code NOT_FOUND}（需求 2.3、2.4）。</p>
  */
 @Service
@@ -56,7 +56,7 @@ public class CategoryService {
     /**
      * 创建父分类或子分类。
      *
-     * @param userId    会话用户（需求 2.2 强制覆盖 user_id）
+     * @param ledgerId    会话用户（需求 2.2 强制覆盖 user_id）
      * @param rawKind   种类字符串（EXPENSE/INCOME）；提供 parentId 时以父分类的 kind 为准
      * @param rawName   分类名称（去空白后 1-50）
      * @param parentId  父分类 id；为 null 表示创建父分类
@@ -66,7 +66,7 @@ public class CategoryService {
      *                      CATEGORY_NAME_DUPLICATE（范围内重名，需求 5.8）
      */
     @Transactional
-    public Category create(Long userId, String rawKind, String rawName, Long parentId) {
+    public Category create(Long ledgerId, String rawKind, String rawName, Long parentId) {
         String name = validateName(rawName);
 
         CategoryKind kind;
@@ -74,12 +74,12 @@ public class CategoryService {
             // 创建父分类：kind 取自请求。
             kind = validateKind(rawKind);
             // 需求 5.8：父级范围内(parent_id 为 NULL)重名校验（应用层补充，NULL 不参与唯一约束）。
-            if (categoryRepository.existsByUserIdAndKindAndParentIdIsNullAndName(userId, kind, name)) {
+            if (categoryRepository.existsByLedgerIdAndKindAndParentIdIsNullAndName(ledgerId, kind, name)) {
                 throw ApiException.categoryNameDuplicate();
             }
         } else {
             // 创建子分类：父分类须存在且属于当前用户。
-            Category parent = categoryRepository.findByIdAndUserId(parentId, userId)
+            Category parent = categoryRepository.findByIdAndLedgerId(parentId, ledgerId)
                     .orElseThrow(() -> ApiException.notFound("父分类不存在"));
             // 需求 5.3：层级最多两级——父分类本身已有父级则拒绝。
             if (parent.getParentId() != null) {
@@ -88,14 +88,14 @@ public class CategoryService {
             // 子分类的 kind 以父分类为准，保证父子一致（需求 5.6 各 kind 独立）。
             kind = parent.getKind();
             // 需求 5.8：同一父分类下的子分类之间重名校验。
-            if (categoryRepository.existsByUserIdAndKindAndParentIdAndName(userId, kind, parentId, name)) {
+            if (categoryRepository.existsByLedgerIdAndKindAndParentIdAndName(ledgerId, kind, parentId, name)) {
                 throw ApiException.categoryNameDuplicate();
             }
         }
 
         LocalDateTime now = LocalDateTime.now(clock);
         Category category = new Category();
-        category.setUserId(userId);
+        category.setLedgerId(ledgerId);
         category.setParentId(parentId);
         category.setKind(kind);
         category.setName(name);
@@ -106,8 +106,8 @@ public class CategoryService {
 
     /** 列出本人全部分类（供按 kind 分组与层级构建，需求 5.6）。 */
     @Transactional(readOnly = true)
-    public List<Category> list(Long userId) {
-        return categoryRepository.findByUserId(userId);
+    public List<Category> list(Long ledgerId) {
+        return categoryRepository.findByLedgerId(ledgerId);
     }
 
     /**
@@ -118,8 +118,8 @@ public class CategoryService {
      *                      CATEGORY_NAME_DUPLICATE（范围内重名，需求 5.8）
      */
     @Transactional
-    public Category rename(Long userId, Long id, String rawName) {
-        Category category = categoryRepository.findByIdAndUserId(id, userId)
+    public Category rename(Long ledgerId, Long id, String rawName) {
+        Category category = categoryRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("分类不存在"));
 
         String name = validateName(rawName);
@@ -127,10 +127,10 @@ public class CategoryService {
         // 名称实际变化时才做范围内重名校验（唯一性保证下，同名匹配即为其它分类）。
         if (!name.equals(category.getName())) {
             boolean duplicate = category.getParentId() == null
-                    ? categoryRepository.existsByUserIdAndKindAndParentIdIsNullAndName(
-                            userId, category.getKind(), name)
-                    : categoryRepository.existsByUserIdAndKindAndParentIdAndName(
-                            userId, category.getKind(), category.getParentId(), name);
+                    ? categoryRepository.existsByLedgerIdAndKindAndParentIdIsNullAndName(
+                            ledgerId, category.getKind(), name)
+                    : categoryRepository.existsByLedgerIdAndKindAndParentIdAndName(
+                            ledgerId, category.getKind(), category.getParentId(), name);
             if (duplicate) {
                 throw ApiException.categoryNameDuplicate();
             }
@@ -149,15 +149,15 @@ public class CategoryService {
      *                      CATEGORY_HAS_CHILDREN（仍含子分类，需求 5.9）
      */
     @Transactional
-    public void delete(Long userId, Long id) {
-        Category category = categoryRepository.findByIdAndUserId(id, userId)
+    public void delete(Long ledgerId, Long id) {
+        Category category = categoryRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("分类不存在"));
 
-        if (transactionRepository.existsByUserIdAndCategoryId(userId, id)) {
+        if (transactionRepository.existsByLedgerIdAndCategoryId(ledgerId, id)) {
             // 需求 5.5：被引用分类不可删除，分类及关联保持不变。
             throw ApiException.categoryInUse();
         }
-        if (categoryRepository.existsByUserIdAndParentId(userId, id)) {
+        if (categoryRepository.existsByLedgerIdAndParentId(ledgerId, id)) {
             // 需求 5.9：含子分类不可删除。
             throw ApiException.categoryHasChildren();
         }

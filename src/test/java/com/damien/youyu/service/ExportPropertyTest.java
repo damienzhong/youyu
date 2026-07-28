@@ -108,7 +108,7 @@ class ExportPropertyTest {
             DatasetCounts countsA = buildDataset(userA, rng, "");
             // 将 A 的 current_balance 校正为重算值，便于与 B 比对（导出本身不含 current_balance）。
             AccountService accountService = accountService();
-            for (Account a : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userA)) {
+            for (Account a : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(userA)) {
                 a.setCurrentBalance(accountService.recomputeBalance(userA, a.getId()));
                 accountRepository.save(a);
             }
@@ -116,7 +116,7 @@ class ExportPropertyTest {
             byte[] exportA = exportJson(userA);
 
             // 导入到空账户用户 B。
-            assertThat(accountRepository.countByUserId(userB)).isZero();
+            assertThat(accountRepository.countByLedgerId(userB)).isZero();
             ImportService.ImportResult result = importService()
                     .importJson(userB, new ByteArrayInputStream(exportA));
 
@@ -124,9 +124,9 @@ class ExportPropertyTest {
             assertThat(result.accounts()).as("iter=%d 账户数", iter).isEqualTo(countsA.accounts());
             assertThat(result.categories()).as("iter=%d 分类数", iter).isEqualTo(countsA.categories());
             assertThat(result.transactions()).as("iter=%d 交易数", iter).isEqualTo(countsA.transactions());
-            assertThat(accountRepository.countByUserId(userB)).isEqualTo(countsA.accounts());
-            assertThat(categoryRepository.countByUserId(userB)).isEqualTo(countsA.categories());
-            assertThat(transactionRepository.findByUserId(userB)).hasSize(countsA.transactions());
+            assertThat(accountRepository.countByLedgerId(userB)).isEqualTo(countsA.accounts());
+            assertThat(categoryRepository.countByLedgerId(userB)).isEqualTo(countsA.categories());
+            assertThat(transactionRepository.findByLedgerId(userB)).hasSize(countsA.transactions());
 
             // (2) B 再次导出与 A 的导出逐字节相等（除系统 id 外各业务字段逐一相等）。
             byte[] exportB = exportJson(userB);
@@ -136,14 +136,14 @@ class ExportPropertyTest {
 
             // (3) current_balance 与重算一致，且按名称配对与 A 相等（余额守恒还原，需求 4.13）。
             Map<String, Account> accountsA = accountRepository
-                    .findByUserIdOrderBySortOrderAscIdAsc(userA).stream()
+                    .findByLedgerIdOrderBySortOrderAscIdAsc(userA).stream()
                     .collect(Collectors.toMap(Account::getName, a -> a));
-            for (Account b : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userB)) {
+            for (Account b : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(userB)) {
                 BigDecimal recomputed = accountService.recomputeBalance(userB, b.getId());
                 assertThat(b.getCurrentBalance())
                         .as("iter=%d 账户[%s] current_balance == 重算值", iter, b.getName())
                         .isEqualByComparingTo(recomputed);
-                assertThat(b.getUserId()).isEqualTo(userB);
+                assertThat(b.getLedgerId()).isEqualTo(userB);
                 Account a = accountsA.get(b.getName());
                 assertThat(a).as("iter=%d B 账户[%s] 应有同名 A 账户", iter, b.getName()).isNotNull();
                 assertThat(b.getCurrentBalance())
@@ -169,16 +169,16 @@ class ExportPropertyTest {
 
         for (int iter = 0; iter < ISOLATION_ITERATIONS; iter++) {
             int userCount = 2 + rng.nextInt(2); // 2-3 个用户
-            long baseUserId = 19_000_000L + iter * 10L;
-            List<Long> userIds = new ArrayList<>();
+            long baseLedgerId = 19_000_000L + iter * 10L;
+            List<Long> ledgerIds = new ArrayList<>();
             for (int u = 0; u < userCount; u++) {
-                long userId = baseUserId + u;
-                userIds.add(userId);
-                buildDataset(userId, rng, token(userId));
+                long ledgerId = baseLedgerId + u;
+                ledgerIds.add(ledgerId);
+                buildDataset(ledgerId, rng, token(ledgerId));
             }
 
             // 随机选定导出目标用户。
-            long target = userIds.get(rng.nextInt(userCount));
+            long target = ledgerIds.get(rng.nextInt(userCount));
             String targetToken = token(target);
 
             String raw = new String(exportJson(target), StandardCharsets.UTF_8);
@@ -191,11 +191,11 @@ class ExportPropertyTest {
 
             // (1) 记录数等于目标用户在库中的记录数。
             assertThat(root.get("accounts")).as("iter=%d accounts 数", iter)
-                    .hasSize((int) accountRepository.countByUserId(target));
+                    .hasSize((int) accountRepository.countByLedgerId(target));
             assertThat(root.get("categories")).as("iter=%d categories 数", iter)
-                    .hasSize((int) categoryRepository.countByUserId(target));
+                    .hasSize((int) categoryRepository.countByLedgerId(target));
             assertThat(root.get("transactions")).as("iter=%d transactions 数", iter)
-                    .hasSize(transactionRepository.findByUserId(target).size());
+                    .hasSize(transactionRepository.findByLedgerId(target).size());
 
             // (2) 导出内每个业务名称/备注均以目标用户 token 起头（仅含目标用户数据）。
             for (JsonNode a : root.get("accounts")) {
@@ -212,7 +212,7 @@ class ExportPropertyTest {
             }
 
             // (3) 导出全文不含任何其他用户的 token。
-            for (long other : userIds) {
+            for (long other : ledgerIds) {
                 if (other != target) {
                     assertThat(raw).as("iter=%d 不含用户 %d 的数据", iter, other)
                             .doesNotContain(token(other));
@@ -224,8 +224,8 @@ class ExportPropertyTest {
     // ---------------- 随机数据集生成器 ----------------
 
     /** 用户专属 token：末尾以 'z' 作分隔，保证任一用户 token 不是另一用户 token 的子串。 */
-    private static String token(long userId) {
-        return "usr" + userId + "z";
+    private static String token(long ledgerId) {
+        return "usr" + ledgerId + "z";
     }
 
     /**
@@ -233,12 +233,12 @@ class ExportPropertyTest {
      * 0-15 笔随机交易（支出/收入引用同 kind 分类，转账源≠目标）。所有名称/备注以 {@code token} 前缀，
      * 名称在用户内自洽唯一以避免分类唯一约束冲突。金额两位小数、{@code occurredAt} 取整秒。
      */
-    private DatasetCounts buildDataset(long userId, Random rng, String token) {
+    private DatasetCounts buildDataset(long ledgerId, Random rng, String token) {
         int accCount = 2 + rng.nextInt(4); // 2-5
         List<Long> accountIds = new ArrayList<>();
         for (int i = 0; i < accCount; i++) {
             Account a = new Account();
-            a.setUserId(userId);
+            a.setLedgerId(ledgerId);
             a.setName(token + "acc" + i);
             a.setType(AccountType.values()[rng.nextInt(AccountType.values().length)]);
             BigDecimal init = randomInitialBalance(rng);
@@ -252,10 +252,10 @@ class ExportPropertyTest {
 
         int categoryCount = 0;
         List<Long> expenseCats = new ArrayList<>();
-        categoryCount += buildCategoryTree(userId, rng, token, "exp", CategoryKind.EXPENSE,
+        categoryCount += buildCategoryTree(ledgerId, rng, token, "exp", CategoryKind.EXPENSE,
                 1 + rng.nextInt(3), expenseCats);
         List<Long> incomeCats = new ArrayList<>();
-        categoryCount += buildCategoryTree(userId, rng, token, "inc", CategoryKind.INCOME,
+        categoryCount += buildCategoryTree(ledgerId, rng, token, "inc", CategoryKind.INCOME,
                 1 + rng.nextInt(2), incomeCats);
 
         int txCount = rng.nextInt(16); // 0-15
@@ -271,15 +271,15 @@ class ExportPropertyTest {
                 while (di == si) {
                     di = rng.nextInt(accCount);
                 }
-                saveTx(userId, TransactionType.TRANSFER, amount, null, null,
+                saveTx(ledgerId, TransactionType.TRANSFER, amount, null, null,
                         accountIds.get(si), accountIds.get(di), when, note);
             } else if (kind == 1) {
-                saveTx(userId, TransactionType.INCOME, amount,
+                saveTx(ledgerId, TransactionType.INCOME, amount,
                         accountIds.get(rng.nextInt(accCount)),
                         incomeCats.get(rng.nextInt(incomeCats.size())),
                         null, null, when, note);
             } else {
-                saveTx(userId, TransactionType.EXPENSE, amount,
+                saveTx(ledgerId, TransactionType.EXPENSE, amount,
                         accountIds.get(rng.nextInt(accCount)),
                         expenseCats.get(rng.nextInt(expenseCats.size())),
                         null, null, when, note);
@@ -290,16 +290,16 @@ class ExportPropertyTest {
     }
 
     /** 生成某 kind 的父分类及其 0-2 子分类，收集全部分类 id，返回创建的分类总数。 */
-    private int buildCategoryTree(long userId, Random rng, String token, String tag,
+    private int buildCategoryTree(long ledgerId, Random rng, String token, String tag,
             CategoryKind kind, int parentCount, List<Long> collected) {
         int created = 0;
         for (int p = 0; p < parentCount; p++) {
-            Category parent = saveCategory(userId, kind, token + tag + p, null);
+            Category parent = saveCategory(ledgerId, kind, token + tag + p, null);
             collected.add(parent.getId());
             created++;
             int children = rng.nextInt(3); // 0-2
             for (int c = 0; c < children; c++) {
-                Category child = saveCategory(userId, kind, token + tag + p + "c" + c, parent.getId());
+                Category child = saveCategory(ledgerId, kind, token + tag + p + "c" + c, parent.getId());
                 collected.add(child.getId());
                 created++;
             }
@@ -319,9 +319,9 @@ class ExportPropertyTest {
         return new BigDecimal(cents).movePointLeft(2).setScale(2, RoundingMode.UNNECESSARY);
     }
 
-    private Category saveCategory(long userId, CategoryKind kind, String name, Long parentId) {
+    private Category saveCategory(long ledgerId, CategoryKind kind, String name, Long parentId) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setParentId(parentId);
@@ -330,10 +330,10 @@ class ExportPropertyTest {
         return categoryRepository.save(c);
     }
 
-    private void saveTx(long userId, TransactionType type, BigDecimal amount, Long accountId,
+    private void saveTx(long ledgerId, TransactionType type, BigDecimal amount, Long accountId,
             Long categoryId, Long sourceId, Long destId, LocalDateTime when, String note) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(type);
         t.setAmount(amount);
         t.setAccountId(accountId);
@@ -347,9 +347,9 @@ class ExportPropertyTest {
         transactionRepository.save(t);
     }
 
-    private byte[] exportJson(long userId) {
+    private byte[] exportJson(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeJson(userId, out);
+        exportService().writeJson(ledgerId, out);
         return out.toByteArray();
     }
 }

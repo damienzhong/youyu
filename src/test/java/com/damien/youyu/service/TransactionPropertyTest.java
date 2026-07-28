@@ -111,15 +111,15 @@ class TransactionPropertyTest {
 
     // ---------------- 持久化辅助 ----------------
 
-    private Account createAccount(long userId, Random rng) {
-        return accountService().create(userId, letters(rng, 1, 12),
+    private Account createAccount(long ledgerId, Random rng) {
+        return accountService().create(ledgerId, letters(rng, 1, 12),
                 AccountType.values()[rng.nextInt(AccountType.values().length)].name(),
                 validInitialBalance(rng), rng.nextInt(101));
     }
 
-    private Category createCategory(long userId, CategoryKind kind, Random rng) {
+    private Category createCategory(long ledgerId, CategoryKind kind, Random rng) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(letters(rng, 1, 12));
         c.setCreatedAt(FIXED_TIME);
@@ -127,8 +127,8 @@ class TransactionPropertyTest {
         return categoryRepository.save(c);
     }
 
-    private BigDecimal balanceOf(long userId, Long accountId) {
-        return accountRepository.findByIdAndUserId(accountId, userId).orElseThrow().getCurrentBalance();
+    private BigDecimal balanceOf(long ledgerId, Long accountId) {
+        return accountRepository.findByIdAndLedgerId(accountId, ledgerId).orElseThrow().getCurrentBalance();
     }
 
     // ---------------- Property 1：余额守恒不变式（有状态操作序列） ----------------
@@ -151,19 +151,19 @@ class TransactionPropertyTest {
         AccountService accounts = accountService();
 
         for (int seq = 0; seq < SEQUENCES; seq++) {
-            long userId = 100_000_000L + seq;
+            long ledgerId = 100_000_000L + seq;
 
             // 账户集合（2-5 个）与支出/收入分类各一。
             int accCount = 2 + rng.nextInt(4);
             List<Long> accountIds = new ArrayList<>();
             Map<Long, BigDecimal> initial = new HashMap<>();
             for (int i = 0; i < accCount; i++) {
-                Account a = createAccount(userId, rng);
+                Account a = createAccount(ledgerId, rng);
                 accountIds.add(a.getId());
                 initial.put(a.getId(), a.getInitialBalance());
             }
-            Long expenseCat = createCategory(userId, CategoryKind.EXPENSE, rng).getId();
-            Long incomeCat = createCategory(userId, CategoryKind.INCOME, rng).getId();
+            Long expenseCat = createCategory(ledgerId, CategoryKind.EXPENSE, rng).getId();
+            Long incomeCat = createCategory(ledgerId, CategoryKind.INCOME, rng).getId();
 
             // 模型：存活交易 id → 影响记录。
             Map<Long, TxRecord> live = new HashMap<>();
@@ -178,7 +178,7 @@ class TransactionPropertyTest {
                     case 0 -> { // 创建支出
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(userId, "expense", amount, acc, expenseCat,
+                        Transaction t = tx.create(ledgerId, "expense", amount, acc, expenseCat,
                                 null, null, null, "e");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.EXPENSE, amount, acc, null, null));
@@ -186,7 +186,7 @@ class TransactionPropertyTest {
                     case 1 -> { // 创建收入
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(userId, "income", amount, acc, incomeCat,
+                        Transaction t = tx.create(ledgerId, "income", amount, acc, incomeCat,
                                 null, null, null, "i");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.INCOME, amount, acc, null, null));
@@ -200,7 +200,7 @@ class TransactionPropertyTest {
                         Long src = accountIds.get(si);
                         Long dst = accountIds.get(di);
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(userId, "transfer", amount, null, null,
+                        Transaction t = tx.create(ledgerId, "transfer", amount, null, null,
                                 src, dst, null, "t");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.TRANSFER, amount, null, src, dst));
@@ -210,7 +210,7 @@ class TransactionPropertyTest {
                         Long targetId = ids.get(rng.nextInt(ids.size()));
                         if (rng.nextBoolean()) {
                             // 删除：回滚原影响。
-                            tx.delete(userId, targetId);
+                            tx.delete(ledgerId, targetId);
                             live.remove(targetId);
                         } else {
                             // 修改：随机生成新的合法形态，替换记录。
@@ -224,7 +224,7 @@ class TransactionPropertyTest {
                                 }
                                 Long src = accountIds.get(si);
                                 Long dst = accountIds.get(di);
-                                tx.update(userId, targetId, "transfer", amount, null, null,
+                                tx.update(ledgerId, targetId, "transfer", amount, null, null,
                                         src, dst, null, "t2");
                                 live.put(targetId, new TxRecord(
                                         com.damien.youyu.domain.TransactionType.TRANSFER,
@@ -233,7 +233,7 @@ class TransactionPropertyTest {
                                 Long acc = accountIds.get(rng.nextInt(accCount));
                                 String type = newType == 0 ? "expense" : "income";
                                 Long cat = newType == 0 ? expenseCat : incomeCat;
-                                tx.update(userId, targetId, type, amount, acc, cat,
+                                tx.update(ledgerId, targetId, type, amount, acc, cat,
                                         null, null, null, "u");
                                 live.put(targetId, new TxRecord(newType == 0
                                         ? com.damien.youyu.domain.TransactionType.EXPENSE
@@ -247,16 +247,16 @@ class TransactionPropertyTest {
                 // ---- 每一步之后断言不变式 ----
                 Map<Long, BigDecimal> expected = computeModel(accountIds, initial, live);
                 for (Long accId : accountIds) {
-                    BigDecimal stored = balanceOf(userId, accId);
+                    BigDecimal stored = balanceOf(ledgerId, accId);
                     // 存储的 current_balance == 模型重算值。
                     assertThat(stored).as("seq=%d step=%d account=%d 模型守恒", seq, step, accId)
                             .isEqualByComparingTo(expected.get(accId));
                     // 存储的 current_balance == 服务重算(recomputeBalance)值（需求 4.13）。
                     assertThat(stored).as("seq=%d step=%d account=%d recompute", seq, step, accId)
-                            .isEqualByComparingTo(accounts.recomputeBalance(userId, accId));
+                            .isEqualByComparingTo(accounts.recomputeBalance(ledgerId, accId));
                 }
                 // 推论：所有账户余额之和 == Σ初始 + Σ收入 − Σ支出（转账净额为 0）。
-                assertThat(sumBalances(userId, accountIds))
+                assertThat(sumBalances(ledgerId, accountIds))
                         .as("seq=%d step=%d 账户余额之和(转账不改变总和)", seq, step)
                         .isEqualByComparingTo(expectedTotal(initial, live));
             }
@@ -286,10 +286,10 @@ class TransactionPropertyTest {
         return bal;
     }
 
-    private BigDecimal sumBalances(long userId, List<Long> accountIds) {
+    private BigDecimal sumBalances(long ledgerId, List<Long> accountIds) {
         BigDecimal sum = BigDecimal.ZERO;
         for (Long id : accountIds) {
-            sum = sum.add(balanceOf(userId, id));
+            sum = sum.add(balanceOf(ledgerId, id));
         }
         return sum;
     }
@@ -324,10 +324,10 @@ class TransactionPropertyTest {
         TransactionService tx = txService();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 200_000_000L + iter;
-            Account acc = createAccount(userId, rng);
-            Long expenseCat = createCategory(userId, CategoryKind.EXPENSE, rng).getId();
-            Long incomeCat = createCategory(userId, CategoryKind.INCOME, rng).getId();
+            long ledgerId = 200_000_000L + iter;
+            Account acc = createAccount(ledgerId, rng);
+            Long expenseCat = createCategory(ledgerId, CategoryKind.EXPENSE, rng).getId();
+            Long incomeCat = createCategory(ledgerId, CategoryKind.INCOME, rng).getId();
             BigDecimal balanceBefore = acc.getCurrentBalance();
             boolean incomeKind = rng.nextBoolean();
             String type = incomeKind ? "income" : "expense";
@@ -388,14 +388,14 @@ class TransactionPropertyTest {
                 }
             }
 
-            ApiException ex = catchThrowableOfType(() -> tx.create(userId, type, amount,
+            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, type, amount,
                     accountId, categoryId, null, null, null, null), ApiException.class);
 
             assertThat(ex).as("badCase=%d 应被拒绝", badCase).isNotNull();
             assertThat(ex.getCode()).isEqualTo(expectedCode);
             // 零副作用：无任何 Transaction 落库，账户余额不变。
-            assertThat(transactionRepository.findByUserId(userId)).isEmpty();
-            assertThat(balanceOf(userId, acc.getId())).isEqualByComparingTo(balanceBefore);
+            assertThat(transactionRepository.findByLedgerId(ledgerId)).isEmpty();
+            assertThat(balanceOf(ledgerId, acc.getId())).isEqualByComparingTo(balanceBefore);
         }
     }
 
@@ -411,19 +411,19 @@ class TransactionPropertyTest {
         TransactionService tx = txService();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 300_000_000L + iter;
-            Account acc = createAccount(userId, rng);
+            long ledgerId = 300_000_000L + iter;
+            Account acc = createAccount(ledgerId, rng);
             BigDecimal balanceBefore = acc.getCurrentBalance();
             BigDecimal amount = validAmount(rng, 1_000_000L);
 
-            ApiException ex = catchThrowableOfType(() -> tx.create(userId, "transfer", amount,
+            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, "transfer", amount,
                     null, null, acc.getId(), acc.getId(), null, null), ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("TRANSFER_SAME_ACCOUNT");
             // 零副作用：余额不变、无 Transaction 落库。
-            assertThat(balanceOf(userId, acc.getId())).isEqualByComparingTo(balanceBefore);
-            assertThat(transactionRepository.findByUserId(userId)).isEmpty();
+            assertThat(balanceOf(ledgerId, acc.getId())).isEqualByComparingTo(balanceBefore);
+            assertThat(transactionRepository.findByLedgerId(ledgerId)).isEmpty();
         }
     }
 }

@@ -54,7 +54,7 @@ class AccountServiceTest {
         Account account = service().create(USER, "现金", "CASH", new BigDecimal("100.50"), 0);
 
         assertThat(account.getId()).isNotNull();
-        assertThat(account.getUserId()).isEqualTo(USER);
+        assertThat(account.getLedgerId()).isEqualTo(USER);
         assertThat(account.getName()).isEqualTo("现金");
         assertThat(account.getType()).isEqualTo(AccountType.CASH);
         assertThat(account.getInitialBalance()).isEqualByComparingTo("100.50");
@@ -89,7 +89,7 @@ class AccountServiceTest {
         assertThat(tooLong.getField()).isEqualTo("name");
 
         // 需求 3.3：不持久化任何数据。
-        assertThat(accountRepository.countByUserId(USER)).isZero();
+        assertThat(accountRepository.countByLedgerId(USER)).isZero();
     }
 
     @Test
@@ -98,7 +98,7 @@ class AccountServiceTest {
                 () -> service().create(USER, "账户", "BITCOIN", BigDecimal.ZERO, 0), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("ACCOUNT_FIELD_INVALID");
         assertThat(ex.getField()).isEqualTo("type");
-        assertThat(accountRepository.countByUserId(USER)).isZero();
+        assertThat(accountRepository.countByLedgerId(USER)).isZero();
     }
 
     @Test
@@ -114,7 +114,7 @@ class AccountServiceTest {
                 ApiException.class);
         assertThat(overMax.getField()).isEqualTo("initialBalance");
 
-        assertThat(accountRepository.countByUserId(USER)).isZero();
+        assertThat(accountRepository.countByLedgerId(USER)).isZero();
     }
 
     @Test
@@ -189,7 +189,7 @@ class AccountServiceTest {
 
         service.delete(USER, created.getId());
 
-        assertThat(accountRepository.findByIdAndUserId(created.getId(), USER)).isEmpty();
+        assertThat(accountRepository.findByIdAndLedgerId(created.getId(), USER)).isEmpty();
     }
 
     @Test
@@ -203,7 +203,7 @@ class AccountServiceTest {
 
         assertThat(ex.getCode()).isEqualTo("ACCOUNT_IN_USE");
         // 需求 3.7：账户保持不变。
-        assertThat(accountRepository.findByIdAndUserId(created.getId(), USER)).isPresent();
+        assertThat(accountRepository.findByIdAndLedgerId(created.getId(), USER)).isPresent();
     }
 
     @Test
@@ -216,10 +216,10 @@ class AccountServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
 
-    private void persistExpense(Long userId, Long accountId, BigDecimal amount) {
+    private void persistExpense(Long ledgerId, Long accountId, BigDecimal amount) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Transaction tx = new Transaction();
-        tx.setUserId(userId);
+        tx.setLedgerId(ledgerId);
         tx.setType(TransactionType.EXPENSE);
         tx.setAmount(amount);
         tx.setAccountId(accountId);

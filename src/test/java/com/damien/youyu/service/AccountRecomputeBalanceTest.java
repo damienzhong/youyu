@@ -63,7 +63,7 @@ class AccountRecomputeBalanceTest {
     private Category category(CategoryKind kind, String name) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Category c = new Category();
-        c.setUserId(USER);
+        c.setLedgerId(USER);
         c.setKind(kind);
         c.setName(name);
         c.setCreatedAt(now);
@@ -72,7 +72,7 @@ class AccountRecomputeBalanceTest {
     }
 
     private BigDecimal currentBalanceOf(Long accountId) {
-        return accountRepository.findByIdAndUserId(accountId, USER).orElseThrow().getCurrentBalance();
+        return accountRepository.findByIdAndLedgerId(accountId, USER).orElseThrow().getCurrentBalance();
     }
 
     // ---------------- 无流水：重算=初始余额 ----------------

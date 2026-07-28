@@ -41,7 +41,7 @@ import com.damien.youyu.repository.TransactionRepository;
  *       且仅计 {@code type=expense}（排除转账/收入，需求 4.12/7.5）。</li>
  *   <li>状态阈值：已用 &gt;100% 为 OVER，&gt;=80% 为 WARN，否则 OK。</li>
  *   <li>预算健康仅对「当前自然月且已设总预算」给出：剩余天数、日均可用、按当前速度预计月底结余。</li>
- *   <li>所有读写按会话 {@code userId} 隔离（需求 2.3/2.4）。</li>
+ *   <li>所有读写按会话 {@code ledgerId} 隔离（需求 2.3/2.4）。</li>
  * </ul>
  */
 @Service
@@ -78,11 +78,11 @@ public class BudgetService {
 
     /** 某自然月的预算总览（总预算 + 健康 + 分类预算）。 */
     @Transactional(readOnly = true)
-    public BudgetOverviewResponse overview(Long userId, YearMonth month) {
+    public BudgetOverviewResponse overview(Long ledgerId, YearMonth month) {
         String monthKey = month.toString();
 
         // 本月支出聚合（排除转账/收入）。
-        List<Transaction> expenses = monthExpenses(userId, month);
+        List<Transaction> expenses = monthExpenses(ledgerId, month);
         BigDecimal spent = ZERO;
         Map<Long, BigDecimal> spentByCat = new LinkedHashMap<>();
         Map<Long, Integer> countByCat = new LinkedHashMap<>();
@@ -93,12 +93,12 @@ public class BudgetService {
         }
         spent = scale(spent);
 
-        Budget total = budgetRepository.findByUserIdAndMonth(userId, monthKey).orElse(null);
+        Budget total = budgetRepository.findByLedgerIdAndMonth(ledgerId, monthKey).orElse(null);
         boolean isCurrent = month.equals(YearMonth.now(clock));
-        Map<Long, String> nameById = categoryNameMap(userId);
+        Map<Long, String> nameById = categoryNameMap(ledgerId);
 
         // 分类预算明细。
-        List<CategoryBudget> catBudgets = categoryBudgetRepository.findByUserIdAndMonth(userId, monthKey);
+        List<CategoryBudget> catBudgets = categoryBudgetRepository.findByLedgerIdAndMonth(ledgerId, monthKey);
         BigDecimal allocated = ZERO;
         List<CategoryBudgetItem> items = new ArrayList<>(catBudgets.size());
         List<CategoryBudget> ordered = new ArrayList<>(catBudgets);
@@ -141,13 +141,13 @@ public class BudgetService {
 
     /** 设置/更新某自然月的月度总预算，返回最新总览。 */
     @Transactional
-    public BudgetOverviewResponse setTotalBudget(Long userId, YearMonth month, BigDecimal rawAmount) {
+    public BudgetOverviewResponse setTotalBudget(Long ledgerId, YearMonth month, BigDecimal rawAmount) {
         BigDecimal amount = validateAmount(rawAmount);
         String monthKey = month.toString();
         LocalDateTime now = LocalDateTime.now(clock);
-        Budget budget = budgetRepository.findByUserIdAndMonth(userId, monthKey).orElseGet(() -> {
+        Budget budget = budgetRepository.findByLedgerIdAndMonth(ledgerId, monthKey).orElseGet(() -> {
             Budget b = new Budget();
-            b.setUserId(userId);
+            b.setLedgerId(ledgerId);
             b.setMonth(monthKey);
             b.setCreatedAt(now);
             return b;
@@ -155,7 +155,7 @@ public class BudgetService {
         budget.setAmount(amount);
         budget.setUpdatedAt(now);
         budgetRepository.save(budget);
-        return overview(userId, month);
+        return overview(ledgerId, month);
     }
 
     // ---------------- 写：分类预算 ----------------
@@ -163,12 +163,12 @@ public class BudgetService {
     /** 设置/更新某自然月某分类的预算，返回最新总览。 */
     @Transactional
     public BudgetOverviewResponse setCategoryBudget(
-            Long userId, YearMonth month, Long categoryId, BigDecimal rawAmount) {
+            Long ledgerId, YearMonth month, Long categoryId, BigDecimal rawAmount) {
         if (categoryId == null) {
             throw ApiException.notFound("分类不存在");
         }
         BigDecimal amount = validateAmount(rawAmount);
-        Category category = categoryRepository.findByIdAndUserId(categoryId, userId)
+        Category category = categoryRepository.findByIdAndLedgerId(categoryId, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("分类不存在"));
         if (category.getKind() != CategoryKind.EXPENSE) {
             throw new ApiException("BUDGET_CATEGORY_INVALID", HttpStatus.BAD_REQUEST,
@@ -177,10 +177,10 @@ public class BudgetService {
         String monthKey = month.toString();
         LocalDateTime now = LocalDateTime.now(clock);
         CategoryBudget cb = categoryBudgetRepository
-                .findByUserIdAndMonthAndCategoryId(userId, monthKey, categoryId)
+                .findByLedgerIdAndMonthAndCategoryId(ledgerId, monthKey, categoryId)
                 .orElseGet(() -> {
                     CategoryBudget c = new CategoryBudget();
-                    c.setUserId(userId);
+                    c.setLedgerId(ledgerId);
                     c.setMonth(monthKey);
                     c.setCategoryId(categoryId);
                     c.setCreatedAt(now);
@@ -189,17 +189,17 @@ public class BudgetService {
         cb.setAmount(amount);
         cb.setUpdatedAt(now);
         categoryBudgetRepository.save(cb);
-        return overview(userId, month);
+        return overview(ledgerId, month);
     }
 
     /** 删除某自然月某分类的预算（不存在则静默，幂等），返回最新总览。 */
     @Transactional
-    public BudgetOverviewResponse deleteCategoryBudget(Long userId, YearMonth month, Long categoryId) {
+    public BudgetOverviewResponse deleteCategoryBudget(Long ledgerId, YearMonth month, Long categoryId) {
         String monthKey = month.toString();
         categoryBudgetRepository
-                .findByUserIdAndMonthAndCategoryId(userId, monthKey, categoryId)
+                .findByLedgerIdAndMonthAndCategoryId(ledgerId, monthKey, categoryId)
                 .ifPresent(categoryBudgetRepository::delete);
-        return overview(userId, month);
+        return overview(ledgerId, month);
     }
 
     // ---------------- 写：沿用上月 ----------------
@@ -209,26 +209,26 @@ public class BudgetService {
      * 上月无任何预算则为无操作。
      */
     @Transactional
-    public BudgetOverviewResponse copyFromPreviousMonth(Long userId, YearMonth month) {
+    public BudgetOverviewResponse copyFromPreviousMonth(Long ledgerId, YearMonth month) {
         String prevKey = month.minusMonths(1).toString();
         LocalDateTime now = LocalDateTime.now(clock);
 
-        budgetRepository.findByUserIdAndMonth(userId, prevKey)
-                .ifPresent(prev -> setTotalBudget(userId, month, prev.getAmount()));
+        budgetRepository.findByLedgerIdAndMonth(ledgerId, prevKey)
+                .ifPresent(prev -> setTotalBudget(ledgerId, month, prev.getAmount()));
 
-        for (CategoryBudget prev : categoryBudgetRepository.findByUserIdAndMonth(userId, prevKey)) {
-            setCategoryBudget(userId, month, prev.getCategoryId(), prev.getAmount());
+        for (CategoryBudget prev : categoryBudgetRepository.findByLedgerIdAndMonth(ledgerId, prevKey)) {
+            setCategoryBudget(ledgerId, month, prev.getCategoryId(), prev.getAmount());
         }
-        return overview(userId, month);
+        return overview(ledgerId, month);
     }
 
     // ---------------- 内部工具 ----------------
 
-    private List<Transaction> monthExpenses(Long userId, YearMonth month) {
+    private List<Transaction> monthExpenses(Long ledgerId, YearMonth month) {
         LocalDateTime from = month.atDay(1).atStartOfDay();
         LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
         return transactionRepository
-                .findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(userId, from, to)
+                .findByLedgerIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(ledgerId, from, to)
                 .stream()
                 .filter(t -> t.getType() == TransactionType.EXPENSE)
                 .toList();
@@ -260,9 +260,9 @@ public class BudgetService {
         return new BudgetHealth(daysLeft, dailyAvailable, projectedBalance, projectedOver);
     }
 
-    private Map<Long, String> categoryNameMap(Long userId) {
+    private Map<Long, String> categoryNameMap(Long ledgerId) {
         Map<Long, String> map = new LinkedHashMap<>();
-        for (Category c : categoryRepository.findByUserId(userId)) {
+        for (Category c : categoryRepository.findByLedgerId(ledgerId)) {
             map.put(c.getId(), c.getName());
         }
         return map;

@@ -52,10 +52,10 @@ class TransactionServiceTest {
                 transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE));
     }
 
-    private Account account(long userId, String name, String balance) {
+    private Account account(long ledgerId, String name, String balance) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(AccountType.CASH);
         a.setInitialBalance(new BigDecimal(balance));
@@ -66,10 +66,10 @@ class TransactionServiceTest {
         return accountRepository.save(a);
     }
 
-    private Category category(long userId, CategoryKind kind, String name) {
+    private Category category(long ledgerId, CategoryKind kind, String name) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setCreatedAt(now);
@@ -78,7 +78,7 @@ class TransactionServiceTest {
     }
 
     private BigDecimal balanceOf(Long accountId) {
-        return accountRepository.findByIdAndUserId(accountId, USER).orElseThrow().getCurrentBalance();
+        return accountRepository.findByIdAndLedgerId(accountId, USER).orElseThrow().getCurrentBalance();
     }
 
     // ---------------- 支出 / 收入 ----------------
@@ -93,7 +93,7 @@ class TransactionServiceTest {
 
         assertThat(tx.getId()).isNotNull();
         assertThat(tx.getType()).isEqualTo(TransactionType.EXPENSE);
-        assertThat(tx.getUserId()).isEqualTo(USER);
+        assertThat(tx.getLedgerId()).isEqualTo(USER);
         // 需求 4.1：支出减少账户余额。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("76.50");
     }
@@ -143,7 +143,7 @@ class TransactionServiceTest {
         // 需求 4.5：源=目标被拒。
         assertThat(ex.getCode()).isEqualTo("TRANSFER_SAME_ACCOUNT");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("1000.00");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     // ---------------- 金额校验（零副作用） ----------------
@@ -160,7 +160,7 @@ class TransactionServiceTest {
         // 需求 4.4：金额 < 0.01 非法。
         assertThat(ex.getCode()).isEqualTo("AMOUNT_INVALID");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     @Test
@@ -201,7 +201,7 @@ class TransactionServiceTest {
         // 需求 4.8：金额缺失属必填缺失。
         assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
         assertThat(ex.getField()).isEqualTo("amount");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     @Test
@@ -250,7 +250,7 @@ class TransactionServiceTest {
 
         // 需求 4.9：引用账户不存在。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     @Test
@@ -265,9 +265,9 @@ class TransactionServiceTest {
         // 需求 2.4/4.9：他人账户视为不存在。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         // 零副作用：他人账户余额不变，本人无任何交易落库。
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
+        assertThat(accountRepository.findByIdAndLedgerId(other.getId(), OTHER_USER).orElseThrow()
                 .getCurrentBalance()).isEqualByComparingTo("100.00");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     @Test
@@ -292,7 +292,7 @@ class TransactionServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         // 需求 4.10：中途失败零副作用，目标账户余额不变。
         assertThat(balanceOf(dst.getId())).isEqualByComparingTo("-500.00");
-        assertThat(transactionRepository.findByUserId(USER)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     // ---------------- 读取 ----------------
@@ -403,7 +403,7 @@ class TransactionServiceTest {
         // 需求 2.4/4.7：他人交易视为不存在，拒绝且不改余额。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(balanceOf(mine.getId())).isEqualByComparingTo("100.00");
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
+        assertThat(accountRepository.findByIdAndLedgerId(other.getId(), OTHER_USER).orElseThrow()
                 .getCurrentBalance()).isEqualByComparingTo("90.00");
     }
 
@@ -438,7 +438,7 @@ class TransactionServiceTest {
 
         // 回滚支出 -30（+30）：恢复到 100。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-        assertThat(transactionRepository.findByIdAndUserId(tx.getId(), USER)).isEmpty();
+        assertThat(transactionRepository.findByIdAndLedgerId(tx.getId(), USER)).isEmpty();
     }
 
     @Test
@@ -455,7 +455,7 @@ class TransactionServiceTest {
         // 回滚转账：源 +500 → 1000，目标 -500 → -500。
         assertThat(balanceOf(src.getId())).isEqualByComparingTo("1000.00");
         assertThat(balanceOf(dst.getId())).isEqualByComparingTo("-500.00");
-        assertThat(transactionRepository.findByIdAndUserId(tx.getId(), USER)).isEmpty();
+        assertThat(transactionRepository.findByIdAndLedgerId(tx.getId(), USER)).isEmpty();
     }
 
     @Test
@@ -484,7 +484,7 @@ class TransactionServiceTest {
 
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         // 他人账户余额不变（90 = 100 - 10）。
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
+        assertThat(accountRepository.findByIdAndLedgerId(other.getId(), OTHER_USER).orElseThrow()
                 .getCurrentBalance()).isEqualByComparingTo("90.00");
     }
 }

@@ -20,13 +20,13 @@ import com.damien.youyu.api.dto.LoanResponse;
 import com.damien.youyu.api.dto.LoanUpdateRequest;
 import com.damien.youyu.domain.Loan;
 import com.damien.youyu.domain.LoanDirection;
-import com.damien.youyu.security.CurrentUser;
+import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.LoanService;
 
 /**
  * 借贷往来接口。
  *
- * <p>身份由 Spring Security 统一鉴权，所有读写按会话 userId 隔离（越权返回 404，需求 2.2-2.4）。
+ * <p>身份由 Spring Security 统一鉴权，所有读写按会话 ledgerId 隔离（越权返回 404，需求 2.2-2.4）。
  * 借贷为独立台账，不影响账户余额与净资产。</p>
  *
  * <ul>
@@ -42,23 +42,23 @@ import com.damien.youyu.service.LoanService;
 public class LoanController {
 
     private final LoanService loanService;
-    private final CurrentUser currentUser;
+    private final CurrentLedger currentLedger;
 
-    public LoanController(LoanService loanService, CurrentUser currentUser) {
+    public LoanController(LoanService loanService, CurrentLedger currentLedger) {
         this.loanService = loanService;
-        this.currentUser = currentUser;
+        this.currentLedger = currentLedger;
     }
 
     /** 列出本人借贷并附待还/待收汇总。 */
     @GetMapping
     public ResponseEntity<LoanListResponse> list() {
-        Long userId = currentUser.requireUserId();
-        List<LoanResponse> loans = loanService.list(userId).stream()
+        Long ledgerId = currentLedger.requireLedgerId();
+        List<LoanResponse> loans = loanService.list(ledgerId).stream()
                 .map(LoanResponse::from)
                 .toList();
         LoanListResponse body = new LoanListResponse(
-                loanService.outstanding(userId, LoanDirection.BORROW),
-                loanService.outstanding(userId, LoanDirection.LEND),
+                loanService.outstanding(ledgerId, LoanDirection.BORROW),
+                loanService.outstanding(ledgerId, LoanDirection.LEND),
                 loans);
         return ResponseEntity.ok(body);
     }
@@ -66,9 +66,9 @@ public class LoanController {
     /** 新建借贷：成功返回 201。 */
     @PostMapping
     public ResponseEntity<LoanResponse> create(@RequestBody LoanCreateRequest req) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         Loan loan = loanService.create(
-                userId, req.direction(), req.counterparty(),
+                ledgerId, req.direction(), req.counterparty(),
                 req.amount(), req.occurredAt(), req.note());
         return ResponseEntity.status(HttpStatus.CREATED).body(LoanResponse.from(loan));
     }
@@ -77,9 +77,9 @@ public class LoanController {
     @PutMapping("/{id}")
     public ResponseEntity<LoanResponse> update(
             @PathVariable Long id, @RequestBody LoanUpdateRequest req) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         Loan loan = loanService.update(
-                userId, id, req.direction(), req.counterparty(),
+                ledgerId, id, req.direction(), req.counterparty(),
                 req.amount(), req.occurredAt(), req.note());
         return ResponseEntity.ok(LoanResponse.from(loan));
     }
@@ -89,16 +89,16 @@ public class LoanController {
     public ResponseEntity<LoanResponse> settle(
             @PathVariable Long id,
             @RequestParam(name = "settled", defaultValue = "true") boolean settled) {
-        Long userId = currentUser.requireUserId();
-        Loan loan = loanService.setSettled(userId, id, settled);
+        Long ledgerId = currentLedger.requireLedgerId();
+        Loan loan = loanService.setSettled(ledgerId, id, settled);
         return ResponseEntity.ok(LoanResponse.from(loan));
     }
 
     /** 删除借贷：成功返回 204。 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Long userId = currentUser.requireUserId();
-        loanService.delete(userId, id);
+        Long ledgerId = currentLedger.requireLedgerId();
+        loanService.delete(ledgerId, id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -126,7 +126,7 @@ class ExportIntegrationTest {
         List<Transaction> batch = new ArrayList<>(PERF_TX_COUNT);
         for (int i = 0; i < PERF_TX_COUNT; i++) {
             Transaction t = new Transaction();
-            t.setUserId(USER);
+            t.setLedgerId(USER);
             LocalDateTime when = BASE.plusSeconds(i);
             int kind = i % 3;
             if (kind == 2) {
@@ -185,7 +185,7 @@ class ExportIntegrationTest {
 
     private Account account(String name, AccountType type, String initial, int sortOrder) {
         Account a = new Account();
-        a.setUserId(USER);
+        a.setLedgerId(USER);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));
@@ -198,7 +198,7 @@ class ExportIntegrationTest {
 
     private Category category(CategoryKind kind, String name, Long parentId) {
         Category c = new Category();
-        c.setUserId(USER);
+        c.setLedgerId(USER);
         c.setKind(kind);
         c.setName(name);
         c.setParentId(parentId);
@@ -222,7 +222,7 @@ class ExportIntegrationTest {
     private void save(TransactionType type, String amount, Long accountId,
             Long categoryId, Long sourceId, Long destId, String note) {
         Transaction t = new Transaction();
-        t.setUserId(USER);
+        t.setLedgerId(USER);
         t.setType(type);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(accountId);

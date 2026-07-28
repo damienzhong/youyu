@@ -88,13 +88,13 @@ public class ImportService {
     /**
      * 从导出 JSON 还原数据到当前用户（需求 8.5）。整个过程在单个事务内执行，失败即回滚。
      *
-     * @param userId 会话用户主键（强制覆盖所有还原实体的 user_id）
+     * @param ledgerId 会话用户主键（强制覆盖所有还原实体的 user_id）
      * @param in     导出 JSON 文档输入流
      * @return 还原的各类记录数
      * @throws ApiException IMPORT_INVALID（文档结构/引用键/字段值非法）；IMPORT_FAILED（解析失败）
      */
     @Transactional
-    public ImportResult importJson(Long userId, InputStream in) {
+    public ImportResult importJson(Long ledgerId, InputStream in) {
         JsonNode root;
         try {
             root = mapper.readTree(in);
@@ -107,10 +107,10 @@ public class ImportService {
 
         LocalDateTime now = LocalDateTime.now(clock);
 
-        Map<String, Account> accountByRef = restoreAccounts(userId, root.path("accounts"), now);
-        Map<String, Category> categoryByRef = restoreCategories(userId, root.path("categories"), now);
+        Map<String, Account> accountByRef = restoreAccounts(ledgerId, root.path("accounts"), now);
+        Map<String, Category> categoryByRef = restoreCategories(ledgerId, root.path("categories"), now);
         int txCount = restoreTransactions(
-                userId, root.path("transactions"), accountByRef, categoryByRef, now);
+                ledgerId, root.path("transactions"), accountByRef, categoryByRef, now);
 
         // 逐笔交易已在内存中累加余额增量，统一持久化更新后的 current_balance。
         accountRepository.saveAll(accountByRef.values());
@@ -120,7 +120,7 @@ public class ImportService {
 
     // ---------------- 账户还原 ----------------
 
-    private Map<String, Account> restoreAccounts(Long userId, JsonNode accounts, LocalDateTime now) {
+    private Map<String, Account> restoreAccounts(Long ledgerId, JsonNode accounts, LocalDateTime now) {
         Map<String, Account> byRef = new HashMap<>();
         if (accounts.isMissingNode() || accounts.isNull()) {
             return byRef;
@@ -133,7 +133,7 @@ public class ImportService {
             BigDecimal initial = money(requireText(node, "initialBalance", "账户"));
 
             Account account = new Account();
-            account.setUserId(userId);
+            account.setLedgerId(ledgerId);
             account.setName(requireText(node, "name", "账户"));
             account.setType(parseAccountType(requireText(node, "type", "账户")));
             account.setInitialBalance(initial);
@@ -153,7 +153,7 @@ public class ImportService {
 
     // ---------------- 分类还原（两趟：父分类 → 子分类） ----------------
 
-    private Map<String, Category> restoreCategories(Long userId, JsonNode categories, LocalDateTime now) {
+    private Map<String, Category> restoreCategories(Long ledgerId, JsonNode categories, LocalDateTime now) {
         Map<String, Category> byRef = new HashMap<>();
         if (categories.isMissingNode() || categories.isNull()) {
             return byRef;
@@ -168,7 +168,7 @@ public class ImportService {
                 continue;
             }
             String ref = requireText(node, "ref", "分类");
-            Category parent = newCategory(userId, node, null, now);
+            Category parent = newCategory(ledgerId, node, null, now);
             categoryRepository.save(parent);
             if (byRef.putIfAbsent(ref, parent) != null) {
                 throw ApiException.importInvalid("分类引用键重复: " + ref);
@@ -186,7 +186,7 @@ public class ImportService {
             if (parent == null) {
                 throw ApiException.importInvalid("子分类引用了不存在的父分类: " + parentRef);
             }
-            Category child = newCategory(userId, node, parent.getId(), now);
+            Category child = newCategory(ledgerId, node, parent.getId(), now);
             categoryRepository.save(child);
             if (byRef.putIfAbsent(ref, child) != null) {
                 throw ApiException.importInvalid("分类引用键重复: " + ref);
@@ -195,9 +195,9 @@ public class ImportService {
         return byRef;
     }
 
-    private Category newCategory(Long userId, JsonNode node, Long parentId, LocalDateTime now) {
+    private Category newCategory(Long ledgerId, JsonNode node, Long parentId, LocalDateTime now) {
         Category category = new Category();
-        category.setUserId(userId);
+        category.setLedgerId(ledgerId);
         category.setParentId(parentId);
         category.setKind(parseCategoryKind(requireText(node, "kind", "分类")));
         category.setName(requireText(node, "name", "分类"));
@@ -209,7 +209,7 @@ public class ImportService {
     // ---------------- 交易还原（解析引用键 + 累加余额增量） ----------------
 
     private int restoreTransactions(
-            Long userId, JsonNode transactions,
+            Long ledgerId, JsonNode transactions,
             Map<String, Account> accountByRef, Map<String, Category> categoryByRef,
             LocalDateTime now) {
         if (transactions.isMissingNode() || transactions.isNull()) {
@@ -225,7 +225,7 @@ public class ImportService {
             BigDecimal amount = money(requireText(node, "amount", "交易"));
 
             Transaction tx = new Transaction();
-            tx.setUserId(userId);
+            tx.setLedgerId(ledgerId);
             tx.setType(type);
             tx.setAmount(amount);
             tx.setOccurredAt(parseTs(requireText(node, "occurredAt", "交易")));

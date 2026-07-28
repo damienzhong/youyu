@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,5 +62,13 @@ public class LedgerController {
         Long userId = currentUser.requireUserId();
         Ledger ledger = ledgerService.rename(userId, id, req.name());
         return ResponseEntity.ok(LedgerResponse.from(ledger));
+    }
+
+    /** 删除账本（级联清空其数据；至少保留一个）：成功返回 204。 */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        Long userId = currentUser.requireUserId();
+        ledgerService.delete(userId, id);
+        return ResponseEntity.noContent().build();
     }
 }

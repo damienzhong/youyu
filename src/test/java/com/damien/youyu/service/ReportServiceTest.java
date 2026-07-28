@@ -290,9 +290,9 @@ class ReportServiceTest {
         return LocalDateTime.parse(iso);
     }
 
-    private Category category(long userId, CategoryKind kind, String name) {
+    private Category category(long ledgerId, CategoryKind kind, String name) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setCreatedAt(dt("2024-01-01T00:00:00"));
@@ -300,30 +300,30 @@ class ReportServiceTest {
         return categoryRepository.save(c);
     }
 
-    private void income(long userId, String amount, LocalDateTime when) {
-        save(userId, TransactionType.INCOME, amount, when, 1L, null, null);
+    private void income(long ledgerId, String amount, LocalDateTime when) {
+        save(ledgerId, TransactionType.INCOME, amount, when, 1L, null, null);
     }
 
-    private void expense(long userId, String amount, LocalDateTime when) {
-        save(userId, TransactionType.EXPENSE, amount, when, 1L, null, null);
+    private void expense(long ledgerId, String amount, LocalDateTime when) {
+        save(ledgerId, TransactionType.EXPENSE, amount, when, 1L, null, null);
     }
 
-    private void expenseWithCategory(long userId, String amount, Long categoryId, LocalDateTime when) {
-        save(userId, TransactionType.EXPENSE, amount, when, categoryId, null, null);
+    private void expenseWithCategory(long ledgerId, String amount, Long categoryId, LocalDateTime when) {
+        save(ledgerId, TransactionType.EXPENSE, amount, when, categoryId, null, null);
     }
 
-    private void incomeWithCategory(long userId, String amount, Long categoryId, LocalDateTime when) {
-        save(userId, TransactionType.INCOME, amount, when, categoryId, null, null);
+    private void incomeWithCategory(long ledgerId, String amount, Long categoryId, LocalDateTime when) {
+        save(ledgerId, TransactionType.INCOME, amount, when, categoryId, null, null);
     }
 
-    private void transfer(long userId, String amount, LocalDateTime when) {
-        save(userId, TransactionType.TRANSFER, amount, when, null, 10L, 11L);
+    private void transfer(long ledgerId, String amount, LocalDateTime when) {
+        save(ledgerId, TransactionType.TRANSFER, amount, when, null, 10L, 11L);
     }
 
-    private void save(long userId, TransactionType type, String amount, LocalDateTime when,
+    private void save(long ledgerId, TransactionType type, String amount, LocalDateTime when,
             Long categoryId, Long sourceAccountId, Long destinationAccountId) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(type);
         t.setAmount(new BigDecimal(amount));
         if (type == TransactionType.TRANSFER) {

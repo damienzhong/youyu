@@ -32,7 +32,7 @@ import com.damien.youyu.repository.TransactionRepository;
  *   <li>删除：仍关联交易的账户拒绝删除（{@code ACCOUNT_IN_USE}，需求 3.7）；无交易则删除（需求 3.8）。</li>
  * </ul>
  *
- * <p>所有操作均按会话 {@code userId} 隔离：写入以传入 userId 为准，读取/修改/删除他人账户
+ * <p>所有操作均按会话 {@code ledgerId} 隔离：写入以传入 ledgerId 为准，读取/修改/删除他人账户
  * 一律返回 {@code NOT_FOUND}（需求 2.3、2.4）。金额一律 {@link BigDecimal}（需求 3.9）。</p>
  */
 @Service
@@ -65,17 +65,17 @@ public class AccountService {
      * @throws ApiException ACCOUNT_FIELD_INVALID（名称/类型/初始余额任一非法，需求 3.3）
      */
     @Transactional
-    public Account create(Long userId, String rawName, String rawType,
+    public Account create(Long ledgerId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder) {
-        return create(userId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null, null);
+        return create(ledgerId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null, null);
     }
 
     /** 向后兼容重载（不含信用额度）。 */
     @Transactional
-    public Account create(Long userId, String rawName, String rawType,
+    public Account create(Long ledgerId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote) {
-        return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
+        return create(ledgerId, rawName, rawType, rawInitialBalance, sortOrder,
                 includeInTotal, hidden, rawNote, null);
     }
 
@@ -88,7 +88,7 @@ public class AccountService {
      * @throws ApiException ACCOUNT_FIELD_INVALID（名称/类型/初始余额/备注任一非法，需求 3.3）
      */
     @Transactional
-    public Account create(Long userId, String rawName, String rawType,
+    public Account create(Long ledgerId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
         String name = validateName(rawName);
@@ -99,8 +99,8 @@ public class AccountService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
-        // 需求 2.2：写入强制以会话 userId 为准。
-        account.setUserId(userId);
+        // 需求 2.2：写入强制以会话 ledgerId 为准。
+        account.setLedgerId(ledgerId);
         account.setName(name);
         account.setType(type);
         account.setInitialBalance(initialBalance);
@@ -119,8 +119,8 @@ public class AccountService {
 
     /** 列出本人全部账户，按 sort_order、id 升序；无账户返回空列表（需求 3.5）。 */
     @Transactional(readOnly = true)
-    public List<Account> list(Long userId) {
-        return accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+    public List<Account> list(Long ledgerId) {
+        return accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId);
     }
 
     /**
@@ -130,8 +130,8 @@ public class AccountService {
      *                      ACCOUNT_FIELD_INVALID（名称/类型非法，需求 3.3）
      */
     @Transactional
-    public Account update(Long userId, Long id, String rawName, String rawType) {
-        Account account = accountRepository.findByIdAndUserId(id, userId)
+    public Account update(Long ledgerId, Long id, String rawName, String rawType) {
+        Account account = accountRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         String name = validateName(rawName);
@@ -150,9 +150,9 @@ public class AccountService {
      * @throws ApiException NOT_FOUND / ACCOUNT_FIELD_INVALID
      */
     @Transactional
-    public Account update(Long userId, Long id, String rawName, String rawType,
+    public Account update(Long ledgerId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote) {
-        return update(userId, id, rawName, rawType, includeInTotal, hidden, rawNote, null);
+        return update(ledgerId, id, rawName, rawType, includeInTotal, hidden, rawNote, null);
     }
 
     /**
@@ -161,9 +161,9 @@ public class AccountService {
      * @throws ApiException NOT_FOUND / ACCOUNT_FIELD_INVALID
      */
     @Transactional
-    public Account update(Long userId, Long id, String rawName, String rawType,
+    public Account update(Long ledgerId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
-        Account account = accountRepository.findByIdAndUserId(id, userId)
+        Account account = accountRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         String name = validateName(rawName);
@@ -190,11 +190,11 @@ public class AccountService {
      *                      ACCOUNT_IN_USE（存在关联交易，需求 3.7）
      */
     @Transactional
-    public void delete(Long userId, Long id) {
-        Account account = accountRepository.findByIdAndUserId(id, userId)
+    public void delete(Long ledgerId, Long id) {
+        Account account = accountRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
-        if (transactionRepository.existsByUserIdAndAccountReferenced(userId, id)) {
+        if (transactionRepository.existsByLedgerIdAndAccountReferenced(ledgerId, id)) {
             // 需求 3.7：有交易的账户禁止删除，账户与余额保持不变。
             throw ApiException.accountInUse();
         }
@@ -218,25 +218,25 @@ public class AccountService {
      * (a) 属性测试验证守恒；(b) 内部对账/自愈；(c) 导入还原后一致性校验。聚合以 {@link BigDecimal}
      * 精确求和，无匹配流水时按 0 处理，结果统一缩放到 2 位小数（DECIMAL(18,2)）。</p>
      *
-     * <p>按会话 {@code userId} 隔离：账户不存在或不属于当前用户返回 {@code NOT_FOUND}（需求 2.4）。</p>
+     * <p>按会话 {@code ledgerId} 隔离：账户不存在或不属于当前用户返回 {@code NOT_FOUND}（需求 2.4）。</p>
      *
      * @throws ApiException NOT_FOUND（账户不存在或不属于当前用户）
      */
     @Transactional(readOnly = true)
-    public BigDecimal recomputeBalance(Long userId, Long accountId) {
-        Account account = accountRepository.findByIdAndUserId(accountId, userId)
+    public BigDecimal recomputeBalance(Long ledgerId, Long accountId) {
+        Account account = accountRepository.findByIdAndLedgerId(accountId, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         BigDecimal income = zeroIfNull(
-                transactionRepository.sumAmountByUserIdAndAccountIdAndType(
-                        userId, accountId, TransactionType.INCOME));
+                transactionRepository.sumAmountByLedgerIdAndAccountIdAndType(
+                        ledgerId, accountId, TransactionType.INCOME));
         BigDecimal expense = zeroIfNull(
-                transactionRepository.sumAmountByUserIdAndAccountIdAndType(
-                        userId, accountId, TransactionType.EXPENSE));
+                transactionRepository.sumAmountByLedgerIdAndAccountIdAndType(
+                        ledgerId, accountId, TransactionType.EXPENSE));
         BigDecimal transferIn = zeroIfNull(
-                transactionRepository.sumTransferInByUserIdAndAccountId(userId, accountId));
+                transactionRepository.sumTransferInByLedgerIdAndAccountId(ledgerId, accountId));
         BigDecimal transferOut = zeroIfNull(
-                transactionRepository.sumTransferOutByUserIdAndAccountId(userId, accountId));
+                transactionRepository.sumTransferOutByLedgerIdAndAccountId(ledgerId, accountId));
 
         return account.getInitialBalance()
                 .add(income)

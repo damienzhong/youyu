@@ -43,8 +43,8 @@ import com.damien.youyu.repository.TransactionRepository;
  *   <li>空范围/无计入交易返回 0（需求 7.7）。</li>
  * </ul>
  *
- * <p>所有查询按会话 {@code userId} 隔离（需求 2.3）。占用了半开区间查询
- * {@link TransactionRepository#findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan}
+ * <p>所有查询按会话 {@code ledgerId} 隔离（需求 2.3）。占用了半开区间查询
+ * {@link TransactionRepository#findByLedgerIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan}
  * 以保证边界零点的交易不被重复计入相邻区间。</p>
  */
 @Service
@@ -75,15 +75,15 @@ public class ReportService {
     /**
      * 本月报表：给定自然月的总收入、总支出与结余（需求 7.1、7.5、7.7）。
      *
-     * @param userId 会话用户
+     * @param ledgerId 会话用户
      * @param month  目标自然月（按 {@code Asia/Shanghai} 边界）
      */
     @Transactional(readOnly = true)
-    public MonthlyReportResponse monthlyReport(Long userId, YearMonth month) {
+    public MonthlyReportResponse monthlyReport(Long ledgerId, YearMonth month) {
         LocalDateTime from = month.atDay(1).atStartOfDay();
         LocalDateTime to = month.plusMonths(1).atDay(1).atStartOfDay();
 
-        List<Transaction> txs = fetchHalfOpen(userId, from, to);
+        List<Transaction> txs = fetchHalfOpen(ledgerId, from, to);
         BigDecimal income = sumByType(txs, TransactionType.INCOME);
         BigDecimal expense = sumByType(txs, TransactionType.EXPENSE);
         BigDecimal balance = scale(income.subtract(expense));
@@ -94,13 +94,13 @@ public class ReportService {
     /**
      * 分类占比报表：选定日期范围（含起止边界）内各支出分类的金额与占总支出百分比（需求 7.2、7.3、7.5、7.7）。
      *
-     * @param userId 会话用户
+     * @param ledgerId 会话用户
      * @param from   起始日期（含），按 {@code Asia/Shanghai}
      * @param to     结束日期（含），按 {@code Asia/Shanghai}
      */
     @Transactional(readOnly = true)
-    public CategoryReportResponse categoryReport(Long userId, LocalDate from, LocalDate to) {
-        return categoryReport(userId, from, to, TransactionType.EXPENSE);
+    public CategoryReportResponse categoryReport(Long ledgerId, LocalDate from, LocalDate to) {
+        return categoryReport(ledgerId, from, to, TransactionType.EXPENSE);
     }
 
     /**
@@ -110,13 +110,13 @@ public class ReportService {
      * @param kind 统计类别：{@link TransactionType#EXPENSE} 支出 / {@link TransactionType#INCOME} 收入
      */
     @Transactional(readOnly = true)
-    public CategoryReportResponse categoryReport(Long userId, LocalDate from, LocalDate to,
+    public CategoryReportResponse categoryReport(Long ledgerId, LocalDate from, LocalDate to,
             TransactionType kind) {
         // 含起止边界：覆盖 to 当日整天，用半开区间 [from 00:00, (to+1) 00:00)。
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.plusDays(1).atStartOfDay();
 
-        List<Transaction> txs = fetchHalfOpen(userId, fromDt, toDt).stream()
+        List<Transaction> txs = fetchHalfOpen(ledgerId, fromDt, toDt).stream()
                 .filter(t -> t.getType() == kind)
                 .toList();
 
@@ -136,7 +136,7 @@ public class ReportService {
             return new CategoryReportResponse(from.toString(), to.toString(), ZERO, List.of());
         }
 
-        Map<Long, String> nameById = categoryNameMap(userId);
+        Map<Long, String> nameById = categoryNameMap(ledgerId);
 
         // 排序：金额降序、分类 id 升序，保证确定性与「大类在前」。
         List<Map.Entry<Long, BigDecimal>> ordered = new ArrayList<>(amountByCategory.entrySet());
@@ -176,7 +176,7 @@ public class ReportService {
      * @throws ApiException REPORT_RANGE_INVALID（起始晚于结束，或跨度超过上限）
      */
     @Transactional(readOnly = true)
-    public RangeReportResponse rangeReport(Long userId, LocalDate from, LocalDate to) {
+    public RangeReportResponse rangeReport(Long ledgerId, LocalDate from, LocalDate to) {
         if (from.isAfter(to)) {
             throw ApiException.reportRangeInvalid();
         }
@@ -186,7 +186,7 @@ public class ReportService {
 
         LocalDateTime fromDt = from.atStartOfDay();
         LocalDateTime toDt = to.plusDays(1).atStartOfDay();
-        List<Transaction> txs = fetchHalfOpen(userId, fromDt, toDt);
+        List<Transaction> txs = fetchHalfOpen(ledgerId, fromDt, toDt);
 
         BigDecimal income = BigDecimal.ZERO;
         BigDecimal expense = BigDecimal.ZERO;
@@ -224,13 +224,13 @@ public class ReportService {
     /**
      * 月度趋势报表：区间 [fromMonth, toMonth] 内每个自然月的收入与支出，无数据月份返回 0（需求 7.4、7.6、7.7）。
      *
-     * @param userId    会话用户
+     * @param ledgerId    会话用户
      * @param fromMonth 起始自然月（含）
      * @param toMonth   结束自然月（含）
      * @throws ApiException REPORT_RANGE_INVALID（起始晚于结束，或区间自然月数超过 24，需求 7.6）
      */
     @Transactional(readOnly = true)
-    public TrendReportResponse trendReport(Long userId, YearMonth fromMonth, YearMonth toMonth) {
+    public TrendReportResponse trendReport(Long ledgerId, YearMonth fromMonth, YearMonth toMonth) {
         // 需求 7.6：起始不得晚于结束。
         if (fromMonth.isAfter(toMonth)) {
             throw ApiException.reportRangeInvalid();
@@ -243,7 +243,7 @@ public class ReportService {
 
         LocalDateTime from = fromMonth.atDay(1).atStartOfDay();
         LocalDateTime to = toMonth.plusMonths(1).atDay(1).atStartOfDay();
-        List<Transaction> txs = fetchHalfOpen(userId, from, to);
+        List<Transaction> txs = fetchHalfOpen(ledgerId, from, to);
 
         // 聚合每月收入/支出。
         Map<YearMonth, BigDecimal> incomeByMonth = new LinkedHashMap<>();
@@ -273,9 +273,9 @@ public class ReportService {
 
     // ---------------- 内部工具 ----------------
 
-    private List<Transaction> fetchHalfOpen(Long userId, LocalDateTime from, LocalDateTime to) {
+    private List<Transaction> fetchHalfOpen(Long ledgerId, LocalDateTime from, LocalDateTime to) {
         return transactionRepository
-                .findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(userId, from, to);
+                .findByLedgerIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(ledgerId, from, to);
     }
 
     /** 累加某类型交易金额（转账在报表中一律不属于收入/支出，故按 type 精确过滤，需求 7.5）。 */
@@ -289,9 +289,9 @@ public class ReportService {
         return scale(sum);
     }
 
-    private Map<Long, String> categoryNameMap(Long userId) {
+    private Map<Long, String> categoryNameMap(Long ledgerId) {
         Map<Long, String> map = new LinkedHashMap<>();
-        for (Category c : categoryRepository.findByUserId(userId)) {
+        for (Category c : categoryRepository.findByLedgerId(ledgerId)) {
             map.put(c.getId(), c.getName());
         }
         return map;

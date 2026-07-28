@@ -98,9 +98,9 @@ public class ExportService {
      * 空数据时 accounts/categories/transactions 三个数组均为空，文档结构仍有效（需求 8.7）。</p>
      */
     @Transactional(readOnly = true)
-    public void writeJson(Long userId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
-        List<Category> categories = orderedCategories(userId);
+    public void writeJson(Long ledgerId, OutputStream out) {
+        List<Account> accounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId);
+        List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
 
@@ -137,7 +137,7 @@ public class ExportService {
             g.writeEndArray();
 
             g.writeArrayFieldStart("transactions");
-            try (Stream<Transaction> stream = transactionRepository.streamByUserIdOrderById(userId)) {
+            try (Stream<Transaction> stream = transactionRepository.streamByLedgerIdOrderById(ledgerId)) {
                 Iterator<Transaction> it = stream.iterator();
                 while (it.hasNext()) {
                     writeTransactionJson(g, it.next(), accountRef, categoryRef);
@@ -160,9 +160,9 @@ public class ExportService {
      * 各段首行为表头。三段之间以空行分隔。引用键与 JSON 一致，保证 CSV 自洽可再导入。</p>
      */
     @Transactional(readOnly = true)
-    public void writeCsv(Long userId, OutputStream out) {
-        List<Account> accounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
-        List<Category> categories = orderedCategories(userId);
+    public void writeCsv(Long ledgerId, OutputStream out) {
+        List<Account> accounts = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId);
+        List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
 
@@ -197,7 +197,7 @@ public class ExportService {
             w.write("# transactions" + CRLF);
             w.write(csvRow("type", "amount", "accountRef", "categoryRef",
                     "sourceAccountRef", "destinationAccountRef", "occurredAt", "note"));
-            try (Stream<Transaction> stream = transactionRepository.streamByUserIdOrderById(userId)) {
+            try (Stream<Transaction> stream = transactionRepository.streamByLedgerIdOrderById(ledgerId)) {
                 Iterator<Transaction> it = stream.iterator();
                 while (it.hasNext()) {
                     Transaction t = it.next();
@@ -246,8 +246,8 @@ public class ExportService {
     }
 
     /** 分类排序：父分类（parentId 为空）在前、再按 id 升序，保证 parentRef 先于其子分类出现（利于导入）。 */
-    private List<Category> orderedCategories(Long userId) {
-        List<Category> list = new ArrayList<>(categoryRepository.findByUserId(userId));
+    private List<Category> orderedCategories(Long ledgerId) {
+        List<Category> list = new ArrayList<>(categoryRepository.findByLedgerId(ledgerId));
         list.sort(Comparator
                 .comparing((Category c) -> c.getParentId() != null)
                 .thenComparing(Category::getId));

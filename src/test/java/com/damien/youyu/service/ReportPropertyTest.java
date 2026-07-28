@@ -94,9 +94,9 @@ class ReportPropertyTest {
         return ym.atDay(day).atTime(hour, minute, second);
     }
 
-    private Category expenseCategory(long userId, Random rng) {
+    private Category expenseCategory(long ledgerId, Random rng) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(CategoryKind.EXPENSE);
         c.setName("c" + rng.nextInt(1_000_000));
         c.setCreatedAt(BASE.atDay(1).atStartOfDay());
@@ -104,9 +104,9 @@ class ReportPropertyTest {
         return categoryRepository.save(c);
     }
 
-    private Category incomeCategory(long userId, Random rng) {
+    private Category incomeCategory(long ledgerId, Random rng) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(CategoryKind.INCOME);
         c.setName("i" + rng.nextInt(1_000_000));
         c.setCreatedAt(BASE.atDay(1).atStartOfDay());
@@ -114,10 +114,10 @@ class ReportPropertyTest {
         return categoryRepository.save(c);
     }
 
-    private void persist(long userId, TransactionType type, BigDecimal amount, LocalDateTime when,
+    private void persist(long ledgerId, TransactionType type, BigDecimal amount, LocalDateTime when,
             Long categoryId) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(type);
         t.setAmount(amount);
         if (type == TransactionType.TRANSFER) {
@@ -154,7 +154,7 @@ class ReportPropertyTest {
         ReportService svc = service();
 
         for (int iter = 0; iter < P15_ITER; iter++) {
-            long userId = 1_500_000_000L + iter;
+            long ledgerId = 1_500_000_000L + iter;
 
             // 交易窗口：连续 1-8 个自然月。
             int windowLen = 1 + rng.nextInt(8);
@@ -163,11 +163,11 @@ class ReportPropertyTest {
             // 支出/收入分类各 1-3 个。
             List<Long> expenseCats = new ArrayList<>();
             for (int i = 0; i < 1 + rng.nextInt(3); i++) {
-                expenseCats.add(expenseCategory(userId, rng).getId());
+                expenseCats.add(expenseCategory(ledgerId, rng).getId());
             }
             List<Long> incomeCats = new ArrayList<>();
             for (int i = 0; i < 1 + rng.nextInt(3); i++) {
-                incomeCats.add(incomeCategory(userId, rng).getId());
+                incomeCats.add(incomeCategory(ledgerId, rng).getId());
             }
 
             // 生成 0-40 笔随机交易（含转账噪声）。
@@ -180,21 +180,21 @@ class ReportPropertyTest {
                 int kind = rng.nextInt(3);
                 if (kind == 0) {
                     Long cat = expenseCats.get(rng.nextInt(expenseCats.size()));
-                    persist(userId, TransactionType.EXPENSE, amount, when, cat);
+                    persist(ledgerId, TransactionType.EXPENSE, amount, when, cat);
                     model.add(new TxModel(TransactionType.EXPENSE, amount, when, cat));
                 } else if (kind == 1) {
                     Long cat = incomeCats.get(rng.nextInt(incomeCats.size()));
-                    persist(userId, TransactionType.INCOME, amount, when, cat);
+                    persist(ledgerId, TransactionType.INCOME, amount, when, cat);
                     model.add(new TxModel(TransactionType.INCOME, amount, when, cat));
                 } else {
-                    persist(userId, TransactionType.TRANSFER, amount, when, null);
+                    persist(ledgerId, TransactionType.TRANSFER, amount, when, null);
                     model.add(new TxModel(TransactionType.TRANSFER, amount, when, null));
                 }
             }
 
             // ---- 1) 月报：随机月份，可能落在窗口外（应为 0）。 ----
             YearMonth targetMonth = BASE.plusMonths(rng.nextInt(windowLen + 2) - 1);
-            MonthlyReportResponse monthly = svc.monthlyReport(userId, targetMonth);
+            MonthlyReportResponse monthly = svc.monthlyReport(ledgerId, targetMonth);
             BigDecimal expIncome = BigDecimal.ZERO;
             BigDecimal expExpense = BigDecimal.ZERO;
             for (TxModel m : model) {
@@ -230,7 +230,7 @@ class ReportPropertyTest {
                     to = tmp;
                 }
             }
-            CategoryReportResponse cat = svc.categoryReport(userId, from, to);
+            CategoryReportResponse cat = svc.categoryReport(ledgerId, from, to);
 
             LocalDateTime fromDt = from.atStartOfDay();
             LocalDateTime toDt = to.plusDays(1).atStartOfDay();
@@ -260,7 +260,7 @@ class ReportPropertyTest {
             }
 
             // ---- 3) 月度趋势：覆盖整个窗口（≤ 24 月），逐月比对收支。 ----
-            TrendReportResponse trend = svc.trendReport(userId, BASE, windowEnd);
+            TrendReportResponse trend = svc.trendReport(ledgerId, BASE, windowEnd);
             assertThat(trend.months()).as("iter=%d 趋势月份数", iter).hasSize(windowLen);
             Map<YearMonth, BigDecimal> tIncome = new HashMap<>();
             Map<YearMonth, BigDecimal> tExpense = new HashMap<>();
@@ -295,7 +295,7 @@ class ReportPropertyTest {
         BigDecimal tolerance = new BigDecimal("0.05");
 
         for (int iter = 0; iter < P16_ITER; iter++) {
-            long userId = 1_600_000_000L + iter;
+            long ledgerId = 1_600_000_000L + iter;
 
             // 选定范围：BASE 单个自然月，保证生成的支出都落在范围内。
             YearMonth month = BASE;
@@ -305,30 +305,30 @@ class ReportPropertyTest {
             // 1-5 个支出分类。
             List<Long> cats = new ArrayList<>();
             for (int i = 0; i < 1 + rng.nextInt(5); i++) {
-                cats.add(expenseCategory(userId, rng).getId());
+                cats.add(expenseCategory(ledgerId, rng).getId());
             }
 
             // 至少 1 笔、最多 30 笔支出，均落在范围内。
             int expenseCount = 1 + rng.nextInt(30);
             for (int i = 0; i < expenseCount; i++) {
                 Long c = cats.get(rng.nextInt(cats.size()));
-                persist(userId, TransactionType.EXPENSE, randomAmount(rng),
+                persist(ledgerId, TransactionType.EXPENSE, randomAmount(rng),
                         randomWithinMonth(rng, month), c);
             }
             // 加入收入/转账噪声（不应影响占比合计）。
             int noise = rng.nextInt(6);
             for (int i = 0; i < noise; i++) {
                 if (rng.nextBoolean()) {
-                    Long ic = incomeCategory(userId, rng).getId();
-                    persist(userId, TransactionType.INCOME, randomAmount(rng),
+                    Long ic = incomeCategory(ledgerId, rng).getId();
+                    persist(ledgerId, TransactionType.INCOME, randomAmount(rng),
                             randomWithinMonth(rng, month), ic);
                 } else {
-                    persist(userId, TransactionType.TRANSFER, randomAmount(rng),
+                    persist(ledgerId, TransactionType.TRANSFER, randomAmount(rng),
                             randomWithinMonth(rng, month), null);
                 }
             }
 
-            CategoryReportResponse r = svc.categoryReport(userId, from, to);
+            CategoryReportResponse r = svc.categoryReport(ledgerId, from, to);
 
             assertThat(r.categories()).as("iter=%d 至少含一笔支出应有分类", iter).isNotEmpty();
             BigDecimal pctSum = BigDecimal.ZERO;
@@ -353,7 +353,7 @@ class ReportPropertyTest {
     void property17_trendRangeValidationRejectsInvalidWindows() {
         Random rng = new Random(170_017L);
         ReportService svc = service();
-        long userId = 1_700_000_000L;
+        long ledgerId = 1_700_000_000L;
 
         for (int iter = 0; iter < P17_ITER; iter++) {
             YearMonth fromMonth = YearMonth.of(2020 + rng.nextInt(8), 1 + rng.nextInt(12));
@@ -371,12 +371,12 @@ class ReportPropertyTest {
 
             if (invalid) {
                 ApiException ex = catchThrowableOfType(
-                        () -> svc.trendReport(userId, fromMonth, toMonth), ApiException.class);
+                        () -> svc.trendReport(ledgerId, fromMonth, toMonth), ApiException.class);
                 assertThat(ex).as("iter=%d 非法区间应被拒绝 [%s..%s]", iter, fromMonth, toMonth)
                         .isNotNull();
                 assertThat(ex.getCode()).isEqualTo("REPORT_RANGE_INVALID");
             } else {
-                TrendReportResponse r = svc.trendReport(userId, fromMonth, toMonth);
+                TrendReportResponse r = svc.trendReport(ledgerId, fromMonth, toMonth);
                 long expectedMonths = ChronoUnit.MONTHS.between(fromMonth, toMonth) + 1;
                 assertThat(r.months()).as("iter=%d 合法区间逐月产出 [%s..%s]", iter, fromMonth, toMonth)
                         .hasSize((int) expectedMonths);

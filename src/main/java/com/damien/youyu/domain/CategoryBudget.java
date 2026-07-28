@@ -25,11 +25,11 @@ public class CategoryBudget {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     /** 归属账本 id（多账本隔离键）。 */
-    @Column(name = "ledger_id")
+    @Column(name = "ledger_id", nullable = false)
     private Long ledgerId;
 
     @Column(name = "budget_month", nullable = false, length = 7)

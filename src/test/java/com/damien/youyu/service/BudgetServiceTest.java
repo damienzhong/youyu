@@ -146,9 +146,9 @@ class BudgetServiceTest {
 
     // ---------------- 测试夹具 ----------------
 
-    private Category category(long userId, String name, CategoryKind kind) {
+    private Category category(long ledgerId, String name, CategoryKind kind) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setCreatedAt(LocalDateTime.now(FIXED));
@@ -156,10 +156,10 @@ class BudgetServiceTest {
         return categoryRepository.save(c);
     }
 
-    private void expense(long userId, Long categoryId, String amount, LocalDateTime at) {
-        Long catId = categoryId != null ? categoryId : category(userId, "支出" + at, CategoryKind.EXPENSE).getId();
+    private void expense(long ledgerId, Long categoryId, String amount, LocalDateTime at) {
+        Long catId = categoryId != null ? categoryId : category(ledgerId, "支出" + at, CategoryKind.EXPENSE).getId();
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(TransactionType.EXPENSE);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(1L);
@@ -170,22 +170,22 @@ class BudgetServiceTest {
         transactionRepository.save(t);
     }
 
-    private void income(long userId, String amount, LocalDateTime at) {
+    private void income(long ledgerId, String amount, LocalDateTime at) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(TransactionType.INCOME);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(1L);
-        t.setCategoryId(category(userId, "收入" + at, CategoryKind.INCOME).getId());
+        t.setCategoryId(category(ledgerId, "收入" + at, CategoryKind.INCOME).getId());
         t.setOccurredAt(at);
         t.setCreatedAt(at);
         t.setUpdatedAt(at);
         transactionRepository.save(t);
     }
 
-    private void transfer(long userId, String amount, LocalDateTime at) {
+    private void transfer(long ledgerId, String amount, LocalDateTime at) {
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(TransactionType.TRANSFER);
         t.setAmount(new BigDecimal(amount));
         t.setSourceAccountId(1L);

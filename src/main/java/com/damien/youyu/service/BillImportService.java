@@ -38,7 +38,7 @@ import com.damien.youyu.repository.TransactionRepository;
  *   <li>金额非法（≤0、超上限、超两位小数）或类型非法的行计入 {@code skippedInvalid}，不影响其余。</li>
  * </ul>
  *
- * <p>按会话 {@code userId} 隔离：目标账户/分类不属于当前用户即 {@code NOT_FOUND}。金额一律 {@link BigDecimal}。</p>
+ * <p>按会话 {@code ledgerId} 隔离：目标账户/分类不属于当前用户即 {@code NOT_FOUND}。金额一律 {@link BigDecimal}。</p>
  */
 @Service
 public class BillImportService {
@@ -69,7 +69,7 @@ public class BillImportService {
      * @throws ApiException IMPORT_INVALID（缺目标账户/无有效条目）、NOT_FOUND（账户/默认分类不属于当前用户）
      */
     @Transactional
-    public BillImportResponse importBills(Long userId, BillImportRequest req) {
+    public BillImportResponse importBills(Long ledgerId, BillImportRequest req) {
         if (req == null || req.accountId() == null) {
             throw ApiException.importInvalid("请选择导入目标账户");
         }
@@ -79,11 +79,11 @@ public class BillImportService {
         }
 
         // 目标账户加锁（导入结束一次性更新余额）。
-        Account account = accountRepository.findForUpdateByIdAndUserId(req.accountId(), userId)
+        Account account = accountRepository.findForUpdateByIdAndLedgerId(req.accountId(), ledgerId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
-        Category defExpense = resolveDefault(userId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);
-        Category defIncome = resolveDefault(userId, req.defaultIncomeCategoryId(), CategoryKind.INCOME);
+        Category defExpense = resolveDefault(ledgerId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);
+        Category defIncome = resolveDefault(ledgerId, req.defaultIncomeCategoryId(), CategoryKind.INCOME);
 
         // 去重：先查该用户已入库的 externalId，同批内再去重。
         Set<String> incomingIds = new HashSet<>();
@@ -95,7 +95,7 @@ public class BillImportService {
         }
         Set<String> existing = incomingIds.isEmpty()
                 ? Set.of()
-                : new HashSet<>(transactionRepository.findExistingExternalIds(userId, incomingIds));
+                : new HashSet<>(transactionRepository.findExistingExternalIds(ledgerId, incomingIds));
         Set<String> seen = new HashSet<>();
 
         LocalDateTime now = LocalDateTime.now(clock);
@@ -124,7 +124,7 @@ public class BillImportService {
             }
 
             CategoryKind kind = type == TransactionType.INCOME ? CategoryKind.INCOME : CategoryKind.EXPENSE;
-            Category category = resolveCategory(userId, e.categoryId(), kind,
+            Category category = resolveCategory(ledgerId, e.categoryId(), kind,
                     type == TransactionType.INCOME ? defIncome : defExpense);
             if (category == null) {
                 skippedInvalid++;
@@ -132,7 +132,7 @@ public class BillImportService {
             }
 
             Transaction tx = new Transaction();
-            tx.setUserId(userId);
+            tx.setLedgerId(ledgerId);
             tx.setType(type);
             tx.setAmount(amount);
             tx.setAccountId(account.getId());
@@ -159,11 +159,11 @@ public class BillImportService {
     }
 
     /** 默认分类：为空则返回 null（届时无兜底的行将被跳过）；提供则须属于本人且类别匹配。 */
-    private Category resolveDefault(Long userId, Long categoryId, CategoryKind kind) {
+    private Category resolveDefault(Long ledgerId, Long categoryId, CategoryKind kind) {
         if (categoryId == null) {
             return null;
         }
-        Category c = categoryRepository.findByIdAndUserId(categoryId, userId)
+        Category c = categoryRepository.findByIdAndLedgerId(categoryId, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("默认分类不存在"));
         if (c.getKind() != kind) {
             throw ApiException.importInvalid("默认分类的收支类别不匹配");
@@ -172,9 +172,9 @@ public class BillImportService {
     }
 
     /** 逐笔分类：优先用前端匹配分类（属于本人且类别一致），否则用默认分类。 */
-    private Category resolveCategory(Long userId, Long categoryId, CategoryKind kind, Category fallback) {
+    private Category resolveCategory(Long ledgerId, Long categoryId, CategoryKind kind, Category fallback) {
         if (categoryId != null) {
-            Category c = categoryRepository.findByIdAndUserId(categoryId, userId).orElse(null);
+            Category c = categoryRepository.findByIdAndLedgerId(categoryId, ledgerId).orElse(null);
             if (c != null && c.getKind() == kind) {
                 return c;
             }

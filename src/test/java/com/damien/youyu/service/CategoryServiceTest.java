@@ -54,7 +54,7 @@ class CategoryServiceTest {
         Category parent = service().create(USER, "EXPENSE", "餐饮", null);
 
         assertThat(parent.getId()).isNotNull();
-        assertThat(parent.getUserId()).isEqualTo(USER);
+        assertThat(parent.getLedgerId()).isEqualTo(USER);
         assertThat(parent.getKind()).isEqualTo(CategoryKind.EXPENSE);
         assertThat(parent.getName()).isEqualTo("餐饮");
         assertThat(parent.getParentId()).isNull();
@@ -87,13 +87,13 @@ class CategoryServiceTest {
         Category parent = service.create(USER, "EXPENSE", "餐饮", null);
         Category child = service.create(USER, "EXPENSE", "外卖", parent.getId());
 
-        long before = categoryRepository.countByUserId(USER);
+        long before = categoryRepository.countByLedgerId(USER);
         ApiException ex = catchThrowableOfType(
                 () -> service.create(USER, "EXPENSE", "午餐", child.getId()), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("CATEGORY_DEPTH_EXCEEDED");
         // 需求 5.3：不创建任何分类。
-        assertThat(categoryRepository.countByUserId(USER)).isEqualTo(before);
+        assertThat(categoryRepository.countByLedgerId(USER)).isEqualTo(before);
     }
 
     @Test
@@ -126,7 +126,7 @@ class CategoryServiceTest {
                 () -> service.create(USER, "EXPENSE", "n".repeat(51), null), ApiException.class);
         assertThat(tooLong.getCode()).isEqualTo("CATEGORY_NAME_INVALID");
 
-        assertThat(categoryRepository.countByUserId(USER)).isZero();
+        assertThat(categoryRepository.countByLedgerId(USER)).isZero();
     }
 
     @Test
@@ -138,7 +138,7 @@ class CategoryServiceTest {
                 () -> service.create(USER, "EXPENSE", "餐饮", null), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("CATEGORY_NAME_DUPLICATE");
-        assertThat(categoryRepository.findByUserIdAndKind(USER, CategoryKind.EXPENSE)).hasSize(1);
+        assertThat(categoryRepository.findByLedgerIdAndKind(USER, CategoryKind.EXPENSE)).hasSize(1);
     }
 
     @Test
@@ -215,7 +215,7 @@ class CategoryServiceTest {
         assertThat(renamed.getKind()).isEqualTo(CategoryKind.EXPENSE);
         assertThat(renamed.getParentId()).isEqualTo(parent.getId());
         // 需求 5.4：关联保持不变——交易仍引用该分类。
-        assertThat(transactionRepository.existsByUserIdAndCategoryId(USER, child.getId())).isTrue();
+        assertThat(transactionRepository.existsByLedgerIdAndCategoryId(USER, child.getId())).isTrue();
     }
 
     @Test
@@ -266,7 +266,7 @@ class CategoryServiceTest {
 
         service.delete(USER, parent.getId());
 
-        assertThat(categoryRepository.findByIdAndUserId(parent.getId(), USER)).isEmpty();
+        assertThat(categoryRepository.findByIdAndLedgerId(parent.getId(), USER)).isEmpty();
     }
 
     @Test
@@ -280,7 +280,7 @@ class CategoryServiceTest {
 
         assertThat(ex.getCode()).isEqualTo("CATEGORY_IN_USE");
         // 需求 5.5：分类保持不变。
-        assertThat(categoryRepository.findByIdAndUserId(parent.getId(), USER)).isPresent();
+        assertThat(categoryRepository.findByIdAndLedgerId(parent.getId(), USER)).isPresent();
     }
 
     @Test
@@ -293,7 +293,7 @@ class CategoryServiceTest {
                 () -> service.delete(USER, parent.getId()), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("CATEGORY_HAS_CHILDREN");
-        assertThat(categoryRepository.findByIdAndUserId(parent.getId(), USER)).isPresent();
+        assertThat(categoryRepository.findByIdAndLedgerId(parent.getId(), USER)).isPresent();
     }
 
     @Test
@@ -305,10 +305,10 @@ class CategoryServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
 
-    private void persistExpenseWithCategory(Long userId, Long categoryId) {
+    private void persistExpenseWithCategory(Long ledgerId, Long categoryId) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Transaction tx = new Transaction();
-        tx.setUserId(userId);
+        tx.setLedgerId(ledgerId);
         tx.setType(TransactionType.EXPENSE);
         tx.setAmount(new BigDecimal("12.00"));
         tx.setAccountId(1L);

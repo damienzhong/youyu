@@ -44,10 +44,10 @@ class TransactionTransferRollbackIntegrationTest {
     @Autowired
     private Clock clock;
 
-    private Account persistAccount(long userId, String name, BigDecimal balance) {
+    private Account persistAccount(long ledgerId, String name, BigDecimal balance) {
         LocalDateTime now = LocalDateTime.now(clock);
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(AccountType.CASH);
         a.setInitialBalance(balance);
@@ -60,10 +60,10 @@ class TransactionTransferRollbackIntegrationTest {
 
     @Test
     void transferMidUpdateFailure_rollsBackEntirely_noRowNoBalanceChange() {
-        long userId = 900_000_001L;
+        long ledgerId = 900_000_001L;
         // 源账户先创建（较小 id，回滚前会先被扣减）；目标账户余额已达列精度上界。
-        Account source = persistAccount(userId, "源账户", new BigDecimal("0.00"));
-        Account dest = persistAccount(userId, "目标账户", MAX);
+        Account source = persistAccount(ledgerId, "源账户", new BigDecimal("0.00"));
+        Account dest = persistAccount(ledgerId, "目标账户", MAX);
 
         BigDecimal sourceBefore = source.getCurrentBalance();
         BigDecimal destBefore = dest.getCurrentBalance();
@@ -71,18 +71,18 @@ class TransactionTransferRollbackIntegrationTest {
         // 合法的大额转账：金额在允许范围内，但会使目标账户余额溢出 DECIMAL(18,2) 列精度，
         // 在提交/刷库阶段触发数据库异常（真实的转账中途失败）。
         Throwable thrown = catchThrowable(() -> transactionService.create(
-                userId, "transfer", MAX, null, null,
+                ledgerId, "transfer", MAX, null, null,
                 source.getId(), dest.getId(), null, "溢出触发回滚"));
 
         // 需求 4.10：转账中途失败 → 抛出异常。
         assertThat(thrown).isNotNull();
 
         // 需求 4.10：整事务回滚 —— 不创建任何 Transaction。
-        assertThat(transactionRepository.findByUserId(userId)).isEmpty();
+        assertThat(transactionRepository.findByLedgerId(ledgerId)).isEmpty();
 
         // 需求 4.10：源账户扣减被回滚，目标账户未变，两账户余额均保持不变。
-        Account sourceAfter = accountRepository.findByIdAndUserId(source.getId(), userId).orElseThrow();
-        Account destAfter = accountRepository.findByIdAndUserId(dest.getId(), userId).orElseThrow();
+        Account sourceAfter = accountRepository.findByIdAndLedgerId(source.getId(), ledgerId).orElseThrow();
+        Account destAfter = accountRepository.findByIdAndLedgerId(dest.getId(), ledgerId).orElseThrow();
         assertThat(sourceAfter.getCurrentBalance()).isEqualByComparingTo(sourceBefore);
         assertThat(destAfter.getCurrentBalance()).isEqualByComparingTo(destBefore);
     }

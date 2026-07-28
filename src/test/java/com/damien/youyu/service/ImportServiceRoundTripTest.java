@@ -98,7 +98,7 @@ class ImportServiceRoundTripTest {
         byte[] exportA = exportJson(USER_A);
 
         // ---- 导入到空账户用户 B ----
-        assertThat(accountRepository.countByUserId(USER_B)).isZero();
+        assertThat(accountRepository.countByLedgerId(USER_B)).isZero();
         ImportService.ImportResult result = importService()
                 .importJson(USER_B, new ByteArrayInputStream(exportA));
 
@@ -106,13 +106,13 @@ class ImportServiceRoundTripTest {
         assertThat(result.accounts()).isEqualTo(2);
         assertThat(result.categories()).isEqualTo(3);
         assertThat(result.transactions()).isEqualTo(3);
-        assertThat(accountRepository.countByUserId(USER_B)).isEqualTo(2);
-        assertThat(categoryRepository.countByUserId(USER_B)).isEqualTo(3);
-        assertThat(transactionRepository.findByUserId(USER_B)).hasSize(3);
+        assertThat(accountRepository.countByLedgerId(USER_B)).isEqualTo(2);
+        assertThat(categoryRepository.countByLedgerId(USER_B)).isEqualTo(3);
+        assertThat(transactionRepository.findByLedgerId(USER_B)).hasSize(3);
 
-        // ---- 账户业务字段逐一相等（按 name 配对，忽略 id/userId）----
-        Map<String, Account> accountsA = byName(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_A));
-        Map<String, Account> accountsB = byName(accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_B));
+        // ---- 账户业务字段逐一相等（按 name 配对，忽略 id/ledgerId）----
+        Map<String, Account> accountsA = byName(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_A));
+        Map<String, Account> accountsB = byName(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_B));
         assertThat(accountsB.keySet()).isEqualTo(accountsA.keySet());
         for (String name : accountsA.keySet()) {
             Account a = accountsA.get(name);
@@ -123,11 +123,11 @@ class ImportServiceRoundTripTest {
             // current_balance 与 A 一致。
             assertThat(b.getCurrentBalance()).isEqualByComparingTo(a.getCurrentBalance());
             // user_id 强制为会话用户 B（需求 2.2）。
-            assertThat(b.getUserId()).isEqualTo(USER_B);
+            assertThat(b.getLedgerId()).isEqualTo(USER_B);
         }
 
         // ---- 分类父子引用被正确重建 ----
-        List<Category> catsB = categoryRepository.findByUserId(USER_B);
+        List<Category> catsB = categoryRepository.findByLedgerId(USER_B);
         Map<Long, String> idToNameB = catsB.stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName));
         Category takeoutB = catsB.stream()
@@ -143,7 +143,7 @@ class ImportServiceRoundTripTest {
         assertThat(salaryB.getParentId()).isNull();
         assertThat(takeoutB.getKind()).isEqualTo(CategoryKind.EXPENSE);
         assertThat(salaryB.getKind()).isEqualTo(CategoryKind.INCOME);
-        assertThat(catsB).allMatch(c -> c.getUserId().equals(USER_B));
+        assertThat(catsB).allMatch(c -> c.getLedgerId().equals(USER_B));
 
         // ---- 交易业务字段逐一相等（归一化为 [type|amount|引用名|occurredAt|note] 集合）----
         assertThat(normalizeTransactions(USER_B))
@@ -151,7 +151,7 @@ class ImportServiceRoundTripTest {
 
         // ---- 还原后 current_balance 与重算结果一致（余额守恒不变式，需求 4.13）----
         AccountService accountService = accountService();
-        for (Account b : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(USER_B)) {
+        for (Account b : accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(USER_B)) {
             BigDecimal recomputed = accountService.recomputeBalance(USER_B, b.getId());
             assertThat(b.getCurrentBalance()).isEqualByComparingTo(recomputed);
         }
@@ -165,14 +165,14 @@ class ImportServiceRoundTripTest {
     // ---------------- 归一化与配对辅助 ----------------
 
     /** 将某用户全部交易归一化为可比较的业务字段串（用引用目标的名称替代自增 id）。 */
-    private List<String> normalizeTransactions(long userId) {
-        Map<Long, String> accountName = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId).stream()
+    private List<String> normalizeTransactions(long ledgerId) {
+        Map<Long, String> accountName = accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId).stream()
                 .collect(Collectors.toMap(Account::getId, Account::getName));
-        Map<Long, String> categoryName = categoryRepository.findByUserId(userId).stream()
+        Map<Long, String> categoryName = categoryRepository.findByLedgerId(ledgerId).stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName));
 
         List<String> result = new ArrayList<>();
-        for (Transaction t : transactionRepository.findByUserId(userId)) {
+        for (Transaction t : transactionRepository.findByLedgerId(ledgerId)) {
             String refs;
             if (t.getType() == TransactionType.TRANSFER) {
                 refs = "src=" + accountName.get(t.getSourceAccountId())
@@ -199,18 +199,18 @@ class ImportServiceRoundTripTest {
         return map;
     }
 
-    private byte[] exportJson(long userId) {
+    private byte[] exportJson(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        exportService().writeJson(userId, out);
+        exportService().writeJson(ledgerId, out);
         return out.toByteArray();
     }
 
     // ---------------- 测试数据构造 ----------------
 
-    private Account account(long userId, String name, AccountType type, String initial, int sortOrder) {
+    private Account account(long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));
@@ -227,10 +227,10 @@ class ImportServiceRoundTripTest {
         accountRepository.save(a);
     }
 
-    private Category category(long userId, CategoryKind kind, String name, Long parentId) {
+    private Category category(long ledgerId, CategoryKind kind, String name, Long parentId) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setParentId(parentId);
@@ -239,23 +239,23 @@ class ImportServiceRoundTripTest {
         return categoryRepository.save(c);
     }
 
-    private void expense(long userId, String amount, Long accountId, Long categoryId, String note) {
-        save(userId, TransactionType.EXPENSE, amount, accountId, categoryId, null, null, note);
+    private void expense(long ledgerId, String amount, Long accountId, Long categoryId, String note) {
+        save(ledgerId, TransactionType.EXPENSE, amount, accountId, categoryId, null, null, note);
     }
 
-    private void income(long userId, String amount, Long accountId, Long categoryId, String note) {
-        save(userId, TransactionType.INCOME, amount, accountId, categoryId, null, null, note);
+    private void income(long ledgerId, String amount, Long accountId, Long categoryId, String note) {
+        save(ledgerId, TransactionType.INCOME, amount, accountId, categoryId, null, null, note);
     }
 
-    private void transfer(long userId, String amount, Long sourceId, Long destId, String note) {
-        save(userId, TransactionType.TRANSFER, amount, null, null, sourceId, destId, note);
+    private void transfer(long ledgerId, String amount, Long sourceId, Long destId, String note) {
+        save(ledgerId, TransactionType.TRANSFER, amount, null, null, sourceId, destId, note);
     }
 
-    private void save(long userId, TransactionType type, String amount, Long accountId,
+    private void save(long ledgerId, TransactionType type, String amount, Long accountId,
             Long categoryId, Long sourceId, Long destId, String note) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(type);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(accountId);

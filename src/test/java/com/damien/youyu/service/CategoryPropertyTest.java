@@ -47,7 +47,7 @@ import com.damien.youyu.repository.TransactionRepository;
  * {@code @Test} 循环内智能生成受约束的随机输入，驱动 ≥100 次迭代，被测的 {@link CategoryService}
  * 业务逻辑全部真实执行，不使用任何 mock。时间以固定 {@link Clock} 注入以获得确定性。（本类为
  * JUnit Jupiter 切片测试，随机输入用 {@link Random} 生成而非 jqwik {@code Arbitrary}，因为字符串/
- * 枚举 Arbitrary 需运行在 jqwik 线程内。）每次迭代使用独立 {@code userId} 以隔离各次随机数据。</p>
+ * 枚举 Arbitrary 需运行在 jqwik 线程内。）每次迭代使用独立 {@code ledgerId} 以隔离各次随机数据。</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -122,25 +122,25 @@ class CategoryPropertyTest {
         CategoryService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 11_000_000L + iter;
+            long ledgerId = 11_000_000L + iter;
             CategoryKind kind = validKind(rng);
 
-            Category parent = service.create(userId, kind.name(), validName(rng), null);
-            Category child = service.create(userId, kind.name(), validName(rng), parent.getId());
+            Category parent = service.create(ledgerId, kind.name(), validName(rng), null);
+            Category child = service.create(ledgerId, kind.name(), validName(rng), parent.getId());
 
-            long before = categoryRepository.countByUserId(userId);
+            long before = categoryRepository.countByLedgerId(ledgerId);
             String thirdName = validName(rng);
             // kind 传入 EXPENSE/INCOME 两者皆试，子分类 kind 应以父为准，与深度校验无关。
             String requestKind = validKind(rng).name();
 
             ApiException ex = catchThrowableOfType(
-                    () -> service.create(userId, requestKind, thirdName, child.getId()),
+                    () -> service.create(ledgerId, requestKind, thirdName, child.getId()),
                     ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("CATEGORY_DEPTH_EXCEEDED");
             // 零副作用：分类数量不变。
-            assertThat(categoryRepository.countByUserId(userId)).isEqualTo(before);
+            assertThat(categoryRepository.countByLedgerId(ledgerId)).isEqualTo(before);
         }
     }
 
@@ -154,16 +154,16 @@ class CategoryPropertyTest {
         CategoryService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 12_000_000L + iter;
+            long ledgerId = 12_000_000L + iter;
             CategoryKind kind = validKind(rng);
 
             // 目标分类：随机为父分类或（挂在新建父分类下的）子分类。
             final Category target;
             if (rng.nextBoolean()) {
-                target = service.create(userId, kind.name(), validName(rng), null);
+                target = service.create(ledgerId, kind.name(), validName(rng), null);
             } else {
-                Category parent = service.create(userId, kind.name(), validName(rng), null);
-                target = service.create(userId, kind.name(), validName(rng), parent.getId());
+                Category parent = service.create(ledgerId, kind.name(), validName(rng), null);
+                target = service.create(ledgerId, kind.name(), validName(rng), parent.getId());
             }
             Long targetId = target.getId();
             CategoryKind kindBefore = target.getKind();
@@ -173,13 +173,13 @@ class CategoryPropertyTest {
             int txCount = rng.nextInt(5);
             List<Long> associatedBefore = new ArrayList<>();
             for (int i = 0; i < txCount; i++) {
-                associatedBefore.add(persistTransactionWithCategory(userId, targetId, rng));
+                associatedBefore.add(persistTransactionWithCategory(ledgerId, targetId, rng));
             }
             // 另加一笔引用其它分类 id 的交易，验证重命名不会误纳入无关关联。
-            persistTransactionWithCategory(userId, targetId + 987_654L, rng);
+            persistTransactionWithCategory(ledgerId, targetId + 987_654L, rng);
 
             String newName = validName(rng);
-            Category renamed = service.rename(userId, targetId, newName);
+            Category renamed = service.rename(ledgerId, targetId, newName);
 
             // 名称更新为新名称。
             assertThat(renamed.getName()).isEqualTo(newName);
@@ -188,7 +188,7 @@ class CategoryPropertyTest {
             assertThat(renamed.getParentId()).isEqualTo(parentIdBefore);
 
             // 关联集合保持不变：引用该分类的交易 id 集合与重命名前完全一致。
-            List<Long> associatedAfter = transactionRepository.findByUserId(userId).stream()
+            List<Long> associatedAfter = transactionRepository.findByLedgerId(ledgerId).stream()
                     .filter(t -> targetId.equals(t.getCategoryId()))
                     .map(Transaction::getId)
                     .toList();
@@ -206,10 +206,10 @@ class CategoryPropertyTest {
         CategoryService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 13_000_000L + iter;
+            long ledgerId = 13_000_000L + iter;
             CategoryKind kind = validKind(rng);
 
-            Category category = service.create(userId, kind.name(), validName(rng), null);
+            Category category = service.create(ledgerId, kind.name(), validName(rng), null);
             Long categoryId = category.getId();
             String nameBefore = category.getName();
 
@@ -217,21 +217,21 @@ class CategoryPropertyTest {
             int txCount = 1 + rng.nextInt(5);
             List<Long> associatedBefore = new ArrayList<>();
             for (int i = 0; i < txCount; i++) {
-                associatedBefore.add(persistTransactionWithCategory(userId, categoryId, rng));
+                associatedBefore.add(persistTransactionWithCategory(ledgerId, categoryId, rng));
             }
 
             ApiException ex = catchThrowableOfType(
-                    () -> service.delete(userId, categoryId), ApiException.class);
+                    () -> service.delete(ledgerId, categoryId), ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("CATEGORY_IN_USE");
 
             // 分类保持不变（仍存在、名称未变）。
-            Category after = categoryRepository.findByIdAndUserId(categoryId, userId).orElseThrow();
+            Category after = categoryRepository.findByIdAndLedgerId(categoryId, ledgerId).orElseThrow();
             assertThat(after.getName()).isEqualTo(nameBefore);
             assertThat(after.getKind()).isEqualTo(kind);
             // 关联保持不变：引用该分类的交易 id 集合未变。
-            List<Long> associatedAfter = transactionRepository.findByUserId(userId).stream()
+            List<Long> associatedAfter = transactionRepository.findByLedgerId(ledgerId).stream()
                     .filter(t -> categoryId.equals(t.getCategoryId()))
                     .map(Transaction::getId)
                     .toList();
@@ -249,7 +249,7 @@ class CategoryPropertyTest {
         CategoryService service = service();
 
         for (int iter = 0; iter < ITERATIONS; iter++) {
-            long userId = 14_000_000L + iter;
+            long ledgerId = 14_000_000L + iter;
             CategoryKind kind = validKind(rng);
             // 四种场景轮转：创建-非法名、重命名-非法名、创建-重名、重命名-重名。
             int mode = rng.nextInt(4);
@@ -259,75 +259,75 @@ class CategoryPropertyTest {
             switch (mode) {
                 case 0 -> { // 创建-非法名。
                     Long parentId = childScope
-                            ? service.create(userId, kind.name(), validName(rng), null).getId()
+                            ? service.create(ledgerId, kind.name(), validName(rng), null).getId()
                             : null;
-                    long before = categoryRepository.countByUserId(userId);
+                    long before = categoryRepository.countByLedgerId(ledgerId);
                     String badName = invalidName(rng);
 
                     ApiException ex = catchThrowableOfType(
-                            () -> service.create(userId, kind.name(), badName, parentId),
+                            () -> service.create(ledgerId, kind.name(), badName, parentId),
                             ApiException.class);
 
                     assertThat(ex).isNotNull();
                     assertThat(ex.getCode()).isEqualTo("CATEGORY_NAME_INVALID");
-                    assertThat(categoryRepository.countByUserId(userId)).isEqualTo(before);
+                    assertThat(categoryRepository.countByLedgerId(ledgerId)).isEqualTo(before);
                 }
                 case 1 -> { // 重命名-非法名。
                     Long parentId = childScope
-                            ? service.create(userId, kind.name(), validName(rng), null).getId()
+                            ? service.create(ledgerId, kind.name(), validName(rng), null).getId()
                             : null;
-                    Category target = service.create(userId, kind.name(), validName(rng), parentId);
+                    Category target = service.create(ledgerId, kind.name(), validName(rng), parentId);
                     String nameBefore = target.getName();
-                    long before = categoryRepository.countByUserId(userId);
+                    long before = categoryRepository.countByLedgerId(ledgerId);
                     String badName = invalidName(rng);
 
                     ApiException ex = catchThrowableOfType(
-                            () -> service.rename(userId, target.getId(), badName), ApiException.class);
+                            () -> service.rename(ledgerId, target.getId(), badName), ApiException.class);
 
                     assertThat(ex).isNotNull();
                     assertThat(ex.getCode()).isEqualTo("CATEGORY_NAME_INVALID");
                     // 零副作用：名称未变、数量未变。
-                    Category after = categoryRepository.findByIdAndUserId(target.getId(), userId)
+                    Category after = categoryRepository.findByIdAndLedgerId(target.getId(), ledgerId)
                             .orElseThrow();
                     assertThat(after.getName()).isEqualTo(nameBefore);
-                    assertThat(categoryRepository.countByUserId(userId)).isEqualTo(before);
+                    assertThat(categoryRepository.countByLedgerId(ledgerId)).isEqualTo(before);
                 }
                 case 2 -> { // 创建-同范围重名。
                     Long parentId = childScope
-                            ? service.create(userId, kind.name(), validName(rng), null).getId()
+                            ? service.create(ledgerId, kind.name(), validName(rng), null).getId()
                             : null;
                     String existingName = validName(rng);
-                    service.create(userId, kind.name(), existingName, parentId);
-                    long before = categoryRepository.countByUserId(userId);
+                    service.create(ledgerId, kind.name(), existingName, parentId);
+                    long before = categoryRepository.countByLedgerId(ledgerId);
 
                     ApiException ex = catchThrowableOfType(
-                            () -> service.create(userId, kind.name(), existingName, parentId),
+                            () -> service.create(ledgerId, kind.name(), existingName, parentId),
                             ApiException.class);
 
                     assertThat(ex).isNotNull();
                     assertThat(ex.getCode()).isEqualTo("CATEGORY_NAME_DUPLICATE");
-                    assertThat(categoryRepository.countByUserId(userId)).isEqualTo(before);
+                    assertThat(categoryRepository.countByLedgerId(ledgerId)).isEqualTo(before);
                 }
                 default -> { // 重命名-同范围重名。
                     Long parentId = childScope
-                            ? service.create(userId, kind.name(), validName(rng), null).getId()
+                            ? service.create(ledgerId, kind.name(), validName(rng), null).getId()
                             : null;
                     String nameA = validName(rng);
                     String nameB = validNameOtherThan(rng, nameA);
-                    service.create(userId, kind.name(), nameA, parentId);
-                    Category target = service.create(userId, kind.name(), nameB, parentId);
-                    long before = categoryRepository.countByUserId(userId);
+                    service.create(ledgerId, kind.name(), nameA, parentId);
+                    Category target = service.create(ledgerId, kind.name(), nameB, parentId);
+                    long before = categoryRepository.countByLedgerId(ledgerId);
 
                     ApiException ex = catchThrowableOfType(
-                            () -> service.rename(userId, target.getId(), nameA), ApiException.class);
+                            () -> service.rename(ledgerId, target.getId(), nameA), ApiException.class);
 
                     assertThat(ex).isNotNull();
                     assertThat(ex.getCode()).isEqualTo("CATEGORY_NAME_DUPLICATE");
                     // 零副作用：目标名称仍为 nameB、数量未变。
-                    Category after = categoryRepository.findByIdAndUserId(target.getId(), userId)
+                    Category after = categoryRepository.findByIdAndLedgerId(target.getId(), ledgerId)
                             .orElseThrow();
                     assertThat(after.getName()).isEqualTo(nameB);
-                    assertThat(categoryRepository.countByUserId(userId)).isEqualTo(before);
+                    assertThat(categoryRepository.countByLedgerId(ledgerId)).isEqualTo(before);
                 }
             }
         }
@@ -336,9 +336,9 @@ class CategoryPropertyTest {
     // ---------------- 持久化辅助 ----------------
 
     /** 持久化一笔引用指定分类 id 的交易，返回其 id。 */
-    private Long persistTransactionWithCategory(long userId, Long categoryId, Random rng) {
+    private Long persistTransactionWithCategory(long ledgerId, Long categoryId, Random rng) {
         Transaction tx = new Transaction();
-        tx.setUserId(userId);
+        tx.setLedgerId(ledgerId);
         tx.setType(TransactionType.EXPENSE);
         tx.setAmount(new BigDecimal(1 + rng.nextInt(9_999_999)).movePointLeft(2));
         tx.setAccountId(1L);

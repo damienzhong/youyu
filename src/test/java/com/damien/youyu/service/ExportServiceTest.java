@@ -199,15 +199,15 @@ class ExportServiceTest {
 
     // ---------------- 测试数据构造 ----------------
 
-    private String json(long userId) {
+    private String json(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        service().writeJson(userId, out);
+        service().writeJson(ledgerId, out);
         return out.toString(StandardCharsets.UTF_8);
     }
 
-    private byte[] csv(long userId) {
+    private byte[] csv(long ledgerId) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        service().writeCsv(userId, out);
+        service().writeCsv(ledgerId, out);
         return out.toByteArray();
     }
 
@@ -220,10 +220,10 @@ class ExportServiceTest {
         throw new AssertionError("未找到类型为 " + type + " 的交易");
     }
 
-    private Account account(long userId, String name, AccountType type, String initial, int sortOrder) {
+    private Account account(long ledgerId, String name, AccountType type, String initial, int sortOrder) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(type);
         a.setInitialBalance(new BigDecimal(initial));
@@ -234,10 +234,10 @@ class ExportServiceTest {
         return accountRepository.save(a);
     }
 
-    private Category category(long userId, CategoryKind kind, String name, Long parentId) {
+    private Category category(long ledgerId, CategoryKind kind, String name, Long parentId) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setParentId(parentId);
@@ -246,23 +246,23 @@ class ExportServiceTest {
         return categoryRepository.save(c);
     }
 
-    private void expense(long userId, String amount, Long accountId, Long categoryId, String note) {
-        save(userId, TransactionType.EXPENSE, amount, accountId, categoryId, null, null, note);
+    private void expense(long ledgerId, String amount, Long accountId, Long categoryId, String note) {
+        save(ledgerId, TransactionType.EXPENSE, amount, accountId, categoryId, null, null, note);
     }
 
-    private void income(long userId, String amount, Long accountId, Long categoryId, String note) {
-        save(userId, TransactionType.INCOME, amount, accountId, categoryId, null, null, note);
+    private void income(long ledgerId, String amount, Long accountId, Long categoryId, String note) {
+        save(ledgerId, TransactionType.INCOME, amount, accountId, categoryId, null, null, note);
     }
 
-    private void transfer(long userId, String amount, Long sourceId, Long destId, String note) {
-        save(userId, TransactionType.TRANSFER, amount, null, null, sourceId, destId, note);
+    private void transfer(long ledgerId, String amount, Long sourceId, Long destId, String note) {
+        save(ledgerId, TransactionType.TRANSFER, amount, null, null, sourceId, destId, note);
     }
 
-    private void save(long userId, TransactionType type, String amount, Long accountId,
+    private void save(long ledgerId, TransactionType type, String amount, Long accountId,
             Long categoryId, Long sourceId, Long destId, String note) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Transaction t = new Transaction();
-        t.setUserId(userId);
+        t.setLedgerId(ledgerId);
         t.setType(type);
         t.setAmount(new BigDecimal(amount));
         t.setAccountId(accountId);

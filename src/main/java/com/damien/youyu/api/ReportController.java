@@ -17,14 +17,14 @@ import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
-import com.damien.youyu.security.CurrentUser;
+import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.ReportService;
 
 /**
  * 报表接口（关联需求 4.12、7.1-7.7）。
  *
- * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentUser} 读取当前会话用户主键，
- * 所有报表按该 userId 隔离（需求 2.3）。所有报表统计排除转账（需求 4.12、7.5）。</p>
+ * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentLedger} 读取当前会话用户主键，
+ * 所有报表按该 ledgerId 隔离（需求 2.3）。所有报表统计排除转账（需求 4.12、7.5）。</p>
  *
  * <ul>
  *   <li>GET {@code /api/reports/monthly?month=YYYY-MM} 本自然月收入/支出/结余（month 缺省取当前月）。</li>
@@ -37,12 +37,12 @@ import com.damien.youyu.service.ReportService;
 public class ReportController {
 
     private final ReportService reportService;
-    private final CurrentUser currentUser;
+    private final CurrentLedger currentLedger;
     private final Clock clock;
 
-    public ReportController(ReportService reportService, CurrentUser currentUser, Clock clock) {
+    public ReportController(ReportService reportService, CurrentLedger currentLedger, Clock clock) {
         this.reportService = reportService;
-        this.currentUser = currentUser;
+        this.currentLedger = currentLedger;
         this.clock = clock;
     }
 
@@ -50,11 +50,11 @@ public class ReportController {
     @GetMapping("/monthly")
     public ResponseEntity<MonthlyReportResponse> monthly(
             @RequestParam(name = "month", required = false) String month) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         YearMonth ym = (month == null || month.isBlank())
                 ? YearMonth.now(clock)
                 : parseMonth(month, "month");
-        return ResponseEntity.ok(reportService.monthlyReport(userId, ym));
+        return ResponseEntity.ok(reportService.monthlyReport(ledgerId, ym));
     }
 
     /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）。 */
@@ -63,11 +63,11 @@ public class ReportController {
             @RequestParam(name = "from") String from,
             @RequestParam(name = "to") String to,
             @RequestParam(name = "kind", required = false) String kind) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         LocalDate fromDate = parseDate(from, "from");
         LocalDate toDate = parseDate(to, "to");
         TransactionType type = parseKind(kind);
-        return ResponseEntity.ok(reportService.categoryReport(userId, fromDate, toDate, type));
+        return ResponseEntity.ok(reportService.categoryReport(ledgerId, fromDate, toDate, type));
     }
 
     /** 区间收支报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；返回总收支 + 按日明细。 */
@@ -75,10 +75,10 @@ public class ReportController {
     public ResponseEntity<RangeReportResponse> range(
             @RequestParam(name = "from") String from,
             @RequestParam(name = "to") String to) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         LocalDate fromDate = parseDate(from, "from");
         LocalDate toDate = parseDate(to, "to");
-        return ResponseEntity.ok(reportService.rangeReport(userId, fromDate, toDate));
+        return ResponseEntity.ok(reportService.rangeReport(ledgerId, fromDate, toDate));
     }
 
     /** 月度趋势报表：fromMonth/toMonth 为 {@code YYYY-MM}。 */
@@ -86,10 +86,10 @@ public class ReportController {
     public ResponseEntity<TrendReportResponse> trend(
             @RequestParam(name = "fromMonth") String fromMonth,
             @RequestParam(name = "toMonth") String toMonth) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         YearMonth from = parseMonth(fromMonth, "fromMonth");
         YearMonth to = parseMonth(toMonth, "toMonth");
-        return ResponseEntity.ok(reportService.trendReport(userId, from, to));
+        return ResponseEntity.ok(reportService.trendReport(ledgerId, from, to));
     }
 
     private YearMonth parseMonth(String raw, String field) {

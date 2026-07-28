@@ -158,9 +158,9 @@ class BillImportServiceTest {
                 LocalDateTime.of(2026, 7, 1, 10, 0), "对方 · 商品", extId, categoryId);
     }
 
-    private Account account(long userId, String name, String balance) {
+    private Account account(long ledgerId, String name, String balance) {
         Account a = new Account();
-        a.setUserId(userId);
+        a.setLedgerId(ledgerId);
         a.setName(name);
         a.setType(AccountType.ALIPAY);
         a.setInitialBalance(new BigDecimal(balance));
@@ -171,9 +171,9 @@ class BillImportServiceTest {
         return accountRepository.save(a);
     }
 
-    private Category category(long userId, CategoryKind kind, String name) {
+    private Category category(long ledgerId, CategoryKind kind, String name) {
         Category c = new Category();
-        c.setUserId(userId);
+        c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
         c.setCreatedAt(LocalDateTime.now(FIXED));

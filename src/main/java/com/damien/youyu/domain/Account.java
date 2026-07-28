@@ -28,11 +28,11 @@ public class Account {
     private Long id;
 
     /** 归属用户 id。 */
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     /** 归属账本 id（多账本隔离键）。 */
-    @Column(name = "ledger_id")
+    @Column(name = "ledger_id", nullable = false)
     private Long ledgerId;
 
     /** 账户名称，去空白后 1-50。 */

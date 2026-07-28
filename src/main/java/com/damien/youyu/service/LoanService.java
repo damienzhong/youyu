@@ -26,7 +26,7 @@ import com.damien.youyu.repository.LoanRepository;
  *   <li>汇总：借入/待还 = Σ 未结清 BORROW；借出/待收 = Σ 未结清 LEND。</li>
  * </ul>
  *
- * <p>借贷为独立台账，不参与账户余额与净资产计算。所有操作按会话 {@code userId} 隔离：
+ * <p>借贷为独立台账，不参与账户余额与净资产计算。所有操作按会话 {@code ledgerId} 隔离：
  * 读取/修改/删除他人记录一律返回 {@code NOT_FOUND}（需求 2.3、2.4）。金额一律 {@link BigDecimal}。</p>
  */
 @Service
@@ -50,14 +50,14 @@ public class LoanService {
 
     /** 列出本人全部借贷（未结清优先，其次发生时间倒序）。 */
     @Transactional(readOnly = true)
-    public List<Loan> list(Long userId) {
-        return loanRepository.findByUserIdOrderBySettledAscOccurredAtDescIdDesc(userId);
+    public List<Loan> list(Long ledgerId) {
+        return loanRepository.findByLedgerIdOrderBySettledAscOccurredAtDescIdDesc(ledgerId);
     }
 
     /** 某方向未结清金额合计（借入/待还、借出/待收），无记录返回 0.00。 */
     @Transactional(readOnly = true)
-    public BigDecimal outstanding(Long userId, LoanDirection direction) {
-        BigDecimal sum = loanRepository.sumOutstandingByDirection(userId, direction);
+    public BigDecimal outstanding(Long ledgerId, LoanDirection direction) {
+        BigDecimal sum = loanRepository.sumOutstandingByDirection(ledgerId, direction);
         return (sum == null ? BigDecimal.ZERO : sum).setScale(2, RoundingMode.HALF_UP);
     }
 
@@ -67,7 +67,7 @@ public class LoanService {
      * @throws ApiException LOAN_FIELD_INVALID（方向/对方/金额/发生时间/备注任一非法）
      */
     @Transactional
-    public Loan create(Long userId, String rawDirection, String rawCounterparty,
+    public Loan create(Long ledgerId, String rawDirection, String rawCounterparty,
             BigDecimal rawAmount, LocalDateTime occurredAt, String rawNote) {
         LoanDirection direction = validateDirection(rawDirection);
         String counterparty = validateCounterparty(rawCounterparty);
@@ -78,7 +78,7 @@ public class LoanService {
         // 发生时间缺省取当前时刻（与交易一致）。
         LocalDateTime when = occurredAt != null ? occurredAt : now;
         Loan loan = new Loan();
-        loan.setUserId(userId);
+        loan.setLedgerId(ledgerId);
         loan.setDirection(direction);
         loan.setCounterparty(counterparty);
         loan.setAmount(amount);
@@ -96,9 +96,9 @@ public class LoanService {
      * @throws ApiException NOT_FOUND / LOAN_FIELD_INVALID
      */
     @Transactional
-    public Loan update(Long userId, Long id, String rawDirection, String rawCounterparty,
+    public Loan update(Long ledgerId, Long id, String rawDirection, String rawCounterparty,
             BigDecimal rawAmount, LocalDateTime occurredAt, String rawNote) {
-        Loan loan = loanRepository.findByIdAndUserId(id, userId)
+        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
 
         loan.setDirection(validateDirection(rawDirection));
@@ -116,8 +116,8 @@ public class LoanService {
      * @throws ApiException NOT_FOUND
      */
     @Transactional
-    public Loan setSettled(Long userId, Long id, boolean settled) {
-        Loan loan = loanRepository.findByIdAndUserId(id, userId)
+    public Loan setSettled(Long ledgerId, Long id, boolean settled) {
+        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
         LocalDateTime now = LocalDateTime.now(clock);
         loan.setSettled(settled);
@@ -132,8 +132,8 @@ public class LoanService {
      * @throws ApiException NOT_FOUND
      */
     @Transactional
-    public void delete(Long userId, Long id) {
-        Loan loan = loanRepository.findByIdAndUserId(id, userId)
+    public void delete(Long ledgerId, Long id) {
+        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
         loanRepository.delete(loan);
     }

@@ -19,14 +19,14 @@ import com.damien.youyu.api.dto.BudgetAmountRequest;
 import com.damien.youyu.api.dto.BudgetOverviewResponse;
 import com.damien.youyu.api.dto.CategoryBudgetRequest;
 import com.damien.youyu.error.ApiException;
-import com.damien.youyu.security.CurrentUser;
+import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.BudgetService;
 
 /**
  * 预算接口：月度总预算 + 分类预算 + 预算健康（前瞻）。
  *
- * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentUser} 读取会话用户主键，
- * 所有读写按该 userId 隔离（需求 2.3/2.4）。月份参数 {@code month} 为 {@code YYYY-MM}，缺省取
+ * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentLedger} 读取会话用户主键，
+ * 所有读写按该 ledgerId 隔离（需求 2.3/2.4）。月份参数 {@code month} 为 {@code YYYY-MM}，缺省取
  * {@code Asia/Shanghai} 当前自然月。</p>
  *
  * <ul>
@@ -42,52 +42,52 @@ import com.damien.youyu.service.BudgetService;
 public class BudgetController {
 
     private final BudgetService budgetService;
-    private final CurrentUser currentUser;
+    private final CurrentLedger currentLedger;
     private final Clock clock;
 
-    public BudgetController(BudgetService budgetService, CurrentUser currentUser, Clock clock) {
+    public BudgetController(BudgetService budgetService, CurrentLedger currentLedger, Clock clock) {
         this.budgetService = budgetService;
-        this.currentUser = currentUser;
+        this.currentLedger = currentLedger;
         this.clock = clock;
     }
 
     @GetMapping
     public ResponseEntity<BudgetOverviewResponse> overview(
             @RequestParam(name = "month", required = false) String month) {
-        Long userId = currentUser.requireUserId();
-        return ResponseEntity.ok(budgetService.overview(userId, resolveMonth(month)));
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(budgetService.overview(ledgerId, resolveMonth(month)));
     }
 
     @PutMapping
     public ResponseEntity<BudgetOverviewResponse> setTotal(
             @RequestParam(name = "month", required = false) String month,
             @RequestBody BudgetAmountRequest req) {
-        Long userId = currentUser.requireUserId();
-        return ResponseEntity.ok(budgetService.setTotalBudget(userId, resolveMonth(month), req.amount()));
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(budgetService.setTotalBudget(ledgerId, resolveMonth(month), req.amount()));
     }
 
     @PostMapping("/categories")
     public ResponseEntity<BudgetOverviewResponse> setCategory(
             @RequestParam(name = "month", required = false) String month,
             @RequestBody CategoryBudgetRequest req) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         return ResponseEntity.ok(
-                budgetService.setCategoryBudget(userId, resolveMonth(month), req.categoryId(), req.amount()));
+                budgetService.setCategoryBudget(ledgerId, resolveMonth(month), req.categoryId(), req.amount()));
     }
 
     @DeleteMapping("/categories/{categoryId}")
     public ResponseEntity<BudgetOverviewResponse> deleteCategory(
             @PathVariable Long categoryId,
             @RequestParam(name = "month", required = false) String month) {
-        Long userId = currentUser.requireUserId();
-        return ResponseEntity.ok(budgetService.deleteCategoryBudget(userId, resolveMonth(month), categoryId));
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(budgetService.deleteCategoryBudget(ledgerId, resolveMonth(month), categoryId));
     }
 
     @PostMapping("/copy-previous")
     public ResponseEntity<BudgetOverviewResponse> copyPrevious(
             @RequestParam(name = "month", required = false) String month) {
-        Long userId = currentUser.requireUserId();
-        return ResponseEntity.ok(budgetService.copyFromPreviousMonth(userId, resolveMonth(month)));
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(budgetService.copyFromPreviousMonth(ledgerId, resolveMonth(month)));
     }
 
     private YearMonth resolveMonth(String raw) {

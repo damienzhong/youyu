@@ -24,14 +24,14 @@ import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransactionUpdateRequest;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.error.ApiException;
-import com.damien.youyu.security.CurrentUser;
+import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.TransactionService;
 
 /**
  * 交易记账接口（关联需求 4.1-4.5、4.8-4.11）。
  *
- * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentUser} 读取当前会话用户主键，
- * 所有读写均按该 userId 隔离（写入强制覆盖 user_id、读取他人交易返回 404，需求 2.2-2.4）。</p>
+ * <p>身份由 Spring Security 过滤链统一鉴权，本控制器从 {@link CurrentLedger} 读取当前会话用户主键，
+ * 所有读写均按该 ledgerId 隔离（写入强制覆盖 user_id、读取他人交易返回 404，需求 2.2-2.4）。</p>
  *
  * <ul>
  *   <li>POST {@code /api/transactions} 创建支出/收入/转账，事务性更新余额（201）。</li>
@@ -48,19 +48,19 @@ public class TransactionController {
     private static final int MAX_PAGE_SIZE = 200;
 
     private final TransactionService transactionService;
-    private final CurrentUser currentUser;
+    private final CurrentLedger currentLedger;
 
-    public TransactionController(TransactionService transactionService, CurrentUser currentUser) {
+    public TransactionController(TransactionService transactionService, CurrentLedger currentLedger) {
         this.transactionService = transactionService;
-        this.currentUser = currentUser;
+        this.currentLedger = currentLedger;
     }
 
     /** 创建交易：成功返回 201 与交易信息。 */
     @PostMapping
     public ResponseEntity<TransactionResponse> create(@RequestBody TransactionCreateRequest req) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         Transaction tx = transactionService.create(
-                userId,
+                ledgerId,
                 req.type(),
                 req.amount(),
                 req.accountId(),
@@ -84,13 +84,13 @@ public class TransactionController {
             @RequestParam(name = "month", required = false) String month,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "50") int size) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
 
         if (month != null && !month.isBlank()) {
             YearMonth ym = parseMonth(month);
             LocalDateTime from = ym.atDay(1).atStartOfDay();
             LocalDateTime to = ym.plusMonths(1).atDay(1).atStartOfDay();
-            List<TransactionResponse> body = transactionService.listByRange(userId, from, to).stream()
+            List<TransactionResponse> body = transactionService.listByRange(ledgerId, from, to).stream()
                     .map(TransactionResponse::from)
                     .toList();
             return ResponseEntity.ok(body);
@@ -98,7 +98,7 @@ public class TransactionController {
 
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize);
-        List<TransactionResponse> body = transactionService.list(userId, pageable).stream()
+        List<TransactionResponse> body = transactionService.list(ledgerId, pageable).stream()
                 .map(TransactionResponse::from)
                 .toList();
         return ResponseEntity.ok(body);
@@ -115,8 +115,8 @@ public class TransactionController {
     /** 单条读取本人交易（校验归属）。 */
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> get(@PathVariable Long id) {
-        Long userId = currentUser.requireUserId();
-        Transaction tx = transactionService.get(userId, id);
+        Long ledgerId = currentLedger.requireLedgerId();
+        Transaction tx = transactionService.get(ledgerId, id);
         return ResponseEntity.ok(TransactionResponse.from(tx));
     }
 
@@ -124,9 +124,9 @@ public class TransactionController {
     @PutMapping("/{id}")
     public ResponseEntity<TransactionResponse> update(
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
-        Long userId = currentUser.requireUserId();
+        Long ledgerId = currentLedger.requireLedgerId();
         Transaction tx = transactionService.update(
-                userId,
+                ledgerId,
                 id,
                 req.type(),
                 req.amount(),
@@ -142,8 +142,8 @@ public class TransactionController {
     /** 删除交易：回滚原影响后删除，成功返回 204（需求 4.6、4.7）。 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Long userId = currentUser.requireUserId();
-        transactionService.delete(userId, id);
+        Long ledgerId = currentLedger.requireLedgerId();
+        transactionService.delete(ledgerId, id);
         return ResponseEntity.noContent().build();
     }
 }

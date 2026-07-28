@@ -47,7 +47,7 @@ import com.damien.youyu.repository.TransactionRepository;
  *   <li>转账源≠目标（否则 {@code TRANSFER_SAME_ACCOUNT}，需求 4.5）。</li>
  * </ul>
  *
- * <p>涉及账户在更新前加行级悲观写锁（{@link AccountRepository#findForUpdateByIdAndUserId}），
+ * <p>涉及账户在更新前加行级悲观写锁（{@link AccountRepository#findForUpdateByIdAndLedgerId}），
  * 避免并发记账下的丢失更新；对所有涉及账户（修改时含旧账户 + 新账户）按 id 升序加锁以降低死锁风险。
  * 方法整体 {@link Transactional}，异常触发回滚（需求 4.10）。金额一律 {@link BigDecimal}（需求 4.11）。</p>
  */
@@ -80,7 +80,7 @@ public class TransactionService {
     /**
      * 创建一笔支出/收入/转账交易，并在同一事务内事务性更新相关账户余额。
      *
-     * @param userId               会话用户（需求 2.2 强制覆盖 user_id）
+     * @param ledgerId               会话用户（需求 2.2 强制覆盖 user_id）
      * @param rawType              交易类型字符串：expense/income/transfer
      * @param rawAmount            金额（恒为正，最多两位小数）
      * @param accountId            支出/收入账户 id
@@ -93,7 +93,7 @@ public class TransactionService {
      */
     @Transactional
     public Transaction create(
-            Long userId,
+            Long ledgerId,
             String rawType,
             BigDecimal rawAmount,
             Long accountId,
@@ -108,7 +108,7 @@ public class TransactionService {
         BigDecimal amount = validateAmount(rawAmount);
         String note = validateNote(rawNote);
         validateShapePresence(type, accountId, categoryId, sourceAccountId, destinationAccountId);
-        validateCategoryExists(userId, type, categoryId);
+        validateCategoryExists(ledgerId, type, categoryId);
 
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime when = occurredAt == null ? now : occurredAt;
@@ -116,11 +116,11 @@ public class TransactionService {
         // 需求 4.9 + 加锁：涉及账户须存在且属于当前用户，按 id 升序加锁；4.1/4.2/4.3：应用余额增量。
         Map<Long, BigDecimal> deltas = effectDeltas(
                 type, amount, accountId, sourceAccountId, destinationAccountId);
-        Map<Long, Account> locked = lockAll(deltas.keySet(), userId);
+        Map<Long, Account> locked = lockAll(deltas.keySet(), ledgerId);
         applyDeltas(locked, deltas, now);
 
         Transaction tx = new Transaction();
-        tx.setUserId(userId);
+        tx.setLedgerId(ledgerId);
         tx.setCreatedAt(now);
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);
@@ -137,7 +137,7 @@ public class TransactionService {
      */
     @Transactional
     public Transaction update(
-            Long userId,
+            Long ledgerId,
             Long id,
             String rawType,
             BigDecimal rawAmount,
@@ -149,7 +149,7 @@ public class TransactionService {
             String rawNote) {
 
         // 需求 4.7 / 2.4：目标交易须存在且属于当前用户，否则拒绝且不改余额。
-        Transaction tx = transactionRepository.findByIdAndUserId(id, userId)
+        Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
 
         // ---- 校验前置：任何余额变更前完成，失败即零副作用（需求 4.4、4.5、4.8、4.9）----
@@ -157,7 +157,7 @@ public class TransactionService {
         BigDecimal amount = validateAmount(rawAmount);
         String note = validateNote(rawNote);
         validateShapePresence(type, accountId, categoryId, sourceAccountId, destinationAccountId);
-        validateCategoryExists(userId, type, categoryId);
+        validateCategoryExists(ledgerId, type, categoryId);
 
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime when = occurredAt == null ? now : occurredAt;
@@ -171,7 +171,7 @@ public class TransactionService {
                 .forEach((acc, delta) -> net.merge(acc, delta, BigDecimal::add));
 
         // 需求 4.9 + 加锁：新形态引用的不存在账户在此触发 NOT_FOUND（净增量非零，必被锁定校验）。
-        Map<Long, Account> locked = lockAll(net.keySet(), userId);
+        Map<Long, Account> locked = lockAll(net.keySet(), ledgerId);
         applyDeltas(locked, net, now);
 
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
@@ -186,8 +186,8 @@ public class TransactionService {
      * @throws ApiException NOT_FOUND
      */
     @Transactional
-    public void delete(Long userId, Long id) {
-        Transaction tx = transactionRepository.findByIdAndUserId(id, userId)
+    public void delete(Long ledgerId, Long id) {
+        Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
 
         LocalDateTime now = LocalDateTime.now(clock);
@@ -198,7 +198,7 @@ public class TransactionService {
                 tx.getSourceAccountId(), tx.getDestinationAccountId())
                 .forEach((acc, delta) -> rollback.merge(acc, delta.negate(), BigDecimal::add));
 
-        Map<Long, Account> locked = lockAll(rollback.keySet(), userId);
+        Map<Long, Account> locked = lockAll(rollback.keySet(), ledgerId);
         applyDeltas(locked, rollback, now);
 
         transactionRepository.delete(tx);
@@ -207,8 +207,8 @@ public class TransactionService {
     /** 分页列出本人交易，按 occurred_at、id 倒序（需求 2.3）。 */
     @Transactional(readOnly = true)
     public org.springframework.data.domain.Page<Transaction> list(
-            Long userId, org.springframework.data.domain.Pageable pageable) {
-        return transactionRepository.findByUserIdOrderByOccurredAtDescIdDesc(userId, pageable);
+            Long ledgerId, org.springframework.data.domain.Pageable pageable) {
+        return transactionRepository.findByLedgerIdOrderByOccurredAtDescIdDesc(ledgerId, pageable);
     }
 
     /**
@@ -216,10 +216,10 @@ public class TransactionService {
      * 边界按 {@code Asia/Shanghai} 自然月：from=当月 1 日 00:00，to=次月 1 日 00:00。
      */
     @Transactional(readOnly = true)
-    public java.util.List<Transaction> listByRange(Long userId, LocalDateTime from, LocalDateTime to) {
+    public java.util.List<Transaction> listByRange(Long ledgerId, LocalDateTime from, LocalDateTime to) {
         return transactionRepository
-                .findByUserIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
-                        userId, from, to);
+                .findByLedgerIdAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
+                        ledgerId, from, to);
     }
 
     /**
@@ -228,8 +228,8 @@ public class TransactionService {
      * @throws ApiException NOT_FOUND（交易不存在或不属于当前用户）
      */
     @Transactional(readOnly = true)
-    public Transaction get(Long userId, Long id) {
-        return transactionRepository.findByIdAndUserId(id, userId)
+    public Transaction get(Long ledgerId, Long id) {
+        return transactionRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
     }
 
@@ -306,9 +306,9 @@ public class TransactionService {
     }
 
     /** 支出/收入分类须存在且属于当前用户（需求 4.9）。 */
-    private void validateCategoryExists(Long userId, TransactionType type, Long categoryId) {
+    private void validateCategoryExists(Long ledgerId, TransactionType type, Long categoryId) {
         if (type == TransactionType.EXPENSE || type == TransactionType.INCOME) {
-            categoryRepository.findByIdAndUserId(categoryId, userId)
+            categoryRepository.findByIdAndLedgerId(categoryId, ledgerId)
                     .orElseThrow(() -> ApiException.notFound("分类不存在"));
         }
     }
@@ -341,10 +341,10 @@ public class TransactionService {
      * 对给定账户 id 集合按 id 升序加行级悲观写锁并返回 id→账户映射；
      * 任一账户不存在或不属于当前用户即 NOT_FOUND（需求 4.9）。升序加锁降低死锁风险。
      */
-    private Map<Long, Account> lockAll(Collection<Long> accountIds, Long userId) {
+    private Map<Long, Account> lockAll(Collection<Long> accountIds, Long ledgerId) {
         Map<Long, Account> locked = new LinkedHashMap<>();
         accountIds.stream().sorted().forEach(accId -> {
-            Account account = accountRepository.findForUpdateByIdAndUserId(accId, userId)
+            Account account = accountRepository.findForUpdateByIdAndLedgerId(accId, ledgerId)
                     .orElseThrow(() -> ApiException.notFound("账户不存在"));
             locked.put(accId, account);
         });
