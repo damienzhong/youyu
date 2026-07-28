@@ -126,8 +126,8 @@ function goRecord() {
 function goEdit(t) {
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
 }
-function goCategories() {
-  uni.navigateTo({ url: '/pages/categories/categories' })
+function goBudget() {
+  uni.navigateTo({ url: '/pages/budget/budget' })
 }
 function goReport() {
   uni.switchTab({ url: '/pages/report/report' })
@@ -170,8 +170,8 @@ function goAccounts() {
       <view class="qa" @click="goRecord">
         <text class="qa-ic qa-green">✏️</text><text class="qa-label">记一笔</text>
       </view>
-      <view class="qa" @click="goCategories">
-        <text class="qa-ic qa-orange">🏷️</text><text class="qa-label">分类</text>
+      <view class="qa" @click="goBudget">
+        <text class="qa-ic qa-orange">🧮</text><text class="qa-label">预算</text>
       </view>
       <view class="qa" @click="goReport">
         <text class="qa-ic qa-blue">📊</text><text class="qa-label">报表</text>

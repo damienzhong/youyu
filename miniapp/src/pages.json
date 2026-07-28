@@ -41,6 +41,24 @@
       "style": {
         "navigationBarTitleText": "分类管理"
       }
+    },
+    {
+      "path": "pages/me/me",
+      "style": {
+        "navigationBarTitleText": "我的"
+      }
+    },
+    {
+      "path": "pages/budget/budget",
+      "style": {
+        "navigationBarTitleText": "预算"
+      }
+    },
+    {
+      "path": "pages/data/data",
+      "style": {
+        "navigationBarTitleText": "数据导出 / 导入"
+      }
     }
   ],
   "globalStyle": {
@@ -58,7 +76,8 @@
       { "pagePath": "pages/index/index", "text": "首页" },
       { "pagePath": "pages/records/records", "text": "明细" },
       { "pagePath": "pages/report/report", "text": "报表" },
-      { "pagePath": "pages/accounts/accounts", "text": "账户" }
+      { "pagePath": "pages/accounts/accounts", "text": "账户" },
+      { "pagePath": "pages/me/me", "text": "我的" }
     ]
   }
 }
