@@ -71,7 +71,7 @@ public class LedgerService {
     public Ledger ensureDefaultLedger(Long userId) {
         return ledgerRepository.findFirstByUserIdAndIsDefaultTrue(userId)
                 .or(() -> ledgerRepository.findFirstByUserIdOrderBySortOrderAscIdAsc(userId))
-                .orElseGet(() -> createLedger(userId, DEFAULT_NAME, 0, true));
+                .orElseGet(() -> createLedger(userId, DEFAULT_NAME, "INDEPENDENT", 0, true));
     }
 
     /** 校验某账本属于当前用户并返回；不匹配抛 NOT_FOUND。 */
@@ -81,11 +81,20 @@ public class LedgerService {
                 .orElseThrow(() -> ApiException.notFound("账本不存在"));
     }
 
-    /** 创建新账本。 */
+    /** 创建新账本。type：INDEPENDENT（默认）/ COLLABORATIVE。 */
     @Transactional
-    public Ledger create(Long userId, String rawName) {
+    public Ledger create(Long userId, String rawName, String rawType) {
         String name = validateName(rawName);
-        return createLedger(userId, name, nextSortOrder(userId), false);
+        String type = normalizeType(rawType);
+        return createLedger(userId, name, type, nextSortOrder(userId), false);
+    }
+
+    private String normalizeType(String rawType) {
+        if (rawType == null || rawType.isBlank()) {
+            return "INDEPENDENT";
+        }
+        String t = rawType.trim().toUpperCase();
+        return "COLLABORATIVE".equals(t) ? "COLLABORATIVE" : "INDEPENDENT";
     }
 
     /** 重命名账本。 */
@@ -126,11 +135,12 @@ public class LedgerService {
         }
     }
 
-    private Ledger createLedger(Long userId, String name, int sortOrder, boolean isDefault) {
+    private Ledger createLedger(Long userId, String name, String type, int sortOrder, boolean isDefault) {
         LocalDateTime now = LocalDateTime.now(clock);
         Ledger ledger = new Ledger();
         ledger.setUserId(userId);
         ledger.setName(name);
+        ledger.setType(type);
         ledger.setSortOrder(sortOrder);
         ledger.setDefault(isDefault);
         ledger.setCreatedAt(now);

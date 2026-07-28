@@ -32,6 +32,10 @@ public class Ledger {
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
+    /** 账本类型：INDEPENDENT（独立，用用户级账户）/ COLLABORATIVE（协作，用账本级账户）。 */
+    @Column(name = "type", nullable = false, length = 16)
+    private String type = "INDEPENDENT";
+
     /** 列表排序。 */
     @Column(name = "sort_order", nullable = false)
     private int sortOrder = 0;
@@ -71,6 +75,14 @@ public class Ledger {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
     }
 
     public int getSortOrder() {
