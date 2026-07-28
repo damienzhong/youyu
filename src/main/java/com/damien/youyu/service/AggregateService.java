@@ -8,9 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.Category;
 import com.damien.youyu.domain.Ledger;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.TransactionRepository;
 
@@ -26,14 +28,24 @@ public class AggregateService {
     private final LedgerRepository ledgerRepository;
     private final AccountRepository accountRepository;
     private final TransactionRepository transactionRepository;
+    private final CategoryRepository categoryRepository;
 
     public AggregateService(
             LedgerRepository ledgerRepository,
             AccountRepository accountRepository,
-            TransactionRepository transactionRepository) {
+            TransactionRepository transactionRepository,
+            CategoryRepository categoryRepository) {
         this.ledgerRepository = ledgerRepository;
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
+        this.categoryRepository = categoryRepository;
+    }
+
+    /** 当前用户全部账本的分类（跨账本聚合，供「全部」视图解析分类名）。 */
+    @Transactional(readOnly = true)
+    public List<Category> allCategories(Long userId) {
+        List<Long> ledgerIds = ledgerIds(userId);
+        return ledgerIds.isEmpty() ? List.of() : categoryRepository.findByLedgerIdIn(ledgerIds);
     }
 
     /** 当前用户全部账本的账户（跨账本聚合）。 */

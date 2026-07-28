@@ -6,7 +6,7 @@ import { useLedgerStore } from '../../stores/ledger'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth } from '../../api/transaction'
-import { listAllAccounts, listAllTransactionsByMonth } from '../../api/aggregate'
+import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
 import { createLedger } from '../../api/ledger'
 import {
@@ -50,23 +50,25 @@ function signedNet(n) {
 
 async function load() {
   try {
-    const cats = await listCategories()
-    categoryMap.value = buildCategoryLabelMap(cats)
     if (ledgerStore.isAll) {
-      // 全部账本：跨账本聚合只读视图
-      const [accs, txs] = await Promise.all([
+      // 全部账本：跨账本聚合只读视图（分类名也跨账本解析）
+      const [accs, cats, txs] = await Promise.all([
         listAllAccounts(),
+        listAllCategories(),
         listAllTransactionsByMonth(month.value)
       ])
+      categoryMap.value = buildCategoryLabelMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
       transactions.value = txs
       remainingBudget.value = null
     } else {
-      const [accs, txs] = await Promise.all([
+      const [accs, cats, txs] = await Promise.all([
         listAccounts(),
+        listCategories(),
         listTransactionsByMonth(month.value)
       ])
+      categoryMap.value = buildCategoryLabelMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
       transactions.value = txs

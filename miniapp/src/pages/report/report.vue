@@ -2,7 +2,12 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { categoryReport, monthRange, shiftMonth } from '../../api/report'
+import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
+import { buildCategoryLabelMap } from '../../api/category'
+import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount, categoryEmoji, currentMonth, monthLabel } from '../../utils/format'
+
+const ledgerStore = useLedgerStore()
 
 const KINDS = [
   { value: 'expense', label: '支出' },
@@ -23,15 +28,51 @@ function colorAt(i) {
 async function load() {
   loading.value = true
   try {
-    const { from, to } = monthRange(month.value)
-    const res = await categoryReport(from, to, kind.value)
-    total.value = res.totalExpense
-    rows.value = res.categories || []
+    if (ledgerStore.isAll) {
+      await loadAllAggregate()
+    } else {
+      const { from, to } = monthRange(month.value)
+      const res = await categoryReport(from, to, kind.value)
+      total.value = res.totalExpense
+      rows.value = res.categories || []
+    }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
     loading.value = false
   }
+}
+
+// 全部账本：跨账本客户端聚合分类占比
+async function loadAllAggregate() {
+  const [cats, txs] = await Promise.all([
+    listAllCategories(),
+    listAllTransactionsByMonth(month.value)
+  ])
+  const nameMap = buildCategoryLabelMap(cats)
+  const wanted = kind.value === 'income' ? 'income' : 'expense'
+  const byCat = new Map()
+  let totalCents = 0
+  for (const t of txs) {
+    if (t.type !== wanted) continue
+    const cents = Math.round(Number(t.amount) * 100)
+    totalCents += cents
+    const key = t.categoryId ?? 0
+    const cur = byCat.get(key) || { categoryId: t.categoryId, amount: 0, count: 0 }
+    cur.amount += cents
+    cur.count += 1
+    byCat.set(key, cur)
+  }
+  total.value = (totalCents / 100).toFixed(2)
+  const list = [...byCat.values()].map((c) => ({
+    categoryId: c.categoryId,
+    categoryName: nameMap[c.categoryId] || '未分类',
+    amount: (c.amount / 100).toFixed(2),
+    percentage: totalCents > 0 ? Number(((c.amount / totalCents) * 100).toFixed(2)) : 0,
+    count: c.count
+  }))
+  list.sort((a, b) => Number(b.amount) - Number(a.amount))
+  rows.value = list
 }
 
 onShow(load)

@@ -5,6 +5,12 @@ import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth, deleteTransaction } from '../../api/transaction'
 import {
+  listAllAccounts,
+  listAllCategories,
+  listAllTransactionsByMonth
+} from '../../api/aggregate'
+import { useLedgerStore } from '../../stores/ledger'
+import {
   formatAmount,
   categoryEmoji,
   dayKeyOf,
@@ -12,6 +18,8 @@ import {
   timeLabelOf,
   currentMonth
 } from '../../utils/format'
+
+const ledgerStore = useLedgerStore()
 
 const month = ref(currentMonth())
 const transactions = ref([])
@@ -32,10 +40,11 @@ const totals = computed(() => {
 async function load() {
   loading.value = true
   try {
+    const isAll = ledgerStore.isAll
     const [accs, cats, txs] = await Promise.all([
-      listAccounts(),
-      listCategories(),
-      listTransactionsByMonth(month.value)
+      isAll ? listAllAccounts() : listAccounts(),
+      isAll ? listAllCategories() : listCategories(),
+      isAll ? listAllTransactionsByMonth(month.value) : listTransactionsByMonth(month.value)
     ])
     accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
     categoryMap.value = buildCategoryLabelMap(cats)

@@ -41,6 +41,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     /** 某账本分类数量。 */
     long countByLedgerId(Long ledgerId);
 
+    /** 跨多个账本列出分类（「全部账本」聚合只读视图用）。 */
+    List<Category> findByLedgerIdIn(java.util.Collection<Long> ledgerIds);
+
     /** 删除某账本的全部分类（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 }

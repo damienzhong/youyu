@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.AccountResponse;
+import com.damien.youyu.api.dto.CategoryListResponse;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentUser;
@@ -45,6 +46,12 @@ public class AggregateController {
                 .map(AccountResponse::from)
                 .toList();
         return ResponseEntity.ok(body);
+    }
+
+    @GetMapping("/categories")
+    public ResponseEntity<CategoryListResponse> categories() {
+        Long userId = currentUser.requireUserId();
+        return ResponseEntity.ok(CategoryListResponse.from(aggregateService.allCategories(userId)));
     }
 
     @GetMapping("/transactions")
