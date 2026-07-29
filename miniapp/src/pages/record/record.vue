@@ -1,13 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { listAccounts, accountTypeLabel } from '../../api/account'
-import { listCategories, flattenCategories } from '../../api/category'
-import {
-  createTransaction,
-  getTransaction,
-  updateTransaction
-} from '../../api/transaction'
+import { listAccounts, accountTypeEmoji, accountTypeLabel } from '../../api/account'
+import { listCategories } from '../../api/category'
+import { createTransaction, getTransaction, updateTransaction } from '../../api/transaction'
+import { createLoan } from '../../api/loan'
 import { useLedgerStore } from '../../stores/ledger'
 import { categoryEmoji, formatAmount } from '../../utils/format'
 
@@ -16,78 +13,164 @@ const ledgerStore = useLedgerStore()
 const TYPES = [
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' },
-  { value: 'transfer', label: '转账' }
+  { value: 'transfer', label: '转账' },
+  { value: 'loan', label: '借贷' }
 ]
-
-const CAT_TINTS = [
-  '#e9f7ef', '#e8f0fe', '#fff1e6', '#f3ecff', '#fdeaf3',
-  '#e6f6ff', '#fff6e0', '#eafaf0', '#fdeae8', '#e6fbf7'
-]
-const ACCOUNT_DOT = {
-  CASH: '#16a34a', BANK_CARD: '#0ea5e9', ALIPAY: '#1677ff',
-  WECHAT: '#07c160', CREDIT_CARD: '#f59e0b'
-}
-function accountDot(t) {
-  return ACCOUNT_DOT[t] || '#94a3b8'
-}
-
 const type = ref('expense')
-const amount = ref('')
-const note = ref('')
-const submitting = ref(false)
+const isTransfer = computed(() => type.value === 'transfer')
+const isLoan = computed(() => type.value === 'loan')
+const accentClass = computed(() =>
+  type.value === 'income' ? 'inc' : type.value === 'expense' ? 'exp' : 'tr'
+)
 
+// ---------- 金额（表达式）----------
+const expr = ref('')
+const amountDisplay = computed(() => (expr.value === '' ? '0.00' : expr.value))
+const hasOp = computed(() => /[+\-−]/.test(expr.value.slice(1)))
+function evalExpr(s) {
+  if (!s) return 0
+  let total = 0
+  let sign = 1
+  let num = ''
+  for (const ch of s) {
+    if (ch === '+' || ch === '-' || ch === '−') {
+      total += sign * parseFloat(num || '0')
+      sign = ch === '+' ? 1 : -1
+      num = ''
+    } else {
+      num += ch
+    }
+  }
+  total += sign * parseFloat(num || '0')
+  return isNaN(total) ? 0 : total
+}
+const amountValue = computed(() => Math.round(evalExpr(expr.value) * 100) / 100)
+
+function tapKey(k) {
+  if (k === 'del') {
+    expr.value = expr.value.slice(0, -1)
+    return
+  }
+  if (k === '+' || k === '−') {
+    if (!expr.value) return
+    const last = expr.value.slice(-1)
+    if (last === '+' || last === '−') expr.value = expr.value.slice(0, -1) + k
+    else expr.value += k
+    return
+  }
+  if (k === '.') {
+    // 当前数字段不能有两个小数点
+    const seg = expr.value.split(/[+\-−]/).pop()
+    if (seg.includes('.')) return
+    expr.value += expr.value === '' ? '0.' : '.'
+    return
+  }
+  expr.value += k
+}
+
+// ---------- 分类（含子分类展开）----------
+const tree = ref({ expense: [], income: [] })
+const categoryId = ref(null)
+const expandedId = ref(null)
+const parents = computed(() => (type.value === 'income' ? tree.value.income : tree.value.expense))
+const expandedChildren = computed(() => {
+  const p = parents.value.find((x) => x.id === expandedId.value)
+  return p ? p.children || [] : []
+})
+const PALETTE = ['#e5793a', '#8b78e0', '#2eb8a6', '#3aa0d0', '#e0609a', '#5b8def', '#f0a13b', '#3ba55d']
+function catColor(name) {
+  let h = 0
+  for (let i = 0; i < (name || '').length; i++) h = (h + name.charCodeAt(i)) >>> 0
+  return PALETTE[h % PALETTE.length]
+}
+function catEmoji(name) {
+  return categoryEmoji(name, type.value)
+}
+function pickParent(p) {
+  categoryId.value = p.id
+  expandedId.value = p.children && p.children.length ? (expandedId.value === p.id ? null : p.id) : null
+}
+function pickChild(c) {
+  categoryId.value = c.id
+}
+
+// ---------- 账户 ----------
 const accounts = ref([])
-const categoryTree = ref({ expense: [], income: [] })
 const accountId = ref(null)
 const destId = ref(null)
-const categoryId = ref(null)
-
-const editingId = ref(null)
-const editingOccurredAt = ref(null)
-const isEditing = computed(() => editingId.value !== null)
-
-// 目标账本：编辑时取该笔流水自己的账本；新增时若处于「全部」则让用户选择归到哪个账本。
-const targetLedgerId = ref(null)
-const ledgerChoices = ref([])
-const ledgerChoiceIndex = ref(0)
-// 是否需要显示「归属账本」选择（新增 + 全部模式）
-const showLedgerPicker = computed(() => !isEditing.value && ledgerStore.isAll)
-
-// 账户选择底部面板：'account' | 'source' | 'dest' | null
-const sheetTarget = ref(null)
-
-const isTransfer = computed(() => type.value === 'transfer')
-
-// 分类网格选项（当前类型），带 emoji 与配色
-const categoryOptions = computed(() => {
-  const nodes = type.value === 'income' ? categoryTree.value.income : categoryTree.value.expense
-  return flattenCategories(nodes).map((o, i) => ({
-    id: o.id,
-    label: o.label,
-    emoji: categoryEmoji(o.label, type.value),
-    tint: CAT_TINTS[i % CAT_TINTS.length]
-  }))
-})
-
 const accountById = (id) => accounts.value.find((a) => a.id === id)
 const sourceAccount = computed(() => accountById(accountId.value))
 const destAccount = computed(() => accountById(destId.value))
+const sheetTarget = ref(null) // 'account' | 'source' | 'dest'
+function pickAccount(a) {
+  if (sheetTarget.value === 'dest') destId.value = a.id
+  else accountId.value = a.id
+  sheetTarget.value = null
+}
+
+// ---------- 备注 / 日期 / 对方 ----------
+const note = ref('')
+const noteSheet = ref(false)
+function onNoteConfirm(v) {
+  note.value = v
+  noteSheet.value = false
+}
+const counterparty = ref('')
+const cpSheet = ref(false)
+function onCpConfirm(v) {
+  counterparty.value = v
+  cpSheet.value = false
+}
+const loanDir = ref('BORROW')
+
+const occurredDate = ref(todayStr())
+function todayStr() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const dateLabel = computed(() => (occurredDate.value === todayStr() ? '今天' : occurredDate.value.slice(5)))
+function onDateChange(e) {
+  occurredDate.value = e.detail.value
+}
+function occurredAtIso() {
+  // 今天用当前时刻，历史日期用当日中午，避免时区边界
+  if (occurredDate.value === todayStr()) {
+    const d = new Date()
+    const p = (n) => String(n).padStart(2, '0')
+    return `${occurredDate.value}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  }
+  return `${occurredDate.value}T12:00:00`
+}
+
+// ---------- 编辑 / 全部模式目标账本 ----------
+const editingId = ref(null)
+const isEditing = computed(() => editingId.value !== null)
+const targetLedgerId = ref(null)
+const showLedgerPicker = computed(() => !isEditing.value && ledgerStore.isAll)
+const targetLedgerName = computed(() => {
+  const l = (ledgerStore.ledgers || []).find((x) => x.id === targetLedgerId.value)
+  return l ? l.name : '默认账本'
+})
+const showLedgerSheet = ref(false)
+function pickTargetLedger(id) {
+  targetLedgerId.value = id
+  showLedgerSheet.value = false
+  categoryId.value = null
+  expandedId.value = null
+  load()
+}
 
 onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
-  // 编辑：用该笔流水自己的账本；新增+全部：先选一个目标账本（默认账本）。
-  if (q && q.ledgerId) {
-    targetLedgerId.value = Number(q.ledgerId)
-  } else if (!isEditing.value && ledgerStore.isAll) {
+  if (q && q.ledgerId) targetLedgerId.value = Number(q.ledgerId)
+  else if (!isEditing.value && ledgerStore.isAll) {
     try {
       if (!ledgerStore.ledgers.length) await ledgerStore.load()
     } catch (e) {
       /* ignore */
     }
-    ledgerChoices.value = ledgerStore.ledgers
-    const defIdx = Math.max(ledgerChoices.value.findIndex((l) => l.isDefault), 0)
-    ledgerChoiceIndex.value = defIdx
-    targetLedgerId.value = ledgerChoices.value[defIdx]?.id ?? null
+    const def = ledgerStore.ledgers.find((l) => l.isDefault) || ledgerStore.ledgers[0]
+    targetLedgerId.value = def ? def.id : null
   }
   load()
 })
@@ -99,7 +182,7 @@ async function load() {
       listCategories(targetLedgerId.value)
     ])
     accounts.value = accs
-    categoryTree.value = cats
+    tree.value = cats
     accountId.value = accs[0]?.id ?? null
     destId.value = accs.length > 1 ? accs[1].id : null
     if (isEditing.value) {
@@ -111,21 +194,12 @@ async function load() {
   }
 }
 
-// 新增+全部：切换归属账本 → 重新加载该账本的账户与分类
-function onLedgerChoiceChange(e) {
-  const idx = Number(e.detail.value)
-  ledgerChoiceIndex.value = idx
-  targetLedgerId.value = ledgerChoices.value[idx]?.id ?? null
-  categoryId.value = null
-  load()
-}
-
 async function prefill() {
   const tx = await getTransaction(editingId.value, targetLedgerId.value)
   type.value = tx.type
-  amount.value = String(tx.amount)
+  expr.value = String(tx.amount)
   note.value = tx.note || ''
-  editingOccurredAt.value = tx.occurredAt
+  if (tx.occurredAt) occurredDate.value = tx.occurredAt.slice(0, 10)
   if (tx.type === 'transfer') {
     accountId.value = tx.sourceAccountId
     destId.value = tx.destinationAccountId
@@ -139,30 +213,43 @@ function setType(t) {
   if (type.value === t) return
   type.value = t
   categoryId.value = null
+  expandedId.value = null
   if (t === 'transfer' && destId.value === accountId.value) {
     const other = accounts.value.find((a) => a.id !== accountId.value)
     destId.value = other ? other.id : null
   }
 }
 
-function pickAccount(a) {
-  if (sheetTarget.value === 'dest') destId.value = a.id
-  else accountId.value = a.id
-  sheetTarget.value = null
-}
-
-async function submit() {
-  if (!amount.value || Number(amount.value) <= 0) {
+const submitting = ref(false)
+async function submit(cont) {
+  const amount = amountValue.value
+  if (!amount || amount <= 0) {
     uni.showToast({ title: '请输入正确金额', icon: 'none' })
     return
   }
+
+  // 借贷：写入借贷台账
+  if (isLoan.value) {
+    if (!counterparty.value.trim()) {
+      uni.showToast({ title: '请填写对方', icon: 'none' })
+      return
+    }
+    await run(() =>
+      createLoan({
+        direction: loanDir.value,
+        counterparty: counterparty.value.trim(),
+        amount: String(amount),
+        note: note.value.trim() || undefined
+      })
+    , cont)
+    return
+  }
+
   if (!accounts.value.length) {
     uni.showToast({ title: '请先创建账户', icon: 'none' })
     return
   }
-  const payload = { type: type.value, amount: amount.value, note: note.value.trim() || undefined }
-  if (isEditing.value && editingOccurredAt.value) payload.occurredAt = editingOccurredAt.value
-
+  const payload = { type: type.value, amount: String(amount), occurredAt: occurredAtIso(), note: note.value.trim() || undefined }
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
@@ -171,10 +258,10 @@ async function submit() {
     payload.sourceAccountId = accountId.value
     payload.destinationAccountId = destId.value
   } else {
-    if (!categoryOptions.value.length) {
+    if (!parents.value.length) {
       uni.showModal({
         title: '还没有分类',
-        content: '支出和收入需要选择分类，先去创建一个吧。',
+        content: '支出/收入需要选择分类，先去创建一个吧。',
         confirmText: '去创建',
         success: (r) => {
           if (r.confirm) uni.navigateTo({ url: '/pages/categories/categories' })
@@ -190,17 +277,28 @@ async function submit() {
     payload.categoryId = categoryId.value
   }
 
+  if (isEditing.value) {
+    await run(() => updateTransaction(editingId.value, payload, targetLedgerId.value), false)
+  } else {
+    await run(() => createTransaction(payload, targetLedgerId.value), cont)
+  }
+}
+
+async function run(fn, cont) {
   submitting.value = true
   try {
+    await fn()
     if (isEditing.value) {
-      await updateTransaction(editingId.value, payload, targetLedgerId.value)
       uni.showToast({ title: '已保存', icon: 'success' })
-      setTimeout(() => uni.navigateBack(), 600)
-    } else {
-      await createTransaction(payload, targetLedgerId.value)
-      uni.showToast({ title: '已记录', icon: 'success' })
-      amount.value = ''
+      setTimeout(() => uni.navigateBack(), 500)
+    } else if (cont) {
+      expr.value = ''
       note.value = ''
+      counterparty.value = ''
+      uni.showToast({ title: '已记 1 笔，继续', icon: 'none' })
+    } else {
+      uni.showToast({ title: '已记录', icon: 'success' })
+      setTimeout(() => uni.navigateBack(), 500)
     }
   } catch (e) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
@@ -208,402 +306,275 @@ async function submit() {
     submitting.value = false
   }
 }
+function goBack() {
+  uni.navigateBack()
+}
 </script>
 
 <template>
-  <view class="page" :class="type">
-    <!-- 类型 tab -->
-    <view class="tabs">
-      <view
-        v-for="t in TYPES"
-        :key="t.value"
-        class="tab"
-        :class="{ active: type === t.value }"
-        @click="setType(t.value)"
-      >
-        {{ t.label }}
-      </view>
+  <view class="rec" :class="accentClass">
+    <!-- 顶部 -->
+    <view class="rnav">
+      <text class="x" @click="goBack">✕</text>
+      <text class="title" v-if="isEditing">编辑记录</text>
+      <text class="save" @click="submit(false)">{{ isEditing ? '保存' : '完成' }}</text>
     </view>
+    <scroll-view scroll-x class="types" :show-scrollbar="false">
+      <text v-for="t in TYPES" :key="t.value" class="ty" :class="{ on: type === t.value }" @click="setType(t.value)">{{ t.label }}</text>
+    </scroll-view>
 
-    <!-- 归属账本（仅在「全部」下新增时选择记到哪个账本） -->
-    <picker
-      v-if="showLedgerPicker"
-      class="ledger-row"
-      :range="ledgerChoices"
-      range-key="name"
-      :value="ledgerChoiceIndex"
-      @change="onLedgerChoiceChange"
-    >
-      <text class="lr-k">记到账本</text>
-      <text class="lr-v">{{ ledgerChoices[ledgerChoiceIndex]?.name || '默认账本' }} ›</text>
-    </picker>
-
-    <!-- 金额 -->
-    <view class="amount-card">
+    <!-- 金额条 -->
+    <view class="amt">
       <text class="cur">¥</text>
-      <input v-model="amount" class="amount" type="digit" placeholder="0.00" />
+      <text class="amtv" :class="{ ph: expr === '' }">{{ amountDisplay }}<text class="cursor"></text></text>
     </view>
 
-    <!-- 支出/收入：分类网格 -->
-    <template v-if="!isTransfer">
-      <view v-if="!categoryOptions.length" class="cats-empty">
-        还没有{{ type === 'income' ? '收入' : '支出' }}分类，
-        <text class="link" @click="uni.navigateTo({ url: '/pages/categories/categories' })">去添加</text>
-      </view>
-      <view v-else class="cats">
-        <view
-          v-for="opt in categoryOptions"
-          :key="opt.id"
-          class="cat"
-          :class="{ active: categoryId === opt.id }"
-          @click="categoryId = opt.id"
-        >
-          <text class="cat-circle" :style="{ background: opt.tint }">{{ opt.emoji }}</text>
-          <text class="cat-nm">{{ opt.label }}</text>
+    <!-- 主区 -->
+    <scroll-view scroll-y class="main">
+      <!-- 支出/收入：分类九宫格 -->
+      <template v-if="!isTransfer && !isLoan">
+        <view v-if="!parents.length" class="cempty">
+          还没有{{ type === 'income' ? '收入' : '支出' }}分类，
+          <text class="link" @click="uni.navigateTo({ url: '/pages/categories/categories' })">去添加</text>
         </view>
-      </view>
-
-      <!-- 账户 chip -->
-      <view class="row" @click="sheetTarget = 'account'">
-        <text class="row-label">账户</text>
-        <view class="row-value">
-          <text class="dot" v-if="sourceAccount" :style="{ background: accountDot(sourceAccount.type) }"></text>
-          <text>{{ sourceAccount ? sourceAccount.name : '选择账户' }}</text>
-          <text class="caret">▾</text>
+        <view v-else class="cgrid">
+          <template v-for="p in parents" :key="p.id">
+            <view class="cat" :class="{ on: categoryId === p.id }" @click="pickParent(p)">
+              <view class="cic" :style="{ background: catColor(p.name) }">
+                {{ catEmoji(p.name) }}
+                <text v-if="p.children && p.children.length" class="subdot">{{ expandedId === p.id ? '▴' : '▾' }}</text>
+              </view>
+              <text class="cl">{{ p.name }}</text>
+            </view>
+          </template>
         </view>
-      </view>
-    </template>
-
-    <!-- 转账：两账户 -->
-    <template v-else>
-      <view class="transfer">
-        <view class="acc-pick" @click="sheetTarget = 'source'">
-          <text class="ai out">↗</text>
-          <text class="at">{{ sourceAccount ? sourceAccount.name : '选择转出账户' }}</text>
-          <text class="av out">-{{ amount ? formatAmount(amount) : '0.00' }}</text>
+        <!-- 子分类 -->
+        <view v-if="expandedChildren.length" class="subwrap">
+          <view v-for="c in expandedChildren" :key="c.id" class="cat" :class="{ on: categoryId === c.id }" @click="pickChild(c)">
+            <view class="cic sub" :style="{ background: catColor(c.name) }">{{ catEmoji(c.name) }}</view>
+            <text class="cl">{{ c.name }}</text>
+          </view>
         </view>
-        <text class="swap">⇅</text>
-        <view class="acc-pick" @click="sheetTarget = 'dest'">
-          <text class="ai in">↘</text>
-          <text class="at">{{ destAccount ? destAccount.name : '选择转入账户' }}</text>
-          <text class="av in">+{{ amount ? formatAmount(amount) : '0.00' }}</text>
+      </template>
+
+      <!-- 转账 -->
+      <template v-else-if="isTransfer">
+        <view class="xfer">
+          <view class="xcard" @click="sheetTarget = 'source'">
+            <text class="xic out">↗</text>
+            <view class="xinfo"><text class="xk">转出</text><text class="xn">{{ sourceAccount ? sourceAccount.name : '选择账户' }}</text></view>
+          </view>
+          <text class="swap">⇅</text>
+          <view class="xcard" @click="sheetTarget = 'dest'">
+            <text class="xic in">↘</text>
+            <view class="xinfo"><text class="xk">转入</text><text class="xn">{{ destAccount ? destAccount.name : '选择账户' }}</text></view>
+          </view>
         </view>
+      </template>
+
+      <!-- 借贷 -->
+      <template v-else>
+        <view class="seg">
+          <text class="s" :class="{ on: loanDir === 'BORROW' }" @click="loanDir = 'BORROW'">借入（待还）</text>
+          <text class="s" :class="{ on: loanDir === 'LEND' }" @click="loanDir = 'LEND'">借出（待收）</text>
+        </view>
+        <view class="lrow" @click="cpSheet = true">
+          <text class="lk">对方</text><text class="lv">{{ counterparty || '填写姓名 ›' }}</text>
+        </view>
+      </template>
+    </scroll-view>
+
+    <!-- chips -->
+    <scroll-view scroll-x class="chips" :show-scrollbar="false">
+      <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">📓 记到：{{ targetLedgerName }}</view>
+      <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
+        {{ accountTypeEmoji(sourceAccount?.type) }} {{ sourceAccount ? sourceAccount.name : '选择账户' }}
       </view>
-    </template>
+      <picker mode="date" :value="occurredDate" @change="onDateChange">
+        <view class="chip">📅 {{ dateLabel }}</view>
+      </picker>
+      <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
+    </scroll-view>
 
-    <input v-model="note" class="note" placeholder="添加备注（可选）" maxlength="200" />
+    <!-- 键盘 -->
+    <view class="kp">
+      <text class="key" @click="tapKey('7')">7</text><text class="key" @click="tapKey('8')">8</text><text class="key" @click="tapKey('9')">9</text><text class="key op" @click="tapKey('del')">⌫</text>
+      <text class="key" @click="tapKey('4')">4</text><text class="key" @click="tapKey('5')">5</text><text class="key" @click="tapKey('6')">6</text><text class="key op" @click="tapKey('−')">−</text>
+      <text class="key" @click="tapKey('1')">1</text><text class="key" @click="tapKey('2')">2</text><text class="key" @click="tapKey('3')">3</text><text class="key op" @click="tapKey('+')">＋</text>
+      <text v-if="!isEditing" class="key mini" @click="submit(true)">保存再记</text>
+      <text v-else class="key mini"> </text>
+      <text class="key" @click="tapKey('0')">0</text><text class="key" @click="tapKey('.')">.</text>
+      <text class="key done" :class="accentClass" @click="submit(false)">{{ isEditing ? '保存' : '完成' }}</text>
+    </view>
 
-    <button class="submit" :class="type" :loading="submitting" @click="submit">
-      {{ isEditing ? '保存修改' : '保存' }}
-    </button>
-
-    <!-- 账户选择底部面板 -->
+    <!-- 账户选择 -->
     <view v-if="sheetTarget" class="mask" @click="sheetTarget = null">
       <view class="sheet" @click.stop>
-        <text class="sheet-title">
-          {{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}
-        </text>
-        <view
-          v-for="a in accounts"
-          :key="a.id"
-          class="sheet-item"
-          @click="pickAccount(a)"
-        >
-          <text class="dot" :style="{ background: accountDot(a.type) }"></text>
-          <view class="s-name">
-            <text>{{ a.name }}</text>
-            <text class="s-type">{{ accountTypeLabel(a.type) }}</text>
-          </view>
-          <text class="s-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
+        <text class="sheet-title">{{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}</text>
+        <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
+          <text class="si-ic">{{ accountTypeEmoji(a.type) }}</text>
+          <view class="si-name"><text>{{ a.name }}</text><text class="si-type">{{ accountTypeLabel(a.type) }}</text></view>
+          <text class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
         </view>
       </view>
     </view>
+
+    <!-- 目标账本选择 -->
+    <view v-if="showLedgerSheet" class="mask" @click="showLedgerSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">记到哪个账本</text>
+        <view v-for="l in ledgerStore.ledgers" :key="l.id" class="sitem" @click="pickTargetLedger(l.id)">
+          <text class="si-ic">📓</text>
+          <view class="si-name"><text>{{ l.name }}</text></view>
+          <text class="radio" :class="{ on: l.id === targetLedgerId }"></text>
+        </view>
+      </view>
+    </view>
+
+    <InputSheet :visible="noteSheet" title="备注" placeholder="添加备注" :value="note" @update:visible="noteSheet = $event" @confirm="onNoteConfirm" />
+    <InputSheet :visible="cpSheet" title="对方" placeholder="姓名 / 备注" :value="counterparty" @update:visible="cpSheet = $event" @confirm="onCpConfirm" />
   </view>
 </template>
 
 <style scoped>
-.page {
+.rec {
   --accent: #f0553d;
   min-height: 100vh;
-  padding: 24rpx;
-  background: #eef0f2;
-}
-.page.income {
-  --accent: #12a150;
-}
-.page.transfer {
-  --accent: #8a94a6;
-}
-
-/* 类型 tab（下划线激活） */
-.tabs {
+  background: #fff;
   display: flex;
-  justify-content: center;
-  gap: 56rpx;
-  padding: 16rpx 0 24rpx;
+  flex-direction: column;
 }
-.tab {
-  position: relative;
-  font-size: 32rpx;
-  color: #9ca3af;
-  padding: 8rpx 4rpx;
-}
-.tab.active {
-  color: #1f2937;
-  font-weight: 800;
-}
-.tab.active::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: -4rpx;
-  width: 44rpx;
-  height: 6rpx;
-  border-radius: 4rpx;
-  background: #16a34a;
-}
+.rec.inc { --accent: #12a150; }
+.rec.tr { --accent: #8a94a6; }
 
-/* 归属账本行 */
-.ledger-row {
+.rnav {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 30rpx 32rpx;
-  margin-bottom: 20rpx;
+  height: 88rpx;
+  padding: 0 28rpx;
 }
-.lr-k {
-  font-size: 30rpx;
-  color: #6b7280;
-}
-.lr-v {
-  font-size: 30rpx;
-  color: #16a34a;
-  font-weight: 600;
-}
+.rnav .x { font-size: 40rpx; color: #5b6470; }
+.rnav .title { font-size: 32rpx; font-weight: 800; }
+.rnav .save { font-size: 28rpx; color: var(--accent); font-weight: 700; }
 
-/* 金额 */
-.amount-card {
-  display: flex;
-  align-items: center;
-  background: #fff;
-  border-radius: 24rpx;
-  padding: 28rpx 36rpx;
-  margin-bottom: 24rpx;
+.types {
+  white-space: nowrap;
+  padding: 0 20rpx 12rpx;
 }
-.cur {
-  font-size: 48rpx;
-  color: #5b6470;
+.ty {
+  display: inline-block;
+  font-size: 32rpx;
   font-weight: 700;
-  margin-right: 16rpx;
+  color: #9aa2ad;
+  padding: 8rpx 22rpx;
 }
-.amount {
-  flex: 1;
-  font-size: 64rpx;
-  font-weight: 800;
+.ty.on {
   color: #16181c;
 }
-
-/* 分类网格 */
-.cats {
-  display: flex;
-  flex-wrap: wrap;
-  background: #fff;
-  border-radius: 24rpx;
-  padding: 28rpx 12rpx;
-  margin-bottom: 24rpx;
-}
-.cat {
-  width: 20%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
-  padding: 14rpx 0;
-}
-.cat-circle {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 50%;
-  text-align: center;
-  line-height: 96rpx;
-  font-size: 44rpx;
-}
-.cat.active .cat-circle {
-  box-shadow: 0 0 0 4rpx #fff, 0 0 0 8rpx #16a34a;
-}
-.cat-nm {
-  font-size: 22rpx;
-  color: #4b5563;
-  max-width: 130rpx;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.cat.active .cat-nm {
-  color: #15803d;
-  font-weight: 700;
-}
-.cats-empty {
-  background: #fff;
-  border-radius: 24rpx;
-  padding: 48rpx;
-  text-align: center;
-  color: #6b7280;
-  font-size: 28rpx;
-  margin-bottom: 24rpx;
-}
-.link {
-  color: #16a34a;
-  font-weight: 600;
-}
-
-/* 账户行 */
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 32rpx;
-  margin-bottom: 24rpx;
-}
-.row-label {
-  font-size: 30rpx;
-  color: #6b7280;
-}
-.row-value {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  font-size: 30rpx;
-  color: #1f2937;
-}
-.caret {
-  color: #9ca3af;
-  font-size: 22rpx;
-}
-.dot {
-  width: 16rpx;
-  height: 16rpx;
-  border-radius: 50%;
-}
-
-/* 转账 */
-.transfer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20rpx;
-  margin-bottom: 24rpx;
-}
-.acc-pick {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx;
-  box-sizing: border-box;
-}
-.ai {
-  width: 60rpx;
-  height: 60rpx;
-  border-radius: 16rpx;
-  text-align: center;
-  line-height: 60rpx;
-  font-size: 30rpx;
-  background: #ecfdf3;
-  color: #16a34a;
-}
-.at {
-  flex: 1;
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #1f2937;
-}
-.av.out { color: #f0553d; font-weight: 800; }
-.av.in { color: #12a150; font-weight: 800; }
-.swap {
-  width: 60rpx;
-  height: 60rpx;
-  border-radius: 50%;
-  border: 2rpx solid #e5e7eb;
-  text-align: center;
-  line-height: 60rpx;
-  color: #9ca3af;
-}
-
-.note {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 32rpx;
-  font-size: 30rpx;
-  margin-bottom: 32rpx;
-}
-.submit {
-  background: #12a150;
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
-}
-.submit.expense {
-  background: #f0553d;
-}
-.submit.transfer {
-  background: #8a94a6;
-}
-
-/* 底部面板 */
-.mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.4);
-  display: flex;
-  align-items: flex-end;
-}
-.sheet {
-  width: 100%;
-  background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
-  padding: 36rpx 32rpx calc(36rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-}
-.sheet-title {
+.ty.on::after {
+  content: '';
   display: block;
-  font-size: 30rpx;
-  font-weight: 800;
-  margin-bottom: 20rpx;
+  height: 6rpx;
+  width: 40rpx;
+  margin: 6rpx auto 0;
+  border-radius: 4rpx;
+  background: var(--accent);
 }
-.sheet-item {
+
+.amt {
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  padding: 26rpx 8rpx;
-  border-top: 1rpx solid #eef0f2;
+  gap: 14rpx;
+  padding: 16rpx 32rpx 22rpx;
+  border-bottom: 1rpx solid #f1f3f5;
 }
-.sheet-item:first-of-type {
-  border-top: none;
-}
-.s-name {
+.cur { font-size: 40rpx; color: #5b6470; font-weight: 700; }
+.amtv { flex: 1; font-size: 68rpx; font-weight: 800; color: #16181c; letter-spacing: -0.02em; }
+.amtv.ph { color: #c7ccd2; }
+.cursor { display: inline-block; width: 3rpx; height: 52rpx; background: var(--accent); margin-left: 4rpx; vertical-align: -8rpx; }
+
+.main {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
+  min-height: 240rpx;
 }
-.s-type {
-  font-size: 22rpx;
-  color: #9ca3af;
+.cgrid { display: flex; flex-wrap: wrap; padding: 16rpx 8rpx 4rpx; }
+.cat { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 16rpx 0; }
+.cic {
+  width: 96rpx; height: 96rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 46rpx; position: relative;
 }
-.s-bal {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: #1f2937;
+.cic.sub { width: 80rpx; height: 80rpx; font-size: 38rpx; }
+.cat.on .cic { box-shadow: 0 0 0 4rpx #fff, 0 0 0 8rpx var(--accent); }
+.subdot {
+  position: absolute; right: -2rpx; bottom: -2rpx;
+  width: 30rpx; height: 30rpx; border-radius: 50%;
+  background: #fff; color: #9aa2ad; font-size: 18rpx;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.15);
 }
-.s-bal.neg {
-  color: #dc2626;
+.cl { font-size: 22rpx; color: #5b6470; max-width: 120rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cat.on .cl { color: #16181c; font-weight: 700; }
+.subwrap {
+  display: flex; flex-wrap: wrap;
+  background: #f6f7f9; border-radius: 18rpx; margin: 4rpx 20rpx 12rpx; padding: 10rpx 4rpx;
 }
+.subwrap .cat { width: 20%; }
+.cempty { padding: 60rpx 40rpx; text-align: center; color: #6b7280; font-size: 28rpx; }
+.link { color: #12a150; font-weight: 700; }
+
+.xfer { display: flex; flex-direction: column; align-items: center; gap: 16rpx; padding: 24rpx; }
+.xcard { width: 100%; display: flex; align-items: center; gap: 18rpx; background: #f6f7f9; border-radius: 18rpx; padding: 26rpx; }
+.xic { width: 60rpx; height: 60rpx; border-radius: 16rpx; text-align: center; line-height: 60rpx; font-size: 30rpx; }
+.xic.out { background: #fdece8; color: #f0553d; }
+.xic.in { background: #e6f6ec; color: #12a150; }
+.xinfo { display: flex; flex-direction: column; gap: 4rpx; }
+.xk { font-size: 22rpx; color: #9aa2ad; }
+.xn { font-size: 30rpx; font-weight: 700; color: #16181c; }
+.swap { width: 60rpx; height: 60rpx; border-radius: 50%; background: #fff; box-shadow: 0 6rpx 16rpx rgba(0,0,0,0.08); text-align: center; line-height: 60rpx; color: #8a94a6; margin: -6rpx 0; }
+
+.seg { display: flex; background: #f6f7f9; border-radius: 14rpx; padding: 6rpx; margin: 20rpx 24rpx; }
+.seg .s { flex: 1; text-align: center; padding: 18rpx 0; font-size: 28rpx; font-weight: 700; color: #5b6470; border-radius: 10rpx; }
+.seg .s.on { background: #fff; color: #16181c; box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.06); }
+.lrow { display: flex; justify-content: space-between; align-items: center; margin: 0 24rpx; padding: 28rpx 0; border-top: 1rpx solid #f1f3f5; }
+.lk { font-size: 30rpx; color: #5b6470; }
+.lv { font-size: 30rpx; font-weight: 600; color: #16181c; }
+
+.chips { white-space: nowrap; padding: 12rpx 20rpx; border-top: 1rpx solid #f1f3f5; }
+.chip {
+  display: inline-flex; align-items: center;
+  background: #f6f7f9; border-radius: 999rpx; padding: 12rpx 22rpx; margin-right: 12rpx;
+  font-size: 24rpx; color: #5b6470;
+}
+.chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; }
+
+.kp {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rpx;
+  background: #e4e7ec;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.key {
+  background: #fbfbfc; height: 108rpx;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44rpx; font-weight: 600; color: #16181c;
+}
+.key.op { color: #5b6470; }
+.key.mini { font-size: 26rpx; color: #5b6470; font-weight: 700; }
+.key.done { background: var(--accent); color: #fff; font-weight: 800; font-size: 32rpx; }
+
+.mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 50; }
+.sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.sheet-title { display: block; text-align: center; font-size: 30rpx; font-weight: 800; margin-bottom: 16rpx; }
+.sitem { display: flex; align-items: center; gap: 20rpx; padding: 24rpx 8rpx; border-top: 1rpx solid #f1f3f5; }
+.sitem:first-of-type { border-top: none; }
+.si-ic { width: 60rpx; height: 60rpx; border-radius: 16rpx; background: #f6f7f9; text-align: center; line-height: 60rpx; font-size: 32rpx; }
+.si-name { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
+.si-type { font-size: 22rpx; color: #9aa2ad; }
+.si-bal { font-size: 30rpx; font-weight: 700; }
+.si-bal.neg { color: #e5484d; }
+.radio { width: 36rpx; height: 36rpx; border-radius: 50%; border: 3rpx solid #d1d5db; box-sizing: border-box; }
+.radio.on { border-color: #12a150; background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%); }
 </style>
