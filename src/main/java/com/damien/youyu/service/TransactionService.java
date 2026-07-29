@@ -119,6 +119,29 @@ public class TransactionService {
             Long destinationAccountId,
             LocalDateTime occurredAt,
             String rawNote) {
+        return create(scope, ledgerId, rawType, rawAmount, accountId, categoryId,
+                sourceAccountId, destinationAccountId, occurredAt, rawNote, null);
+    }
+
+    /**
+     * 创建交易的完整重载：支持协作代记（{@code createdByOverride} 指定记账人）。
+     *
+     * <p>{@code createdByOverride} 为 null 时以会话用户 {@code scope.userId()} 为记账人；
+     * 非 null 时以其为记账人（调用方须已校验协作账本 + 成员归属）。</p>
+     */
+    @Transactional
+    public Transaction create(
+            AccountScope scope,
+            Long ledgerId,
+            String rawType,
+            BigDecimal rawAmount,
+            Long accountId,
+            Long categoryId,
+            Long sourceAccountId,
+            Long destinationAccountId,
+            LocalDateTime occurredAt,
+            String rawNote,
+            Long createdByOverride) {
 
         // ---- 校验前置：任何余额变更前完成，失败即零副作用（需求 4.4、4.5、4.8、4.9）----
         TransactionType type = validateType(rawType);
@@ -138,7 +161,7 @@ public class TransactionService {
 
         Transaction tx = new Transaction();
         tx.setLedgerId(ledgerId);
-        tx.setCreatedBy(scope.userId());
+        tx.setCreatedBy(createdByOverride != null ? createdByOverride : scope.userId());
         tx.setCreatedAt(now);
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);

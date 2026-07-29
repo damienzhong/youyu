@@ -16,6 +16,9 @@ import java.time.LocalDateTime;
  *
  * <p>{@code occurredAt} 缺省取当前时间；{@code note} 可选（<=200）。任何请求体传入的 user_id
  * 一律被忽略，落库以会话用户为准（需求 2.2）。</p>
+ *
+ * <p>{@code createdBy}（可选）：协作账本代记场景下指定记账人。仅当当前账本为 COLLABORATIVE 且该用户为
+ * 账本成员时生效，否则忽略、以会话用户为记账人。</p>
  */
 public record TransactionCreateRequest(
         String type,
@@ -25,5 +28,6 @@ public record TransactionCreateRequest(
         Long sourceAccountId,
         Long destinationAccountId,
         LocalDateTime occurredAt,
-        String note) {
+        String note,
+        Long createdBy) {
 }

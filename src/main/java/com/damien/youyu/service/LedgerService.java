@@ -144,6 +144,12 @@ public class LedgerService {
         return requireAccessible(userId, ledgerId);
     }
 
+    /** 某用户是否为某账本成员（协作代记校验记账人归属用）。 */
+    @Transactional(readOnly = true)
+    public boolean isMember(Long ledgerId, Long userId) {
+        return memberRepository.existsByLedgerIdAndUserId(ledgerId, userId);
+    }
+
     /** 返回当前用户在某账本的角色（OWNER/EDITOR），非成员返回 null。 */
     @Transactional(readOnly = true)
     public String roleOf(Long userId, Long ledgerId) {

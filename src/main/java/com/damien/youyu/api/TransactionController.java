@@ -28,6 +28,7 @@ import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.AccountScope;
+import com.damien.youyu.service.LedgerService;
 import com.damien.youyu.service.TransactionService;
 
 /**
@@ -51,12 +52,15 @@ public class TransactionController {
     private static final int MAX_PAGE_SIZE = 200;
 
     private final TransactionService transactionService;
+    private final LedgerService ledgerService;
     private final CurrentLedger currentLedger;
     private final CurrentUser currentUser;
 
     public TransactionController(TransactionService transactionService,
+            LedgerService ledgerService,
             CurrentLedger currentLedger, CurrentUser currentUser) {
         this.transactionService = transactionService;
+        this.ledgerService = ledgerService;
         this.currentLedger = currentLedger;
         this.currentUser = currentUser;
     }
@@ -65,7 +69,15 @@ public class TransactionController {
     @PostMapping
     public ResponseEntity<TransactionResponse> create(@RequestBody TransactionCreateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long userId = currentUser.requireUserId();
+        AccountScope scope = AccountScope.forLedger(userId, ledger);
+        // 协作代记：仅协作账本、且指定记账人为账本成员时生效，否则以会话用户为记账人。
+        Long createdBy = null;
+        if (req.createdBy() != null
+                && "COLLABORATIVE".equals(ledger.getType())
+                && ledgerService.isMember(ledger.getId(), req.createdBy())) {
+            createdBy = req.createdBy();
+        }
         Transaction tx = transactionService.create(
                 scope,
                 ledger.getId(),
@@ -76,7 +88,8 @@ public class TransactionController {
                 req.sourceAccountId(),
                 req.destinationAccountId(),
                 req.occurredAt(),
-                req.note());
+                req.note(),
+                createdBy);
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
     }
 

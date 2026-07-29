@@ -5,10 +5,13 @@ import { listAccounts, accountTypeEmoji, accountTypeLabel } from '../../api/acco
 import { listCategories } from '../../api/category'
 import { createTransaction, getTransaction, updateTransaction } from '../../api/transaction'
 import { createLoan } from '../../api/loan'
+import { listMembers } from '../../api/ledger'
 import { useLedgerStore } from '../../stores/ledger'
+import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
+const authStore = useAuthStore()
 
 const TYPES = [
   { value: 'expense', label: '支出' },
@@ -157,18 +160,61 @@ function pickTargetLedger(id) {
   showLedgerSheet.value = false
   categoryId.value = null
   expandedId.value = null
+  createdBy.value = null
   load()
+}
+
+// ---------- 协作代记（记账人）----------
+// 目标账本：全部模式/带参用 targetLedgerId 对应的账本，否则用当前账本。
+const effectiveLedger = computed(() => {
+  if (targetLedgerId.value) {
+    return (ledgerStore.ledgers || []).find((l) => l.id === targetLedgerId.value) || null
+  }
+  return ledgerStore.current
+})
+// 仅协作账本、且新增（非编辑）时可指定记账人。
+const isCollaborative = computed(
+  () => !isEditing.value && effectiveLedger.value?.type === 'COLLABORATIVE'
+)
+const selfId = computed(() => authStore.user?.id ?? null)
+const members = ref([])
+const memberSheet = ref(false)
+const createdBy = ref(null) // null = 记为自己
+const recorderName = computed(() => {
+  const uid = createdBy.value
+  if (uid == null || uid === selfId.value) return '我'
+  const m = members.value.find((x) => x.userId === uid)
+  return m ? m.displayName || '成员' : '成员'
+})
+async function openMemberSheet() {
+  const lid = effectiveLedger.value?.id
+  if (!lid) return
+  try {
+    members.value = await listMembers(lid)
+  } catch (e) {
+    members.value = []
+  }
+  memberSheet.value = true
+}
+function pickMember(uid) {
+  createdBy.value = uid
+  memberSheet.value = false
+}
+function memberLabel(m) {
+  if (m.userId === selfId.value) return m.displayName ? `${m.displayName}（我）` : '我'
+  return m.displayName || '成员'
 }
 
 onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
+  // 确保账本列表就绪，用于判断目标账本是否为协作账本（协作代记入口）。
+  try {
+    if (!ledgerStore.ledgers.length) await ledgerStore.load()
+  } catch (e) {
+    /* ignore */
+  }
   if (q && q.ledgerId) targetLedgerId.value = Number(q.ledgerId)
   else if (!isEditing.value && ledgerStore.isAll) {
-    try {
-      if (!ledgerStore.ledgers.length) await ledgerStore.load()
-    } catch (e) {
-      /* ignore */
-    }
     const def = ledgerStore.ledgers.find((l) => l.isDefault) || ledgerStore.ledgers[0]
     targetLedgerId.value = def ? def.id : null
   }
@@ -250,6 +296,10 @@ async function submit(cont) {
     return
   }
   const payload = { type: type.value, amount: String(amount), occurredAt: occurredAtIso(), note: note.value.trim() || undefined }
+  // 协作代记：指定了非自己的记账人时带上（后端二次校验：协作账本且为成员才生效）。
+  if (isCollaborative.value && createdBy.value != null && createdBy.value !== selfId.value) {
+    payload.createdBy = createdBy.value
+  }
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
@@ -387,6 +437,7 @@ function goBack() {
     <!-- chips -->
     <scroll-view scroll-x class="chips" :show-scrollbar="false">
       <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">📓 记到：{{ targetLedgerName }}</view>
+      <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">👤 记账人：{{ recorderName }}</view>
       <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
         {{ accountTypeEmoji(sourceAccount?.type) }} {{ sourceAccount ? sourceAccount.name : '选择账户' }}
       </view>
@@ -428,6 +479,25 @@ function goBack() {
           <view class="si-name"><text>{{ l.name }}</text></view>
           <text class="radio" :class="{ on: l.id === targetLedgerId }"></text>
         </view>
+      </view>
+    </view>
+
+    <!-- 记账人选择（协作账本代记）-->
+    <view v-if="memberSheet" class="mask" @click="memberSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">这笔记在谁名下</text>
+        <view class="sitem" @click="pickMember(null)">
+          <text class="si-ic">🙋</text>
+          <view class="si-name"><text>我</text></view>
+          <text class="radio" :class="{ on: createdBy == null || createdBy === selfId }"></text>
+        </view>
+        <template v-for="m in members" :key="m.userId">
+          <view v-if="m.userId !== selfId" class="sitem" @click="pickMember(m.userId)">
+            <text class="si-ic">👤</text>
+            <view class="si-name"><text>{{ memberLabel(m) }}</text><text class="si-type">{{ m.role === 'OWNER' ? '创建者' : '成员' }}</text></view>
+            <text class="radio" :class="{ on: createdBy === m.userId }"></text>
+          </view>
+        </template>
       </view>
     </view>
 
