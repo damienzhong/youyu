@@ -67,6 +67,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findByLedgerIdAndTagId(
             @Param("ledgerId") Long ledgerId, @Param("tagId") Long tagId);
 
+    /** 搜索：某账本备注包含关键词（忽略大小写）。 */
+    List<Transaction> findByLedgerIdAndNoteContainingIgnoreCase(Long ledgerId, String q);
+
+    /** 搜索：某账本金额等于给定值。 */
+    List<Transaction> findByLedgerIdAndAmount(Long ledgerId, BigDecimal amount);
+
+    /** 搜索：某账本、分类在给定集合内。 */
+    List<Transaction> findByLedgerIdAndCategoryIdIn(Long ledgerId, Collection<Long> categoryIds);
+
+    /** 搜索：某账本、商家在给定集合内。 */
+    List<Transaction> findByLedgerIdAndMerchantIdIn(Long ledgerId, Collection<Long> merchantIds);
+
     /** 跨多个账本、在半开区间内的交易，按时间倒序（「全部账本」聚合只读视图用）。 */
     List<Transaction> findByLedgerIdInAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
             Collection<Long> ledgerIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);

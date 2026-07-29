@@ -21,6 +21,11 @@ export function filterTransactions(dim, id, ledgerId) {
   return http.get(`/transactions/filter?${key}=${id}`, opts(ledgerId))
 }
 
+/** 关键词搜索流水（跨月，命中备注/分类/商家/标签/金额）。 */
+export function searchTransactions(q, ledgerId) {
+  return http.get(`/transactions/search?q=${encodeURIComponent(q)}`, opts(ledgerId))
+}
+
 /** 列出某自然月交易（month=YYYY-MM，按时间倒序）。 */
 export function listTransactionsByMonth(month, ledgerId) {
   return http.get(`/transactions?month=${encodeURIComponent(month)}`, opts(ledgerId))

@@ -34,6 +34,7 @@ import com.damien.youyu.service.LedgerService;
 import com.damien.youyu.service.MerchantService;
 import com.damien.youyu.service.ProjectService;
 import com.damien.youyu.service.TagService;
+import com.damien.youyu.service.TransactionSearchService;
 import com.damien.youyu.service.TransactionService;
 
 /**
@@ -61,18 +62,21 @@ public class TransactionController {
     private final ProjectService projectService;
     private final MerchantService merchantService;
     private final TagService tagService;
+    private final TransactionSearchService searchService;
     private final CurrentLedger currentLedger;
     private final CurrentUser currentUser;
 
     public TransactionController(TransactionService transactionService,
             LedgerService ledgerService, ProjectService projectService,
             MerchantService merchantService, TagService tagService,
+            TransactionSearchService searchService,
             CurrentLedger currentLedger, CurrentUser currentUser) {
         this.transactionService = transactionService;
         this.ledgerService = ledgerService;
         this.projectService = projectService;
         this.merchantService = merchantService;
         this.tagService = tagService;
+        this.searchService = searchService;
         this.currentLedger = currentLedger;
         this.currentUser = currentUser;
     }
@@ -206,6 +210,13 @@ public class TransactionController {
         FilteredTransactionsResponse body = new FilteredTransactionsResponse(
                 expense, income, txs.size(), withTags(txs));
         return ResponseEntity.ok(body);
+    }
+
+    /** 关键词搜索本人流水（跨月，命中备注/分类/商家/标签/金额），按时间倒序，附标签。 */
+    @GetMapping("/search")
+    public ResponseEntity<List<TransactionResponse>> search(@RequestParam(name = "q") String q) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(withTags(searchService.search(ledgerId, q)));
     }
 
     /** 单条读取本人交易（校验归属）。 */
