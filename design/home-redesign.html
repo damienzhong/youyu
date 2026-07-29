@@ -3,217 +3,570 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>有余 · 首页改版原型</title>
+<title>有余 · 首页改版原型（全场景）</title>
 <style>
   :root{
     --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
     --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
     --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
-    --exp:#f0553d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b;
+    --exp:#f0553d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b; --danger:#e5484d;
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
-  .doc{max-width:1180px;margin:0 auto;padding:48px 24px 90px;}
+  .doc{max-width:1560px;margin:0 auto;padding:48px 24px 90px;}
   .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
-  .sub{font-size:15px;color:var(--ink-2);max-width:760px;line-height:1.7;margin:0 0 34px;}
-  .screens{display:flex;flex-wrap:wrap;gap:38px;}
-  .pw{width:360px;}
-  .cap{font-size:16px;font-weight:800;margin:0 0 4px;}
-  .note{font-size:13px;color:var(--ink-2);margin:0 0 14px;line-height:1.6;min-height:52px;}
-  .phone{width:360px;height:760px;background:#fff;border-radius:44px;padding:12px;
-    box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
-  .screen{width:100%;height:100%;border-radius:33px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
-  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:150px;height:26px;background:#fff;border-radius:0 0 18px 18px;z-index:30;}
-  .sb{height:38px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 4px;font-size:12px;font-weight:700;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:900px;line-height:1.7;margin:0 0 20px;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:44px 0 18px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.55;min-height:50px;}
+  .phone{width:340px;height:724px;background:#fff;border-radius:42px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.15),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:140px;height:24px;background:#fff;border-radius:0 0 16px 16px;z-index:30;}
+  .sb{height:36px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;}
   .sb.onb{color:#fff;}
-  .body{flex:1;overflow-y:auto;}
+  .body{flex:1;overflow-y:auto;position:relative;}
   .body::-webkit-scrollbar{width:0;}
-  .pad{padding:0 16px;}
-  .hero{background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);color:#fff;padding:6px 18px 22px;border-radius:0 0 26px 26px;position:relative;overflow:hidden;}
-  .hero::after{content:"";position:absolute;right:-40px;top:-30px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08);}
-  .hnav{display:flex;align-items:center;justify-content:space-between;height:40px;position:relative;z-index:2;}
-  .ledger{display:flex;align-items:center;gap:6px;font-weight:800;font-size:16px;}
-  .hicons{display:flex;gap:16px;font-size:17px;opacity:.95;}
+  .pad{padding:0 15px;}
+  .hero{background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);color:#fff;padding:5px 17px 20px;border-radius:0 0 24px 24px;position:relative;overflow:hidden;}
+  .hero.agg{background:linear-gradient(155deg,#2b3a34,#1f2a30 78%);}
+  .hero::after{content:"";position:absolute;right:-40px;top:-30px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hnav{display:flex;align-items:center;justify-content:space-between;height:38px;position:relative;z-index:2;}
+  .ledger{display:flex;align-items:center;gap:6px;font-weight:800;font-size:15px;}
+  .hicons{display:flex;gap:15px;font-size:16px;opacity:.95;}
   .balrow{display:flex;align-items:flex-end;justify-content:space-between;position:relative;z-index:2;margin-top:2px;}
-  .bal-k{font-size:12px;opacity:.85;}
-  .bal-v{font-size:40px;font-weight:800;letter-spacing:-.02em;line-height:1.1;}
-  .bal-v small{font-size:20px;opacity:.8;}
-  .io{text-align:right;font-size:12px;opacity:.92;line-height:1.9;}
-  .card{background:#fff;border-radius:18px;box-shadow:0 6px 22px rgba(20,24,28,.05);}
-  .quick{display:flex;justify-content:space-around;padding:16px 4px;margin-top:-14px;}
-  .qa{display:flex;flex-direction:column;align-items:center;gap:7px;}
-  .qa .ic{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;}
-  .qa .l{font-size:12px;color:var(--ink-2);}
-  .budget{margin-top:12px;padding:16px;}
+  .bal-k{font-size:11px;opacity:.85;}
+  .bal-v{font-size:36px;font-weight:800;letter-spacing:-.02em;line-height:1.15;}
+  .bal-v small{font-size:18px;opacity:.8;}
+  .bal-v.neg{color:#ffd9d0;}
+  .io{text-align:right;font-size:11px;opacity:.92;line-height:1.85;}
+  .card{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);}
+  .quick{display:flex;justify-content:space-around;padding:14px 3px;margin-top:-14px;position:relative;z-index:2;}
+  .qa{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .qa .ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;}
+  .qa .l{font-size:11px;color:var(--ink-2);}
+  .budget{margin-top:12px;padding:15px;}
   .brow{display:flex;justify-content:space-between;align-items:center;}
-  .btitle{font-size:14px;font-weight:700;}
-  .bsmall{font-size:12px;color:var(--ink-3);}
-  .barbg{height:8px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:12px 0 8px;}
+  .btitle{font-size:13px;font-weight:700;}
+  .bsmall{font-size:11px;color:var(--ink-3);}
+  .barbg{height:8px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:11px 0 7px;}
   .bar{height:100%;border-radius:6px;background:var(--brand);}
-  .bar.warn{background:var(--warn);}
-  .dayh{display:flex;justify-content:space-between;padding:16px 6px 8px;font-size:12px;color:var(--ink-3);font-weight:600;}
-  .tx{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);}
+  .bar.warn{background:var(--warn);} .bar.over{background:var(--danger);}
+  .mcard{margin-top:12px;padding:14px 15px;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
+  .chip{display:flex;align-items:center;gap:7px;background:var(--surface-2);border-radius:999px;padding:6px 11px;font-size:11px;color:var(--ink-2);}
+  .av{width:17px;height:17px;border-radius:50%;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;}
+  .dayh{display:flex;justify-content:space-between;padding:15px 5px 7px;font-size:11px;color:var(--ink-3);font-weight:600;}
+  .tx{display:flex;align-items:center;gap:11px;padding:12px 15px;border-top:1px solid var(--line);}
   .tx:first-child{border-top:none;}
-  .cic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .cic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex:0 0 auto;}
   .tinfo{flex:1;min-width:0;}
-  .tname{font-size:15px;font-weight:600;}
-  .tacc{font-size:12px;color:var(--ink-3);margin-top:3px;}
-  .tamt{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .tname{font-size:14px;font-weight:600;}
+  .tacc{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .tamt{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
   .tamt.exp{color:var(--exp);}.tamt.inc{color:var(--inc);}.tamt.tr{color:var(--tr);}
-  .tabbar{height:60px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;}
-  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--ink-3);flex:1;}
-  .tab .ic{font-size:19px;}
+  .tabbar{height:56px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--ink-3);flex:1;}
+  .tab .ic{font-size:18px;}
   .tab.on{color:var(--brand-600);}
-  .fab{position:absolute;right:20px;bottom:74px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px rgba(18,161,80,.45);z-index:20;}
-  .legend{margin-top:14px;font-size:13px;color:var(--ink-2);line-height:1.9;}
-  .legend b{color:var(--brand-600);}
-  .tag{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-weak);color:var(--brand-600);border-radius:999px;padding:2px 9px;margin-right:6px;}
+  .fab{position:absolute;right:18px;bottom:70px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 26px rgba(18,161,80,.45);z-index:20;}
+  .empty{padding:40px 24px;text-align:center;}
+  .empty .em{font-size:60px;}
+  .empty .et{font-size:18px;font-weight:800;margin-top:10px;}
+  .empty .es{font-size:13px;color:var(--ink-2);margin-top:8px;line-height:1.7;}
+  .ebtn{margin-top:18px;height:44px;border-radius:999px;background:var(--brand);color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 26px rgba(18,161,80,.28);}
+  .elink{margin-top:12px;font-size:13px;color:var(--brand-600);font-weight:700;}
+  .banner{margin:12px 15px 0;background:var(--brand-weak);border-radius:14px;padding:12px 14px;font-size:12px;color:var(--brand-600);display:flex;align-items:center;gap:8px;}
+  .ovl{position:absolute;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:flex-end;z-index:40;}
+  .sheet{width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px;max-height:78%;}
+  .shd{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px;}
+  .shd b{font-size:15px;}
+  .sitem{display:flex;align-items:center;gap:12px;padding:13px 6px;border-top:1px solid var(--line);}
+  .sitem:first-of-type{border-top:none;}
+  .radio{width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;}
+  .radio.on{border-color:var(--brand);background:radial-gradient(circle,#12a150 0 5px,#fff 6px);}
+  .moregrid{display:flex;flex-wrap:wrap;padding:6px 0;}
+  .mi{width:25%;display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 0;}
+  .mi .ic{width:48px;height:48px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .mi .l{font-size:11px;color:var(--ink-2);}
+  .agtag{display:inline-block;font-size:10px;font-weight:700;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:2px 8px;margin-top:6px;}
+  .readonly{font-size:11px;color:var(--ink-3);text-align:center;padding:8px;}
+  .legend{margin-top:34px;font-size:13px;color:var(--ink-2);line-height:1.9;}
+  .legend .tag{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-weak);color:var(--brand-600);border-radius:999px;padding:2px 9px;margin-right:6px;}
 </style>
 </head>
 <body>
 <div class="doc">
-  <div class="h1">有余 · 首页改版原型</div>
-  <p class="sub">吸收竞品：<b>A</b> 流水显示账户名+卡号后四位、<b>B</b> 月预算进度卡、<b>C</b> 快捷入口加「更多」、彩色分类图标。左为主方案；右为叠加 <b>D</b> 顶部图标行（搜索/日历/统计）的变体。</p>
+  <div class="h1">有余 · 首页改版原型（全场景）</div>
+  <p class="sub">主布局＝主方案；覆盖新手/空态、独立账本各预算与结余状态、协作账本、全部账本聚合、账本切换与「更多」弹层，末尾附 +D 顶部图标行变体。吸收点：A 流水带账户名+卡号、B 预算进度卡、C「更多」入口、彩色分类图标。</p>
+  <div class="sec">A · 新手 / 空态</div>
   <div class="screens">
 
-    <!-- 主方案 A+B+C -->
+    <!-- 1 全新用户 -->
     <div class="pw">
-      <p class="cap">主方案（A+B+C）</p>
-      <p class="note">Hero 主数字＝月结余，右侧收支；预算进度卡；快捷入口末位「更多」；流水带账户名+卡号后四位与彩色分类图标。</p>
+      <p class="cap"><span class="n">1</span> 全新用户（无账户/无流水）</p>
+      <p class="note">首屏不空白：概览为 0 + 三步引导卡，明确下一步；可直接导入账单。</p>
       <div class="phone"><div class="notch"></div><div class="screen">
-        <div class="sb onb"><span>12:32</span><span>5G ▮▮▮</span></div>
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
         <div class="body">
           <div class="hero">
-            <div class="hnav">
-              <div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div>
-              <div class="hicons"><span>🔍</span><span>🔔</span></div>
-            </div>
-            <div class="balrow">
-              <div>
-                <div class="bal-k">2026年7月 · 月结余</div>
-                <div class="bal-v">¥38,550<small>.20</small></div>
-              </div>
-              <div class="io"><div>收入 42,453.80</div><div>支出 3,903.60</div></div>
-            </div>
+            <div class="hnav"><div class="ledger">🏠 我的账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥0<small>.00</small></div></div><div class="io"><div>收入 0.00</div><div>支出 0.00</div></div></div>
           </div>
-          <!-- 快捷（含更多） -->
           <div class="pad">
-            <div class="card quick">
-              <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
-              <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
-              <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
-              <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
-              <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+            <div class="card empty" style="margin-top:12px;">
+              <div class="em">🌱</div><div class="et">开始记录第一笔</div>
+              <div class="es">三步搞定：建账户 → 记一笔 → 看报表</div>
+              <div class="ebtn">＋ 记一笔</div>
+              <div class="elink">导入支付宝 / 微信账单 →</div>
+            </div>
+            <div class="card" style="margin-top:14px;padding:4px 0;">
+              <div class="tx"><div class="cic" style="background:var(--brand)">①</div><div class="tinfo"><div class="tname">创建账户</div></div><span class="bsmall" style="color:var(--inc)">已完成 ✓</span></div>
+              <div class="tx"><div class="cic" style="background:#cbd3db">②</div><div class="tinfo"><div class="tname">记第一笔</div></div><span class="bsmall">›</span></div>
+              <div class="tx"><div class="cic" style="background:#cbd3db">③</div><div class="tinfo"><div class="tname" style="color:var(--ink-3)">查看报表</div></div><span class="bsmall">›</span></div>
             </div>
           </div>
-          <!-- 预算进度卡 -->
-          <div class="pad"><div class="card budget">
-            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">剩余 ¥1,096 · 71%</span></div>
-            <div class="barbg"><div class="bar warn" style="width:71%"></div></div>
-            <div class="brow"><span class="bsmall">已用 3,903 / 5,000</span><span class="bsmall" style="color:var(--warn)">预警</span></div>
-          </div></div>
-          <!-- 流水 -->
-          <div class="pad">
-            <div class="dayh"><span>07/06 周一</span><span>收 0.00 · 支 44.30</span></div>
-            <div class="card">
-              <div class="tx"><div class="cic" style="background:#3ba55d">Ⓟ</div>
-                <div class="tinfo"><div class="tname">停车费</div><div class="tacc">平安银行信用卡(0713)</div></div>
-                <div class="tamt exp">-10.50</div></div>
-              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
-                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">平安银行信用卡(0713)</div></div>
-                <div class="tamt exp">-33.80</div></div>
-            </div>
-            <div class="dayh"><span>07/03 周五</span><span>收 0.00 · 支 381.40</span></div>
-            <div class="card">
-              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
-                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">平安银行信用卡(0713)</div></div>
-                <div class="tamt exp">-22.80</div></div>
-              <div class="tx"><div class="cic" style="background:#2eb8a6">⛽</div>
-                <div class="tinfo"><div class="tname">油电费</div><div class="tacc">平安银行信用卡(0713)</div></div>
-                <div class="tamt exp">-358.60</div></div>
-            </div>
-          </div>
-          <div style="height:80px;"></div>
         </div>
         <div class="fab">＋</div>
-        <div class="tabbar">
-          <div class="tab on"><span class="ic">🏠</span>首页</div>
-          <div class="tab"><span class="ic">📝</span>明细</div>
-          <div class="tab"><span class="ic">📊</span>报表</div>
-          <div class="tab"><span class="ic">💳</span>账户</div>
-          <div class="tab"><span class="ic">👤</span>我的</div>
-        </div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
       </div></div>
     </div>
 
-    <!-- 变体 +D 顶部图标行 -->
+    <!-- 2 独立·本月无流水 -->
     <div class="pw">
-      <p class="cap">变体（+D 顶部图标行）</p>
-      <p class="note">在主方案基础上，把 搜索/日历(月切换)/统计 收成顶部一行图标（钱迹式），Hero 更聚焦数字。</p>
+      <p class="cap"><span class="n">2</span> 独立账本 · 本月无流水</p>
+      <p class="note">已有账户但本月未记：保留快捷入口与预算卡（未设→引导），流水区空态引导记一笔。</p>
       <div class="phone"><div class="notch"></div><div class="screen">
-        <div class="sb onb"><span>12:32</span><span>5G ▮▮▮</span></div>
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
         <div class="body">
           <div class="hero">
-            <div class="hnav">
-              <div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div>
-              <div class="hicons"><span>🔍</span><span>📅</span><span>📊</span><span>🔔</span></div>
-            </div>
-            <div style="text-align:center;margin-top:6px;position:relative;z-index:2;">
-              <div class="bal-k">2026年7月 · 月结余</div>
-              <div class="bal-v" style="font-size:46px;">¥38,550<small>.20</small></div>
-              <div style="display:flex;justify-content:center;gap:24px;font-size:12px;opacity:.92;margin-top:6px;">
-                <span>收入 42,453.80</span><span>支出 3,903.60</span>
-              </div>
-            </div>
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥0<small>.00</small></div></div><div class="io"><div>收入 0.00</div><div>支出 0.00</div></div></div>
           </div>
-          <div class="pad">
-            <div class="card quick">
-              <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
-              <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
-              <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
-              <div class="qa"><div class="ic" style="background:#e6f6ec">🤝</div><div class="l">借贷</div></div>
-              <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
-            </div>
-          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
           <div class="pad"><div class="card budget">
             <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">未设置</span></div>
             <div class="barbg"><div class="bar" style="width:0%"></div></div>
             <div class="brow"><span class="bsmall">设置预算，月末不透支</span><span class="bsmall" style="color:var(--brand-600)">去设置 ›</span></div>
           </div></div>
+          <div class="pad"><div class="card empty" style="margin-top:16px;box-shadow:none;background:transparent;">
+            <div class="em">🧾</div><div class="et" style="font-size:16px;">本月还没有流水</div>
+            <div class="es">点右下角「＋」记一笔，或点顶部切换月份</div>
+          </div></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 3 协作·本月无流水 -->
+    <div class="pw">
+      <p class="cap"><span class="n">3</span> 协作账本 · 本月无流水</p>
+      <p class="note">协作空态额外给「邀请成员」提示；标题带协作标识。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 家庭账本 <span class="agtag">协作</span> <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥0<small>.00</small></div></div><div class="io"><div>收入 0.00</div><div>支出 0.00</div></div></div>
+          </div>
+          <div class="banner">🤝 邀请家人加入，一起记这本账 <span style="margin-left:auto;font-weight:700;">邀请 ›</span></div>
+          <div class="pad"><div class="card quick" style="margin-top:12px;">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#e6f6ec">👥</div><div class="l">成员</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card empty" style="margin-top:16px;box-shadow:none;background:transparent;">
+            <div class="em">🧾</div><div class="et" style="font-size:16px;">本月还没有流水</div>
+            <div class="es">谁都可以记一笔，记账人会自动标注</div>
+          </div></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">B · 独立账本 · 有数据</div>
+  <div class="screens">
+
+    <!-- 4 常规 -->
+    <div class="pw">
+      <p class="cap"><span class="n">4</span> 常规（预算正常）</p>
+      <p class="note">主力场景：预算进度绿；流水按日分组，行内含账户名 +（信用卡）卡号后四位、彩色分类图标。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥8,639<small>.50</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 3,860.50</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card budget">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">剩余 ¥1,139 · 77%</span></div>
+            <div class="barbg"><div class="bar" style="width:77%"></div></div>
+            <div class="brow"><span class="bsmall">已用 3,860 / 5,000</span><span class="bsmall" style="color:var(--brand-600)">正常</span></div>
+          </div></div>
           <div class="pad">
-            <div class="dayh"><span>07/06 周一</span><span>支 44.30</span></div>
+            <div class="dayh"><span>07/06 周日</span><span>支 258.50</span></div>
             <div class="card">
-              <div class="tx"><div class="cic" style="background:#3ba55d">Ⓟ</div>
-                <div class="tinfo"><div class="tname">停车费</div><div class="tacc">平安信用卡(0713) · 👤明轩</div></div>
-                <div class="tamt exp">-10.50</div></div>
-              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
-                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金 · 👤小鱼</div></div>
-                <div class="tamt exp">-33.80</div></div>
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金</div></div><div class="tamt exp">-38.00</div></div>
+              <div class="tx"><div class="cic" style="background:#8b78e0">🛍️</div><div class="tinfo"><div class="tname">购物</div><div class="tacc">招商信用卡(1957)</div></div><div class="tamt exp">-220.50</div></div>
+            </div>
+            <div class="dayh"><span>07/05 周六</span><span>收 12,500 · 支 0</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:var(--brand)">💰</div><div class="tinfo"><div class="tname">工资</div><div class="tacc">招商储蓄卡(8801)</div></div><div class="tamt inc">+12,500.00</div></div>
             </div>
           </div>
           <div style="height:80px;"></div>
         </div>
         <div class="fab">＋</div>
-        <div class="tabbar">
-          <div class="tab on"><span class="ic">🏠</span>首页</div>
-          <div class="tab"><span class="ic">📝</span>明细</div>
-          <div class="tab"><span class="ic">📊</span>报表</div>
-          <div class="tab"><span class="ic">💳</span>账户</div>
-          <div class="tab"><span class="ic">👤</span>我的</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 5a 预警 -->
+    <div class="pw">
+      <p class="cap"><span class="n">5a</span> 预算预警</p>
+      <p class="note">已用超过阈值（如 80%）：进度条转橙 + 「预警」标签，提醒收敛支出。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥4,600<small>.00</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 7,900.00</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card budget" style="box-shadow:0 6px 20px rgba(244,167,43,.14);">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall" style="color:var(--warn)">剩余 ¥1,100 · 86%</span></div>
+            <div class="barbg"><div class="bar warn" style="width:86%"></div></div>
+            <div class="brow"><span class="bsmall">已用 6,900 / 8,000</span><span class="bsmall" style="color:var(--warn);font-weight:700;">⚠ 预警 · 日均可省 ¥73</span></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 620.00</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#8b78e0">🛍️</div><div class="tinfo"><div class="tname">购物</div><div class="tacc">招商信用卡(1957)</div></div><div class="tamt exp">-580.00</div></div>
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金</div></div><div class="tamt exp">-40.00</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
         </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 5b 超支 -->
+    <div class="pw">
+      <p class="cap"><span class="n">5b</span> 预算超支</p>
+      <p class="note">已用超 100%：进度条转红 + 「超支 ¥xxx」，负向明确但不惊吓（不用大红块）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥3,400<small>.00</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 9,100.00</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card budget">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall" style="color:var(--danger)">已超支 ¥600</span></div>
+            <div class="barbg"><div class="bar over" style="width:100%"></div></div>
+            <div class="brow"><span class="bsmall">已用 8,600 / 8,000</span><span class="bsmall" style="color:var(--danger);font-weight:700;">超支 108%</span></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 900.00</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#8b78e0">🛍️</div><div class="tinfo"><div class="tname">购物 · 数码</div><div class="tacc">招商信用卡(1957)</div></div><div class="tamt exp">-900.00</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 6 结余为负 -->
+    <div class="pw">
+      <p class="cap"><span class="n">6</span> 月结余为负</p>
+      <p class="note">当月支出>收入：月结余数字转浅红（Hero 上仍克制，不整卡变红）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v neg">-¥1,240<small>.00</small></div></div><div class="io"><div>收入 3,000.00</div><div>支出 4,240.00</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 4,240.00</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#3aa0d0">🏠</div><div class="tinfo"><div class="tname">房租</div><div class="tacc">招商储蓄卡(8801)</div></div><div class="tamt exp">-4,000.00</div></div>
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金</div></div><div class="tamt exp">-240.00</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 7 历史月份 -->
+    <div class="pw">
+      <p class="cap"><span class="n">7</span> 历史月份查看</p>
+      <p class="note">切到过去月份：顶部月份高亮「历史」，纯查看；仍可看当月汇总与流水。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">‹ 2026年5月 › <span class="agtag">历史</span></div><div class="bal-v">¥6,120<small>.00</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 6,380.00</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>05/28 周三</span><span>支 380.00</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金</div></div><div class="tamt exp">-80.00</div></div>
+              <div class="tx"><div class="cic" style="background:#2eb8a6">⛽</div><div class="tinfo"><div class="tname">油电费</div><div class="tacc">招商信用卡(1957)</div></div><div class="tamt exp">-300.00</div></div>
+            </div>
+          </div>
+          <div class="readonly">— 查看历史月份 —</div>
+          <div style="height:70px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">C · 协作账本 · 有数据　·　D · 全部账本聚合</div>
+  <div class="screens">
+
+    <!-- 8 协作有数据 -->
+    <div class="pw">
+      <p class="cap"><span class="n">8</span> 协作账本 · 有数据</p>
+      <p class="note">「本月成员支出」小卡 + 流水行带「👤记账人」；快捷入口含成员。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 家庭账本 <span class="agtag">协作</span> <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥8,639<small>.50</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 3,860.50</div></div></div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#e6f6ec">👥</div><div class="l">成员</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card mcard">
+            <div class="brow"><b style="font-size:13px;">本月成员支出</b><span class="bsmall">共 3 人</span></div>
+            <div class="chips">
+              <span class="chip"><span class="av" style="background:#12a150">明</span>明轩 ¥2,140</span>
+              <span class="chip"><span class="av" style="background:#0ea5e9">小</span>小鱼 ¥1,320</span>
+              <span class="chip"><span class="av" style="background:#f59e0b">妈</span>妈妈 ¥400</span>
+            </div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 258.50</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金 · 👤小鱼</div></div><div class="tamt exp">-38.00</div></div>
+              <div class="tx"><div class="cic" style="background:#8b78e0">🛍️</div><div class="tinfo"><div class="tname">日用</div><div class="tacc">招商信用卡(1957) · 👤明轩</div></div><div class="tamt exp">-220.50</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <!-- 9 全部账本聚合 -->
+    <div class="pw">
+      <p class="cap"><span class="n">9</span> 全部账本（聚合只读）</p>
+      <p class="note">深色 Hero 区分聚合视图；净收支视角；流水带来源账本标签；记账/切 tab 会落到默认账本（提示）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero agg">
+            <div class="hnav"><div class="ledger">🗂️ 全部账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 净收支</div><div class="bal-v">+¥8,639<small>.50</small></div></div><div class="io"><div>收入 12,500.00</div><div>支出 3,860.50</div></div></div>
+          </div>
+          <div class="readonly" style="padding:12px 15px 0;color:var(--ink-2);">聚合视图只读 · 记账将记入「默认账本」</div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 258.50</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮 <span class="agtag" style="background:var(--surface-2);color:var(--ink-3)">日常账本</span></div><div class="tacc">现金</div></div><div class="tamt exp">-38.00</div></div>
+              <div class="tx"><div class="cic" style="background:#8b78e0">🛍️</div><div class="tinfo"><div class="tname">日用 <span class="agtag" style="background:var(--surface-2);color:var(--ink-3)">家庭账本</span></div><div class="tacc">招商信用卡(1957)</div></div><div class="tamt exp">-220.50</div></div>
+            </div>
+            <div class="dayh"><span>07/05 周六</span><span>收 12,500</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:var(--brand)">💰</div><div class="tinfo"><div class="tname">工资 <span class="agtag" style="background:var(--surface-2);color:var(--ink-3)">日常账本</span></div><div class="tacc">招商储蓄卡(8801)</div></div><div class="tamt inc">+12,500.00</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">E · 交互弹层</div>
+  <div class="screens">
+
+    <!-- 10 账本切换 -->
+    <div class="pw">
+      <p class="cap"><span class="n">10</span> 账本切换弹层</p>
+      <p class="note">点顶部账本名弹出：全部账本 + 各账本（协作带标识/成员）+ 新建。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body" style="filter:brightness(.98);">
+          <div class="hero"><div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥8,639<small>.50</small></div></div><div class="io"><div>收入 12,500</div><div>支出 3,860</div></div></div></div>
+        </div>
+        <div class="ovl">
+          <div class="sheet">
+            <div class="shd"><b>选择账本</b><span class="bsmall">取消</span></div>
+            <div class="sitem"><span style="font-size:22px;">🗂️</span><div style="flex:1;font-weight:600;">全部账本</div><span class="radio"></span></div>
+            <div class="sitem"><span style="font-size:22px;">🏠</span><div style="flex:1;"><div style="font-weight:600;">日常账本 <span class="agtag" style="background:var(--surface-2);color:var(--ink-3)">默认</span></div></div><span class="radio on"></span></div>
+            <div class="sitem"><span style="font-size:22px;">🏠</span><div style="flex:1;"><div style="font-weight:600;">家庭账本 <span class="agtag" style="background:#fdf3e2;color:#b9761a">协作·3人</span></div></div><span class="radio"></span></div>
+            <div class="sitem"><span style="font-size:22px;">✈️</span><div style="flex:1;"><div style="font-weight:600;">旅行 AA <span class="agtag" style="background:#fdf3e2;color:#b9761a">协作·5人</span></div></div><span class="radio"></span></div>
+            <div style="text-align:center;padding:16px;color:var(--brand-600);font-weight:700;font-size:14px;">＋ 新建账本</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 11 更多 -->
+    <div class="pw">
+      <p class="cap"><span class="n">11</span>「更多」快捷入口弹层</p>
+      <p class="note">快捷入口「更多」展开：低频功能收纳（借贷/账单/数据备份/分类/预算…）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body" style="filter:brightness(.98);">
+          <div class="hero"><div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年7月 · 月结余</div><div class="bal-v">¥8,639<small>.50</small></div></div><div class="io"><div>收入 12,500</div><div>支出 3,860</div></div></div></div>
+        </div>
+        <div class="ovl">
+          <div class="sheet">
+            <div class="shd"><b>更多功能</b><span class="bsmall">取消</span></div>
+            <div class="moregrid">
+              <div class="mi"><div class="ic">🤝</div><div class="l">借贷往来</div></div>
+              <div class="mi"><div class="ic">📥</div><div class="l">账单导入</div></div>
+              <div class="mi"><div class="ic">🗂️</div><div class="l">数据备份</div></div>
+              <div class="mi"><div class="ic">🏷️</div><div class="l">分类管理</div></div>
+              <div class="mi"><div class="ic">🧮</div><div class="l">预算管理</div></div>
+              <div class="mi"><div class="ic">📓</div><div class="l">账本管理</div></div>
+              <div class="mi"><div class="ic">👥</div><div class="l">成员</div></div>
+              <div class="mi"><div class="ic">⚙️</div><div class="l">设置</div></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">F · 布局变体</div>
+  <div class="screens">
+
+    <!-- 12 +D 变体 -->
+    <div class="pw">
+      <p class="cap"><span class="n">12</span> +D 顶部图标行变体</p>
+      <p class="note">Hero 顶部加 搜索/日历/统计 图标行，主数字居中更聚焦（钱迹式）；其余同主方案。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div><div class="hicons"><span>🔍</span><span>📅</span><span>📊</span><span>🔔</span></div></div>
+            <div style="text-align:center;margin-top:6px;position:relative;z-index:2;">
+              <div class="bal-k">2026年7月 · 月结余</div>
+              <div class="bal-v" style="font-size:44px;">¥8,639<small>.50</small></div>
+              <div style="display:flex;justify-content:center;gap:22px;font-size:11px;opacity:.92;margin-top:5px;"><span>收入 12,500.00</span><span>支出 3,860.50</span></div>
+            </div>
+          </div>
+          <div class="pad"><div class="card quick">
+            <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+            <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+            <div class="qa"><div class="ic" style="background:#e6f6ec">🤝</div><div class="l">借贷</div></div>
+            <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+          </div></div>
+          <div class="pad"><div class="card budget">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">剩余 ¥1,139 · 77%</span></div>
+            <div class="barbg"><div class="bar" style="width:77%"></div></div>
+            <div class="brow"><span class="bsmall">已用 3,860 / 5,000</span><span class="bsmall" style="color:var(--brand-600)">正常</span></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周日</span><span>支 258.50</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div><div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金</div></div><div class="tamt exp">-38.00</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar"><div class="tab on"><span class="ic">🏠</span>首页</div><div class="tab"><span class="ic">📝</span>明细</div><div class="tab"><span class="ic">📊</span>报表</div><div class="tab"><span class="ic">💳</span>账户</div><div class="tab"><span class="ic">👤</span>我的</div></div>
       </div></div>
     </div>
 
   </div>
 
   <div class="legend">
-    <div><span class="tag">A</span> 流水行显示账户名（信用卡自动带卡号后四位）；协作账本再叠加「👤记账人」。</div>
-    <div><span class="tag">B</span> 月预算进度卡：已设→进度条+预警色；未设→引导「去设置」（不再只藏在 Hero 一格）。</div>
-    <div><span class="tag">C</span> 快捷入口末位「更多」，通往 借贷/账单导入/数据备份 等低频项。</div>
-    <div><span class="tag">彩色图标</span> 分类用彩色圆角图标（示意），比 emoji 更统一；落地时先用色块+字/emoji，图标库后续。</div>
-    <div><span class="tag">D</span> 变体：顶部 搜索/日历/统计 图标行，Hero 居中更聚焦（可选）。</div>
+    <div><span class="tag">A</span> 流水行带账户名，信用卡自动带卡号后四位；协作账本再叠加「👤记账人」。（卡号需给账户加可选字段或写进名称）</div>
+    <div><span class="tag">B</span> 预算进度卡四态：未设(引导) / 正常(绿) / 预警(橙) / 超支(红)。</div>
+    <div><span class="tag">C</span>「更多」弹层收纳低频功能；协作账本快捷位替换为「成员」。</div>
+    <div><span class="tag">彩色图标</span> 分类彩色圆角图标为示意，落地先用「彩色圆底 + emoji」过渡。</div>
+    <div><span class="tag">D</span> 顶部图标行变体（可选）。</div>
   </div>
+
 </div>
 </body>
 </html>
