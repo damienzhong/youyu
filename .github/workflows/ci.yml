@@ -29,11 +29,11 @@ jobs:
         run: ./mvnw -B -ntp package
 
   frontend:
-    name: Frontend (test + build)
+    name: Frontend (build H5 + 小程序)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./web
+        working-directory: ./miniapp
     steps:
       - uses: actions/checkout@v4
 
@@ -42,13 +42,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: miniapp/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Unit tests
-        run: npm run test
+      # uni-app 两端构建作为前端质量门（H5 用于线上、mp-weixin 用于小程序）
+      - name: Build H5
+        env:
+          VITE_API_BASE: /api
+        run: npm run build:h5
 
-      - name: Type-check & build
-        run: npm run build
+      - name: Build 小程序 (mp-weixin)
+        run: npm run build:mp-weixin

@@ -41,19 +41,22 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: miniapp/package-lock.json
 
-      - name: Build frontend
-        working-directory: ./web
+      # 线上前端 = uni-app 的 H5 产物（与小程序同一套代码）。API 走相对 /api，nginx 反代到后端 8090。
+      - name: Build frontend (H5)
+        working-directory: ./miniapp
+        env:
+          VITE_API_BASE: /api
         run: |
           npm ci
-          npm run build
+          npm run build:h5
 
       - name: Stage artifacts
         run: |
           mkdir -p stage
           cp target/youyu.jar stage/youyu.jar
-          tar -C web/dist -czf stage/web.tar.gz .
+          tar -C miniapp/dist/build/h5 -czf stage/web.tar.gz .
 
       - name: Configure SSH
         run: |
