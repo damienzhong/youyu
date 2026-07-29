@@ -44,7 +44,7 @@ async function handleLogin() {
 async function handlePwdSubmit() {
   const u = username.value.trim()
   if (!u || !password.value) {
-    uni.showToast({ title: '请输入账号和口令', icon: 'none' })
+    uni.showToast({ title: '请输入账号和密码', icon: 'none' })
     return
   }
   pwdLoading.value = true
@@ -76,7 +76,7 @@ async function handlePwdSubmit() {
 
     <view v-if="showPwd" class="pwd-box">
       <input v-model="username" class="field" placeholder="账号" maxlength="64" />
-      <input v-model="password" class="field" password placeholder="口令（8-64 位）" maxlength="64" />
+      <input v-model="password" class="field" password placeholder="密码（8-64 位）" maxlength="64" />
       <button class="pwd-btn" :loading="pwdLoading" @click="handlePwdSubmit">
         {{ isRegister ? '注册并登录' : '登录' }}
       </button>

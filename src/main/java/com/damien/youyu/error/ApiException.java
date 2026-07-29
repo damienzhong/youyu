@@ -59,12 +59,12 @@ public class ApiException extends RuntimeException {
     /** 口令强度不足（长度不在 8-64）。 */
     public static ApiException passwordWeak() {
         return new ApiException("PASSWORD_WEAK", HttpStatus.BAD_REQUEST,
-                "口令长度需为 8 到 64 个字符", "password");
+                "密码长度需为 8 到 64 个字符", "password");
     }
 
     /** 账号或口令错误。 */
     public static ApiException badCredentials() {
-        return new ApiException("BAD_CREDENTIALS", HttpStatus.UNAUTHORIZED, "账号或口令错误", null);
+        return new ApiException("BAD_CREDENTIALS", HttpStatus.UNAUTHORIZED, "账号或密码错误", null);
     }
 
     /** 账号被临时锁定。 */
