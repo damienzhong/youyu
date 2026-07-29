@@ -4,6 +4,8 @@ import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { listCategories, flattenAll, flattenCategories } from '../../api/category'
 import { importBills } from '../../api/bill'
+import { listProjects } from '../../api/project'
+import { listTags } from '../../api/tag'
 import { detectSource, parseBillText } from '../../utils/billImport'
 import { formatAmount } from '../../utils/format'
 
@@ -16,6 +18,18 @@ const accIdx = ref(0)
 const expIdx = ref(0)
 const incIdx = ref(0)
 
+// 默认项目/标签（整批统一归类，可选）
+const projects = ref([])
+const tags = ref([])
+const projIdx = ref(0) // 0 = 不设置
+const selectedTagIds = ref([])
+const projectOptions = computed(() => [{ id: null, name: '不设置' }, ...projects.value])
+function toggleTag(id) {
+  const i = selectedTagIds.value.indexOf(id)
+  if (i >= 0) selectedTagIds.value.splice(i, 1)
+  else selectedTagIds.value.push(id)
+}
+
 const parsed = ref(null)
 const importing = ref(false)
 
@@ -23,11 +37,15 @@ const SOURCE_LABEL = { alipay: '支付宝', wechat: '微信' }
 
 async function load() {
   try {
-    const [accs, cats] = await Promise.all([listAccounts(), listCategories()])
+    const [accs, cats, ps, ts] = await Promise.all([
+      listAccounts(), listCategories(), listProjects(), listTags()
+    ])
     accounts.value = accs
     flatCats.value = flattenAll(cats)
     expenseCats.value = flattenCategories(cats.expense)
     incomeCats.value = flattenCategories(cats.income)
+    projects.value = ps.filter((p) => !p.archived)
+    tags.value = ts
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   }
@@ -131,6 +149,8 @@ async function doImport() {
       accountId: accounts.value[accIdx.value].id,
       defaultExpenseCategoryId: expenseCats.value[expIdx.value]?.id,
       defaultIncomeCategoryId: incomeCats.value[incIdx.value]?.id,
+      projectId: projectOptions.value[projIdx.value]?.id ?? null,
+      tagIds: selectedTagIds.value.slice(),
       entries: parsed.value.entries.map((e) => ({
         type: e.type,
         amount: e.amount,
@@ -223,7 +243,30 @@ async function doImport() {
           <text class="row-k">默认收入分类</text>
           <text class="row-v">{{ incomeCats[incIdx]?.label || '无收入分类' }} ›</text>
         </picker>
-        <text class="config-note">未自动匹配到分类的流水将归入上面的默认分类。</text>
+        <picker
+          v-if="projects.length"
+          class="row"
+          :range="projectOptions"
+          range-key="name"
+          :value="projIdx"
+          @change="projIdx = Number($event.detail.value)"
+        >
+          <text class="row-k">默认项目</text>
+          <text class="row-v">{{ projectOptions[projIdx]?.name || '不设置' }} ›</text>
+        </picker>
+        <view v-if="tags.length" class="tagrow">
+          <text class="row-k">默认标签</text>
+          <view class="tagwrap">
+            <text
+              v-for="t in tags"
+              :key="t.id"
+              class="tagchip"
+              :class="{ on: selectedTagIds.includes(t.id) }"
+              @click="toggleTag(t.id)"
+            >{{ t.name }}</text>
+          </view>
+        </view>
+        <text class="config-note">未自动匹配到分类的流水将归入上面的默认分类；项目/标签将统一应用到本次导入的全部流水。</text>
       </view>
 
       <view class="actions">
@@ -354,6 +397,32 @@ async function doImport() {
 .row-v {
   font-size: 28rpx;
   color: #1f2937;
+}
+.tagrow {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 30rpx 0;
+  border-top: 1rpx solid #eef0f2;
+}
+.tagwrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.tagchip {
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: #f2f4f6;
+  color: #5b6470;
+  font-size: 24rpx;
+  border: 1rpx solid transparent;
+}
+.tagchip.on {
+  background: #e6f6ec;
+  color: #0e8a44;
+  font-weight: 700;
+  border-color: #12a150;
 }
 .config-note {
   display: block;

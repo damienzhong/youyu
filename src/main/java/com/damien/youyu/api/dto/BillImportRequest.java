@@ -14,6 +14,8 @@ public record BillImportRequest(
         Long accountId,
         Long defaultExpenseCategoryId,
         Long defaultIncomeCategoryId,
+        Long projectId,
+        List<Long> tagIds,
         List<BillEntry> entries) {
 
     /**

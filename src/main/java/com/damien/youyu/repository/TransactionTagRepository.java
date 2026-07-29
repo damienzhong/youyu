@@ -23,6 +23,11 @@ public interface TransactionTagRepository extends JpaRepository<TransactionTag, 
     /** 一批交易的全部关联（列表批量取标签，避免 N+1）。 */
     List<TransactionTag> findByTransactionIdIn(Collection<Long> transactionIds);
 
+    /** 某账本全部标签关联（导出时预载 交易→标签 映射，避免 N+1）。 */
+    @Query("SELECT tt FROM TransactionTag tt WHERE tt.tagId IN "
+            + "(SELECT t.id FROM Tag t WHERE t.ledgerId = :ledgerId)")
+    List<TransactionTag> findByLedgerId(@Param("ledgerId") Long ledgerId);
+
     /** 删除某交易的全部关联（修改/删除交易时重置）。 */
     void deleteByTransactionId(Long transactionId);
 

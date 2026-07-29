@@ -30,7 +30,12 @@ import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
+import com.damien.youyu.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -67,9 +72,21 @@ class ExportPropertyTest {
     private CategoryRepository categoryRepository;
     @Autowired
     private TransactionRepository transactionRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
+    @Autowired
+    private MerchantRepository merchantRepository;
+    @Autowired
+    private TagRepository tagRepository;
+    @Autowired
+    private TransactionTagRepository transactionTagRepository;
+    @Autowired
+    private UserRepository userRepository;
 
     private ExportService exportService() {
-        return new ExportService(accountRepository, categoryRepository, transactionRepository, CLOCK);
+        return new ExportService(accountRepository, categoryRepository, transactionRepository,
+                projectRepository, merchantRepository, tagRepository, transactionTagRepository,
+                userRepository, CLOCK);
     }
 
     private ImportService importService() {

@@ -59,6 +59,15 @@ async function onConfirm(name) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   }
 }
+// 项目归档 / 取消归档（仅项目维度）。
+async function toggleArchive(it) {
+  try {
+    await updateProject(it.id, { archived: !it.archived })
+    await load()
+  } catch (e) {
+    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+  }
+}
 function confirmDelete(it) {
   uni.showModal({
     title: `删除${TABS.find((t) => t.key === tab.value).label}`,
@@ -98,6 +107,7 @@ function openDetail(it) {
           <text class="r-name">{{ it.name }}</text>
           <text v-if="it.archived" class="r-flag">已归档</text>
         </view>
+        <text v-if="tab === 'project'" class="r-act" @click.stop="toggleArchive(it)">{{ it.archived ? '取消归档' : '归档' }}</text>
         <text class="r-act" @click.stop="openRename(it)">改名</text>
         <text class="r-act del" @click.stop="confirmDelete(it)">删除</text>
       </view>

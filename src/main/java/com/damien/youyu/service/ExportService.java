@@ -25,12 +25,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.Category;
+import com.damien.youyu.domain.Merchant;
+import com.damien.youyu.domain.Project;
+import com.damien.youyu.domain.Tag;
 import com.damien.youyu.domain.Transaction;
+import com.damien.youyu.domain.TransactionTag;
 import com.damien.youyu.domain.TransactionType;
+import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
+import com.damien.youyu.repository.UserRepository;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -77,6 +87,11 @@ public class ExportService {
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
+    private final ProjectRepository projectRepository;
+    private final MerchantRepository merchantRepository;
+    private final TagRepository tagRepository;
+    private final TransactionTagRepository transactionTagRepository;
+    private final UserRepository userRepository;
     private final Clock clock;
     private final JsonFactory jsonFactory = new JsonFactory();
 
@@ -84,10 +99,20 @@ public class ExportService {
             AccountRepository accountRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
+            ProjectRepository projectRepository,
+            MerchantRepository merchantRepository,
+            TagRepository tagRepository,
+            TransactionTagRepository transactionTagRepository,
+            UserRepository userRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
+        this.projectRepository = projectRepository;
+        this.merchantRepository = merchantRepository;
+        this.tagRepository = tagRepository;
+        this.transactionTagRepository = transactionTagRepository;
+        this.userRepository = userRepository;
         this.clock = clock;
     }
 
@@ -204,14 +229,22 @@ public class ExportService {
             }
             w.write(CRLF);
 
+            // 项目/商家/标签/记账人：以可读名称附于 CSV 末列（供人工查看；JSON 保持精简以护往返一致）。
+            Map<Long, String> projectName = projectNameMap(ledgerId);
+            Map<Long, String> merchantName = merchantNameMap(ledgerId);
+            Map<Long, List<String>> tagsByTx = tagNamesByTransaction(ledgerId);
+            Map<Long, String> recorderCache = new HashMap<>();
+
             w.write("# transactions" + CRLF);
             w.write(csvRow("type", "amount", "accountRef", "categoryRef",
-                    "sourceAccountRef", "destinationAccountRef", "occurredAt", "note"));
+                    "sourceAccountRef", "destinationAccountRef", "occurredAt", "note",
+                    "project", "merchant", "tags", "recorder"));
             try (Stream<Transaction> stream = transactionRepository.streamByLedgerIdOrderById(ledgerId)) {
                 Iterator<Transaction> it = stream.iterator();
                 while (it.hasNext()) {
                     Transaction t = it.next();
                     boolean transfer = t.getType() == TransactionType.TRANSFER;
+                    List<String> tagNames = tagsByTx.getOrDefault(t.getId(), List.of());
                     w.write(csvRow(
                             t.getType().getCode(),
                             money(t.getAmount()),
@@ -220,7 +253,11 @@ public class ExportService {
                             transfer ? refOrEmpty(accountRef, t.getSourceAccountId()) : "",
                             transfer ? refOrEmpty(accountRef, t.getDestinationAccountId()) : "",
                             ts(t.getOccurredAt()),
-                            t.getNote() == null ? "" : t.getNote()));
+                            t.getNote() == null ? "" : t.getNote(),
+                            t.getProjectId() == null ? "" : projectName.getOrDefault(t.getProjectId(), ""),
+                            t.getMerchantId() == null ? "" : merchantName.getOrDefault(t.getMerchantId(), ""),
+                            String.join(";", tagNames),
+                            recorderName(t.getCreatedBy(), recorderCache)));
                 }
             }
             // 仅刷新，不关闭底层流（由 StreamingResponseBody / 容器管理其生命周期）。
@@ -269,6 +306,49 @@ public class ExportService {
                 .comparing((Category c) -> c.getParentId() != null)
                 .thenComparing(Category::getId));
         return list;
+    }
+
+    /** 项目 id→名称（本账本）。 */
+    private Map<Long, String> projectNameMap(Long ledgerId) {
+        Map<Long, String> map = new HashMap<>();
+        for (Project p : projectRepository.findByLedgerIdOrderByArchivedAscSortOrderAscIdAsc(ledgerId)) {
+            map.put(p.getId(), p.getName());
+        }
+        return map;
+    }
+
+    /** 商家 id→名称（本账本）。 */
+    private Map<Long, String> merchantNameMap(Long ledgerId) {
+        Map<Long, String> map = new HashMap<>();
+        for (Merchant m : merchantRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId)) {
+            map.put(m.getId(), m.getName());
+        }
+        return map;
+    }
+
+    /** 交易 id→标签名列表（预载本账本全部关联，避免 N+1）。 */
+    private Map<Long, List<String>> tagNamesByTransaction(Long ledgerId) {
+        Map<Long, String> tagName = new HashMap<>();
+        for (Tag t : tagRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId)) {
+            tagName.put(t.getId(), t.getName());
+        }
+        Map<Long, List<String>> byTx = new HashMap<>();
+        for (TransactionTag tt : transactionTagRepository.findByLedgerId(ledgerId)) {
+            String name = tagName.get(tt.getTagId());
+            if (name != null) {
+                byTx.computeIfAbsent(tt.getTransactionId(), k -> new ArrayList<>()).add(name);
+            }
+        }
+        return byTx;
+    }
+
+    /** 记账人 id→显示名（缓存，减少查询）；未知返回空串。 */
+    private String recorderName(Long userId, Map<Long, String> cache) {
+        if (userId == null) {
+            return "";
+        }
+        return cache.computeIfAbsent(userId, id ->
+                userRepository.findById(id).map(User::getUsername).orElse("用户" + id));
     }
 
     /** 账户业务引用键：按列表顺序生成 a1、a2、……。 */

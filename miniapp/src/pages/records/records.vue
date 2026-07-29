@@ -233,6 +233,12 @@ function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
   return categoryEmoji(categoryMap.value[t.categoryId], t.type)
 }
+// 标签徽标：t.tagIds → 标签名数组（映射当前账本已加载的标签）。
+const tagNameById = computed(() => Object.fromEntries(tags.value.map((t) => [t.id, t.name])))
+function tagNamesOf(t) {
+  if (!Array.isArray(t.tagIds) || !t.tagIds.length) return []
+  return t.tagIds.map((id) => tagNameById.value[id]).filter(Boolean)
+}
 function iconBgClass(t) {
   if (t.type === 'income') return 'inc-bg'
   if (t.type === 'transfer') return 'gray-bg'
@@ -311,6 +317,9 @@ function confirmDelete(t) {
           <view class="tx-info">
             <text class="tx-title">{{ titleOf(t) }}</text>
             <text class="tx-sub">{{ subtitleOf(t) }}</text>
+            <view v-if="tagNamesOf(t).length" class="tx-tags">
+              <text v-for="(tn, i) in tagNamesOf(t)" :key="i" class="tx-tag">{{ tn }}</text>
+            </view>
           </view>
           <text class="tx-amount" :class="t.type">{{ signedAmount(t) }}</text>
         </view>
@@ -551,6 +560,19 @@ function confirmDelete(t) {
 .tx-sub {
   font-size: 24rpx;
   color: #6b7280;
+}
+.tx-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 8rpx;
+}
+.tx-tag {
+  font-size: 20rpx;
+  color: #0e8a44;
+  background: #e6f6ec;
+  border-radius: 6rpx;
+  padding: 2rpx 12rpx;
 }
 .tx-amount {
   font-size: 32rpx;

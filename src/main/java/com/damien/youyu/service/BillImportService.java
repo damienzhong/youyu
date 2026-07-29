@@ -18,12 +18,17 @@ import com.damien.youyu.api.dto.BillImportResponse;
 import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.Category;
 import com.damien.youyu.domain.CategoryKind;
+import com.damien.youyu.domain.Tag;
 import com.damien.youyu.domain.Transaction;
+import com.damien.youyu.domain.TransactionTag;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * 账单批量导入服务：把前端解析归一化后的支付宝/微信账单落库为支出/收入流水（关联导入需求）。
@@ -50,16 +55,25 @@ public class BillImportService {
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
     private final CategoryRepository categoryRepository;
+    private final ProjectRepository projectRepository;
+    private final TagRepository tagRepository;
+    private final TransactionTagRepository transactionTagRepository;
     private final Clock clock;
 
     public BillImportService(
             TransactionRepository transactionRepository,
             AccountRepository accountRepository,
             CategoryRepository categoryRepository,
+            ProjectRepository projectRepository,
+            TagRepository tagRepository,
+            TransactionTagRepository transactionTagRepository,
             Clock clock) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.categoryRepository = categoryRepository;
+        this.projectRepository = projectRepository;
+        this.tagRepository = tagRepository;
+        this.transactionTagRepository = transactionTagRepository;
         this.clock = clock;
     }
 
@@ -91,6 +105,10 @@ public class BillImportService {
 
         Category defExpense = resolveDefault(ledgerId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);
         Category defIncome = resolveDefault(ledgerId, req.defaultIncomeCategoryId(), CategoryKind.INCOME);
+
+        // 默认项目/标签：整批统一归类（可空），校验归属本账本。
+        Long projectId = resolveProject(ledgerId, req.projectId());
+        List<Long> tagIds = resolveTags(ledgerId, req.tagIds());
 
         // 去重：先查该用户已入库的 externalId，同批内再去重。
         Set<String> incomingIds = new HashSet<>();
@@ -145,6 +163,7 @@ public class BillImportService {
             tx.setAmount(amount);
             tx.setAccountId(account.getId());
             tx.setCategoryId(category.getId());
+            tx.setProjectId(projectId);
             tx.setOccurredAt(e.occurredAt() == null ? now : e.occurredAt());
             tx.setNote(truncateNote(e.note()));
             tx.setExternalId(extId);
@@ -160,10 +179,43 @@ public class BillImportService {
             account.setCurrentBalance(account.getCurrentBalance().add(delta));
             account.setUpdatedAt(now);
             accountRepository.save(account);
-            transactionRepository.saveAll(toSave);
+            List<Transaction> saved = transactionRepository.saveAll(toSave);
+            // 整批打默认标签（多对多关联）。
+            if (!tagIds.isEmpty()) {
+                List<TransactionTag> links = new ArrayList<>(saved.size() * tagIds.size());
+                for (Transaction t : saved) {
+                    for (Long tagId : tagIds) {
+                        links.add(new TransactionTag(t.getId(), tagId));
+                    }
+                }
+                transactionTagRepository.saveAll(links);
+            }
         }
 
         return new BillImportResponse(imported, skippedDuplicate, skippedInvalid);
+    }
+
+    /** 默认项目：为空返回 null；提供则须属于本账本，否则 NOT_FOUND。 */
+    private Long resolveProject(Long ledgerId, Long projectId) {
+        if (projectId == null) {
+            return null;
+        }
+        return projectRepository.findByIdAndLedgerId(projectId, ledgerId)
+                .orElseThrow(() -> ApiException.notFound("项目不存在"))
+                .getId();
+    }
+
+    /** 默认标签：为空返回空列表；提供则去重并校验全部属于本账本，否则 NOT_FOUND。 */
+    private List<Long> resolveTags(Long ledgerId, List<Long> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        java.util.LinkedHashSet<Long> unique = new java.util.LinkedHashSet<>(tagIds);
+        List<Tag> found = tagRepository.findByLedgerIdAndIdIn(ledgerId, unique);
+        if (found.size() != unique.size()) {
+            throw ApiException.notFound("标签不存在");
+        }
+        return new ArrayList<>(unique);
     }
 
     /** 默认分类：为空则返回 null（届时无兜底的行将被跳过）；提供则须属于本人且类别匹配。 */

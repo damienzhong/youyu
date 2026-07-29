@@ -6,6 +6,7 @@ import { useLedgerStore } from '../../stores/ledger'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth } from '../../api/transaction'
+import { listTags } from '../../api/tag'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
 import { createLedger, listMembers } from '../../api/ledger'
@@ -22,6 +23,7 @@ const categoryMap = ref({})
 const transactions = ref([])
 const budget = ref(null)
 const memberMap = ref({})
+const tagNameById = ref({})
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const isAll = computed(() => ledgerStore.isAll)
@@ -97,6 +99,7 @@ async function load() {
       transactions.value = txs
       budget.value = null
       memberMap.value = {}
+      tagNameById.value = {} // 全部账本聚合下不展示标签(跨账本 id 不可靠)
     } else {
       const [accs, cats, txs] = await Promise.all([
         listAccounts(),
@@ -117,6 +120,12 @@ async function load() {
         }
       } else {
         memberMap.value = {}
+      }
+      try {
+        const ts = await listTags()
+        tagNameById.value = Object.fromEntries(ts.map((t) => [t.id, t.name]))
+      } catch (e) {
+        tagNameById.value = {}
       }
     }
     loaded.value = true
@@ -180,6 +189,10 @@ function categoryColor(t) {
 function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
   return categoryEmoji(categoryMap.value[t.categoryId], t.type)
+}
+function tagNamesOf(t) {
+  if (!Array.isArray(t.tagIds) || !t.tagIds.length) return []
+  return t.tagIds.map((id) => tagNameById.value[id]).filter(Boolean)
 }
 function titleOf(t) {
   if (t.type === 'transfer') {
@@ -385,6 +398,9 @@ function goSearch() {
                 <text v-if="ledgerTag(t)" class="tx-ltag">{{ ledgerTag(t) }}</text>
               </view>
               <text class="tx-sub">{{ subOf(t) }}</text>
+              <view v-if="tagNamesOf(t).length" class="tx-tags">
+                <text v-for="(tn, i) in tagNamesOf(t)" :key="i" class="tx-tag">{{ tn }}</text>
+              </view>
             </view>
             <text class="tx-amt" :class="t.type">{{ signed(t) }}</text>
           </view>
@@ -801,6 +817,19 @@ function goSearch() {
   font-size: 22rpx;
   color: #9aa2ad;
   margin-top: 4rpx;
+}
+.tx-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 6rpx;
+}
+.tx-tag {
+  font-size: 18rpx;
+  color: #0e8a44;
+  background: #e6f6ec;
+  border-radius: 6rpx;
+  padding: 2rpx 12rpx;
 }
 .tx-amt {
   font-size: 32rpx;

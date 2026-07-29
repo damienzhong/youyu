@@ -25,7 +25,10 @@ import com.damien.youyu.domain.CategoryKind;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * {@link BillImportService} 单元测试。H2 + 真实 Repository。
@@ -50,9 +53,16 @@ class BillImportServiceTest {
     private AccountRepository accountRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
+    @Autowired
+    private TagRepository tagRepository;
+    @Autowired
+    private TransactionTagRepository transactionTagRepository;
 
     private BillImportService service() {
-        return new BillImportService(transactionRepository, accountRepository, categoryRepository, FIXED);
+        return new BillImportService(transactionRepository, accountRepository, categoryRepository,
+                projectRepository, tagRepository, transactionTagRepository, FIXED);
     }
 
     @Test
@@ -62,7 +72,7 @@ class BillImportServiceTest {
         Category salary = category(USER, CategoryKind.INCOME, "工资");
 
         BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), food.getId(), salary.getId(),
+                acc.getId(), food.getId(), salary.getId(), null, null,
                 List.of(
                         entry("expense", "38.00", "alipay:1", food.getId()),
                         entry("expense", "12.50", "alipay:2", null),      // 用默认支出分类
@@ -85,11 +95,11 @@ class BillImportServiceTest {
 
         // 首次导入 alipay:1。
         service().importBills(USER, USER, new BillImportRequest(acc.getId(), food.getId(), salary.getId(),
-                List.of(entry("expense", "38.00", "alipay:1", null))));
+                null, null, List.of(entry("expense", "38.00", "alipay:1", null))));
 
         // 再次导入：alipay:1 已存在（跳过），alipay:9 同批出现两次（一入一跳）。
         BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), food.getId(), salary.getId(),
+                acc.getId(), food.getId(), salary.getId(), null, null,
                 List.of(
                         entry("expense", "38.00", "alipay:1", null),
                         entry("expense", "5.00", "alipay:9", null),
@@ -106,7 +116,7 @@ class BillImportServiceTest {
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), food.getId(), null,
+                acc.getId(), food.getId(), null, null, null,
                 List.of(
                         entry("expense", "0.00", "a:1", null),    // ≤0 非法
                         entry("expense", "1.234", "a:2", null),   // 超两位小数
@@ -123,7 +133,7 @@ class BillImportServiceTest {
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         BillImportResponse r = service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), food.getId(), null,
+                acc.getId(), food.getId(), null, null, null,
                 List.of(
                         entry("income", "100.00", "a:1", null),
                         entry("expense", "20.00", "a:2", null))));
@@ -138,7 +148,7 @@ class BillImportServiceTest {
         Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), food.getId(), null,
+                acc.getId(), food.getId(), null, null, null,
                 List.of(entry("expense", "10.00", "a:1", null)))), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
@@ -147,7 +157,7 @@ class BillImportServiceTest {
     void import_emptyEntries_rejected() {
         Account acc = account(USER, "支付宝", "0.00");
         ApiException ex = catchThrowableOfType(() -> service().importBills(USER, USER, new BillImportRequest(
-                acc.getId(), null, null, List.of())), ApiException.class);
+                acc.getId(), null, null, null, null, List.of())), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("IMPORT_INVALID");
     }
 
