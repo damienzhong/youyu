@@ -14,6 +14,7 @@ import {
   ACCOUNT_GROUPS
 } from '../../api/account'
 import { listAllAccounts } from '../../api/aggregate'
+import { listLoans } from '../../api/loan'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
 
@@ -23,6 +24,15 @@ const accounts = ref([])
 const loading = ref(false)
 const hideAmounts = ref(false)
 const collapsed = ref({})
+
+// 借贷汇总（仅具体账本显示；借贷为账本级台账）
+const borrowOutstanding = ref('0.00')
+const lendOutstanding = ref('0.00')
+const showLoans = computed(() => !ledgerStore.isAll)
+const hasLoan = computed(() => Number(borrowOutstanding.value) > 0 || Number(lendOutstanding.value) > 0)
+function goLoans() {
+  uni.navigateTo({ url: '/pages/loans/loans' })
+}
 
 // 计入净资产、非隐藏的账户参与统计
 const counted = computed(() => accounts.value.filter((a) => a.includeInTotal && !a.hidden))
@@ -58,6 +68,15 @@ async function load() {
   loading.value = true
   try {
     accounts.value = ledgerStore.isAll ? await listAllAccounts() : await listAccounts()
+    if (showLoans.value) {
+      try {
+        const r = await listLoans()
+        borrowOutstanding.value = r.borrowOutstanding
+        lendOutstanding.value = r.lendOutstanding
+      } catch (e) {
+        /* 借贷加载失败不阻断资产页 */
+      }
+    }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
@@ -185,6 +204,20 @@ function confirmDelete() {
       </view>
     </view>
 
+    <!-- 借贷往来（借入待还 / 借出待收） -->
+    <view v-if="showLoans" class="loan-row" @click="goLoans">
+      <view class="loan-tile">
+        <text class="lt-k">借入 / 待还</text>
+        <text class="lt-v exp">{{ money(borrowOutstanding) }}</text>
+      </view>
+      <view class="loan-sep"></view>
+      <view class="loan-tile">
+        <text class="lt-k">借出 / 待收</text>
+        <text class="lt-v inc">{{ money(lendOutstanding) }}</text>
+      </view>
+      <text class="loan-caret">›</text>
+    </view>
+
     <view v-if="!accounts.length && !loading" class="empty">还没有账户，点右下角添加</view>
 
     <!-- 分组账户 -->
@@ -310,6 +343,52 @@ function confirmDelete() {
   justify-content: space-between;
   font-size: 24rpx;
   opacity: 0.9;
+}
+.loan-row {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 22rpx;
+  padding: 24rpx 28rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.loan-tile {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.lt-k {
+  font-size: 24rpx;
+  color: #9aa2ad;
+}
+.lt-v {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+.lt-v::before {
+  content: '¥';
+  font-size: 22rpx;
+  opacity: 0.7;
+  margin-right: 2rpx;
+}
+.lt-v.exp {
+  color: #e5563d;
+}
+.lt-v.inc {
+  color: #0f8a45;
+}
+.loan-sep {
+  width: 1rpx;
+  height: 56rpx;
+  background: #eceef1;
+  margin: 0 8rpx;
+}
+.loan-caret {
+  color: #c0c4cc;
+  font-size: 34rpx;
+  margin-left: 12rpx;
 }
 .empty {
   margin-top: 120rpx;

@@ -79,6 +79,12 @@
       "style": {
         "navigationBarTitleText": "账本管理"
       }
+    },
+    {
+      "path": "pages/loans/loans",
+      "style": {
+        "navigationBarTitleText": "借贷往来"
+      }
     }
   ],
   "globalStyle": {
