@@ -15,6 +15,7 @@ import {
 } from '../../api/account'
 import { listAllAccounts } from '../../api/aggregate'
 import { listLoans } from '../../api/loan'
+import { adjustBalance } from '../../api/transaction'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
 
@@ -170,6 +171,33 @@ async function submit() {
   }
 }
 
+// ---------- 余额调整 ----------
+const adjustSheet = ref(false)
+const adjustCurrent = ref('0.00')
+function openAdjust() {
+  const acc = accounts.value.find((a) => a.id === form.value.id)
+  adjustCurrent.value = acc ? String(acc.currentBalance) : '0.00'
+  adjustSheet.value = true
+}
+async function onAdjustConfirm(v) {
+  adjustSheet.value = false
+  const raw = (v || '').trim()
+  if (raw === '') return
+  const target = Number(raw)
+  if (isNaN(target)) {
+    uni.showToast({ title: '请输入正确金额', icon: 'none' })
+    return
+  }
+  try {
+    await adjustBalance({ accountId: form.value.id, balance: String(target) }, form.value._ledgerId)
+    showForm.value = false
+    uni.showToast({ title: '已校准余额', icon: 'success' })
+    await load()
+  } catch (e) {
+    uni.showToast({ title: e.message || '调整失败', icon: 'none' })
+  }
+}
+
 function confirmDelete() {
   const acc = { id: form.value.id, name: form.value.name, ledgerId: form.value._ledgerId }
   uni.showModal({
@@ -292,10 +320,25 @@ function confirmDelete() {
             <text class="fk">计入净资产</text>
             <switch :checked="form.includeInTotal" color="#12a150" @change="form.includeInTotal = $event.detail.value" />
           </view>
+          <view v-if="isEditing" class="frow" @click="openAdjust">
+            <text class="fk">余额调整</text>
+            <text class="fv">校准到目标余额 ›</text>
+          </view>
         </view>
         <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
       </view>
     </view>
+
+    <InputSheet
+      :visible="adjustSheet"
+      title="余额调整"
+      type="digit"
+      placeholder="目标余额"
+      confirmText="校准"
+      :tip="`当前余额 ¥${adjustCurrent}，输入调整后的目标余额，系统将自动补一笔差额流水。`"
+      @update:visible="adjustSheet = $event"
+      @confirm="onAdjustConfirm"
+    />
   </view>
 </template>
 

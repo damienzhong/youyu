@@ -35,6 +35,10 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     boolean existsByLedgerIdAndKindAndParentIdIsNullAndName(
             Long ledgerId, CategoryKind kind, String name);
 
+    /** 定位某账本某种类的顶级同名分类（惰性获取系统「余额调整」分类用）。 */
+    Optional<Category> findFirstByLedgerIdAndKindAndParentIdIsNullAndName(
+            Long ledgerId, CategoryKind kind, String name);
+
     /** 某分类是否含子分类（删除校验：含子分类禁止删除，需求 5.9）。 */
     boolean existsByLedgerIdAndParentId(Long ledgerId, Long parentId);
 

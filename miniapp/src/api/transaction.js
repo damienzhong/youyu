@@ -10,6 +10,11 @@ export function createTransaction(payload, ledgerId) {
   return http.post('/transactions', payload, opts(ledgerId))
 }
 
+/** 余额调整：把账户余额校准到 balance，后端用一笔补差流水落地。payload：{ accountId, balance, occurredAt?, note? } */
+export function adjustBalance(payload, ledgerId) {
+  return http.post('/transactions/adjust', payload, opts(ledgerId))
+}
+
 /** 列出某自然月交易（month=YYYY-MM，按时间倒序）。 */
 export function listTransactionsByMonth(month, ledgerId) {
   return http.get(`/transactions?month=${encodeURIComponent(month)}`, opts(ledgerId))

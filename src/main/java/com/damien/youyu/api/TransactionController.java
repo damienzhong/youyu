@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.damien.youyu.api.dto.BalanceAdjustRequest;
 import com.damien.youyu.api.dto.TransactionCreateRequest;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransactionUpdateRequest;
@@ -90,6 +91,22 @@ public class TransactionController {
                 req.occurredAt(),
                 req.note(),
                 createdBy);
+        return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
+    }
+
+    /**
+     * 余额调整：把账户当前余额校准到目标值，用一笔补差流水落地。
+     * 有差额返回 201 与补差流水；无差额返回 204。
+     */
+    @PostMapping("/adjust")
+    public ResponseEntity<TransactionResponse> adjust(@RequestBody BalanceAdjustRequest req) {
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Transaction tx = transactionService.adjustBalance(
+                scope, ledger.getId(), req.accountId(), req.balance(), req.occurredAt(), req.note());
+        if (tx == null) {
+            return ResponseEntity.noContent().build();
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
     }
 

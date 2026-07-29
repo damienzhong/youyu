@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.Category;
+import com.damien.youyu.domain.CategoryKind;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
@@ -166,6 +168,82 @@ public class TransactionService {
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);
         return transactionRepository.save(tx);
+    }
+
+    /** 系统「余额调整」分类名（补差流水归入该分类，便于报表识别与过滤）。 */
+    public static final String ADJUST_CATEGORY_NAME = "余额调整";
+
+    /**
+     * 余额调整：把某账户当前余额校准到 {@code targetBalance}，用一笔补差流水（收入=调增 / 支出=调减）落地，
+     * 归入系统「余额调整」分类（按需惰性创建）。目标与当前一致则不产生流水、返回 null。
+     *
+     * @throws ApiException NOT_FOUND（账户不存在）/ AMOUNT_INVALID（目标余额超出范围）
+     */
+    @Transactional
+    public Transaction adjustBalance(
+            AccountScope scope,
+            Long ledgerId,
+            Long accountId,
+            BigDecimal rawTarget,
+            LocalDateTime occurredAt,
+            String rawNote) {
+        if (accountId == null) {
+            throw ApiException.fieldRequired("accountId");
+        }
+        // 校验账户归属（作用域），并读取当前余额。
+        Account account = (scope.isCollaborative()
+                ? accountRepository.findByIdAndLedgerId(accountId, scope.ledgerId())
+                : accountRepository.findByIdAndUserIdAndLedgerIdIsNull(accountId, scope.userId()))
+                .orElseThrow(() -> ApiException.notFound("账户不存在"));
+
+        BigDecimal target = validateBalance(rawTarget);
+        BigDecimal delta = target.subtract(account.getCurrentBalance()).setScale(2, RoundingMode.HALF_UP);
+        if (delta.signum() == 0) {
+            return null; // 无差额，不产生流水
+        }
+        TransactionType type = delta.signum() > 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
+        CategoryKind kind = type == TransactionType.INCOME ? CategoryKind.INCOME : CategoryKind.EXPENSE;
+        Long categoryId = ensureAdjustCategory(scope.userId(), ledgerId, kind);
+        String note = (rawNote == null || rawNote.isBlank()) ? ADJUST_CATEGORY_NAME : rawNote;
+        // 复用创建管道（校验/加锁/余额更新一致）。
+        return create(scope, ledgerId, type.getCode(), delta.abs(), accountId, categoryId,
+                null, null, occurredAt, note);
+    }
+
+    /** 惰性获取/创建某账本某种类的系统「余额调整」顶级分类，返回其 id。 */
+    private Long ensureAdjustCategory(Long userId, Long ledgerId, CategoryKind kind) {
+        return categoryRepository
+                .findFirstByLedgerIdAndKindAndParentIdIsNullAndName(ledgerId, kind, ADJUST_CATEGORY_NAME)
+                .map(Category::getId)
+                .orElseGet(() -> {
+                    LocalDateTime now = LocalDateTime.now(clock);
+                    Category c = new Category();
+                    c.setUserId(userId);
+                    c.setLedgerId(ledgerId);
+                    c.setParentId(null);
+                    c.setKind(kind);
+                    c.setName(ADJUST_CATEGORY_NAME);
+                    c.setCreatedAt(now);
+                    c.setUpdatedAt(now);
+                    return categoryRepository.save(c).getId();
+                });
+    }
+
+    /** 余额目标值校验（DECIMAL(18,2)，可正可负）。 */
+    private BigDecimal validateBalance(BigDecimal rawBalance) {
+        if (rawBalance == null) {
+            throw ApiException.fieldRequired("balance");
+        }
+        BigDecimal normalized;
+        try {
+            normalized = rawBalance.setScale(2, RoundingMode.UNNECESSARY);
+        } catch (ArithmeticException ex) {
+            throw ApiException.amountInvalid();
+        }
+        if (normalized.compareTo(AMOUNT_MAX.negate()) < 0 || normalized.compareTo(AMOUNT_MAX) > 0) {
+            throw ApiException.amountInvalid();
+        }
+        return normalized;
     }
 
     /**

@@ -8,7 +8,8 @@ const props = defineProps({
   value: { type: String, default: '' },
   confirmText: { type: String, default: '保存' },
   maxlength: { type: Number, default: 50 },
-  tip: { type: String, default: '' }
+  tip: { type: String, default: '' },
+  type: { type: String, default: 'text' }
 })
 const emit = defineEmits(['update:visible', 'confirm'])
 
@@ -39,6 +40,7 @@ function confirm() {
       <input
         class="ish-input"
         v-model="text"
+        :type="type"
         :placeholder="placeholder"
         :maxlength="maxlength"
         focus
