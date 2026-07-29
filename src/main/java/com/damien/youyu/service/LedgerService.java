@@ -29,7 +29,9 @@ import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
 
 /**
@@ -56,6 +58,8 @@ public class LedgerService {
     private final TransactionTemplateRepository templateRepository;
     private final ProjectRepository projectRepository;
     private final MerchantRepository merchantRepository;
+    private final TagRepository tagRepository;
+    private final TransactionTagRepository transactionTagRepository;
     private final AccountService accountService;
     private final Clock clock;
 
@@ -78,6 +82,8 @@ public class LedgerService {
             TransactionTemplateRepository templateRepository,
             ProjectRepository projectRepository,
             MerchantRepository merchantRepository,
+            TagRepository tagRepository,
+            TransactionTagRepository transactionTagRepository,
             AccountService accountService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
@@ -92,6 +98,8 @@ public class LedgerService {
         this.templateRepository = templateRepository;
         this.projectRepository = projectRepository;
         this.merchantRepository = merchantRepository;
+        this.tagRepository = tagRepository;
+        this.transactionTagRepository = transactionTagRepository;
         this.accountService = accountService;
         this.clock = clock;
     }
@@ -233,6 +241,8 @@ public class LedgerService {
         templateRepository.deleteByLedgerId(id);
         projectRepository.deleteByLedgerId(id);
         merchantRepository.deleteByLedgerId(id);
+        transactionTagRepository.deleteByLedgerId(id);
+        tagRepository.deleteByLedgerId(id);
         categoryRepository.deleteByLedgerId(id);
         inviteRepository.deleteByLedgerId(id);
         memberRepository.deleteByLedgerId(id);

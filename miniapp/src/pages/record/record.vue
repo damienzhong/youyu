@@ -9,6 +9,7 @@ import { listMembers } from '../../api/ledger'
 import { listTemplates, createTemplate, deleteTemplate } from '../../api/template'
 import { listProjects, createProject } from '../../api/project'
 import { listMerchants, createMerchant } from '../../api/merchant'
+import { listTags, createTag } from '../../api/tag'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
@@ -166,6 +167,7 @@ function pickTargetLedger(id) {
   createdBy.value = null
   projectId.value = null
   merchantId.value = null
+  tagIds.value = []
   load()
 }
 
@@ -286,6 +288,41 @@ async function onMerchNameConfirm(name) {
   }
 }
 
+// ---------- 标签（多选）----------
+const tags = ref([])
+const tagIds = ref([])
+const tagSheet = ref(false)
+const tagNameSheet = ref(false)
+const tagCount = computed(() => tagIds.value.length)
+async function loadTags() {
+  try {
+    tags.value = await listTags(targetLedgerId.value)
+  } catch (e) {
+    tags.value = []
+  }
+}
+async function openTagSheet() {
+  await loadTags()
+  tagSheet.value = true
+}
+function toggleTag(id) {
+  const i = tagIds.value.indexOf(id)
+  if (i >= 0) tagIds.value.splice(i, 1)
+  else tagIds.value.push(id)
+}
+async function onTagNameConfirm(name) {
+  tagNameSheet.value = false
+  const trimmed = (name || '').trim()
+  if (!trimmed) return
+  try {
+    const t = await createTag(trimmed, targetLedgerId.value)
+    await loadTags()
+    if (!tagIds.value.includes(t.id)) tagIds.value.push(t.id)
+  } catch (e) {
+    uni.showToast({ title: e.message || '添加失败', icon: 'none' })
+  }
+}
+
 // ---------- 模板 ----------
 const templates = ref([])
 const templateSheet = ref(false)
@@ -394,6 +431,7 @@ async function load() {
     destId.value = accs.length > 1 ? accs[1].id : null
     loadProjects()
     loadMerchants()
+    loadTags()
     if (isEditing.value) {
       await prefill()
       uni.setNavigationBarTitle({ title: '编辑记录' })
@@ -410,6 +448,7 @@ async function prefill() {
   note.value = tx.note || ''
   projectId.value = tx.projectId != null ? tx.projectId : null
   merchantId.value = tx.merchantId != null ? tx.merchantId : null
+  tagIds.value = Array.isArray(tx.tagIds) ? tx.tagIds.slice() : []
   if (tx.occurredAt) occurredDate.value = tx.occurredAt.slice(0, 10)
   if (tx.type === 'transfer') {
     accountId.value = tx.sourceAccountId
@@ -465,9 +504,10 @@ async function submit(cont) {
   if (isCollaborative.value && createdBy.value != null && createdBy.value !== selfId.value) {
     payload.createdBy = createdBy.value
   }
-  // 所属项目 / 商家（可空）。
+  // 所属项目 / 商家 / 标签（可空）。
   if (projectId.value != null) payload.projectId = projectId.value
   if (merchantId.value != null) payload.merchantId = merchantId.value
+  if (tagIds.value.length) payload.tagIds = tagIds.value.slice()
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
@@ -615,6 +655,7 @@ function goBack() {
       <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
       <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">📁 {{ projectName || '项目' }}</view>
       <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: merchantId != null }" @click="openMerchantSheet">🏪 {{ merchantName || '商家' }}</view>
+      <view v-if="!isLoan" class="chip" :class="{ on: tagCount > 0 }" @click="openTagSheet">🏷️ {{ tagCount > 0 ? `标签·${tagCount}` : '标签' }}</view>
       <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">⭐ 模板</view>
     </scroll-view>
 
@@ -724,6 +765,26 @@ function goBack() {
       </view>
     </view>
 
+    <!-- 标签多选 -->
+    <view v-if="tagSheet" class="mask" @click="tagSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">选择标签（可多选）</text>
+        <view v-if="!tags.length" class="tpl-empty">还没有标签，点下方新建</view>
+        <view class="tagwrap">
+          <text
+            v-for="t in tags"
+            :key="t.id"
+            class="tagchip"
+            :class="{ on: tagIds.includes(t.id) }"
+            @click="toggleTag(t.id)"
+          >{{ t.name }}</text>
+        </view>
+        <view class="tpl-save" @click="tagSheet = false; tagNameSheet = true">＋ 新建标签</view>
+        <view class="tag-done" @click="tagSheet = false">完成</view>
+      </view>
+    </view>
+
+    <InputSheet :visible="tagNameSheet" title="新建标签" placeholder="如：报销、出差、必要" :maxlength="30" @update:visible="tagNameSheet = $event" @confirm="onTagNameConfirm" />
     <InputSheet :visible="merchNameSheet" title="新建商家" placeholder="如：星巴克、盒马" @update:visible="merchNameSheet = $event" @confirm="onMerchNameConfirm" />
     <InputSheet :visible="projNameSheet" title="新建项目" placeholder="如：装修、三亚旅行" @update:visible="projNameSheet = $event" @confirm="onProjNameConfirm" />
     <InputSheet :visible="tplNameSheet" title="模板名称" placeholder="如：早餐、地铁通勤" @update:visible="tplNameSheet = $event" @confirm="onTplNameConfirm" />
@@ -882,4 +943,9 @@ function goBack() {
 .ti-meta { font-size: 24rpx; color: #9aa2ad; }
 .ti-del { font-size: 26rpx; color: #e5484d; padding: 8rpx 12rpx; }
 .tpl-save { margin-top: 20rpx; text-align: center; padding: 24rpx; border-radius: 16rpx; background: #e6f6ec; color: #0e8a44; font-weight: 700; font-size: 28rpx; }
+
+.tagwrap { display: flex; flex-wrap: wrap; gap: 16rpx; padding: 8rpx 4rpx 4rpx; }
+.tagchip { padding: 14rpx 26rpx; border-radius: 999rpx; background: #f2f4f6; color: #5b6470; font-size: 26rpx; border: 1rpx solid transparent; }
+.tagchip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; border-color: #12a150; }
+.tag-done { margin-top: 16rpx; text-align: center; padding: 22rpx; border-radius: 16rpx; background: #12a150; color: #fff; font-weight: 700; font-size: 28rpx; }
 </style>

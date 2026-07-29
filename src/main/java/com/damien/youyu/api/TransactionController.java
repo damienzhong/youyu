@@ -32,6 +32,7 @@ import com.damien.youyu.service.AccountScope;
 import com.damien.youyu.service.LedgerService;
 import com.damien.youyu.service.MerchantService;
 import com.damien.youyu.service.ProjectService;
+import com.damien.youyu.service.TagService;
 import com.damien.youyu.service.TransactionService;
 
 /**
@@ -58,17 +59,19 @@ public class TransactionController {
     private final LedgerService ledgerService;
     private final ProjectService projectService;
     private final MerchantService merchantService;
+    private final TagService tagService;
     private final CurrentLedger currentLedger;
     private final CurrentUser currentUser;
 
     public TransactionController(TransactionService transactionService,
             LedgerService ledgerService, ProjectService projectService,
-            MerchantService merchantService,
+            MerchantService merchantService, TagService tagService,
             CurrentLedger currentLedger, CurrentUser currentUser) {
         this.transactionService = transactionService;
         this.ledgerService = ledgerService;
         this.projectService = projectService;
         this.merchantService = merchantService;
+        this.tagService = tagService;
         this.currentLedger = currentLedger;
         this.currentUser = currentUser;
     }
@@ -86,9 +89,10 @@ public class TransactionController {
                 && ledgerService.isMember(ledger.getId(), req.createdBy())) {
             createdBy = req.createdBy();
         }
-        // 校验所属项目/商家归属本账本（不存在则 404）；null 表示无。
+        // 校验所属项目/商家/标签归属本账本（不存在则 404）；null 表示无。
         projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
         merchantService.requireInLedgerOrNull(ledger.getId(), req.merchantId());
+        List<Long> tagIds = tagService.validateTagIds(ledger.getId(), req.tagIds());
         Transaction tx = transactionService.create(
                 scope,
                 ledger.getId(),
@@ -103,7 +107,8 @@ public class TransactionController {
                 createdBy,
                 req.projectId(),
                 req.merchantId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
+        tagService.setTransactionTags(tx.getId(), tagIds);
+        return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx, tagIds));
     }
 
     /**
@@ -140,18 +145,12 @@ public class TransactionController {
             YearMonth ym = parseMonth(month);
             LocalDateTime from = ym.atDay(1).atStartOfDay();
             LocalDateTime to = ym.plusMonths(1).atDay(1).atStartOfDay();
-            List<TransactionResponse> body = transactionService.listByRange(ledgerId, from, to).stream()
-                    .map(TransactionResponse::from)
-                    .toList();
-            return ResponseEntity.ok(body);
+            return ResponseEntity.ok(withTags(transactionService.listByRange(ledgerId, from, to)));
         }
 
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize);
-        List<TransactionResponse> body = transactionService.list(ledgerId, pageable).stream()
-                .map(TransactionResponse::from)
-                .toList();
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(withTags(transactionService.list(ledgerId, pageable).getContent()));
     }
 
     private YearMonth parseMonth(String raw) {
@@ -162,12 +161,24 @@ public class TransactionController {
         }
     }
 
+    /** 批量为一组交易附上标签 id 列表，构建响应（避免逐条查询标签）。 */
+    private List<TransactionResponse> withTags(List<Transaction> txs) {
+        if (txs.isEmpty()) {
+            return List.of();
+        }
+        java.util.Map<Long, List<Long>> tagMap = tagService.tagIdsMap(
+                txs.stream().map(Transaction::getId).toList());
+        return txs.stream()
+                .map(tx -> TransactionResponse.from(tx, tagMap.getOrDefault(tx.getId(), List.of())))
+                .toList();
+    }
+
     /** 单条读取本人交易（校验归属）。 */
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> get(@PathVariable Long id) {
         Long ledgerId = currentLedger.requireLedgerId();
         Transaction tx = transactionService.get(ledgerId, id);
-        return ResponseEntity.ok(TransactionResponse.from(tx));
+        return ResponseEntity.ok(TransactionResponse.from(tx, tagService.tagIdsOf(id)));
     }
 
     /** 修改交易：回滚原影响后应用新影响，成功返回 200 与最新交易信息（需求 4.6、4.7）。 */
@@ -176,9 +187,10 @@ public class TransactionController {
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
         AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
-        // 校验所属项目/商家归属本账本（不存在则 404）；null 表示无。
+        // 校验所属项目/商家/标签归属本账本（不存在则 404）；null 表示无。
         projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
         merchantService.requireInLedgerOrNull(ledger.getId(), req.merchantId());
+        List<Long> tagIds = tagService.validateTagIds(ledger.getId(), req.tagIds());
         Transaction tx = transactionService.update(
                 scope,
                 ledger.getId(),
@@ -193,7 +205,8 @@ public class TransactionController {
                 req.note(),
                 req.projectId(),
                 req.merchantId());
-        return ResponseEntity.ok(TransactionResponse.from(tx));
+        tagService.setTransactionTags(tx.getId(), tagIds);
+        return ResponseEntity.ok(TransactionResponse.from(tx, tagIds));
     }
 
     /** 删除交易：回滚原影响后删除，成功返回 204（需求 4.6、4.7）。 */
@@ -202,6 +215,7 @@ public class TransactionController {
         Ledger ledger = currentLedger.requireLedger();
         AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
         transactionService.delete(scope, ledger.getId(), id);
+        tagService.clearTransactionTags(id);
         return ResponseEntity.noContent().build();
     }
 }

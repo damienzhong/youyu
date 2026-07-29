@@ -27,5 +27,6 @@ public record TransactionUpdateRequest(
         LocalDateTime occurredAt,
         String note,
         Long projectId,
-        Long merchantId) {
+        Long merchantId,
+        java.util.List<Long> tagIds) {
 }

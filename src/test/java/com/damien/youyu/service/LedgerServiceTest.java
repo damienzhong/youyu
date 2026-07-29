@@ -27,7 +27,9 @@ import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
 
 /**
@@ -56,6 +58,8 @@ class LedgerServiceTest {
     @Autowired private TransactionTemplateRepository templateRepository;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private MerchantRepository merchantRepository;
+    @Autowired private TagRepository tagRepository;
+    @Autowired private TransactionTagRepository transactionTagRepository;
 
     private LedgerService service() {
         return serviceAt(T0);
@@ -68,7 +72,7 @@ class LedgerServiceTest {
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 transactionRepository, budgetRepository, categoryBudgetRepository, loanRepository,
                 memberRepository, inviteRepository, templateRepository, projectRepository,
-                merchantRepository, accountService, clock);
+                merchantRepository, tagRepository, transactionTagRepository, accountService, clock);
     }
 
     // ---------------- 创建 / 默认分类 / 成员 ----------------

@@ -31,5 +31,6 @@ public record TransactionCreateRequest(
         String note,
         Long createdBy,
         Long projectId,
-        Long merchantId) {
+        Long merchantId,
+        java.util.List<Long> tagIds) {
 }
