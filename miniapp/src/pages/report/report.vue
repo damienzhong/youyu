@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { categoryReport, memberReport, monthRange, shiftMonth } from '../../api/report'
+import { categoryReport, memberReport, trendReport, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
@@ -19,7 +19,20 @@ const month = ref(currentMonth())
 const total = ref('0.00')
 const rows = ref([])
 const members = ref([])
+const trend = ref([])
 const loading = ref(false)
+
+// 趋势（近 6 个月，截至所选月）；仅具体账本展示
+const showTrend = computed(() => !ledgerStore.isAll)
+const trendMax = computed(() =>
+  trend.value.reduce((m, p) => Math.max(m, Number(p.income), Number(p.expense)), 0) || 1
+)
+function barH(v) {
+  return Math.max((Number(v) / trendMax.value) * 100, 1.5)
+}
+function trendMonthLabel(ym) {
+  return Number(ym.split('-')[1]) + '月'
+}
 
 // 协作账本（非「全部」）展示成员占比（支出/收入随当前类别）。
 const showMembers = computed(
@@ -37,6 +50,7 @@ async function load() {
     if (ledgerStore.isAll) {
       await loadAllAggregate()
       members.value = []
+      trend.value = []
     } else {
       const { from, to } = monthRange(month.value)
       const res = await categoryReport(from, to, kind.value)
@@ -45,6 +59,12 @@ async function load() {
       members.value = showMembers.value
         ? (await memberReport(from, to, kind.value)).members || []
         : []
+      try {
+        const tr = await trendReport(shiftMonth(month.value, -5), month.value)
+        trend.value = tr.months || []
+      } catch (e) {
+        trend.value = []
+      }
     }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -124,6 +144,26 @@ function nextMonth() {
       </view>
       <text class="total-label">{{ kind === 'expense' ? '总支出' : '总收入' }}</text>
       <text class="total-value">¥{{ formatAmount(total) }}</text>
+    </view>
+
+    <!-- 收支趋势（近半年） -->
+    <view v-if="showTrend && trend.length" class="trend-card">
+      <view class="tc-head">
+        <text class="tc-title">近半年收支趋势</text>
+        <view class="tc-legend">
+          <text class="lg"><text class="dot inc"></text>收入</text>
+          <text class="lg"><text class="dot exp"></text>支出</text>
+        </view>
+      </view>
+      <view class="bars">
+        <view v-for="p in trend" :key="p.month" class="bcol">
+          <view class="bpair">
+            <view class="bar inc" :style="{ height: barH(p.income) + '%' }"></view>
+            <view class="bar exp" :style="{ height: barH(p.expense) + '%' }"></view>
+          </view>
+          <text class="blabel">{{ trendMonthLabel(p.month) }}</text>
+        </view>
+      </view>
     </view>
 
     <view v-if="!rows.length && !loading" class="empty">
@@ -235,6 +275,75 @@ function nextMonth() {
   margin-top: 8rpx;
   font-size: 64rpx;
   font-weight: 800;
+}
+.trend-card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 24rpx 20rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.tc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+.tc-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #16181c;
+}
+.tc-legend {
+  display: flex;
+  gap: 20rpx;
+}
+.lg {
+  font-size: 22rpx;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 4rpx;
+}
+.dot.inc { background: #12a150; }
+.dot.exp { background: #f0553d; }
+.bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 200rpx;
+}
+.bcol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  height: 100%;
+}
+.bpair {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6rpx;
+  width: 100%;
+}
+.bar {
+  width: 16rpx;
+  border-radius: 6rpx 6rpx 0 0;
+  min-height: 4rpx;
+}
+.bar.inc { background: linear-gradient(180deg, #24bd6a, #12a150); }
+.bar.exp { background: linear-gradient(180deg, #f47a66, #f0553d); }
+.blabel {
+  font-size: 20rpx;
+  color: #9aa2ad;
 }
 .empty {
   margin-top: 120rpx;

@@ -19,6 +19,14 @@ export function memberReport(from, to, kind = 'expense') {
   return http.get(`/reports/members?from=${from}&to=${to}&kind=${kind}`)
 }
 
+/**
+ * 月度趋势报表。fromMonth/toMonth 为 YYYY-MM（区间 ≤24 个月）。
+ * 返回 { months:[{month, income, expense}] }
+ */
+export function trendReport(fromMonth, toMonth) {
+  return http.get(`/reports/trend?fromMonth=${fromMonth}&toMonth=${toMonth}`)
+}
+
 /** 给定 YYYY-MM，返回该自然月的起止日期 { from, to }（YYYY-MM-DD）。 */
 export function monthRange(month) {
   const [y, m] = month.split('-').map(Number)
