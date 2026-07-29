@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 首页改版原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#f0553d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1180px;margin:0 auto;padding:48px 24px 90px;}
+  .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:760px;line-height:1.7;margin:0 0 34px;}
+  .screens{display:flex;flex-wrap:wrap;gap:38px;}
+  .pw{width:360px;}
+  .cap{font-size:16px;font-weight:800;margin:0 0 4px;}
+  .note{font-size:13px;color:var(--ink-2);margin:0 0 14px;line-height:1.6;min-height:52px;}
+  .phone{width:360px;height:760px;background:#fff;border-radius:44px;padding:12px;
+    box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:33px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:150px;height:26px;background:#fff;border-radius:0 0 18px 18px;z-index:30;}
+  .sb{height:38px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 4px;font-size:12px;font-weight:700;}
+  .sb.onb{color:#fff;}
+  .body{flex:1;overflow-y:auto;}
+  .body::-webkit-scrollbar{width:0;}
+  .pad{padding:0 16px;}
+  .hero{background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);color:#fff;padding:6px 18px 22px;border-radius:0 0 26px 26px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-40px;top:-30px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hnav{display:flex;align-items:center;justify-content:space-between;height:40px;position:relative;z-index:2;}
+  .ledger{display:flex;align-items:center;gap:6px;font-weight:800;font-size:16px;}
+  .hicons{display:flex;gap:16px;font-size:17px;opacity:.95;}
+  .balrow{display:flex;align-items:flex-end;justify-content:space-between;position:relative;z-index:2;margin-top:2px;}
+  .bal-k{font-size:12px;opacity:.85;}
+  .bal-v{font-size:40px;font-weight:800;letter-spacing:-.02em;line-height:1.1;}
+  .bal-v small{font-size:20px;opacity:.8;}
+  .io{text-align:right;font-size:12px;opacity:.92;line-height:1.9;}
+  .card{background:#fff;border-radius:18px;box-shadow:0 6px 22px rgba(20,24,28,.05);}
+  .quick{display:flex;justify-content:space-around;padding:16px 4px;margin-top:-14px;}
+  .qa{display:flex;flex-direction:column;align-items:center;gap:7px;}
+  .qa .ic{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .qa .l{font-size:12px;color:var(--ink-2);}
+  .budget{margin-top:12px;padding:16px;}
+  .brow{display:flex;justify-content:space-between;align-items:center;}
+  .btitle{font-size:14px;font-weight:700;}
+  .bsmall{font-size:12px;color:var(--ink-3);}
+  .barbg{height:8px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:12px 0 8px;}
+  .bar{height:100%;border-radius:6px;background:var(--brand);}
+  .bar.warn{background:var(--warn);}
+  .dayh{display:flex;justify-content:space-between;padding:16px 6px 8px;font-size:12px;color:var(--ink-3);font-weight:600;}
+  .tx{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:1px solid var(--line);}
+  .tx:first-child{border-top:none;}
+  .cic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .tinfo{flex:1;min-width:0;}
+  .tname{font-size:15px;font-weight:600;}
+  .tacc{font-size:12px;color:var(--ink-3);margin-top:3px;}
+  .tamt{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .tamt.exp{color:var(--exp);}.tamt.inc{color:var(--inc);}.tamt.tr{color:var(--tr);}
+  .tabbar{height:60px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--ink-3);flex:1;}
+  .tab .ic{font-size:19px;}
+  .tab.on{color:var(--brand-600);}
+  .fab{position:absolute;right:20px;bottom:74px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px rgba(18,161,80,.45);z-index:20;}
+  .legend{margin-top:14px;font-size:13px;color:var(--ink-2);line-height:1.9;}
+  .legend b{color:var(--brand-600);}
+  .tag{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-weak);color:var(--brand-600);border-radius:999px;padding:2px 9px;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="h1">有余 · 首页改版原型</div>
+  <p class="sub">吸收竞品：<b>A</b> 流水显示账户名+卡号后四位、<b>B</b> 月预算进度卡、<b>C</b> 快捷入口加「更多」、彩色分类图标。左为主方案；右为叠加 <b>D</b> 顶部图标行（搜索/日历/统计）的变体。</p>
+  <div class="screens">
+
+    <!-- 主方案 A+B+C -->
+    <div class="pw">
+      <p class="cap">主方案（A+B+C）</p>
+      <p class="note">Hero 主数字＝月结余，右侧收支；预算进度卡；快捷入口末位「更多」；流水带账户名+卡号后四位与彩色分类图标。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>12:32</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav">
+              <div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div>
+              <div class="hicons"><span>🔍</span><span>🔔</span></div>
+            </div>
+            <div class="balrow">
+              <div>
+                <div class="bal-k">2026年7月 · 月结余</div>
+                <div class="bal-v">¥38,550<small>.20</small></div>
+              </div>
+              <div class="io"><div>收入 42,453.80</div><div>支出 3,903.60</div></div>
+            </div>
+          </div>
+          <!-- 快捷（含更多） -->
+          <div class="pad">
+            <div class="card quick">
+              <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+              <div class="qa"><div class="ic" style="background:#eef4ff">📊</div><div class="l">统计</div></div>
+              <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+              <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+              <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+            </div>
+          </div>
+          <!-- 预算进度卡 -->
+          <div class="pad"><div class="card budget">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">剩余 ¥1,096 · 71%</span></div>
+            <div class="barbg"><div class="bar warn" style="width:71%"></div></div>
+            <div class="brow"><span class="bsmall">已用 3,903 / 5,000</span><span class="bsmall" style="color:var(--warn)">预警</span></div>
+          </div></div>
+          <!-- 流水 -->
+          <div class="pad">
+            <div class="dayh"><span>07/06 周一</span><span>收 0.00 · 支 44.30</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#3ba55d">Ⓟ</div>
+                <div class="tinfo"><div class="tname">停车费</div><div class="tacc">平安银行信用卡(0713)</div></div>
+                <div class="tamt exp">-10.50</div></div>
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
+                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">平安银行信用卡(0713)</div></div>
+                <div class="tamt exp">-33.80</div></div>
+            </div>
+            <div class="dayh"><span>07/03 周五</span><span>收 0.00 · 支 381.40</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
+                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">平安银行信用卡(0713)</div></div>
+                <div class="tamt exp">-22.80</div></div>
+              <div class="tx"><div class="cic" style="background:#2eb8a6">⛽</div>
+                <div class="tinfo"><div class="tname">油电费</div><div class="tacc">平安银行信用卡(0713)</div></div>
+                <div class="tamt exp">-358.60</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📝</span>明细</div>
+          <div class="tab"><span class="ic">📊</span>报表</div>
+          <div class="tab"><span class="ic">💳</span>账户</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 变体 +D 顶部图标行 -->
+    <div class="pw">
+      <p class="cap">变体（+D 顶部图标行）</p>
+      <p class="note">在主方案基础上，把 搜索/日历(月切换)/统计 收成顶部一行图标（钱迹式），Hero 更聚焦数字。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>12:32</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav">
+              <div class="ledger">🏠 日常账本 <span style="opacity:.8;font-size:12px;">▾</span></div>
+              <div class="hicons"><span>🔍</span><span>📅</span><span>📊</span><span>🔔</span></div>
+            </div>
+            <div style="text-align:center;margin-top:6px;position:relative;z-index:2;">
+              <div class="bal-k">2026年7月 · 月结余</div>
+              <div class="bal-v" style="font-size:46px;">¥38,550<small>.20</small></div>
+              <div style="display:flex;justify-content:center;gap:24px;font-size:12px;opacity:.92;margin-top:6px;">
+                <span>收入 42,453.80</span><span>支出 3,903.60</span>
+              </div>
+            </div>
+          </div>
+          <div class="pad">
+            <div class="card quick">
+              <div class="qa"><div class="ic" style="background:var(--brand-weak)">💎</div><div class="l">资产</div></div>
+              <div class="qa"><div class="ic" style="background:#fdf3e2">🧮</div><div class="l">预算</div></div>
+              <div class="qa"><div class="ic" style="background:#f3ecff">📥</div><div class="l">导入</div></div>
+              <div class="qa"><div class="ic" style="background:#e6f6ec">🤝</div><div class="l">借贷</div></div>
+              <div class="qa"><div class="ic" style="background:#eef0f2">⋯</div><div class="l">更多</div></div>
+            </div>
+          </div>
+          <div class="pad"><div class="card budget">
+            <div class="brow"><span class="btitle">7月预算</span><span class="bsmall">未设置</span></div>
+            <div class="barbg"><div class="bar" style="width:0%"></div></div>
+            <div class="brow"><span class="bsmall">设置预算，月末不透支</span><span class="bsmall" style="color:var(--brand-600)">去设置 ›</span></div>
+          </div></div>
+          <div class="pad">
+            <div class="dayh"><span>07/06 周一</span><span>支 44.30</span></div>
+            <div class="card">
+              <div class="tx"><div class="cic" style="background:#3ba55d">Ⓟ</div>
+                <div class="tinfo"><div class="tname">停车费</div><div class="tacc">平安信用卡(0713) · 👤明轩</div></div>
+                <div class="tamt exp">-10.50</div></div>
+              <div class="tx"><div class="cic" style="background:#e5793a">🍴</div>
+                <div class="tinfo"><div class="tname">餐饮</div><div class="tacc">现金 · 👤小鱼</div></div>
+                <div class="tamt exp">-33.80</div></div>
+            </div>
+          </div>
+          <div style="height:80px;"></div>
+        </div>
+        <div class="fab">＋</div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📝</span>明细</div>
+          <div class="tab"><span class="ic">📊</span>报表</div>
+          <div class="tab"><span class="ic">💳</span>账户</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <div><span class="tag">A</span> 流水行显示账户名（信用卡自动带卡号后四位）；协作账本再叠加「👤记账人」。</div>
+    <div><span class="tag">B</span> 月预算进度卡：已设→进度条+预警色；未设→引导「去设置」（不再只藏在 Hero 一格）。</div>
+    <div><span class="tag">C</span> 快捷入口末位「更多」，通往 借贷/账单导入/数据备份 等低频项。</div>
+    <div><span class="tag">彩色图标</span> 分类用彩色圆角图标（示意），比 emoji 更统一；落地时先用色块+字/emoji，图标库后续。</div>
+    <div><span class="tag">D</span> 变体：顶部 搜索/日历/统计 图标行，Hero 居中更聚焦（可选）。</div>
+  </div>
+</div>
+</body>
+</html>
