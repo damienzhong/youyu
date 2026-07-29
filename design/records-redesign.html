@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 明细页重做原型</title>
+<style>
+  :root {
+    --green: #12a150;
+    --green-d: #0e8a44;
+    --exp: #f0553d;
+    --inc: #12a150;
+    --tr: #8a94a6;
+    --bg: #eef0f2;
+    --ink: #16181c;
+    --sub: #9aa2ad;
+    --line: #f1f3f5;
+  }
+  * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: #dfe3e7;
+    color: var(--ink);
+    padding: 40px 24px 80px;
+  }
+  h1 { text-align: center; font-size: 26px; margin: 0 0 6px; }
+  .lead { text-align: center; color: #5b6470; font-size: 14px; margin: 0 0 36px; }
+  .gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px 32px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .item { width: 360px; }
+  .cap { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 6px; color: #2b3a34; }
+  .cap small { display: block; font-weight: 400; color: #6b7280; font-size: 12px; margin-top: 2px; }
+
+  /* 手机框 */
+  .phone {
+    width: 360px;
+    height: 760px;
+    background: var(--bg);
+    border-radius: 40px;
+    border: 10px solid #10161c;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.22);
+  }
+  .status {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    flex: 0 0 auto;
+  }
+  .scroll { flex: 1; overflow-y: auto; }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  /* 顶部栏 */
+  .topbar {
+    background: #fff;
+    padding: 8px 18px 14px;
+  }
+  .tb-row1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+  }
+  .ledger { font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 4px; }
+  .tb-icons { display: flex; gap: 16px; font-size: 18px; color: #5b6470; }
+  /* 月份切换 */
+  .monthnav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 26px;
+    margin-top: 6px;
+  }
+  .monthnav .arw { color: var(--sub); font-size: 20px; padding: 2px 8px; }
+  .monthnav .m { font-size: 16px; font-weight: 800; }
+  /* 三指标结余条 */
+  .kpis {
+    display: flex;
+    margin-top: 12px;
+    background: #f6f7f9;
+    border-radius: 14px;
+    padding: 12px 0;
+  }
+  .kpi { flex: 1; text-align: center; }
+  .kpi .k { font-size: 11px; color: var(--sub); }
+  .kpi .v { font-size: 18px; font-weight: 800; margin-top: 2px; }
+  .kpi .v.exp { color: var(--exp); }
+  .kpi .v.inc { color: var(--inc); }
+  .kpi + .kpi { border-left: 1px solid #e7eaed; }
+
+  /* 段/年月切换 tabs */
+  .seg {
+    display: inline-flex;
+    background: #eef0f2;
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .seg span { padding: 6px 16px; font-size: 13px; font-weight: 700; color: #5b6470; border-radius: 8px; }
+  .seg span.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+
+  /* 筛选 chip 行 */
+  .filters {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px 4px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .fchip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fff;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 12px;
+    color: #5b6470;
+    box-shadow: 0 2px 8px rgba(20,24,28,0.05);
+  }
+  .fchip.on { background: #e6f6ec; color: var(--green-d); font-weight: 700; }
+  .fchip .x { color: var(--green-d); }
+
+  /* 日期分组卡 */
+  .daygrp { margin: 12px 14px 0; }
+  .dayhead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 6px 8px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+  .dayhead .dt { font-weight: 700; }
+  .dayhead .sum { display: flex; gap: 14px; }
+  .dayhead .sum .i { color: var(--inc); }
+  .dayhead .sum .e { color: var(--exp); }
+  .card { background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 6px 18px rgba(20,24,28,0.05); }
+  .tx { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .card .tx:first-child { border-top: none; }
+  .tico {
+    width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex: 0 0 auto; color: #fff;
+  }
+  .tinfo { flex: 1; min-width: 0; }
+  .tname { font-size: 15px; font-weight: 600; }
+  .tsub { font-size: 11px; color: var(--sub); margin-top: 3px; }
+  .tags { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+  .tag { font-size: 10px; color: var(--green-d); background: #e6f6ec; border-radius: 5px; padding: 1px 8px; }
+  .tamt { font-size: 16px; font-weight: 800; }
+  .tamt.exp { color: var(--exp); }
+  .tamt.inc { color: var(--inc); }
+  .tamt.tr { color: var(--tr); }
+
+  .empty { text-align: center; color: var(--sub); font-size: 14px; padding: 90px 30px; }
+  .empty .big { font-size: 46px; margin-bottom: 14px; opacity: .5; }
+  .empty .go { display: inline-block; margin-top: 18px; background: var(--green); color: #fff; font-weight: 700; padding: 10px 26px; border-radius: 999px; font-size: 13px; }
+
+  /* 悬浮 + */
+  .fab {
+    position: absolute; right: 20px; bottom: 24px;
+    width: 54px; height: 54px; border-radius: 50%;
+    background: linear-gradient(135deg, #18b85a, #0e8a44);
+    color: #fff; font-size: 32px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 24px rgba(18,161,80,0.45);
+  }
+
+  /* 弹层遮罩 */
+  .sheet-mask {
+    position: absolute; inset: 0; background: rgba(15,23,42,0.42);
+    display: flex; align-items: flex-end;
+  }
+  .sheet { width: 100%; background: #fff; border-radius: 22px 22px 0 0; padding: 20px 18px 24px; }
+  .sheet-title { text-align: center; font-weight: 800; font-size: 15px; margin-bottom: 14px; }
+
+  .note { width: 360px; font-size: 12px; color: #4b5563; line-height: 1.7; background: #fff; border-radius: 14px; padding: 14px 16px; }
+  .note b { color: var(--green-d); }
+  .legend { max-width: 900px; margin: 0 auto 30px; background: #fff; border-radius: 14px; padding: 16px 20px; font-size: 13px; color: #374151; line-height: 1.8; }
+  .legend h3 { margin: 0 0 8px; font-size: 15px; }
+</style>
+</head>
+<body>
+  <h1>有余 · 明细页重做原型</h1>
+  <p class="lead">范围 B（P0 + P1）：月份切换 · 结余条 · 搜索 · 多维组合筛选 · 年视图汇总表 · 分组维度切换</p>
+
+  <div class="legend">
+    <h3>设计要点</h3>
+    支出 <b style="color:#f0553d">红</b>、收入 <b>绿</b>、转账 <b style="color:#8a94a6">灰</b>；品牌绿 #12a150。<br>
+    P0：① 顶部月份前后切换 + 点击选月/跳年；② 收入/支出/结余三指标随周期联动；③ 搜索（备注/分类/商家/金额）。<br>
+    P1：④ 多维可组合筛选（分类+账户+项目/商家/标签/记账人+时间）做成底部面板；⑤ 年视图（月账单/年账单切换，年=按月汇总表可下钻）；⑥ 分组维度切换（按天/按分类/按收支）。
+  </div>
+
+  <div class="gallery">
+    <!-- 屏1：月视图·有数据 -->
+    <div class="item">
+      <div class="cap">① 月视图 · 有数据<small>默认态：月份切换 + 结余条 + 筛选 chip + 按日分组</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div class="topbar">
+            <div class="tb-row1">
+              <div class="ledger">日常账本 ▾</div>
+              <div class="tb-icons"><span>🔍</span><span>📅</span></div>
+            </div>
+            <div class="monthnav">
+              <span class="arw">‹</span>
+              <span class="m">2026年7月 ▾</span>
+              <span class="arw">›</span>
+            </div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">收入</div><div class="v inc">8,200.00</div></div>
+              <div class="kpi"><div class="k">支出</div><div class="v exp">3,903.60</div></div>
+              <div class="kpi"><div class="k">结余</div><div class="v">4,296.40</div></div>
+            </div>
+          </div>
+
+          <div class="filters">
+            <span class="fchip">分类 ▾</span>
+            <span class="fchip">账户 ▾</span>
+            <span class="fchip">项目 ▾</span>
+            <span class="fchip">标签 ▾</span>
+            <span class="fchip">时间 ▾</span>
+          </div>
+
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/06 周一</span><span class="sum"><span class="i">收 0.00</span><span class="e">支 44.30</span></span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e5793a">🅿️</div>
+                <div class="tinfo"><div class="tname">停车费</div><div class="tsub">平安信用卡(0713) · 12:30</div></div>
+                <div class="tamt exp">-10.50</div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname">餐饮</div><div class="tsub">平安信用卡(0713) · 12:05</div>
+                  <div class="tags"><span class="tag">工作日</span></div></div>
+                <div class="tamt exp">-33.80</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/03 周五</span><span class="sum"><span class="i">收 0.00</span><span class="e">支 381.40</span></span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname">餐饮</div><div class="tsub">平安信用卡(0713) · 19:20</div></div>
+                <div class="tamt exp">-22.80</div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#2eb8a6">⛽</div>
+                <div class="tinfo"><div class="tname">油电费</div><div class="tsub">平安信用卡(0713) · 08:40</div>
+                  <div class="tags"><span class="tag">通勤</span></div></div>
+                <div class="tamt exp">-358.60</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/01 周三</span><span class="sum"><span class="i">收 8,200.00</span><span class="e">支 27.80</span></span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#12a150">💰</div>
+                <div class="tinfo"><div class="tname">工资</div><div class="tsub">招商银行(6688) · 10:00</div></div>
+                <div class="tamt inc">+8,200.00</div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#5b8def">🚇</div>
+                <div class="tinfo"><div class="tname">交通</div><div class="tsub">交通卡 · 09:01</div></div>
+                <div class="tamt exp">-27.80</div>
+              </div>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div>
+        <div class="fab">＋</div>
+      </div>
+    </div>
+
+    <!-- 屏2：月视图·空数据 -->
+    <div class="item">
+      <div class="cap">② 月视图 · 空数据<small>该月无流水的引导态</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div class="topbar">
+            <div class="tb-row1">
+              <div class="ledger">日常账本 ▾</div>
+              <div class="tb-icons"><span>🔍</span><span>📅</span></div>
+            </div>
+            <div class="monthnav">
+              <span class="arw">‹</span>
+              <span class="m">2026年2月 ▾</span>
+              <span class="arw">›</span>
+            </div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">收入</div><div class="v inc">0.00</div></div>
+              <div class="kpi"><div class="k">支出</div><div class="v exp">0.00</div></div>
+              <div class="kpi"><div class="k">结余</div><div class="v">0.00</div></div>
+            </div>
+          </div>
+          <div class="empty">
+            <div class="big">🧾</div>
+            这个月还没有记录
+            <div class="go">＋ 记一笔</div>
+          </div>
+        </div>
+        <div class="fab">＋</div>
+      </div>
+    </div>
+    <!-- 屏3：月份选择器 -->
+    <div class="item">
+      <div class="cap">③ 月份选择器<small>点月份弹出：年份步进 + 12 格，有数据的月份加点</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll" style="filter:brightness(.96)">
+          <div class="topbar">
+            <div class="tb-row1"><div class="ledger">日常账本 ▾</div><div class="tb-icons"><span>🔍</span><span>📅</span></div></div>
+            <div class="monthnav"><span class="arw">‹</span><span class="m">2026年7月 ▾</span><span class="arw">›</span></div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">收入</div><div class="v inc">8,200.00</div></div>
+              <div class="kpi"><div class="k">支出</div><div class="v exp">3,903.60</div></div>
+              <div class="kpi"><div class="k">结余</div><div class="v">4,296.40</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="sheet-mask">
+          <div class="sheet">
+            <div style="display:flex;align-items:center;justify-content:center;gap:40px;margin-bottom:16px;">
+              <span style="color:var(--sub);font-size:20px">‹</span>
+              <b style="font-size:16px">2026 年</b>
+              <span style="color:var(--sub);font-size:20px">›</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+              <div class="mcell">1月</div><div class="mcell has">2月</div><div class="mcell has">3月</div><div class="mcell has">4月</div>
+              <div class="mcell has">5月</div><div class="mcell has">6月</div><div class="mcell sel">7月</div><div class="mcell">8月</div>
+              <div class="mcell">9月</div><div class="mcell">10月</div><div class="mcell">11月</div><div class="mcell">12月</div>
+            </div>
+            <div style="text-align:center;color:var(--sub);font-size:11px;margin-top:14px">· 圆点=该月有记录 · 点年份左右切年</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 屏4：搜索 -->
+    <div class="item">
+      <div class="cap">④ 搜索<small>按备注/分类/商家/金额搜索，结果高亮命中</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div style="background:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+            <span style="color:var(--sub)">‹</span>
+            <div style="flex:1;background:#f2f4f6;border-radius:999px;padding:9px 16px;font-size:13px;color:var(--ink)">🔍 餐饮</div>
+            <span style="color:var(--green-d);font-size:13px;font-weight:700">搜索</span>
+          </div>
+          <div style="padding:10px 20px;font-size:12px;color:var(--sub)">共 12 笔 · 合计支出 <b style="color:var(--exp)">¥986.40</b></div>
+          <div class="daygrp" style="margin-top:0">
+            <div class="dayhead"><span class="dt">07/06 周一</span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname"><mark style="background:#fff3b0">餐饮</mark></div><div class="tsub">平安信用卡(0713) · 午餐</div></div>
+                <div class="tamt exp">-33.80</div>
+              </div>
+            </div>
+          </div>
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/03 周五</span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname"><mark style="background:#fff3b0">餐饮</mark></div><div class="tsub">平安信用卡(0713) · 晚餐</div></div>
+                <div class="tamt exp">-22.80</div>
+              </div>
+            </div>
+          </div>
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">06/28 周六</span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname"><mark style="background:#fff3b0">餐饮</mark></div><div class="tsub">现金 · 聚餐 AA</div>
+                  <div class="tags"><span class="tag">朋友</span></div></div>
+                <div class="tamt exp">-128.00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+      .mcell { text-align:center; padding:12px 0; border-radius:12px; background:#f2f4f6; font-size:13px; font-weight:700; color:#5b6470; position:relative; }
+      .mcell.has::after { content:''; position:absolute; left:50%; bottom:6px; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:var(--green); }
+      .mcell.sel { background:var(--green); color:#fff; }
+    </style>
+    <!-- 屏5：多维组合筛选面板 -->
+    <div class="item">
+      <div class="cap">⑤ 多维组合筛选<small>底部面板：分类+账户+项目/标签/记账人 可叠加，实时预估结果数</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll" style="filter:brightness(.96)">
+          <div class="topbar">
+            <div class="tb-row1"><div class="ledger">日常账本 ▾</div><div class="tb-icons"><span>🔍</span><span>📅</span></div></div>
+            <div class="monthnav"><span class="arw">‹</span><span class="m">2026年7月 ▾</span><span class="arw">›</span></div>
+          </div>
+        </div>
+        <div class="sheet-mask">
+          <div class="sheet" style="max-height:88%;overflow:auto;">
+            <div class="sheet-title">筛选</div>
+            <div class="fgroup"><div class="flabel">收支类型</div>
+              <div class="pills"><span class="pill on">全部</span><span class="pill">支出</span><span class="pill">收入</span><span class="pill">转账</span></div></div>
+            <div class="fgroup"><div class="flabel">分类</div>
+              <div class="pills"><span class="pill on">餐饮</span><span class="pill on">交通</span><span class="pill">购物</span><span class="pill">居住</span><span class="pill">娱乐</span></div></div>
+            <div class="fgroup"><div class="flabel">账户</div>
+              <div class="pills"><span class="pill on">平安信用卡</span><span class="pill">招商银行</span><span class="pill">现金</span></div></div>
+            <div class="fgroup"><div class="flabel">项目</div>
+              <div class="pills"><span class="pill">装修</span><span class="pill on">三亚旅行</span></div></div>
+            <div class="fgroup"><div class="flabel">标签</div>
+              <div class="pills"><span class="pill">报销</span><span class="pill">通勤</span><span class="pill">朋友</span></div></div>
+            <div style="display:flex;gap:12px;margin-top:18px;">
+              <div style="flex:0 0 auto;padding:12px 22px;border-radius:12px;background:#f2f4f6;color:#5b6470;font-weight:700;font-size:14px;">重置</div>
+              <div style="flex:1;text-align:center;padding:12px 0;border-radius:12px;background:var(--green);color:#fff;font-weight:700;font-size:14px;">查看 18 条结果</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 屏6：年视图（按月汇总表） -->
+    <div class="item">
+      <div class="cap">⑥ 年视图 · 月账单/年账单切换<small>年视图 = 按月汇总表，点行下钻到当月</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div class="topbar">
+            <div class="tb-row1">
+              <div class="ledger">日常账本 ▾</div>
+              <div class="seg"><span>月账单</span><span class="on">年账单</span></div>
+            </div>
+            <div class="monthnav"><span class="arw">‹</span><span class="m">2026 年</span><span class="arw">›</span></div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">年收入</div><div class="v inc">96,400.00</div></div>
+              <div class="kpi"><div class="k">年支出</div><div class="v exp">52,180.30</div></div>
+              <div class="kpi"><div class="k">年结余</div><div class="v">44,219.70</div></div>
+            </div>
+          </div>
+
+          <div style="display:flex;padding:14px 20px 6px;font-size:11px;color:var(--sub);">
+            <span style="flex:0 0 56px">月份</span>
+            <span style="flex:1;text-align:right">收入</span>
+            <span style="flex:1;text-align:right">支出</span>
+            <span style="flex:1;text-align:right">结余</span>
+            <span style="flex:0 0 18px"></span>
+          </div>
+          <div class="card" style="margin:0 14px;">
+            <div class="mrow"><span class="mm">7月</span><span class="mi">8,200.00</span><span class="me">3,903.60</span><span class="mb">4,296.40</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">6月</span><span class="mi">8,200.00</span><span class="me">6,120.00</span><span class="mb">2,080.00</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">5月</span><span class="mi">8,200.00</span><span class="me">4,560.20</span><span class="mb">3,639.80</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">4月</span><span class="mi">8,200.00</span><span class="me">7,890.00</span><span class="mb">310.00</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">3月</span><span class="mi">8,200.00</span><span class="me">5,010.50</span><span class="mb">3,189.50</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">2月</span><span class="mi">0.00</span><span class="me">0.00</span><span class="mb">0.00</span><span class="mc">›</span></div>
+            <div class="mrow"><span class="mm">1月</span><span class="mi">8,200.00</span><span class="me">4,120.00</span><span class="mb">4,080.00</span><span class="mc">›</span></div>
+          </div>
+          <div style="height:20px"></div>
+        </div>
+        <div class="fab">＋</div>
+      </div>
+    </div>
+
+    <style>
+      .fgroup { margin-bottom:14px; }
+      .flabel { font-size:12px; color:var(--sub); margin-bottom:8px; }
+      .pills { display:flex; flex-wrap:wrap; gap:8px; }
+      .pill { padding:7px 16px; border-radius:999px; background:#f2f4f6; font-size:12px; color:#5b6470; border:1px solid transparent; }
+      .pill.on { background:#e6f6ec; color:var(--green-d); font-weight:700; border-color:var(--green); }
+      .mrow { display:flex; align-items:center; padding:14px 12px; border-top:1px solid var(--line); font-size:13px; }
+      .card .mrow:first-child { border-top:none; }
+      .mrow .mm { flex:0 0 56px; font-weight:800; }
+      .mrow .mi { flex:1; text-align:right; color:var(--inc); }
+      .mrow .me { flex:1; text-align:right; color:var(--exp); }
+      .mrow .mb { flex:1; text-align:right; font-weight:700; }
+      .mrow .mc { flex:0 0 18px; text-align:right; color:#c0c4cc; }
+    </style>
+    <!-- 屏7：分组维度切换（按分类） -->
+    <div class="item">
+      <div class="cap">⑦ 分组维度 · 按分类<small>按天/按分类/按收支切换；按分类=每组合计+占比条</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div class="topbar">
+            <div class="tb-row1"><div class="ledger">日常账本 ▾</div><div class="tb-icons"><span>🔍</span><span>📅</span></div></div>
+            <div class="monthnav"><span class="arw">‹</span><span class="m">2026年7月 ▾</span><span class="arw">›</span></div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">收入</div><div class="v inc">8,200.00</div></div>
+              <div class="kpi"><div class="k">支出</div><div class="v exp">3,903.60</div></div>
+              <div class="kpi"><div class="k">结余</div><div class="v">4,296.40</div></div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:center;padding:12px 0 2px;">
+            <div class="seg"><span>按天</span><span class="on">按分类</span><span>按收支</span></div>
+          </div>
+
+          <div class="daygrp">
+            <div class="card" style="padding:2px 0">
+              <div class="tx">
+                <div class="tico" style="background:#2eb8a6">⛽</div>
+                <div class="tinfo"><div class="tname">油电费 · 2 笔</div>
+                  <div style="height:6px;background:#f0f0f0;border-radius:4px;margin-top:8px;overflow:hidden;"><div style="width:52%;height:100%;background:#2eb8a6"></div></div>
+                </div>
+                <div style="text-align:right"><div class="tamt exp">-1,842.00</div><div class="tsub">52%</div></div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname">餐饮 · 14 笔</div>
+                  <div style="height:6px;background:#f0f0f0;border-radius:4px;margin-top:8px;overflow:hidden;"><div style="width:28%;height:100%;background:#e0609a"></div></div>
+                </div>
+                <div style="text-align:right"><div class="tamt exp">-986.40</div><div class="tsub">28%</div></div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#5b8def">🚇</div>
+                <div class="tinfo"><div class="tname">交通 · 9 笔</div>
+                  <div style="height:6px;background:#f0f0f0;border-radius:4px;margin-top:8px;overflow:hidden;"><div style="width:12%;height:100%;background:#5b8def"></div></div>
+                </div>
+                <div style="text-align:right"><div class="tamt exp">-458.20</div><div class="tsub">12%</div></div>
+              </div>
+              <div class="tx">
+                <div class="tico" style="background:#8b78e0">🛍️</div>
+                <div class="tinfo"><div class="tname">购物 · 3 笔</div>
+                  <div style="height:6px;background:#f0f0f0;border-radius:4px;margin-top:8px;overflow:hidden;"><div style="width:8%;height:100%;background:#8b78e0"></div></div>
+                </div>
+                <div style="text-align:right"><div class="tamt exp">-317.00</div><div class="tsub">8%</div></div>
+              </div>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div>
+        <div class="fab">＋</div>
+      </div>
+    </div>
+
+    <!-- 屏8：协作账本 -->
+    <div class="item">
+      <div class="cap">⑧ 协作账本<small>每笔带记账人；筛选含记账人维度</small></div>
+      <div class="phone">
+        <div class="status"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="scroll">
+          <div class="topbar">
+            <div class="tb-row1"><div class="ledger">家庭账本 ▾</div><div class="tb-icons"><span>🔍</span><span>📅</span></div></div>
+            <div class="monthnav"><span class="arw">‹</span><span class="m">2026年7月 ▾</span><span class="arw">›</span></div>
+            <div class="kpis">
+              <div class="kpi"><div class="k">收入</div><div class="v inc">16,000.00</div></div>
+              <div class="kpi"><div class="k">支出</div><div class="v exp">7,240.00</div></div>
+              <div class="kpi"><div class="k">结余</div><div class="v">8,760.00</div></div>
+            </div>
+          </div>
+          <div class="filters">
+            <span class="fchip">分类 ▾</span>
+            <span class="fchip on">记账人：老王 <span class="x">✕</span></span>
+            <span class="fchip">账户 ▾</span>
+            <span class="fchip">标签 ▾</span>
+          </div>
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/05 周日</span><span class="sum"><span class="e">支 268.00</span></span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#e0609a">🍜</div>
+                <div class="tinfo"><div class="tname">餐饮 · 家庭聚餐</div><div class="tsub">招商银行(6688) · 👤老王 · 18:30</div></div>
+                <div class="tamt exp">-268.00</div>
+              </div>
+            </div>
+          </div>
+          <div class="daygrp">
+            <div class="dayhead"><span class="dt">07/03 周五</span><span class="sum"><span class="e">支 420.00</span></span></div>
+            <div class="card">
+              <div class="tx">
+                <div class="tico" style="background:#8b78e0">🛍️</div>
+                <div class="tinfo"><div class="tname">购物 · 日用</div><div class="tsub">现金 · 👤老王 · 11:00</div>
+                  <div class="tags"><span class="tag">必要</span></div></div>
+                <div class="tamt exp">-420.00</div>
+              </div>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div>
+        <div class="fab">＋</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
