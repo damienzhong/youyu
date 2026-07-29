@@ -15,16 +15,17 @@ echo "== [1/3] 构建后端 jar =="
 cd "$ROOT"
 ./mvnw -q clean package                      # 含测试；如需跳过加 -DskipTests
 
-echo "== [2/3] 构建前端 dist =="
-cd "$ROOT/web"
+echo "== [2/3] 构建前端 H5（miniapp）=="
+# 线上前端 = uni-app 的 H5 产物（与小程序同一套代码）。API 走相对 /api，由 nginx 反代到后端 8090。
+cd "$ROOT/miniapp"
 if [ -f package-lock.json ]; then npm ci; else npm install; fi
-npm run build
+VITE_API_BASE=/api npm run build:h5
 
 echo "== [3/3] 组装 deploy/dist =="
 rm -rf "$DIST"
 mkdir -p "$DIST/web"
 cp "$ROOT/target/youyu.jar" "$DIST/youyu.jar"
-cp -r "$ROOT/web/dist/"* "$DIST/web/"
+cp -r "$ROOT/miniapp/dist/build/h5/"* "$DIST/web/"
 echo "产物已就绪：$DIST (youyu.jar + web/)"
 
 if [ -n "${DEPLOY_SSH:-}" ]; then
