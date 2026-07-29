@@ -165,7 +165,36 @@ async function load() {
   }
 }
 
-onShow(load)
+// 消费其它页(报表/明细详情)投递的待应用筛选（tabBar 页无法带参，借本地存储传递）。
+function consumePendingFilter() {
+  let pending = null
+  try {
+    pending = uni.getStorageSync('youyu_records_filter')
+  } catch (e) {
+    pending = null
+  }
+  if (!pending || !pending.dim || pending.id == null) return
+  uni.removeStorageSync('youyu_records_filter')
+  // 若投递了目标月份则切换。
+  if (pending.month) month.value = pending.month
+  filterDim.value = pending.dim
+  filterId.value = pending.id
+  // 若投递了名称，兜底塞入选项，保证标签可显示（选项已在 load 中拉取，通常已存在）。
+  if (pending.name) {
+    const ensure = (arr) => {
+      if (!arr.value.some((x) => x.id === pending.id)) arr.value.push({ id: pending.id, name: pending.name })
+    }
+    if (pending.dim === 'project') ensure(projects)
+    else if (pending.dim === 'merchant') ensure(merchants)
+    else if (pending.dim === 'tag') ensure(tags)
+    else if (pending.dim === 'recorder' && !memberMap.value[pending.id]) memberMap.value[pending.id] = pending.name
+  }
+}
+
+onShow(async () => {
+  await load()
+  consumePendingFilter()
+})
 
 const grouped = computed(() => {
   const groups = []

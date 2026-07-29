@@ -80,6 +80,19 @@ onShow(load)
 function openTx(t) {
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}` })
 }
+// 跳到「明细」tab 并按本维度项筛选（tabBar 页无法带参，经本地存储投递）。
+function viewInRecords() {
+  try {
+    uni.setStorageSync('youyu_records_filter', {
+      dim: dim.value,
+      id: id.value,
+      name: name.value
+    })
+  } catch (e) {
+    /* ignore */
+  }
+  uni.switchTab({ url: '/pages/records/records' })
+}
 </script>
 
 <template>
@@ -101,6 +114,7 @@ function openTx(t) {
           <text class="s-v">{{ count }}</text>
         </view>
       </view>
+      <view v-if="txs.length" class="s-action" @click="viewInRecords">在明细中筛选查看 ›</view>
     </view>
 
     <view v-if="!txs.length && !loading" class="empty">该{{ dimLabel }}下还没有流水</view>
@@ -132,6 +146,16 @@ function openTx(t) {
 .s-v { font-size: 34rpx; font-weight: 800; color: #16181c; }
 .s-v.exp { color: #f0553d; }
 .s-v.inc { color: #12a150; }
+.s-action {
+  margin-top: 22rpx;
+  text-align: center;
+  padding: 20rpx;
+  border-radius: 14rpx;
+  background: #e6f6ec;
+  color: #0e8a44;
+  font-weight: 700;
+  font-size: 26rpx;
+}
 .empty { margin-top: 120rpx; text-align: center; color: #9aa2ad; font-size: 28rpx; }
 .group { margin-bottom: 20rpx; }
 .g-date { display: block; font-size: 24rpx; color: #5b6470; padding: 8rpx 12rpx; }

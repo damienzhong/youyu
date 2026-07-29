@@ -142,6 +142,21 @@ function selectDim(d) {
   rows.value = []
   load()
 }
+// 维度报表行 → 跳到「明细」tab 并按该维度项筛选（分类维度暂无对应筛选，不跳转）。
+function onRowTap(r) {
+  if (ledgerStore.isAll || dim.value === 'category' || r.categoryId == null) return
+  try {
+    uni.setStorageSync('youyu_records_filter', {
+      dim: dim.value,
+      id: r.categoryId,
+      name: r.categoryName,
+      month: month.value
+    })
+  } catch (e) {
+    /* ignore */
+  }
+  uni.switchTab({ url: '/pages/records/records' })
+}
 function prevMonth() {
   month.value = shiftMonth(month.value, -1)
   load()
@@ -213,7 +228,7 @@ function nextMonth() {
     </view>
 
     <view class="list" v-if="rows.length">
-      <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row">
+      <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row" @click="onRowTap(r)">
         <text class="row-ic" :style="{ background: colorAt(i) + '22' }">
           {{ categoryEmoji(r.categoryName, kind) }}
         </text>
@@ -230,6 +245,7 @@ function nextMonth() {
             <text class="row-count">{{ r.count }} 笔</text>
           </view>
         </view>
+        <text v-if="showDims && dim !== 'category'" class="row-caret">›</text>
       </view>
     </view>
 
@@ -489,5 +505,11 @@ function nextMonth() {
 .row-count {
   font-size: 22rpx;
   color: #bbb;
+}
+.row-caret {
+  flex: 0 0 auto;
+  color: #c0c4cc;
+  font-size: 40rpx;
+  padding-left: 8rpx;
 }
 </style>
