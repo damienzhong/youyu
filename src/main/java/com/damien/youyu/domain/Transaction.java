@@ -70,6 +70,10 @@ public class Transaction {
     @Column(name = "category_id")
     private Long categoryId;
 
+    /** 所属项目 id（可空，把流水归到某项目/事件下）。 */
+    @Column(name = "project_id")
+    private Long projectId;
+
     /** 交易时间。 */
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
@@ -170,6 +174,14 @@ public class Transaction {
 
     public void setCategoryId(Long categoryId) {
         this.categoryId = categoryId;
+    }
+
+    public Long getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
     }
 
     public LocalDateTime getOccurredAt() {

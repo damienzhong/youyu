@@ -25,5 +25,6 @@ public record TransactionUpdateRequest(
         Long sourceAccountId,
         Long destinationAccountId,
         LocalDateTime occurredAt,
-        String note) {
+        String note,
+        Long projectId) {
 }

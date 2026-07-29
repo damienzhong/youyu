@@ -29,5 +29,6 @@ public record TransactionCreateRequest(
         Long destinationAccountId,
         LocalDateTime occurredAt,
         String note,
-        Long createdBy) {
+        Long createdBy,
+        Long projectId) {
 }

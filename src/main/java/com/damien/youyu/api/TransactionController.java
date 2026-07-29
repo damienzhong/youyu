@@ -30,6 +30,7 @@ import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.AccountScope;
 import com.damien.youyu.service.LedgerService;
+import com.damien.youyu.service.ProjectService;
 import com.damien.youyu.service.TransactionService;
 
 /**
@@ -54,14 +55,16 @@ public class TransactionController {
 
     private final TransactionService transactionService;
     private final LedgerService ledgerService;
+    private final ProjectService projectService;
     private final CurrentLedger currentLedger;
     private final CurrentUser currentUser;
 
     public TransactionController(TransactionService transactionService,
-            LedgerService ledgerService,
+            LedgerService ledgerService, ProjectService projectService,
             CurrentLedger currentLedger, CurrentUser currentUser) {
         this.transactionService = transactionService;
         this.ledgerService = ledgerService;
+        this.projectService = projectService;
         this.currentLedger = currentLedger;
         this.currentUser = currentUser;
     }
@@ -79,6 +82,8 @@ public class TransactionController {
                 && ledgerService.isMember(ledger.getId(), req.createdBy())) {
             createdBy = req.createdBy();
         }
+        // 校验所属项目归属本账本（不存在则 404）；null 表示无项目。
+        projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
         Transaction tx = transactionService.create(
                 scope,
                 ledger.getId(),
@@ -90,7 +95,8 @@ public class TransactionController {
                 req.destinationAccountId(),
                 req.occurredAt(),
                 req.note(),
-                createdBy);
+                createdBy,
+                req.projectId());
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
     }
 
@@ -164,6 +170,8 @@ public class TransactionController {
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
         AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        // 校验所属项目归属本账本（不存在则 404）；null 表示无项目。
+        projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
         Transaction tx = transactionService.update(
                 scope,
                 ledger.getId(),
@@ -175,7 +183,8 @@ public class TransactionController {
                 req.sourceAccountId(),
                 req.destinationAccountId(),
                 req.occurredAt(),
-                req.note());
+                req.note(),
+                req.projectId());
         return ResponseEntity.ok(TransactionResponse.from(tx));
     }
 

@@ -7,6 +7,7 @@ import { createTransaction, getTransaction, updateTransaction } from '../../api/
 import { createLoan } from '../../api/loan'
 import { listMembers } from '../../api/ledger'
 import { listTemplates, createTemplate, deleteTemplate } from '../../api/template'
+import { listProjects, createProject } from '../../api/project'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
@@ -162,6 +163,7 @@ function pickTargetLedger(id) {
   categoryId.value = null
   expandedId.value = null
   createdBy.value = null
+  projectId.value = null
   load()
 }
 
@@ -204,6 +206,44 @@ function pickMember(uid) {
 function memberLabel(m) {
   if (m.userId === selfId.value) return m.displayName ? `${m.displayName}（我）` : '我'
   return m.displayName || '成员'
+}
+
+// ---------- 项目 ----------
+const projects = ref([])
+const projectId = ref(null)
+const projectSheet = ref(false)
+const projNameSheet = ref(false)
+const projectName = computed(() => {
+  const p = projects.value.find((x) => x.id === projectId.value)
+  return p ? p.name : ''
+})
+async function loadProjects() {
+  try {
+    projects.value = await listProjects(targetLedgerId.value)
+  } catch (e) {
+    projects.value = []
+  }
+}
+async function openProjectSheet() {
+  await loadProjects()
+  projectSheet.value = true
+}
+function pickProject(id) {
+  projectId.value = id
+  projectSheet.value = false
+}
+async function onProjNameConfirm(name) {
+  projNameSheet.value = false
+  const trimmed = (name || '').trim()
+  if (!trimmed) return
+  try {
+    const p = await createProject(trimmed, targetLedgerId.value)
+    await loadProjects()
+    projectId.value = p.id
+    uni.showToast({ title: '已创建项目', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '创建失败', icon: 'none' })
+  }
 }
 
 // ---------- 模板 ----------
@@ -312,6 +352,7 @@ async function load() {
     tree.value = cats
     accountId.value = accs[0]?.id ?? null
     destId.value = accs.length > 1 ? accs[1].id : null
+    loadProjects()
     if (isEditing.value) {
       await prefill()
       uni.setNavigationBarTitle({ title: '编辑记录' })
@@ -326,6 +367,7 @@ async function prefill() {
   type.value = tx.type
   expr.value = String(tx.amount)
   note.value = tx.note || ''
+  projectId.value = tx.projectId != null ? tx.projectId : null
   if (tx.occurredAt) occurredDate.value = tx.occurredAt.slice(0, 10)
   if (tx.type === 'transfer') {
     accountId.value = tx.sourceAccountId
@@ -381,6 +423,8 @@ async function submit(cont) {
   if (isCollaborative.value && createdBy.value != null && createdBy.value !== selfId.value) {
     payload.createdBy = createdBy.value
   }
+  // 所属项目（可空）。
+  if (projectId.value != null) payload.projectId = projectId.value
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
@@ -526,6 +570,7 @@ function goBack() {
         <view class="chip">📅 {{ dateLabel }}</view>
       </picker>
       <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
+      <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">📁 {{ projectName || '项目' }}</view>
       <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">⭐ 模板</view>
     </scroll-view>
 
@@ -599,6 +644,25 @@ function goBack() {
       </view>
     </view>
 
+    <!-- 项目选择 / 新建 -->
+    <view v-if="projectSheet" class="mask" @click="projectSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">归到哪个项目</text>
+        <view class="sitem" @click="pickProject(null)">
+          <text class="si-ic">🚫</text>
+          <view class="si-name"><text>不归项目</text></view>
+          <text class="radio" :class="{ on: projectId == null }"></text>
+        </view>
+        <view v-for="p in projects" :key="p.id" class="sitem" @click="pickProject(p.id)">
+          <text class="si-ic">📁</text>
+          <view class="si-name"><text>{{ p.name }}</text><text v-if="p.archived" class="si-type">已归档</text></view>
+          <text class="radio" :class="{ on: projectId === p.id }"></text>
+        </view>
+        <view class="tpl-save" @click="projectSheet = false; projNameSheet = true">＋ 新建项目</view>
+      </view>
+    </view>
+
+    <InputSheet :visible="projNameSheet" title="新建项目" placeholder="如：装修、三亚旅行" @update:visible="projNameSheet = $event" @confirm="onProjNameConfirm" />
     <InputSheet :visible="tplNameSheet" title="模板名称" placeholder="如：早餐、地铁通勤" @update:visible="tplNameSheet = $event" @confirm="onTplNameConfirm" />
     <InputSheet :visible="noteSheet" title="备注" placeholder="添加备注" :value="note" @update:visible="noteSheet = $event" @confirm="onNoteConfirm" />
     <InputSheet :visible="cpSheet" title="对方" placeholder="姓名 / 备注" :value="counterparty" @update:visible="cpSheet = $event" @confirm="onCpConfirm" />

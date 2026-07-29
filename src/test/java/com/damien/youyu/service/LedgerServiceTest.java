@@ -25,6 +25,7 @@ import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
+import com.damien.youyu.repository.ProjectRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
 
@@ -52,6 +53,7 @@ class LedgerServiceTest {
     @Autowired private LedgerMemberRepository memberRepository;
     @Autowired private LedgerInviteRepository inviteRepository;
     @Autowired private TransactionTemplateRepository templateRepository;
+    @Autowired private ProjectRepository projectRepository;
 
     private LedgerService service() {
         return serviceAt(T0);
@@ -63,7 +65,8 @@ class LedgerServiceTest {
                 new AccountService(accountRepository, transactionRepository, clock);
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 transactionRepository, budgetRepository, categoryBudgetRepository, loanRepository,
-                memberRepository, inviteRepository, templateRepository, accountService, clock);
+                memberRepository, inviteRepository, templateRepository, projectRepository,
+                accountService, clock);
     }
 
     // ---------------- 创建 / 默认分类 / 成员 ----------------
