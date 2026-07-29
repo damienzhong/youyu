@@ -5,6 +5,9 @@ import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth, deleteTransaction } from '../../api/transaction'
 import { listMembers } from '../../api/ledger'
+import { listProjects } from '../../api/project'
+import { listMerchants } from '../../api/merchant'
+import { listTags } from '../../api/tag'
 import {
   listAllAccounts,
   listAllCategories,
@@ -34,15 +37,89 @@ const isCollab = computed(
   () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE'
 )
 
+// ---------- 筛选（项目/商家/标签/记账人，单选，客户端过滤当月数据）----------
+const filterDim = ref(null) // null | 'project' | 'merchant' | 'tag' | 'recorder'
+const filterId = ref(null)
+const filterSheet = ref(false)
+const sheetDim = ref('project') // 筛选面板当前维度
+const projects = ref([])
+const merchants = ref([])
+const tags = ref([])
+const showFilter = computed(() => !ledgerStore.isAll)
+const DIM_LABEL = { project: '项目', merchant: '商家', tag: '标签', recorder: '记账人' }
+
+// 当前筛选面板维度下的可选项 [{id,name}]
+const sheetOptions = computed(() => {
+  switch (sheetDim.value) {
+    case 'project':
+      return projects.value.map((p) => ({ id: p.id, name: p.name }))
+    case 'merchant':
+      return merchants.value.map((m) => ({ id: m.id, name: m.name }))
+    case 'tag':
+      return tags.value.map((t) => ({ id: t.id, name: t.name }))
+    case 'recorder':
+      return Object.entries(memberMap.value).map(([id, name]) => ({ id: Number(id), name }))
+    default:
+      return []
+  }
+})
+
+const filterLabel = computed(() => {
+  if (!filterDim.value) return ''
+  const opt = optionName(filterDim.value, filterId.value)
+  return `${DIM_LABEL[filterDim.value]}：${opt}`
+})
+function optionName(dim, id) {
+  const src =
+    dim === 'project' ? projects.value :
+    dim === 'merchant' ? merchants.value :
+    dim === 'tag' ? tags.value : null
+  if (dim === 'recorder') return memberMap.value[id] || '未知'
+  const it = (src || []).find((x) => x.id === id)
+  return it ? it.name : '已删除'
+}
+
+// 应用筛选后的交易列表
+const visibleTx = computed(() => {
+  if (!filterDim.value || filterId.value == null) return transactions.value
+  return transactions.value.filter((t) => {
+    switch (filterDim.value) {
+      case 'project': return t.projectId === filterId.value
+      case 'merchant': return t.merchantId === filterId.value
+      case 'tag': return Array.isArray(t.tagIds) && t.tagIds.includes(filterId.value)
+      case 'recorder': return t.createdBy === filterId.value
+      default: return true
+    }
+  })
+})
+
 const totals = computed(() => {
   let income = 0
   let expense = 0
-  for (const t of transactions.value) {
+  for (const t of visibleTx.value) {
     if (t.type === 'income') income += Number(t.amount)
     else if (t.type === 'expense') expense += Number(t.amount)
   }
   return { income, expense }
 })
+
+function openFilter() {
+  sheetDim.value = filterDim.value || 'project'
+  filterSheet.value = true
+}
+function switchSheetDim(d) {
+  sheetDim.value = d
+}
+function applyFilter(id) {
+  filterDim.value = sheetDim.value
+  filterId.value = id
+  filterSheet.value = false
+}
+function clearFilter() {
+  filterDim.value = null
+  filterId.value = null
+  filterSheet.value = false
+}
 
 async function load() {
   loading.value = true
@@ -69,6 +146,18 @@ async function load() {
     } else {
       memberMap.value = {}
     }
+
+    // 筛选选项（仅具体账本）。
+    if (!isAll) {
+      try {
+        const [ps, ms, ts] = await Promise.all([listProjects(), listMerchants(), listTags()])
+        projects.value = ps
+        merchants.value = ms
+        tags.value = ts
+      } catch (e) {
+        /* 选项加载失败不阻断明细 */
+      }
+    }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
@@ -81,7 +170,7 @@ onShow(load)
 const grouped = computed(() => {
   const groups = []
   let cur = null
-  for (const t of transactions.value) {
+  for (const t of visibleTx.value) {
     const day = dayKeyOf(t.occurredAt)
     if (!cur || cur.day !== day) {
       cur = { day, label: dayLabel(day), income: 0, expense: 0, items: [] }
@@ -158,7 +247,20 @@ function confirmDelete(t) {
       </view>
     </view>
 
-    <view v-if="!transactions.length && !loading" class="empty">本月暂无记录</view>
+    <!-- 筛选栏 -->
+    <view v-if="showFilter" class="filterbar">
+      <view v-if="filterDim" class="active-filter">
+        <text class="af-text">{{ filterLabel }}</text>
+        <text class="af-x" @click="clearFilter">✕</text>
+      </view>
+      <view class="filter-btn" @click="openFilter">
+        <text>🔎 {{ filterDim ? '换筛选' : '筛选' }}</text>
+      </view>
+    </view>
+
+    <view v-if="!visibleTx.length && !loading" class="empty">
+      {{ filterDim ? '该筛选下本月暂无记录' : '本月暂无记录' }}
+    </view>
 
     <view v-for="g in grouped" :key="g.day" class="day">
       <view class="day-h">
@@ -186,7 +288,34 @@ function confirmDelete(t) {
       </view>
     </view>
 
-    <text v-if="transactions.length" class="hint">点击编辑 · 长按删除</text>
+    <text v-if="visibleTx.length" class="hint">点击编辑 · 长按删除</text>
+
+    <!-- 筛选面板 -->
+    <view v-if="filterSheet" class="mask" @click="filterSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">筛选明细</text>
+        <view class="fdims">
+          <text class="fdim" :class="{ on: sheetDim === 'project' }" @click="switchSheetDim('project')">项目</text>
+          <text class="fdim" :class="{ on: sheetDim === 'merchant' }" @click="switchSheetDim('merchant')">商家</text>
+          <text class="fdim" :class="{ on: sheetDim === 'tag' }" @click="switchSheetDim('tag')">标签</text>
+          <text v-if="isCollab" class="fdim" :class="{ on: sheetDim === 'recorder' }" @click="switchSheetDim('recorder')">记账人</text>
+        </view>
+        <scroll-view scroll-y class="opts">
+          <view v-if="!sheetOptions.length" class="opt-empty">暂无{{ DIM_LABEL[sheetDim] }}可选</view>
+          <view
+            v-for="o in sheetOptions"
+            :key="o.id"
+            class="opt"
+            :class="{ on: filterDim === sheetDim && filterId === o.id }"
+            @click="applyFilter(o.id)"
+          >
+            <text>{{ o.name }}</text>
+            <text v-if="filterDim === sheetDim && filterId === o.id" class="opt-tick">✓</text>
+          </view>
+        </scroll-view>
+        <view class="fclear" @click="clearFilter">清除筛选</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -217,10 +346,118 @@ function confirmDelete(t) {
 .s-inc { color: #12a150; }
 .s-exp { color: #f0553d; }
 
+.filterbar {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+.active-filter {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e6f6ec;
+  color: #0e8a44;
+  border-radius: 999rpx;
+  padding: 14rpx 24rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+.af-x {
+  color: #0e8a44;
+  font-size: 26rpx;
+  padding-left: 16rpx;
+}
+.filter-btn {
+  background: #fff;
+  border-radius: 999rpx;
+  padding: 14rpx 30rpx;
+  font-size: 26rpx;
+  color: #5b6470;
+  box-shadow: 0 4rpx 12rpx rgba(20, 24, 28, 0.04);
+  white-space: nowrap;
+}
 .empty {
   margin-top: 120rpx;
   text-align: center;
   color: #9ca3af;
+  font-size: 28rpx;
+}
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  align-items: flex-end;
+  z-index: 50;
+}
+.sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.sheet-title {
+  display: block;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 800;
+  margin-bottom: 20rpx;
+}
+.fdims {
+  display: flex;
+  gap: 14rpx;
+  margin-bottom: 16rpx;
+}
+.fdim {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx 0;
+  border-radius: 12rpx;
+  background: #f2f4f6;
+  font-size: 26rpx;
+  color: #5b6470;
+  font-weight: 700;
+}
+.fdim.on {
+  background: #e6f6ec;
+  color: #0e8a44;
+}
+.opts {
+  max-height: 44vh;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26rpx 8rpx;
+  border-top: 1rpx solid #f1f3f5;
+  font-size: 30rpx;
+  color: #16181c;
+}
+.opt.on {
+  color: #0e8a44;
+  font-weight: 700;
+}
+.opt-tick {
+  color: #0e8a44;
+}
+.opt-empty {
+  text-align: center;
+  color: #9aa2ad;
+  font-size: 26rpx;
+  padding: 40rpx 0;
+}
+.fclear {
+  margin-top: 16rpx;
+  text-align: center;
+  padding: 24rpx;
+  border-radius: 16rpx;
+  background: #f2f4f6;
+  color: #5b6470;
+  font-weight: 700;
   font-size: 28rpx;
 }
 .day {
