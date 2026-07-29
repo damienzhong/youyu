@@ -85,6 +85,18 @@
       "style": {
         "navigationBarTitleText": "借贷往来"
       }
+    },
+    {
+      "path": "pages/labels/labels",
+      "style": {
+        "navigationBarTitleText": "项目 / 商家 / 标签"
+      }
+    },
+    {
+      "path": "pages/labeldetail/labeldetail",
+      "style": {
+        "navigationBarTitleText": "明细"
+      }
     }
   ],
   "globalStyle": {

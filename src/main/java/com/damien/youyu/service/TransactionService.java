@@ -451,6 +451,24 @@ public class TransactionService {
                         ledgerId, from, to);
     }
 
+    /** 列出某账本某项目下的全部交易，按时间倒序。 */
+    @Transactional(readOnly = true)
+    public java.util.List<Transaction> listByProject(Long ledgerId, Long projectId) {
+        return transactionRepository.findByLedgerIdAndProjectIdOrderByOccurredAtDescIdDesc(ledgerId, projectId);
+    }
+
+    /** 列出某账本某商家下的全部交易，按时间倒序。 */
+    @Transactional(readOnly = true)
+    public java.util.List<Transaction> listByMerchant(Long ledgerId, Long merchantId) {
+        return transactionRepository.findByLedgerIdAndMerchantIdOrderByOccurredAtDescIdDesc(ledgerId, merchantId);
+    }
+
+    /** 列出某账本某标签下的全部交易，按时间倒序。 */
+    @Transactional(readOnly = true)
+    public java.util.List<Transaction> listByTag(Long ledgerId, Long tagId) {
+        return transactionRepository.findByLedgerIdAndTagId(ledgerId, tagId);
+    }
+
     /**
      * 单条读取本人交易（校验归属，需求 2.4）。
      *

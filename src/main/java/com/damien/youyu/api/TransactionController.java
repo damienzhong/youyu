@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.BalanceAdjustRequest;
+import com.damien.youyu.api.dto.FilteredTransactionsResponse;
 import com.damien.youyu.api.dto.TransactionCreateRequest;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransactionUpdateRequest;
@@ -171,6 +172,40 @@ public class TransactionController {
         return txs.stream()
                 .map(tx -> TransactionResponse.from(tx, tagMap.getOrDefault(tx.getId(), List.of())))
                 .toList();
+    }
+
+    /**
+     * 按项目/商家/标签过滤本人交易并附支出/收入汇总（三者恰传其一）。
+     * 用于项目/商家/标签的明细与统计视图。
+     */
+    @GetMapping("/filter")
+    public ResponseEntity<FilteredTransactionsResponse> filter(
+            @RequestParam(name = "projectId", required = false) Long projectId,
+            @RequestParam(name = "merchantId", required = false) Long merchantId,
+            @RequestParam(name = "tagId", required = false) Long tagId) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        List<Transaction> txs;
+        if (projectId != null) {
+            txs = transactionService.listByProject(ledgerId, projectId);
+        } else if (merchantId != null) {
+            txs = transactionService.listByMerchant(ledgerId, merchantId);
+        } else if (tagId != null) {
+            txs = transactionService.listByTag(ledgerId, tagId);
+        } else {
+            throw ApiException.reportParamInvalid("filter", "需指定 projectId / merchantId / tagId 之一");
+        }
+        java.math.BigDecimal expense = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal income = java.math.BigDecimal.ZERO;
+        for (Transaction t : txs) {
+            if (t.getType() == com.damien.youyu.domain.TransactionType.EXPENSE) {
+                expense = expense.add(t.getAmount());
+            } else if (t.getType() == com.damien.youyu.domain.TransactionType.INCOME) {
+                income = income.add(t.getAmount());
+            }
+        }
+        FilteredTransactionsResponse body = new FilteredTransactionsResponse(
+                expense, income, txs.size(), withTags(txs));
+        return ResponseEntity.ok(body);
     }
 
     /** 单条读取本人交易（校验归属）。 */

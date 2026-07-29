@@ -21,6 +21,7 @@ const entries = [
   { key: 'loans', icon: '🤝', label: '借贷往来', url: '/pages/loans/loans' },
   { key: 'bills', icon: '📥', label: '账单导入', url: '/pages/billimport/billimport' },
   { key: 'categories', icon: '🏷️', label: '分类管理', url: '/pages/categories/categories' },
+  { key: 'labels', icon: '📁', label: '项目 / 商家 / 标签', url: '/pages/labels/labels' },
   { key: 'data', icon: '🗂️', label: '数据导出 / 导入', url: '/pages/data/data' }
 ]
 function go(url) {

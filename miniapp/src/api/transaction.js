@@ -15,6 +15,12 @@ export function adjustBalance(payload, ledgerId) {
   return http.post('/transactions/adjust', payload, opts(ledgerId))
 }
 
+/** 按项目/商家/标签过滤交易并附支出/收入汇总。dim: 'project'|'merchant'|'tag'，id 为对应实体 id。 */
+export function filterTransactions(dim, id, ledgerId) {
+  const key = dim === 'project' ? 'projectId' : dim === 'merchant' ? 'merchantId' : 'tagId'
+  return http.get(`/transactions/filter?${key}=${id}`, opts(ledgerId))
+}
+
 /** 列出某自然月交易（month=YYYY-MM，按时间倒序）。 */
 export function listTransactionsByMonth(month, ledgerId) {
   return http.get(`/transactions?month=${encodeURIComponent(month)}`, opts(ledgerId))

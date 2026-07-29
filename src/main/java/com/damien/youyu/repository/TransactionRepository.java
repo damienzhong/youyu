@@ -54,6 +54,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** 某账本最近一笔交易，供快速记账默认账户选择（需求 6.1）。 */
     Optional<Transaction> findFirstByLedgerIdOrderByOccurredAtDescIdDesc(Long ledgerId);
 
+    /** 某账本某项目的全部交易，按时间倒序（项目明细/统计用）。 */
+    List<Transaction> findByLedgerIdAndProjectIdOrderByOccurredAtDescIdDesc(Long ledgerId, Long projectId);
+
+    /** 某账本某商家的全部交易，按时间倒序（商家明细/统计用）。 */
+    List<Transaction> findByLedgerIdAndMerchantIdOrderByOccurredAtDescIdDesc(Long ledgerId, Long merchantId);
+
+    /** 某账本某标签的全部交易（经关联表），按时间倒序（标签明细/统计用）。 */
+    @Query("SELECT t FROM Transaction t WHERE t.ledgerId = :ledgerId AND t.id IN "
+            + "(SELECT tt.transactionId FROM TransactionTag tt WHERE tt.tagId = :tagId) "
+            + "ORDER BY t.occurredAt DESC, t.id DESC")
+    List<Transaction> findByLedgerIdAndTagId(
+            @Param("ledgerId") Long ledgerId, @Param("tagId") Long tagId);
+
     /** 跨多个账本、在半开区间内的交易，按时间倒序（「全部账本」聚合只读视图用）。 */
     List<Transaction> findByLedgerIdInAndOccurredAtGreaterThanEqualAndOccurredAtLessThanOrderByOccurredAtDescIdDesc(
             Collection<Long> ledgerIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);
