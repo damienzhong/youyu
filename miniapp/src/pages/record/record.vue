@@ -323,13 +323,16 @@ async function submit() {
 
 <style scoped>
 .page {
-  --accent: #dc2626;
+  --accent: #f0553d;
   min-height: 100vh;
   padding: 24rpx;
+  background: #eef0f2;
 }
-.page.income,
+.page.income {
+  --accent: #12a150;
+}
 .page.transfer {
-  --accent: #16a34a;
+  --accent: #8a94a6;
 }
 
 /* 类型 tab（下划线激活） */
@@ -391,8 +394,8 @@ async function submit() {
   margin-bottom: 24rpx;
 }
 .cur {
-  font-size: 52rpx;
-  color: var(--accent);
+  font-size: 48rpx;
+  color: #5b6470;
   font-weight: 700;
   margin-right: 16rpx;
 }
@@ -400,7 +403,7 @@ async function submit() {
   flex: 1;
   font-size: 64rpx;
   font-weight: 800;
-  color: var(--accent);
+  color: #16181c;
 }
 
 /* 分类网格 */
@@ -522,8 +525,8 @@ async function submit() {
   font-weight: 600;
   color: #1f2937;
 }
-.av.out { color: #dc2626; font-weight: 800; }
-.av.in { color: #16a34a; font-weight: 800; }
+.av.out { color: #f0553d; font-weight: 800; }
+.av.in { color: #12a150; font-weight: 800; }
 .swap {
   width: 60rpx;
   height: 60rpx;
@@ -542,13 +545,16 @@ async function submit() {
   margin-bottom: 32rpx;
 }
 .submit {
-  background: #16a34a;
+  background: #12a150;
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
 }
 .submit.expense {
-  background: #dc2626;
+  background: #f0553d;
+}
+.submit.transfer {
+  background: #8a94a6;
 }
 
 /* 底部面板 */
