@@ -151,23 +151,21 @@ function pickLedger(id) {
     uni.reLaunch({ url: '/pages/index/index' })
   }
 }
+const nameSheet = ref(false)
 function addLedger() {
   showLedgerSheet.value = false
-  uni.showModal({
-    title: '新建账本',
-    editable: true,
-    placeholderText: '账本名称',
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim()) return
-      try {
-        const l = await createLedger(r.content.trim())
-        ledgerStore.setCurrent(l.id)
-        uni.reLaunch({ url: '/pages/index/index' })
-      } catch (e) {
-        uni.showToast({ title: e.message || '创建失败', icon: 'none' })
-      }
-    }
-  })
+  nameSheet.value = true
+}
+async function onCreateLedger(name) {
+  if (!name) return
+  nameSheet.value = false
+  try {
+    const l = await createLedger(name)
+    ledgerStore.setCurrent(l.id)
+    uni.reLaunch({ url: '/pages/index/index' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '创建失败', icon: 'none' })
+  }
 }
 
 // ---------- 按日分组流水 ----------
@@ -361,6 +359,14 @@ function goImport() {
         <view class="sheet-add" @click="addLedger">＋ 添加</view>
       </view>
     </view>
+
+    <InputSheet
+      :visible="nameSheet"
+      title="新建账本"
+      placeholder="账本名称"
+      @update:visible="nameSheet = $event"
+      @confirm="onCreateLedger"
+    />
   </view>
 </template>
 

@@ -21,6 +21,18 @@ const ledgers = computed(() => ledgerStore.ledgers)
 const currentId = computed(() => ledgerStore.currentLedgerId)
 const myUserId = computed(() => authStore.user?.id ?? authStore.user?.userId ?? null)
 
+// 自绘输入底部卡片
+const sheet = ref({ visible: false, title: '', placeholder: '', value: '', confirmText: '保存', tip: '', onConfirm: null })
+function openSheet(opts) {
+  sheet.value = { visible: true, placeholder: '', value: '', confirmText: '保存', tip: '', onConfirm: null, ...opts }
+}
+async function onSheetConfirm(text) {
+  if (!text) return
+  const cb = sheet.value.onConfirm
+  sheet.value.visible = false
+  if (cb) await cb(text)
+}
+
 async function load() {
   loading.value = true
   try {
@@ -46,14 +58,10 @@ function addLedger() {
     itemList: ['独立账本（自己记账）', '协作账本（可邀请他人共同记账）'],
     success: ({ tapIndex }) => {
       const type = tapIndex === 1 ? 'COLLABORATIVE' : 'INDEPENDENT'
-      uni.showModal({
+      openSheet({
         title: type === 'COLLABORATIVE' ? '新建协作账本' : '新建账本',
-        editable: true,
-        placeholderText: '账本名称',
-        success: async (r) => {
-          if (!r.confirm || !r.content?.trim()) return
-          await mutate(() => createLedger(r.content.trim(), type))
-        }
+        placeholder: '账本名称',
+        onConfirm: (name) => mutate(() => createLedger(name, type))
       })
     }
   })
@@ -61,14 +69,14 @@ function addLedger() {
 
 // 加入协作账本：输入邀请码。
 function joinByCode() {
-  uni.showModal({
+  openSheet({
     title: '加入协作账本',
-    editable: true,
-    placeholderText: '输入邀请码',
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim()) return
+    placeholder: '输入邀请码',
+    confirmText: '加入',
+    tip: '向账本创建者获取邀请码',
+    onConfirm: async (code) => {
       try {
-        const l = await joinLedger(r.content.trim())
+        const l = await joinLedger(code)
         await ledgerStore.load()
         uni.showToast({ title: `已加入「${l.name}」`, icon: 'success' })
       } catch (e) {
@@ -79,13 +87,13 @@ function joinByCode() {
 }
 
 function rename(l) {
-  uni.showModal({
+  openSheet({
     title: '重命名账本',
-    editable: true,
-    content: l.name,
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim() || r.content.trim() === l.name) return
-      await mutate(() => renameLedger(l.id, r.content.trim()))
+    placeholder: '账本名称',
+    value: l.name,
+    onConfirm: (name) => {
+      if (name === l.name) return
+      return mutate(() => renameLedger(l.id, name))
     }
   })
 }
@@ -225,6 +233,17 @@ function roleLabel(l) {
     </view>
 
     <view class="fab" @click="addLedger">＋</view>
+
+    <InputSheet
+      :visible="sheet.visible"
+      :title="sheet.title"
+      :placeholder="sheet.placeholder"
+      :value="sheet.value"
+      :confirm-text="sheet.confirmText"
+      :tip="sheet.tip"
+      @update:visible="sheet.visible = $event"
+      @confirm="onSheetConfirm"
+    />
 
     <!-- 成员弹层 -->
     <view v-if="showMembers" class="mask" @click="showMembers = false">

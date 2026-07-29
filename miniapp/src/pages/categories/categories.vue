@@ -18,6 +18,18 @@ const kind = ref('EXPENSE')
 const tree = ref({ expense: [], income: [] })
 const loading = ref(false)
 
+// 自绘输入底部卡片
+const sheet = ref({ visible: false, title: '', placeholder: '', value: '', onConfirm: null })
+function openSheet(opts) {
+  sheet.value = { visible: true, placeholder: '', value: '', onConfirm: null, ...opts }
+}
+async function onSheetConfirm(text) {
+  if (!text) return
+  const cb = sheet.value.onConfirm
+  sheet.value.visible = false
+  if (cb) await cb(text)
+}
+
 const roots = computed(() => (kind.value === 'EXPENSE' ? tree.value.expense : tree.value.income))
 const emojiKind = computed(() => (kind.value === 'EXPENSE' ? 'expense' : 'income'))
 
@@ -35,35 +47,27 @@ async function load() {
 onShow(load)
 
 function addParent() {
-  uni.showModal({
+  openSheet({
     title: `新建${kind.value === 'EXPENSE' ? '支出' : '收入'}分类`,
-    editable: true,
-    placeholderText: '分类名称',
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim()) return
-      await mutate(() => createCategory({ kind: kind.value, name: r.content.trim() }))
-    }
+    placeholder: '分类名称',
+    onConfirm: (name) => mutate(() => createCategory({ kind: kind.value, name }))
   })
 }
 function addChild(parent) {
-  uni.showModal({
+  openSheet({
     title: `在「${parent.name}」下新建子分类`,
-    editable: true,
-    placeholderText: '子分类名称',
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim()) return
-      await mutate(() => createCategory({ kind: kind.value, name: r.content.trim(), parentId: parent.id }))
-    }
+    placeholder: '子分类名称',
+    onConfirm: (name) => mutate(() => createCategory({ kind: kind.value, name, parentId: parent.id }))
   })
 }
 function rename(node) {
-  uni.showModal({
-    title: '重命名',
-    editable: true,
-    content: node.name,
-    success: async (r) => {
-      if (!r.confirm || !r.content?.trim() || r.content.trim() === node.name) return
-      await mutate(() => renameCategory(node.id, r.content.trim()))
+  openSheet({
+    title: '重命名分类',
+    placeholder: '分类名称',
+    value: node.name,
+    onConfirm: (name) => {
+      if (name === node.name) return
+      return mutate(() => renameCategory(node.id, name))
     }
   })
 }
@@ -124,6 +128,15 @@ async function mutate(fn) {
     </view>
 
     <view class="fab" @click="addParent">＋</view>
+
+    <InputSheet
+      :visible="sheet.visible"
+      :title="sheet.title"
+      :placeholder="sheet.placeholder"
+      :value="sheet.value"
+      @update:visible="sheet.visible = $event"
+      @confirm="onSheetConfirm"
+    />
   </view>
 </template>
 
