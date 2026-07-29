@@ -26,7 +26,7 @@ const showMembers = computed(
   () => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE'
 )
 
-const COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#e64340', '#8b5cf6', '#1677ff', '#f7b500']
+const COLORS = ['#12a150', '#0ea5e9', '#f59e0b', '#f0553d', '#8b5cf6', '#1677ff', '#f7b500']
 function colorAt(i) {
   return COLORS[i % COLORS.length]
 }
@@ -198,7 +198,7 @@ function nextMonth() {
   color: #6b7280;
 }
 .kind.active {
-  background: #16a34a;
+  background: #12a150;
   color: #fff;
   font-weight: 700;
 }
@@ -207,7 +207,7 @@ function nextMonth() {
   padding: 32rpx 36rpx 40rpx;
   margin-bottom: 24rpx;
   color: #fff;
-  background: linear-gradient(150deg, #22c55e, #16a34a 55%, #0b6b34);
+  background: linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34);
   box-shadow: 0 20rpx 44rpx rgba(22, 163, 74, 0.26);
 }
 .month-bar {

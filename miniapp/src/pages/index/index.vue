@@ -367,12 +367,12 @@ function goImport() {
 <style scoped>
 .home {
   min-height: 100vh;
-  background: #f2f4f5;
+  background: #eef0f2;
 }
 
-/* 绿色顶部 */
+/* 绿色顶部（全屏唯一 Hero） */
 .top {
-  background: linear-gradient(160deg, #22b06b, #16a34a 70%);
+  background: linear-gradient(160deg, #18b85a, #0f8a45 72%);
   padding-bottom: 72rpx;
 }
 .nav {
@@ -509,7 +509,7 @@ function goImport() {
 .mchip-amt {
   font-size: 24rpx;
   font-weight: 700;
-  color: #e64340;
+  color: #f0553d;
 }
 
 /* 流水 */
@@ -542,7 +542,7 @@ function goImport() {
   align-items: center;
   gap: 20rpx;
   padding: 24rpx 28rpx;
-  border-top: 1rpx solid #f2f4f5;
+  border-top: 1rpx solid #eef0f2;
 }
 .tx-list .tx:first-child {
   border-top: none;
@@ -570,9 +570,9 @@ function goImport() {
   font-size: 30rpx;
   font-weight: 700;
 }
-.tx-amt.expense { color: #e64340; }
-.tx-amt.income { color: #16a34a; }
-.tx-amt.transfer { color: #6b7280; }
+.tx-amt.expense { color: #f0553d; }
+.tx-amt.income { color: #12a150; }
+.tx-amt.transfer { color: #8a94a6; }
 .tx-sub {
   font-size: 22rpx;
   color: #9ca3af;
@@ -613,7 +613,7 @@ function goImport() {
   display: flex;
   align-items: center;
   padding: 28rpx 32rpx;
-  border-bottom: 1rpx solid #f2f4f5;
+  border-bottom: 1rpx solid #eef0f2;
 }
 .sheet-cancel {
   font-size: 28rpx;
@@ -661,16 +661,16 @@ function goImport() {
   box-sizing: border-box;
 }
 .li-radio.on {
-  border-color: #16a34a;
+  border-color: #12a150;
   background:
-    radial-gradient(circle at center, #16a34a 0, #16a34a 10rpx, #fff 11rpx, #fff 100%);
+    radial-gradient(circle at center, #12a150 0, #12a150 10rpx, #fff 11rpx, #fff 100%);
 }
 .sheet-add {
   text-align: center;
   padding: 32rpx;
   font-size: 30rpx;
-  color: #16a34a;
+  color: #12a150;
   font-weight: 600;
-  border-top: 1rpx solid #f2f4f5;
+  border-top: 1rpx solid #eef0f2;
 }
 </style>

@@ -24,9 +24,9 @@ const catIndex = ref(0)
 const editingCatId = ref(null)
 
 function statusColor(status) {
-  if (status === 'OVER') return '#dc2626'
+  if (status === 'OVER') return '#f0553d'
   if (status === 'WARN') return '#f59e0b'
-  return '#16a34a'
+  return '#12a150'
 }
 
 async function load() {
@@ -266,7 +266,7 @@ function pct(v) {
   border-radius: 28rpx;
   padding: 36rpx;
   color: #fff;
-  background: linear-gradient(150deg, #22c55e, #16a34a 55%, #0b6b34);
+  background: linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34);
   box-shadow: 0 20rpx 44rpx rgba(22, 163, 74, 0.26);
   margin-bottom: 24rpx;
 }
@@ -336,7 +336,7 @@ function pct(v) {
   color: #4b5563;
 }
 .te-btn.primary {
-  background: #16a34a;
+  background: #12a150;
   color: #fff;
 }
 
@@ -365,7 +365,7 @@ function pct(v) {
   color: #1f2937;
 }
 .h-v.neg {
-  color: #dc2626;
+  color: #f0553d;
 }
 
 .section-head {
@@ -381,7 +381,7 @@ function pct(v) {
 }
 .sh-add {
   font-size: 26rpx;
-  color: #16a34a;
+  color: #12a150;
   font-weight: 600;
 }
 .empty {
@@ -470,7 +470,7 @@ function pct(v) {
   font-size: 30rpx;
 }
 .submit {
-  background: #16a34a;
+  background: #12a150;
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;

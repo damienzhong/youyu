@@ -214,8 +214,8 @@ function confirmDelete(t) {
   gap: 24rpx;
   font-size: 26rpx;
 }
-.s-inc { color: #16a34a; }
-.s-exp { color: #dc2626; }
+.s-inc { color: #12a150; }
+.s-exp { color: #f0553d; }
 
 .empty {
   margin-top: 120rpx;
@@ -241,8 +241,8 @@ function confirmDelete(t) {
   display: flex;
   gap: 20rpx;
 }
-.day-sum .inc { color: #16a34a; }
-.day-sum .exp { color: #dc2626; }
+.day-sum .inc { color: #12a150; }
+.day-sum .exp { color: #f0553d; }
 
 .tx-list {
   background: #fff;
@@ -290,8 +290,8 @@ function confirmDelete(t) {
   font-size: 32rpx;
   font-weight: 800;
 }
-.tx-amount.expense { color: #dc2626; }
-.tx-amount.income { color: #16a34a; }
+.tx-amount.expense { color: #f0553d; }
+.tx-amount.income { color: #12a150; }
 .tx-amount.transfer { color: #6b7280; }
 .hint {
   display: block;

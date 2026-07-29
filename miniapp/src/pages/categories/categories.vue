@@ -147,7 +147,7 @@ async function mutate(fn) {
   color: #6b7280;
 }
 .kind.active {
-  background: #16a34a;
+  background: #12a150;
   color: #fff;
   font-weight: 700;
 }
@@ -211,10 +211,10 @@ async function mutate(fn) {
 }
 .op {
   font-size: 24rpx;
-  color: #16a34a;
+  color: #12a150;
 }
 .op.danger {
-  color: #dc2626;
+  color: #f0553d;
 }
 .fab {
   position: fixed;
