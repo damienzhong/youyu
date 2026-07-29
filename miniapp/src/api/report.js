@@ -20,6 +20,15 @@ export function memberReport(from, to, kind = 'expense') {
 }
 
 /**
+ * 维度占比报表（按项目/商家/标签）。
+ * @param {'project'|'merchant'|'tag'} dim 维度
+ * 返回 { from, to, dimension, total, items:[{id,name,amount,percentage,count}] }
+ */
+export function dimensionReport(from, to, dim, kind = 'expense') {
+  return http.get(`/reports/dimension?from=${from}&to=${to}&dim=${dim}&kind=${kind}`)
+}
+
+/**
  * 月度趋势报表。fromMonth/toMonth 为 YYYY-MM（区间 ≤24 个月）。
  * 返回 { months:[{month, income, expense}] }
  */

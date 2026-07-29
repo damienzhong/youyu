@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.CategoryReportResponse.CategoryShare;
+import com.damien.youyu.api.dto.DimensionReportResponse;
+import com.damien.youyu.api.dto.DimensionReportResponse.DimensionShare;
 import com.damien.youyu.api.dto.MemberReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
@@ -24,11 +26,19 @@ import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse.MonthPoint;
 import com.damien.youyu.domain.Category;
+import com.damien.youyu.domain.Merchant;
+import com.damien.youyu.domain.Project;
+import com.damien.youyu.domain.Tag;
 import com.damien.youyu.domain.Transaction;
+import com.damien.youyu.domain.TransactionTag;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * 报表服务：本月收支结余、分类占比、月度趋势三类报表（关联需求 4.12、7.1-7.7）。
@@ -66,12 +76,24 @@ public class ReportService {
 
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
+    private final ProjectRepository projectRepository;
+    private final MerchantRepository merchantRepository;
+    private final TagRepository tagRepository;
+    private final TransactionTagRepository transactionTagRepository;
 
     public ReportService(
             TransactionRepository transactionRepository,
-            CategoryRepository categoryRepository) {
+            CategoryRepository categoryRepository,
+            ProjectRepository projectRepository,
+            MerchantRepository merchantRepository,
+            TagRepository tagRepository,
+            TransactionTagRepository transactionTagRepository) {
         this.transactionRepository = transactionRepository;
         this.categoryRepository = categoryRepository;
+        this.projectRepository = projectRepository;
+        this.merchantRepository = merchantRepository;
+        this.tagRepository = tagRepository;
+        this.transactionTagRepository = transactionTagRepository;
     }
 
     /**
@@ -344,6 +366,124 @@ public class ReportService {
         }
 
         return new MemberReportResponse(from.toString(), to.toString(), totalAmount, shares);
+    }
+
+    /**
+     * 维度占比报表（按项目 / 商家 / 标签）：选定日期范围内各维度项在该类别（支出/收入）的金额、占比与笔数。
+     * 项目/商家为单值归属（仅统计有归属的流水）；标签为多值归属（一笔计入其每个标签）。
+     * 转账一律排除；各项占比之和恒为 100.00（末项余数校正）。
+     *
+     * @param dim 维度：{@code project} / {@code merchant} / {@code tag}
+     * @throws ApiException REPORT_RANGE_INVALID / REPORT_PARAM_INVALID
+     */
+    @Transactional(readOnly = true)
+    public DimensionReportResponse dimensionReport(Long ledgerId, LocalDate from, LocalDate to,
+            TransactionType kind, String dim) {
+        if (from.isAfter(to)) {
+            throw ApiException.reportRangeInvalid();
+        }
+        if (ChronoUnit.DAYS.between(from, to) + 1 > RANGE_MAX_DAYS) {
+            throw ApiException.reportRangeInvalid();
+        }
+        String dimension = dim == null ? "" : dim.trim().toLowerCase();
+        if (!dimension.equals("project") && !dimension.equals("merchant") && !dimension.equals("tag")) {
+            throw ApiException.reportParamInvalid("dim", "维度仅支持 project / merchant / tag");
+        }
+
+        LocalDateTime fromDt = from.atStartOfDay();
+        LocalDateTime toDt = to.plusDays(1).atStartOfDay();
+        List<Transaction> txs = fetchHalfOpen(ledgerId, fromDt, toDt).stream()
+                .filter(t -> t.getType() == kind)
+                .toList();
+
+        Map<Long, BigDecimal> amountById = new LinkedHashMap<>();
+        Map<Long, Long> countById = new LinkedHashMap<>();
+
+        if (dimension.equals("tag")) {
+            // 多值归属：一笔计入其每个标签。批量取关联避免 N+1。
+            List<Long> txIds = txs.stream().map(Transaction::getId).toList();
+            Map<Long, List<Long>> tagsByTx = new LinkedHashMap<>();
+            if (!txIds.isEmpty()) {
+                for (TransactionTag tt : transactionTagRepository.findByTransactionIdIn(txIds)) {
+                    tagsByTx.computeIfAbsent(tt.getTransactionId(), k -> new ArrayList<>())
+                            .add(tt.getTagId());
+                }
+            }
+            for (Transaction t : txs) {
+                for (Long tagId : tagsByTx.getOrDefault(t.getId(), List.of())) {
+                    amountById.merge(tagId, t.getAmount(), BigDecimal::add);
+                    countById.merge(tagId, 1L, Long::sum);
+                }
+            }
+        } else {
+            boolean isProject = dimension.equals("project");
+            for (Transaction t : txs) {
+                Long key = isProject ? t.getProjectId() : t.getMerchantId();
+                if (key == null) {
+                    continue; // 单值归属：无归属的流水不计入
+                }
+                amountById.merge(key, t.getAmount(), BigDecimal::add);
+                countById.merge(key, 1L, Long::sum);
+            }
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (BigDecimal v : amountById.values()) {
+            total = total.add(v);
+        }
+        BigDecimal totalAmount = scale(total);
+        if (amountById.isEmpty() || totalAmount.compareTo(ZERO) == 0) {
+            return new DimensionReportResponse(from.toString(), to.toString(), dimension, ZERO, List.of());
+        }
+
+        Map<Long, String> nameById = dimensionNameMap(ledgerId, dimension);
+
+        List<Map.Entry<Long, BigDecimal>> ordered = new ArrayList<>(amountById.entrySet());
+        ordered.sort(Comparator
+                .comparing((Map.Entry<Long, BigDecimal> e) -> e.getValue()).reversed()
+                .thenComparing(Map.Entry::getKey));
+
+        List<DimensionShare> items = new ArrayList<>(ordered.size());
+        BigDecimal accumulatedPct = BigDecimal.ZERO;
+        for (int i = 0; i < ordered.size(); i++) {
+            Map.Entry<Long, BigDecimal> e = ordered.get(i);
+            BigDecimal amount = scale(e.getValue());
+            BigDecimal pct;
+            if (i == ordered.size() - 1) {
+                pct = HUNDRED.setScale(SCALE, RoundingMode.HALF_UP).subtract(accumulatedPct);
+            } else {
+                pct = e.getValue().multiply(HUNDRED).divide(totalAmount, SCALE, RoundingMode.HALF_UP);
+                accumulatedPct = accumulatedPct.add(pct);
+            }
+            items.add(new DimensionShare(e.getKey(),
+                    nameById.getOrDefault(e.getKey(), "已删除"), amount, pct,
+                    countById.getOrDefault(e.getKey(), 0L)));
+        }
+
+        return new DimensionReportResponse(from.toString(), to.toString(), dimension, totalAmount, items);
+    }
+
+    private Map<Long, String> dimensionNameMap(Long ledgerId, String dimension) {
+        Map<Long, String> map = new LinkedHashMap<>();
+        switch (dimension) {
+            case "project" -> {
+                for (Project p : projectRepository.findByLedgerIdOrderByArchivedAscSortOrderAscIdAsc(ledgerId)) {
+                    map.put(p.getId(), p.getName());
+                }
+            }
+            case "merchant" -> {
+                for (Merchant m : merchantRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId)) {
+                    map.put(m.getId(), m.getName());
+                }
+            }
+            case "tag" -> {
+                for (Tag t : tagRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId)) {
+                    map.put(t.getId(), t.getName());
+                }
+            }
+            default -> { /* 已在上层校验 */ }
+        }
+        return map;
     }
 
     // ---------------- 内部工具 ----------------

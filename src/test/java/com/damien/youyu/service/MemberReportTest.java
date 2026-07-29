@@ -15,7 +15,11 @@ import com.damien.youyu.api.dto.MemberReportResponse;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * {@link ReportService#memberReport} 的示例测试：协作账本按记账人聚合支出、占比合计 100、排除转账。
@@ -30,9 +34,14 @@ class MemberReportTest {
 
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private CategoryRepository categoryRepository;
+    @Autowired private ProjectRepository projectRepository;
+    @Autowired private MerchantRepository merchantRepository;
+    @Autowired private TagRepository tagRepository;
+    @Autowired private TransactionTagRepository transactionTagRepository;
 
     private ReportService service() {
-        return new ReportService(transactionRepository, categoryRepository);
+        return new ReportService(transactionRepository, categoryRepository,
+                projectRepository, merchantRepository, tagRepository, transactionTagRepository);
     }
 
     private void expense(long createdBy, String amount, String day) {

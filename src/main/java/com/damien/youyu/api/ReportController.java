@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 import com.damien.youyu.api.dto.CategoryReportResponse;
+import com.damien.youyu.api.dto.DimensionReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
@@ -111,6 +112,23 @@ public class ReportController {
                 .toList();
         return ResponseEntity.ok(new MemberReportResponse(
                 report.from(), report.to(), report.total(), named));
+    }
+
+    /**
+     * 维度占比报表（项目/商家/标签）：from/to 为 {@code YYYY-MM-DD}，含起止边界；
+     * kind 为 expense/income（缺省 expense）；dim 为 project/merchant/tag。
+     */
+    @GetMapping("/dimension")
+    public ResponseEntity<DimensionReportResponse> dimension(
+            @RequestParam(name = "from") String from,
+            @RequestParam(name = "to") String to,
+            @RequestParam(name = "dim") String dim,
+            @RequestParam(name = "kind", required = false) String kind) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        LocalDate fromDate = parseDate(from, "from");
+        LocalDate toDate = parseDate(to, "to");
+        TransactionType type = parseKind(kind);
+        return ResponseEntity.ok(reportService.dimensionReport(ledgerId, fromDate, toDate, type, dim));
     }
 
     private String displayName(Long userId) {

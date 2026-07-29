@@ -31,7 +31,11 @@ import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * {@link ReportService} 的属性测试，覆盖设计文档 Correctness Properties 中的
@@ -72,9 +76,18 @@ class ReportPropertyTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
+    @Autowired
+    private MerchantRepository merchantRepository;
+    @Autowired
+    private TagRepository tagRepository;
+    @Autowired
+    private TransactionTagRepository transactionTagRepository;
 
     private ReportService service() {
-        return new ReportService(transactionRepository, categoryRepository);
+        return new ReportService(transactionRepository, categoryRepository,
+                projectRepository, merchantRepository, tagRepository, transactionTagRepository);
     }
 
     // ---------------- 智能生成器与持久化辅助 ----------------

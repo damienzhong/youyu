@@ -23,7 +23,11 @@ import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
 
 /**
  * {@link ReportService} 的示例与边界单元测试（关联需求 4.12、7.1-7.7）。
@@ -43,9 +47,18 @@ class ReportServiceTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private CategoryRepository categoryRepository;
+    @Autowired
+    private ProjectRepository projectRepository;
+    @Autowired
+    private MerchantRepository merchantRepository;
+    @Autowired
+    private TagRepository tagRepository;
+    @Autowired
+    private TransactionTagRepository transactionTagRepository;
 
     private ReportService service() {
-        return new ReportService(transactionRepository, categoryRepository);
+        return new ReportService(transactionRepository, categoryRepository,
+                projectRepository, merchantRepository, tagRepository, transactionTagRepository);
     }
 
     // ---------------- 本月报表（需求 7.1、7.5、7.7） ----------------

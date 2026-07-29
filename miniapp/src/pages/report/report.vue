@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { categoryReport, memberReport, trendReport, monthRange, shiftMonth } from '../../api/report'
+import { categoryReport, memberReport, dimensionReport, trendReport, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
@@ -13,6 +13,18 @@ const KINDS = [
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' }
 ]
+
+// 统计维度：分类 / 项目 / 商家 / 标签
+const DIMS = [
+  { value: 'category', label: '分类' },
+  { value: 'project', label: '项目' },
+  { value: 'merchant', label: '商家' },
+  { value: 'tag', label: '标签' }
+]
+const dim = ref('category')
+// 「全部账本」聚合仅支持分类维度（维度报表按当前账本）。
+const showDims = computed(() => !ledgerStore.isAll)
+const dimLabel = computed(() => DIMS.find((d) => d.value === dim.value)?.label || '分类')
 
 const kind = ref('expense')
 const month = ref(currentMonth())
@@ -53,9 +65,22 @@ async function load() {
       trend.value = []
     } else {
       const { from, to } = monthRange(month.value)
-      const res = await categoryReport(from, to, kind.value)
-      total.value = res.totalExpense
-      rows.value = res.categories || []
+      if (dim.value === 'category') {
+        const res = await categoryReport(from, to, kind.value)
+        total.value = res.totalExpense
+        rows.value = res.categories || []
+      } else {
+        const res = await dimensionReport(from, to, dim.value, kind.value)
+        total.value = res.total
+        // 归一化为与分类行相同的结构，复用列表渲染。
+        rows.value = (res.items || []).map((it) => ({
+          categoryId: it.id,
+          categoryName: it.name,
+          amount: it.amount,
+          percentage: it.percentage,
+          count: it.count
+        }))
+      }
       members.value = showMembers.value
         ? (await memberReport(from, to, kind.value)).members || []
         : []
@@ -111,6 +136,12 @@ function selectKind(k) {
   kind.value = k
   load()
 }
+function selectDim(d) {
+  if (dim.value === d) return
+  dim.value = d
+  rows.value = []
+  load()
+}
 function prevMonth() {
   month.value = shiftMonth(month.value, -1)
   load()
@@ -146,6 +177,17 @@ function nextMonth() {
       <text class="total-value">¥{{ formatAmount(total) }}</text>
     </view>
 
+    <!-- 统计维度：分类 / 项目 / 商家 / 标签 -->
+    <scroll-view v-if="showDims" scroll-x class="dims" :show-scrollbar="false">
+      <text
+        v-for="d in DIMS"
+        :key="d.value"
+        class="dim"
+        :class="{ on: dim === d.value }"
+        @click="selectDim(d.value)"
+      >{{ d.label }}</text>
+    </scroll-view>
+
     <!-- 收支趋势（近半年） -->
     <view v-if="showTrend && trend.length" class="trend-card">
       <view class="tc-head">
@@ -167,7 +209,7 @@ function nextMonth() {
     </view>
 
     <view v-if="!rows.length && !loading" class="empty">
-      当月暂无{{ kind === 'expense' ? '支出' : '收入' }}
+      当月暂无{{ dim === 'category' ? '' : dimLabel + '归属的' }}{{ kind === 'expense' ? '支出' : '收入' }}
     </view>
 
     <view class="list" v-if="rows.length">
@@ -275,6 +317,25 @@ function nextMonth() {
   margin-top: 8rpx;
   font-size: 64rpx;
   font-weight: 800;
+}
+.dims {
+  white-space: nowrap;
+  margin-bottom: 20rpx;
+}
+.dim {
+  display: inline-block;
+  padding: 12rpx 30rpx;
+  margin-right: 14rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  font-size: 26rpx;
+  color: #5b6470;
+  box-shadow: 0 4rpx 12rpx rgba(20, 24, 28, 0.04);
+}
+.dim.on {
+  background: #12a150;
+  color: #fff;
+  font-weight: 700;
 }
 .trend-card {
   background: #fff;
