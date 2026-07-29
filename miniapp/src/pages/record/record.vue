@@ -8,6 +8,7 @@ import { createLoan } from '../../api/loan'
 import { listMembers } from '../../api/ledger'
 import { listTemplates, createTemplate, deleteTemplate } from '../../api/template'
 import { listProjects, createProject } from '../../api/project'
+import { listMerchants, createMerchant } from '../../api/merchant'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
@@ -164,6 +165,7 @@ function pickTargetLedger(id) {
   expandedId.value = null
   createdBy.value = null
   projectId.value = null
+  merchantId.value = null
   load()
 }
 
@@ -243,6 +245,44 @@ async function onProjNameConfirm(name) {
     uni.showToast({ title: '已创建项目', icon: 'success' })
   } catch (e) {
     uni.showToast({ title: e.message || '创建失败', icon: 'none' })
+  }
+}
+
+// ---------- 商家 ----------
+const merchants = ref([])
+const merchantId = ref(null)
+const merchantSheet = ref(false)
+const merchNameSheet = ref(false)
+const merchantName = computed(() => {
+  const m = merchants.value.find((x) => x.id === merchantId.value)
+  return m ? m.name : ''
+})
+async function loadMerchants() {
+  try {
+    merchants.value = await listMerchants(targetLedgerId.value)
+  } catch (e) {
+    merchants.value = []
+  }
+}
+async function openMerchantSheet() {
+  await loadMerchants()
+  merchantSheet.value = true
+}
+function pickMerchant(id) {
+  merchantId.value = id
+  merchantSheet.value = false
+}
+async function onMerchNameConfirm(name) {
+  merchNameSheet.value = false
+  const trimmed = (name || '').trim()
+  if (!trimmed) return
+  try {
+    const m = await createMerchant(trimmed, targetLedgerId.value)
+    await loadMerchants()
+    merchantId.value = m.id
+    uni.showToast({ title: '已添加商家', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '添加失败', icon: 'none' })
   }
 }
 
@@ -353,6 +393,7 @@ async function load() {
     accountId.value = accs[0]?.id ?? null
     destId.value = accs.length > 1 ? accs[1].id : null
     loadProjects()
+    loadMerchants()
     if (isEditing.value) {
       await prefill()
       uni.setNavigationBarTitle({ title: '编辑记录' })
@@ -368,6 +409,7 @@ async function prefill() {
   expr.value = String(tx.amount)
   note.value = tx.note || ''
   projectId.value = tx.projectId != null ? tx.projectId : null
+  merchantId.value = tx.merchantId != null ? tx.merchantId : null
   if (tx.occurredAt) occurredDate.value = tx.occurredAt.slice(0, 10)
   if (tx.type === 'transfer') {
     accountId.value = tx.sourceAccountId
@@ -423,8 +465,9 @@ async function submit(cont) {
   if (isCollaborative.value && createdBy.value != null && createdBy.value !== selfId.value) {
     payload.createdBy = createdBy.value
   }
-  // 所属项目（可空）。
+  // 所属项目 / 商家（可空）。
   if (projectId.value != null) payload.projectId = projectId.value
+  if (merchantId.value != null) payload.merchantId = merchantId.value
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
@@ -571,6 +614,7 @@ function goBack() {
       </picker>
       <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
       <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">📁 {{ projectName || '项目' }}</view>
+      <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: merchantId != null }" @click="openMerchantSheet">🏪 {{ merchantName || '商家' }}</view>
       <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">⭐ 模板</view>
     </scroll-view>
 
@@ -662,6 +706,25 @@ function goBack() {
       </view>
     </view>
 
+    <!-- 商家选择 / 新建 -->
+    <view v-if="merchantSheet" class="mask" @click="merchantSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">选择商家</text>
+        <view class="sitem" @click="pickMerchant(null)">
+          <text class="si-ic">🚫</text>
+          <view class="si-name"><text>不记商家</text></view>
+          <text class="radio" :class="{ on: merchantId == null }"></text>
+        </view>
+        <view v-for="m in merchants" :key="m.id" class="sitem" @click="pickMerchant(m.id)">
+          <text class="si-ic">🏪</text>
+          <view class="si-name"><text>{{ m.name }}</text></view>
+          <text class="radio" :class="{ on: merchantId === m.id }"></text>
+        </view>
+        <view class="tpl-save" @click="merchantSheet = false; merchNameSheet = true">＋ 新建商家</view>
+      </view>
+    </view>
+
+    <InputSheet :visible="merchNameSheet" title="新建商家" placeholder="如：星巴克、盒马" @update:visible="merchNameSheet = $event" @confirm="onMerchNameConfirm" />
     <InputSheet :visible="projNameSheet" title="新建项目" placeholder="如：装修、三亚旅行" @update:visible="projNameSheet = $event" @confirm="onProjNameConfirm" />
     <InputSheet :visible="tplNameSheet" title="模板名称" placeholder="如：早餐、地铁通勤" @update:visible="tplNameSheet = $event" @confirm="onTplNameConfirm" />
     <InputSheet :visible="noteSheet" title="备注" placeholder="添加备注" :value="note" @update:visible="noteSheet = $event" @confirm="onNoteConfirm" />

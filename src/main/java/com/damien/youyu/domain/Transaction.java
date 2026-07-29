@@ -74,6 +74,10 @@ public class Transaction {
     @Column(name = "project_id")
     private Long projectId;
 
+    /** 交易商家 id（可空，交易对方/商户）。 */
+    @Column(name = "merchant_id")
+    private Long merchantId;
+
     /** 交易时间。 */
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
@@ -182,6 +186,14 @@ public class Transaction {
 
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
+    }
+
+    public Long getMerchantId() {
+        return merchantId;
+    }
+
+    public void setMerchantId(Long merchantId) {
+        this.merchantId = merchantId;
     }
 
     public LocalDateTime getOccurredAt() {

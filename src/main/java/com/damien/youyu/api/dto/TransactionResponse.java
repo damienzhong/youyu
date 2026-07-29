@@ -22,7 +22,8 @@ public record TransactionResponse(
         Long destinationAccountId,
         LocalDateTime occurredAt,
         String note,
-        Long projectId) {
+        Long projectId,
+        Long merchantId) {
 
     public static TransactionResponse from(Transaction tx) {
         return new TransactionResponse(
@@ -37,6 +38,7 @@ public record TransactionResponse(
                 tx.getDestinationAccountId(),
                 tx.getOccurredAt(),
                 tx.getNote(),
-                tx.getProjectId());
+                tx.getProjectId(),
+                tx.getMerchantId());
     }
 }

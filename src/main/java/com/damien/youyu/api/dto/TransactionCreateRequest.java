@@ -30,5 +30,6 @@ public record TransactionCreateRequest(
         LocalDateTime occurredAt,
         String note,
         Long createdBy,
-        Long projectId) {
+        Long projectId,
+        Long merchantId) {
 }

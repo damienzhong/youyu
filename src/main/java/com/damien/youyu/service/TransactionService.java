@@ -145,13 +145,9 @@ public class TransactionService {
             String rawNote,
             Long createdByOverride) {
         return create(scope, ledgerId, rawType, rawAmount, accountId, categoryId,
-                sourceAccountId, destinationAccountId, occurredAt, rawNote, createdByOverride, null);
+                sourceAccountId, destinationAccountId, occurredAt, rawNote, createdByOverride, null, null);
     }
 
-    /**
-     * 创建交易的最全重载：附带协作代记（{@code createdByOverride}）与所属项目（{@code projectId}，可空）。
-     * 项目归属校验由调用方（控制器）完成，此处仅落库。
-     */
     @Transactional
     public Transaction create(
             AccountScope scope,
@@ -166,6 +162,30 @@ public class TransactionService {
             String rawNote,
             Long createdByOverride,
             Long projectId) {
+        return create(scope, ledgerId, rawType, rawAmount, accountId, categoryId,
+                sourceAccountId, destinationAccountId, occurredAt, rawNote, createdByOverride,
+                projectId, null);
+    }
+
+    /**
+     * 创建交易的最全重载：附带协作代记（{@code createdByOverride}）、所属项目（{@code projectId}）与
+     * 交易商家（{@code merchantId}），均可空。项目/商家归属校验由调用方（控制器）完成，此处仅落库。
+     */
+    @Transactional
+    public Transaction create(
+            AccountScope scope,
+            Long ledgerId,
+            String rawType,
+            BigDecimal rawAmount,
+            Long accountId,
+            Long categoryId,
+            Long sourceAccountId,
+            Long destinationAccountId,
+            LocalDateTime occurredAt,
+            String rawNote,
+            Long createdByOverride,
+            Long projectId,
+            Long merchantId) {
 
         // ---- 校验前置：任何余额变更前完成，失败即零副作用（需求 4.4、4.5、4.8、4.9）----
         TransactionType type = validateType(rawType);
@@ -187,6 +207,7 @@ public class TransactionService {
         tx.setLedgerId(ledgerId);
         tx.setCreatedBy(createdByOverride != null ? createdByOverride : scope.userId());
         tx.setProjectId(projectId);
+        tx.setMerchantId(merchantId);
         tx.setCreatedAt(now);
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);
@@ -308,13 +329,9 @@ public class TransactionService {
             LocalDateTime occurredAt,
             String rawNote) {
         return update(scope, ledgerId, id, rawType, rawAmount, accountId, categoryId,
-                sourceAccountId, destinationAccountId, occurredAt, rawNote, null);
+                sourceAccountId, destinationAccountId, occurredAt, rawNote, null, null);
     }
 
-    /**
-     * 修改交易的最全重载：附带所属项目（{@code projectId}，可空；null 表示不属于任何项目）。
-     * 项目归属校验由调用方（控制器）完成，此处仅落库。
-     */
     @Transactional
     public Transaction update(
             AccountScope scope,
@@ -329,6 +346,29 @@ public class TransactionService {
             LocalDateTime occurredAt,
             String rawNote,
             Long projectId) {
+        return update(scope, ledgerId, id, rawType, rawAmount, accountId, categoryId,
+                sourceAccountId, destinationAccountId, occurredAt, rawNote, projectId, null);
+    }
+
+    /**
+     * 修改交易的最全重载：附带所属项目（{@code projectId}）与交易商家（{@code merchantId}），
+     * 均可空（null 表示清除）。项目/商家归属校验由调用方（控制器）完成，此处仅落库。
+     */
+    @Transactional
+    public Transaction update(
+            AccountScope scope,
+            Long ledgerId,
+            Long id,
+            String rawType,
+            BigDecimal rawAmount,
+            Long accountId,
+            Long categoryId,
+            Long sourceAccountId,
+            Long destinationAccountId,
+            LocalDateTime occurredAt,
+            String rawNote,
+            Long projectId,
+            Long merchantId) {
 
         // 需求 4.7 / 2.4：目标交易须存在且属于当前用户，否则拒绝且不改余额。
         Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
@@ -357,6 +397,7 @@ public class TransactionService {
         applyDeltas(locked, net, now);
 
         tx.setProjectId(projectId);
+        tx.setMerchantId(merchantId);
         applyFields(tx, type, amount, note, when, accountId, categoryId, sourceAccountId,
                 destinationAccountId, now);
         return transactionRepository.save(tx);

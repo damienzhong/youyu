@@ -27,6 +27,7 @@ import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
+import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
@@ -54,6 +55,7 @@ public class LedgerService {
     private final LedgerInviteRepository inviteRepository;
     private final TransactionTemplateRepository templateRepository;
     private final ProjectRepository projectRepository;
+    private final MerchantRepository merchantRepository;
     private final AccountService accountService;
     private final Clock clock;
 
@@ -75,6 +77,7 @@ public class LedgerService {
             LedgerInviteRepository inviteRepository,
             TransactionTemplateRepository templateRepository,
             ProjectRepository projectRepository,
+            MerchantRepository merchantRepository,
             AccountService accountService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
@@ -88,6 +91,7 @@ public class LedgerService {
         this.inviteRepository = inviteRepository;
         this.templateRepository = templateRepository;
         this.projectRepository = projectRepository;
+        this.merchantRepository = merchantRepository;
         this.accountService = accountService;
         this.clock = clock;
     }
@@ -228,6 +232,7 @@ public class LedgerService {
         loanRepository.deleteByLedgerId(id);
         templateRepository.deleteByLedgerId(id);
         projectRepository.deleteByLedgerId(id);
+        merchantRepository.deleteByLedgerId(id);
         categoryRepository.deleteByLedgerId(id);
         inviteRepository.deleteByLedgerId(id);
         memberRepository.deleteByLedgerId(id);
