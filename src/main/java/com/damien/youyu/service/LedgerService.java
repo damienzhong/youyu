@@ -28,6 +28,7 @@ import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTemplateRepository;
 
 /**
  * 账本服务：账本的列出、创建、重命名、删除，以及「默认账本」的惰性保障。
@@ -50,6 +51,7 @@ public class LedgerService {
     private final LoanRepository loanRepository;
     private final LedgerMemberRepository memberRepository;
     private final LedgerInviteRepository inviteRepository;
+    private final TransactionTemplateRepository templateRepository;
     private final AccountService accountService;
     private final Clock clock;
 
@@ -69,6 +71,7 @@ public class LedgerService {
             LoanRepository loanRepository,
             LedgerMemberRepository memberRepository,
             LedgerInviteRepository inviteRepository,
+            TransactionTemplateRepository templateRepository,
             AccountService accountService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
@@ -80,6 +83,7 @@ public class LedgerService {
         this.loanRepository = loanRepository;
         this.memberRepository = memberRepository;
         this.inviteRepository = inviteRepository;
+        this.templateRepository = templateRepository;
         this.accountService = accountService;
         this.clock = clock;
     }
@@ -218,6 +222,7 @@ public class LedgerService {
         categoryBudgetRepository.deleteByLedgerId(id);
         budgetRepository.deleteByLedgerId(id);
         loanRepository.deleteByLedgerId(id);
+        templateRepository.deleteByLedgerId(id);
         categoryRepository.deleteByLedgerId(id);
         inviteRepository.deleteByLedgerId(id);
         memberRepository.deleteByLedgerId(id);

@@ -26,6 +26,7 @@ import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTemplateRepository;
 
 /**
  * {@link LedgerService} 协作账本行为的示例/边界测试：成员制授权、邀请/加入、成员管理、
@@ -50,6 +51,7 @@ class LedgerServiceTest {
     @Autowired private LoanRepository loanRepository;
     @Autowired private LedgerMemberRepository memberRepository;
     @Autowired private LedgerInviteRepository inviteRepository;
+    @Autowired private TransactionTemplateRepository templateRepository;
 
     private LedgerService service() {
         return serviceAt(T0);
@@ -61,7 +63,7 @@ class LedgerServiceTest {
                 new AccountService(accountRepository, transactionRepository, clock);
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 transactionRepository, budgetRepository, categoryBudgetRepository, loanRepository,
-                memberRepository, inviteRepository, accountService, clock);
+                memberRepository, inviteRepository, templateRepository, accountService, clock);
     }
 
     // ---------------- 创建 / 默认分类 / 成员 ----------------

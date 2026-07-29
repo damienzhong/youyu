@@ -6,6 +6,7 @@ import { listCategories } from '../../api/category'
 import { createTransaction, getTransaction, updateTransaction } from '../../api/transaction'
 import { createLoan } from '../../api/loan'
 import { listMembers } from '../../api/ledger'
+import { listTemplates, createTemplate, deleteTemplate } from '../../api/template'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
@@ -203,6 +204,86 @@ function pickMember(uid) {
 function memberLabel(m) {
   if (m.userId === selfId.value) return m.displayName ? `${m.displayName}（我）` : '我'
   return m.displayName || '成员'
+}
+
+// ---------- 模板 ----------
+const templates = ref([])
+const templateSheet = ref(false)
+const tplNameSheet = ref(false)
+async function loadTemplates() {
+  try {
+    templates.value = await listTemplates(targetLedgerId.value)
+  } catch (e) {
+    templates.value = []
+  }
+}
+async function openTemplateSheet() {
+  await loadTemplates()
+  templateSheet.value = true
+}
+function tplTypeLabel(t) {
+  return t === 'income' ? '收入' : t === 'transfer' ? '转账' : '支出'
+}
+function applyTemplate(t) {
+  templateSheet.value = false
+  setType(t.type)
+  if (t.amount != null) expr.value = String(t.amount)
+  note.value = t.note || ''
+  if (t.type === 'transfer') {
+    if (t.sourceAccountId && accountById(t.sourceAccountId)) accountId.value = t.sourceAccountId
+    if (t.destinationAccountId && accountById(t.destinationAccountId)) destId.value = t.destinationAccountId
+  } else {
+    if (t.accountId && accountById(t.accountId)) accountId.value = t.accountId
+    if (t.categoryId) categoryId.value = t.categoryId
+  }
+  uni.showToast({ title: `已套用「${t.name}」`, icon: 'none' })
+}
+async function removeTemplate(id) {
+  try {
+    await deleteTemplate(id, targetLedgerId.value)
+    await loadTemplates()
+  } catch (e) {
+    uni.showToast({ title: e.message || '删除失败', icon: 'none' })
+  }
+}
+// 存为模板：先收集当前表单为 payload，再弹出命名输入。
+function startSaveTemplate() {
+  if (isTransfer.value) {
+    if (!accountId.value || !destId.value) {
+      uni.showToast({ title: '请先选择转账账户', icon: 'none' })
+      return
+    }
+  } else if (!categoryId.value) {
+    uni.showToast({ title: '请先选择分类', icon: 'none' })
+    return
+  }
+  templateSheet.value = false
+  tplNameSheet.value = true
+}
+async function onTplNameConfirm(name) {
+  tplNameSheet.value = false
+  const trimmed = (name || '').trim()
+  if (!trimmed) return
+  const amount = amountValue.value
+  const payload = {
+    name: trimmed,
+    type: type.value,
+    amount: amount > 0 ? String(amount) : undefined,
+    note: note.value.trim() || undefined
+  }
+  if (isTransfer.value) {
+    payload.sourceAccountId = accountId.value
+    payload.destinationAccountId = destId.value
+  } else {
+    payload.accountId = accountId.value
+    payload.categoryId = categoryId.value
+  }
+  try {
+    await createTemplate(payload, targetLedgerId.value)
+    uni.showToast({ title: '已存为模板', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '保存失败', icon: 'none' })
+  }
 }
 
 onLoad(async (q) => {
@@ -445,6 +526,7 @@ function goBack() {
         <view class="chip">📅 {{ dateLabel }}</view>
       </picker>
       <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
+      <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">⭐ 模板</view>
     </scroll-view>
 
     <!-- 键盘 -->
@@ -501,6 +583,23 @@ function goBack() {
       </view>
     </view>
 
+    <!-- 模板：套用 / 删除 / 存为模板 -->
+    <view v-if="templateSheet" class="mask" @click="templateSheet = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">记账模板</text>
+        <view v-if="!templates.length" class="tpl-empty">还没有模板，先记好一笔后点「存为模板」吧</view>
+        <view v-for="t in templates" :key="t.id" class="titem">
+          <view class="ti-main" @click="applyTemplate(t)">
+            <text class="ti-name">{{ t.name }}</text>
+            <text class="ti-meta">{{ tplTypeLabel(t.type) }}{{ t.amount != null ? ' · ¥' + t.amount : '' }}</text>
+          </view>
+          <text class="ti-del" @click.stop="removeTemplate(t.id)">删除</text>
+        </view>
+        <view class="tpl-save" @click="startSaveTemplate">＋ 将当前内容存为模板</view>
+      </view>
+    </view>
+
+    <InputSheet :visible="tplNameSheet" title="模板名称" placeholder="如：早餐、地铁通勤" @update:visible="tplNameSheet = $event" @confirm="onTplNameConfirm" />
     <InputSheet :visible="noteSheet" title="备注" placeholder="添加备注" :value="note" @update:visible="noteSheet = $event" @confirm="onNoteConfirm" />
     <InputSheet :visible="cpSheet" title="对方" placeholder="姓名 / 备注" :value="counterparty" @update:visible="cpSheet = $event" @confirm="onCpConfirm" />
   </view>
@@ -647,4 +746,13 @@ function goBack() {
 .si-bal.neg { color: #e5484d; }
 .radio { width: 36rpx; height: 36rpx; border-radius: 50%; border: 3rpx solid #d1d5db; box-sizing: border-box; }
 .radio.on { border-color: #12a150; background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%); }
+
+.tpl-empty { text-align: center; color: #9aa2ad; font-size: 26rpx; padding: 40rpx 20rpx; }
+.titem { display: flex; align-items: center; padding: 22rpx 8rpx; border-top: 1rpx solid #f1f3f5; }
+.titem:first-of-type { border-top: none; }
+.ti-main { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.ti-name { font-size: 30rpx; font-weight: 700; color: #16181c; }
+.ti-meta { font-size: 24rpx; color: #9aa2ad; }
+.ti-del { font-size: 26rpx; color: #e5484d; padding: 8rpx 12rpx; }
+.tpl-save { margin-top: 20rpx; text-align: center; padding: 24rpx; border-radius: 16rpx; background: #e6f6ec; color: #0e8a44; font-weight: 700; font-size: 28rpx; }
 </style>

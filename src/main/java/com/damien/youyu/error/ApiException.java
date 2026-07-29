@@ -254,6 +254,11 @@ public class ApiException extends RuntimeException {
 
     // ---- 常用工厂方法（Loan 借贷域） ----
 
+    /** 记账模板字段非法（模板名/类型/金额/备注），携带具体无效字段。 */
+    public static ApiException templateFieldInvalid(String field, String message) {
+        return new ApiException("TEMPLATE_FIELD_INVALID", HttpStatus.BAD_REQUEST, message, field);
+    }
+
     /** 借贷字段非法（方向/对方/金额/发生时间/备注），携带具体无效字段。 */
     public static ApiException loanFieldInvalid(String field, String message) {
         return new ApiException("LOAN_FIELD_INVALID", HttpStatus.BAD_REQUEST, message, field);
