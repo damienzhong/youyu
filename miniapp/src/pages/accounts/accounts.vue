@@ -484,17 +484,18 @@ function confirmDelete() {
 }
 .fab {
   position: fixed;
-  right: 44rpx;
-  bottom: 68rpx;
-  width: 100rpx;
-  height: 100rpx;
+  right: 40rpx;
+  bottom: calc(136rpx + env(safe-area-inset-bottom));
+  width: 104rpx;
+  height: 104rpx;
   border-radius: 50%;
   background: linear-gradient(135deg, #18b85a, #0e8a44);
   color: #fff;
-  font-size: 58rpx;
-  line-height: 100rpx;
+  font-size: 62rpx;
+  line-height: 104rpx;
   text-align: center;
-  box-shadow: 0 14rpx 34rpx rgba(18, 161, 80, 0.4);
+  box-shadow: 0 14rpx 34rpx rgba(18, 161, 80, 0.45);
+  z-index: 200;
 }
 .mask {
   position: fixed;
