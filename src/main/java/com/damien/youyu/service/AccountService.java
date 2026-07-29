@@ -118,7 +118,7 @@ public class AccountService {
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(note);
-        account.setCreditLimit(type == AccountType.CREDIT_CARD ? creditLimit : null);
+        account.setCreditLimit(type.isCredit() ? creditLimit : null);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         return accountRepository.save(account);
@@ -187,7 +187,7 @@ public class AccountService {
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(validateNote(rawNote));
-        account.setCreditLimit(type == AccountType.CREDIT_CARD ? validateCreditLimit(rawCreditLimit) : null);
+        account.setCreditLimit(type.isCredit() ? validateCreditLimit(rawCreditLimit) : null);
         account.setUpdatedAt(LocalDateTime.now(clock));
         return accountRepository.save(account);
     }
