@@ -26,6 +26,26 @@ export function searchTransactions(q, ledgerId) {
   return http.get(`/transactions/search?q=${encodeURIComponent(q)}`, opts(ledgerId))
 }
 
+/** 批量软删除（移入回收站），返回 { deleted }。 */
+export function batchDeleteTransactions(ids, ledgerId) {
+  return http.post('/transactions/batch-delete', { ids }, opts(ledgerId))
+}
+
+/** 回收站列表（已软删除）。 */
+export function listRecycle(ledgerId) {
+  return http.get('/transactions/recycle', opts(ledgerId))
+}
+
+/** 从回收站恢复一笔。 */
+export function restoreTransaction(id, ledgerId) {
+  return http.post(`/transactions/${id}/restore`, {}, opts(ledgerId))
+}
+
+/** 彻底删除回收站中的一笔。 */
+export function purgeTransaction(id, ledgerId) {
+  return http.del(`/transactions/${id}/purge`, opts(ledgerId))
+}
+
 /** 列出某自然月交易（month=YYYY-MM，按时间倒序）。 */
 export function listTransactionsByMonth(month, ledgerId) {
   return http.get(`/transactions?month=${encodeURIComponent(month)}`, opts(ledgerId))

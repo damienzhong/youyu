@@ -233,8 +233,8 @@ public class LedgerService {
 
         boolean collaborative = "COLLABORATIVE".equals(ledger.getType());
 
-        // 级联清除该账本的业务数据。
-        transactionRepository.deleteByLedgerId(id);
+        // 级联清除该账本的业务数据（含回收站中的软删除记录，故用物理删除）。
+        transactionRepository.hardDeleteByLedgerId(id);
         categoryBudgetRepository.deleteByLedgerId(id);
         budgetRepository.deleteByLedgerId(id);
         loanRepository.deleteByLedgerId(id);

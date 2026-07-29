@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.BalanceAdjustRequest;
+import com.damien.youyu.api.dto.BatchIdsRequest;
 import com.damien.youyu.api.dto.FilteredTransactionsResponse;
 import com.damien.youyu.api.dto.TransactionCreateRequest;
 import com.damien.youyu.api.dto.TransactionResponse;
@@ -260,7 +261,54 @@ public class TransactionController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         Ledger ledger = currentLedger.requireLedger();
         AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        // 软删除（移入回收站）：保留标签关联以便恢复，不在此清除。
         transactionService.delete(scope, ledger.getId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 批量软删除（移入回收站）：返回实际删除笔数。忽略不存在/已删除的 id。 */
+    @PostMapping("/batch-delete")
+    public ResponseEntity<java.util.Map<String, Integer>> batchDelete(@RequestBody BatchIdsRequest req) {
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        int deleted = 0;
+        if (req != null && req.ids() != null) {
+            for (Long id : req.ids()) {
+                if (id == null) {
+                    continue;
+                }
+                try {
+                    transactionService.delete(scope, ledger.getId(), id);
+                    deleted++;
+                } catch (ApiException ex) {
+                    // 不存在/越权的 id 跳过，不影响其余。
+                }
+            }
+        }
+        return ResponseEntity.ok(java.util.Map.of("deleted", deleted));
+    }
+
+    /** 回收站列表（已软删除的流水），按删除时间倒序，附标签。 */
+    @GetMapping("/recycle")
+    public ResponseEntity<List<TransactionResponse>> recycle() {
+        Long ledgerId = currentLedger.requireLedgerId();
+        return ResponseEntity.ok(withTags(transactionService.listDeleted(ledgerId)));
+    }
+
+    /** 从回收站恢复一笔流水（重新应用余额影响）。 */
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<TransactionResponse> restore(@PathVariable Long id) {
+        Ledger ledger = currentLedger.requireLedger();
+        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Transaction tx = transactionService.restore(scope, ledger.getId(), id);
+        return ResponseEntity.ok(TransactionResponse.from(tx, tagService.tagIdsOf(id)));
+    }
+
+    /** 彻底删除回收站中的一笔流水（物理删除，连带标签关联）。 */
+    @DeleteMapping("/{id}/purge")
+    public ResponseEntity<Void> purge(@PathVariable Long id) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        transactionService.purge(ledgerId, id);
         tagService.clearTransactionTags(id);
         return ResponseEntity.noContent().build();
     }

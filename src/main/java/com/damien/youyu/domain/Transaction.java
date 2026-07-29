@@ -3,6 +3,8 @@ package com.damien.youyu.domain;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.SQLRestriction;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -27,6 +29,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "transactions")
+@SQLRestriction("deleted_at is null")
 public class Transaction {
 
     @Id
@@ -95,6 +98,10 @@ public class Transaction {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** 软删除时间（回收站）：非空表示已移入回收站；由 {@code @SQLRestriction} 从常规查询中排除。 */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     public Transaction() {
         // JPA / 服务层构造
@@ -234,5 +241,13 @@ public class Transaction {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public LocalDateTime getDeletedAt() {
+        return deletedAt;
+    }
+
+    public void setDeletedAt(LocalDateTime deletedAt) {
+        this.deletedAt = deletedAt;
     }
 }

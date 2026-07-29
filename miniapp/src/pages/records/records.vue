@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
-import { listTransactionsByMonth, deleteTransaction, searchTransactions } from '../../api/transaction'
+import { listTransactionsByMonth, deleteTransaction, searchTransactions, batchDeleteTransactions } from '../../api/transaction'
 import { listMembers } from '../../api/ledger'
 import { listProjects } from '../../api/project'
 import { listMerchants } from '../../api/merchant'
@@ -321,6 +321,39 @@ const searchTotal = computed(() => {
   return e
 })
 
+// ---------- 日历视图 ----------
+const calendarOpen = ref(false)
+const selectedDay = ref('')
+const WEEK = ['日', '一', '二', '三', '四', '五', '六']
+const dailyMap = computed(() => {
+  const m = {}
+  for (const t of transactions.value) {
+    const d = dayKeyOf(t.occurredAt)
+    if (!m[d]) m[d] = { income: 0, expense: 0 }
+    if (t.type === 'income') m[d].income += Number(t.amount)
+    else if (t.type === 'expense') m[d].expense += Number(t.amount)
+  }
+  return m
+})
+const calendarCells = computed(() => {
+  const y = year.value, mo = monthNum.value
+  const first = new Date(y, mo - 1, 1).getDay()
+  const days = new Date(y, mo, 0).getDate()
+  const cells = []
+  for (let i = 0; i < first; i++) cells.push(null)
+  for (let d = 1; d <= days; d++) {
+    const key = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const info = dailyMap.value[key]
+    cells.push({ d, key, expense: info ? info.expense : 0, income: info ? info.income : 0 })
+  }
+  return cells
+})
+const selectedDayTx = computed(() =>
+  selectedDay.value ? transactions.value.filter((t) => dayKeyOf(t.occurredAt) === selectedDay.value) : []
+)
+function openCalendar() { calendarOpen.value = true; selectedDay.value = '' }
+function pickDay(c) { if (!c) return; selectedDay.value = selectedDay.value === c.key ? '' : c.key }
+
 // ---------- 行渲染 ----------
 function titleOf(t) {
   if (t.type === 'transfer') {
@@ -376,6 +409,41 @@ function jumpToMonth(m) {
   viewMode.value = 'month'
   load()
 }
+
+// ---------- 批量操作 ----------
+const selectMode = ref(false)
+const selectedIds = ref(new Set())
+function enterSelect(id) {
+  selectMode.value = true
+  selectedIds.value = id != null ? new Set([id]) : new Set()
+}
+function exitSelect() { selectMode.value = false; selectedIds.value = new Set() }
+function toggleSelect(id) {
+  const s = new Set(selectedIds.value)
+  s.has(id) ? s.delete(id) : s.add(id)
+  selectedIds.value = s
+}
+function txTap(t) { if (selectMode.value) toggleSelect(t.id); else goEdit(t) }
+function selectAll() { selectedIds.value = new Set(visibleTx.value.map((t) => t.id)) }
+async function batchDelete() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  uni.showModal({
+    title: '移入回收站',
+    content: `将 ${ids.length} 笔移入回收站，可在回收站恢复。`,
+    success: async (r) => {
+      if (!r.confirm) return
+      try {
+        await batchDeleteTransactions(ids)
+        uni.showToast({ title: '已移入回收站', icon: 'success' })
+        exitSelect()
+        await load()
+      } catch (e) {
+        uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+      }
+    }
+  })
+}
 </script>
 
 <template>
@@ -389,6 +457,7 @@ function jumpToMonth(m) {
           <text :class="{ on: viewMode === 'year' }" @click="setViewMode('year')">年账单</text>
         </view>
         <view class="tb-icons">
+          <text v-if="!isAll && viewMode === 'month'" @click="openCalendar">📅</text>
           <text v-if="!isAll" @click="openSearch">🔍</text>
         </view>
       </view>
@@ -436,13 +505,20 @@ function jumpToMonth(m) {
 
     <!-- ============ 月视图 ============ -->
     <template v-else>
+      <!-- 多选工具条 -->
+      <view v-if="selectMode" class="selbar">
+        <text class="selcancel" @click="exitSelect">取消</text>
+        <text class="seln">已选 {{ selectedIds.size }}</text>
+        <text class="selall" @click="selectAll">全选</text>
+      </view>
       <!-- 筛选栏 -->
-      <view class="filterbar">
+      <view v-else class="filterbar">
         <view v-if="activeFilterCount" class="active-filter" @click="filterPanel = true">
           <text>已筛选 {{ activeFilterCount }} 项</text>
           <text class="af-x" @click.stop="resetFilter">✕</text>
         </view>
         <view class="filter-btn" @click="filterPanel = true">🔎 筛选</view>
+        <view v-if="groupBy !== 'category' && visibleTx.length" class="filter-btn" @click="enterSelect()">☑ 多选</view>
         <view class="grp-seg">
           <text :class="{ on: groupBy === 'day' }" @click="groupBy = 'day'">按天</text>
           <text :class="{ on: groupBy === 'category' }" @click="groupBy = 'category'">按分类</text>
@@ -463,7 +539,8 @@ function jumpToMonth(m) {
             <text class="sum"><text class="i">收 {{ formatAmount(g.income) }}</text><text class="e">支 {{ formatAmount(g.expense) }}</text></text>
           </view>
           <view class="card">
-            <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)" @longpress="confirmDelete(t)">
+            <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
+              <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
               <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
@@ -505,7 +582,8 @@ function jumpToMonth(m) {
             <text class="sum"><text :class="g.type === 'income' ? 'i' : 'e'">合计 {{ formatAmount(g.sum) }}</text></text>
           </view>
           <view class="card">
-            <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)" @longpress="confirmDelete(t)">
+            <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
+              <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
               <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
@@ -517,7 +595,13 @@ function jumpToMonth(m) {
         </view>
       </template>
 
-      <text v-if="visibleTx.length" class="hint">点击编辑 · 长按删除</text>
+      <text v-if="visibleTx.length && !selectMode" class="hint">点击编辑 · 长按多选</text>
+
+      <!-- 批量操作底栏 -->
+      <view v-if="selectMode" class="batchbar">
+        <text class="bcount">已选 {{ selectedIds.size }} 笔</text>
+        <text class="bdel" :class="{ disabled: !selectedIds.size }" @click="batchDelete">移入回收站</text>
+      </view>
     </template>
 
     <!-- ============ 月份选择器 ============ -->
@@ -584,6 +668,54 @@ function jumpToMonth(m) {
           <text class="fdone" @click="filterPanel = false">查看 {{ visibleTx.length }} 条结果</text>
         </view>
       </view>
+    </view>
+
+    <!-- ============ 日历视图 ============ -->
+    <view v-if="calendarOpen" class="searchlayer">
+      <view class="sbar">
+        <text class="sback" @click="calendarOpen = false">‹</text>
+        <view class="cal-nav">
+          <text class="arw" @click="prevPeriod">‹</text>
+          <text class="cal-title">{{ year }}年{{ monthNum }}月</text>
+          <text class="arw" @click="nextPeriod">›</text>
+        </view>
+        <text style="width:44rpx"></text>
+      </view>
+      <scroll-view scroll-y class="sresults">
+        <view class="calwrap">
+          <view class="calweek"><text v-for="w in WEEK" :key="w">{{ w }}</text></view>
+          <view class="calgrid">
+            <view
+              v-for="(c, i) in calendarCells"
+              :key="i"
+              class="calcell"
+              :class="{ blank: !c, sel: c && selectedDay === c.key }"
+              @click="pickDay(c)"
+            >
+              <template v-if="c">
+                <text class="cd">{{ c.d }}</text>
+                <text v-if="c.expense" class="ce">-{{ formatAmount(c.expense) }}</text>
+                <text v-if="c.income" class="ci">+{{ formatAmount(c.income) }}</text>
+              </template>
+            </view>
+          </view>
+        </view>
+        <view v-if="selectedDay" class="daygrp">
+          <view class="dayhead"><text class="dt">{{ selectedDay.slice(5) }}</text></view>
+          <view v-if="!selectedDayTx.length" class="empty" style="padding:60rpx 0"><text>这天没有记录</text></view>
+          <view v-else class="card">
+            <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goEdit(t)" @longpress="confirmDelete(t)">
+              <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
+              <view class="tinfo">
+                <text class="tname">{{ titleOf(t) }}</text>
+                <text class="tsub">{{ subtitleOf(t) }}</text>
+              </view>
+              <text class="tamt" :class="t.type">{{ signedAmount(t) }}</text>
+            </view>
+          </view>
+        </view>
+        <view v-else class="cal-hint">点某一天查看当日明细</view>
+      </scroll-view>
     </view>
 
     <!-- ============ 搜索 ============ -->
@@ -657,6 +789,19 @@ function jumpToMonth(m) {
 .grp-seg text { padding: 8rpx 16rpx; font-size: 22rpx; font-weight: 700; color: #5b6470; border-radius: 8rpx; }
 .grp-seg text.on { background: #12a150; color: #fff; }
 
+/* 多选工具条 */
+.selbar { display: flex; align-items: center; justify-content: space-between; padding: 18rpx 32rpx 6rpx; }
+.selcancel { font-size: 28rpx; color: #5b6470; }
+.seln { font-size: 28rpx; font-weight: 800; color: #16181c; }
+.selall { font-size: 28rpx; color: #0e8a44; font-weight: 700; }
+.chk { width: 40rpx; height: 40rpx; border-radius: 50%; border: 2rpx solid #cfd4da; text-align: center; line-height: 38rpx; font-size: 26rpx; color: #fff; flex: 0 0 auto; box-sizing: border-box; }
+.chk.on { background: #12a150; border-color: #12a150; }
+/* 批量底栏 */
+.batchbar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx calc(20rpx + env(safe-area-inset-bottom)); box-shadow: 0 -6rpx 20rpx rgba(0,0,0,0.06); z-index: 40; }
+.bcount { font-size: 26rpx; color: #5b6470; }
+.bdel { background: #e5484d; color: #fff; font-weight: 700; font-size: 28rpx; padding: 16rpx 40rpx; border-radius: 999rpx; }
+.bdel.disabled { background: #f0c4c4; }
+
 /* 分组卡 */
 .daygrp { margin: 16rpx 24rpx 0; }
 .dayhead { display: flex; justify-content: space-between; align-items: baseline; padding: 6rpx 8rpx 12rpx; font-size: 22rpx; color: #6b7280; }
@@ -721,4 +866,24 @@ function jumpToMonth(m) {
 .sresults { flex: 1; }
 .scount { padding: 20rpx 32rpx; font-size: 24rpx; color: #9aa2ad; }
 .scount .exp { color: #f0553d; font-weight: 700; }
+
+/* 日历 */
+.cal-nav { flex: 1; display: flex; align-items: center; justify-content: center; gap: 30rpx; }
+.cal-nav .arw { color: #9aa2ad; font-size: 36rpx; padding: 0 12rpx; }
+.cal-title { font-size: 30rpx; font-weight: 800; }
+.calwrap { background: #fff; border-radius: 20rpx; margin: 20rpx 24rpx; padding: 16rpx 12rpx; box-shadow: 0 6rpx 18rpx rgba(20,24,28,0.05); }
+.calweek { display: flex; }
+.calweek text { flex: 1; text-align: center; font-size: 22rpx; color: #9aa2ad; padding: 8rpx 0; }
+.calgrid { display: flex; flex-wrap: wrap; }
+.calcell {
+  width: 14.285%; height: 96rpx;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding-top: 10rpx; box-sizing: border-box; border-radius: 12rpx;
+}
+.calcell.blank { visibility: hidden; }
+.calcell.sel { background: #e6f6ec; }
+.cd { font-size: 24rpx; color: #16181c; }
+.ce { font-size: 16rpx; color: #f0553d; margin-top: 2rpx; }
+.ci { font-size: 16rpx; color: #12a150; }
+.cal-hint { text-align: center; color: #9aa2ad; font-size: 24rpx; padding: 40rpx; }
 </style>

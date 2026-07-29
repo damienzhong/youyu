@@ -430,6 +430,48 @@ public class TransactionService {
         Map<Long, Account> locked = lockAll(rollback.keySet(), scope);
         applyDeltas(locked, rollback, now);
 
+        // 软删除：回滚余额后置 deleted_at，移入回收站（可恢复/彻底删除），而非物理删行。
+        tx.setDeletedAt(now);
+        tx.setUpdatedAt(now);
+        transactionRepository.save(tx);
+    }
+
+    /** 列出某账本回收站记录（已软删除），按删除时间倒序。 */
+    @Transactional(readOnly = true)
+    public java.util.List<Transaction> listDeleted(Long ledgerId) {
+        return transactionRepository.findDeletedByLedgerId(ledgerId);
+    }
+
+    /**
+     * 从回收站恢复一笔交易：重新应用其对余额的影响并清空 deleted_at（需求：可逆删除）。
+     * 记录不存在或不在回收站则拒绝。引用的账户若已不存在则 NOT_FOUND。
+     */
+    @Transactional
+    public Transaction restore(AccountScope scope, Long ledgerId, Long id) {
+        Transaction tx = transactionRepository.findRawByIdAndLedgerId(id, ledgerId)
+                .filter(t -> t.getDeletedAt() != null)
+                .orElseThrow(() -> ApiException.notFound("回收站记录不存在"));
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        Map<Long, BigDecimal> deltas = effectDeltas(tx.getType(), tx.getAmount(), tx.getAccountId(),
+                tx.getSourceAccountId(), tx.getDestinationAccountId());
+        Map<Long, Account> locked = lockAll(deltas.keySet(), scope);
+        applyDeltas(locked, deltas, now);
+
+        tx.setDeletedAt(null);
+        tx.setUpdatedAt(now);
+        return transactionRepository.save(tx);
+    }
+
+    /**
+     * 彻底删除回收站中的一笔交易（物理删行）。余额已在软删时回滚，此处不再变动余额。
+     * 记录不存在或不在回收站则拒绝。
+     */
+    @Transactional
+    public void purge(Long ledgerId, Long id) {
+        Transaction tx = transactionRepository.findRawByIdAndLedgerId(id, ledgerId)
+                .filter(t -> t.getDeletedAt() != null)
+                .orElseThrow(() -> ApiException.notFound("回收站记录不存在"));
         transactionRepository.delete(tx);
     }
 

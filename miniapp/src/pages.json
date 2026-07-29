@@ -97,6 +97,12 @@
       "style": {
         "navigationBarTitleText": "明细"
       }
+    },
+    {
+      "path": "pages/recycle/recycle",
+      "style": {
+        "navigationBarTitleText": "回收站"
+      }
     }
   ],
   "globalStyle": {

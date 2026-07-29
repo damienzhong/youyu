@@ -9,6 +9,7 @@ import java.util.stream.Stream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -106,6 +107,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /** 删除某账本的全部交易（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
+
+    // ---------------- 回收站（软删除，走原生 SQL 绕过 @SQLRestriction）----------------
+
+    /** 按主键+账本定位（含已软删除，供恢复/彻底删除）。 */
+    @Query(value = "SELECT * FROM transactions WHERE id = :id AND ledger_id = :ledgerId", nativeQuery = true)
+    Optional<Transaction> findRawByIdAndLedgerId(@Param("id") Long id, @Param("ledgerId") Long ledgerId);
+
+    /** 列出某账本回收站记录（已软删除），按删除时间倒序。 */
+    @Query(value = "SELECT * FROM transactions WHERE ledger_id = :ledgerId AND deleted_at IS NOT NULL "
+            + "ORDER BY deleted_at DESC, id DESC", nativeQuery = true)
+    List<Transaction> findDeletedByLedgerId(@Param("ledgerId") Long ledgerId);
+
+    /** 物理删除某账本全部交易（含回收站，账本删除级联用）。 */
+    @Modifying
+    @Query(value = "DELETE FROM transactions WHERE ledger_id = :ledgerId", nativeQuery = true)
+    void hardDeleteByLedgerId(@Param("ledgerId") Long ledgerId);
 
     // ---------------- 余额可重算校验的聚合查询（需求 4.13）----------------
 
