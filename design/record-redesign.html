@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 记一笔改版原型（全功能）</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#f0553d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b; --danger:#e5484d;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1560px;margin:0 auto;padding:48px 24px 90px;}
+  .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:920px;line-height:1.7;margin:0 0 20px;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:44px 0 18px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.55;min-height:54px;}
+  .be{display:inline-block;font-size:10px;font-weight:700;background:#fdecec;color:#c23;border-radius:4px;padding:1px 6px;margin-left:4px;}
+  .phone{width:340px;height:724px;background:#fff;border-radius:42px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.15),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:140px;height:24px;background:#fff;border-radius:0 0 16px 16px;z-index:30;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 3px;font-size:11px;font-weight:700;}
+  .body{flex:1;overflow-y:auto;position:relative;display:flex;flex-direction:column;}
+  .body::-webkit-scrollbar{width:0;}
+
+  /* nav + type tabs */
+  .rnav{display:flex;align-items:center;justify-content:space-between;height:44px;padding:0 14px;flex:0 0 auto;}
+  .rnav .x{font-size:20px;color:var(--ink-2);}
+  .rnav .r{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--brand-600);font-weight:700;}
+  .types{display:flex;gap:6px;padding:0 12px 8px;overflow:auto;flex:0 0 auto;}
+  .ty{font-size:15px;font-weight:700;color:var(--ink-3);padding:6px 12px;border-radius:10px;white-space:nowrap;}
+  .ty.on{color:var(--ink);}
+  .ty.on.exp{color:var(--exp);}
+  .ty.on.inc{color:var(--inc);}
+  .ty.on.tr,.ty.on.bal{color:var(--tr);}
+  .ty.on::after{content:"";display:block;height:3px;width:22px;margin:4px auto 0;border-radius:3px;background:currentColor;}
+
+  /* amount bar */
+  .amt{display:flex;align-items:center;gap:10px;padding:10px 18px 12px;flex:0 0 auto;border-bottom:1px solid var(--line);}
+  .cur{font-size:16px;color:var(--ink-2);font-weight:700;display:flex;align-items:center;gap:2px;}
+  .amtv{flex:1;font-size:40px;font-weight:800;letter-spacing:-.02em;}
+  .amtv .cursor{display:inline-block;width:2px;height:34px;background:var(--brand);vertical-align:-6px;margin-left:2px;}
+  .cam{width:40px;height:40px;border-radius:12px;background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:16px;color:var(--ink-2);}
+  .cam .t{font-size:9px;}
+
+  /* category grid */
+  .cats{flex:1;overflow-y:auto;padding:12px 6px 4px;}
+  .cats::-webkit-scrollbar{width:0;}
+  .cgrid{display:flex;flex-wrap:wrap;}
+  .cat{width:20%;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;}
+  .cic{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff;position:relative;}
+  .cat.on .cic{box-shadow:0 0 0 3px #fff,0 0 0 6px var(--brand);}
+  .cat .l{font-size:12px;color:var(--ink-2);}
+  .cat.on .l{color:var(--ink);font-weight:700;}
+  .subdot{position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:#fff;color:var(--ink-3);font-size:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.15);}
+
+  /* chips + note */
+  .chips{display:flex;gap:8px;padding:8px 14px;overflow:auto;flex:0 0 auto;border-top:1px solid var(--line);}
+  .chip{display:flex;align-items:center;gap:5px;background:var(--surface-2);border-radius:999px;padding:6px 12px;font-size:12px;color:var(--ink-2);white-space:nowrap;}
+  .chip.on{background:var(--brand-weak);color:var(--brand-600);font-weight:700;}
+  .note-in{padding:8px 16px;font-size:14px;color:var(--ink-3);flex:0 0 auto;}
+
+  /* keypad */
+  .kp{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e4e7ec;flex:0 0 auto;}
+  .key{background:#fbfbfc;height:52px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;color:var(--ink);}
+  .key.op{color:var(--ink-2);font-size:24px;}
+  .key.mini{font-size:14px;color:var(--ink-2);font-weight:700;}
+  .key.done{background:var(--brand);color:#fff;font-weight:800;font-size:17px;}
+  .key.done.exp{background:var(--exp);}
+  .key.done.tr{background:var(--tr);}
+
+  /* transfer / balance / loan bodies */
+  .rows{padding:8px 16px;flex:1;overflow:auto;}
+  .frow{display:flex;align-items:center;justify-content:space-between;padding:18px 0;border-top:1px solid var(--line);}
+  .frow:first-child{border-top:none;}
+  .fk{font-size:15px;color:var(--ink-2);}
+  .fv{font-size:15px;font-weight:600;}
+  .xfer{display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px;}
+  .xcard{width:100%;display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:14px;padding:14px;}
+  .xic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+  .seg{display:flex;background:var(--surface-2);border-radius:12px;padding:4px;margin:10px 16px;}
+  .seg .s{flex:1;text-align:center;padding:9px 0;font-size:14px;font-weight:700;color:var(--ink-2);border-radius:9px;}
+  .seg .s.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+
+  /* overlay sheets */
+  .ovl{position:absolute;inset:0;background:rgba(15,23,42,.4);display:flex;align-items:flex-end;z-index:40;}
+  .sheet{width:100%;background:#fff;border-radius:22px 22px 0 0;padding:16px;max-height:82%;overflow:auto;}
+  .shd{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 12px;}
+  .shd b{font-size:15px;}
+  .sitem{display:flex;align-items:center;gap:12px;padding:13px 6px;border-top:1px solid var(--line);}
+  .sitem:first-of-type{border-top:none;}
+  .radio{width:18px;height:18px;border-radius:50%;border:2px solid #d1d5db;}
+  .radio.on{border-color:var(--brand);background:radial-gradient(circle,#12a150 0 5px,#fff 6px);}
+  .tagwrap{display:flex;flex-wrap:wrap;gap:8px;padding:8px 4px;}
+  .tg{border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:13px;color:var(--ink-2);}
+  .tg.on{background:var(--brand-weak);border-color:var(--brand);color:var(--brand-600);font-weight:700;}
+  .tmpl{display:flex;align-items:center;gap:12px;padding:13px 6px;border-top:1px solid var(--line);}
+  .tmpl .ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;}
+  .receipt{width:88px;height:88px;border-radius:12px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--ink-3);position:relative;}
+  .receipt .del{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--danger);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;}
+
+  .legend{margin-top:34px;font-size:13px;color:var(--ink-2);line-height:1.95;}
+  .legend .t{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-weak);color:var(--brand-600);border-radius:999px;padding:2px 9px;margin-right:6px;}
+  .legend .tb{display:inline-block;font-size:11px;font-weight:700;background:#fdecec;color:#c23;border-radius:999px;padding:2px 9px;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="h1">有余 · 记一笔改版原型（全功能）</div>
+  <p class="sub">吸收 A–H 全部 + 商家/标签/项目/拍照/模板/余额调整/多币种。<b>核心结构</b>：类型条 → 金额条（币种+拍照）→ 分类九宫格（彩色图标+子分类）→ 维度 chips（账户/账本/日期/记账人/商家/标签/项目）→ 备注 → 自绘计算器键盘（含运算、完成、保存再记）。带 <span class="be">需后端</span> 的为需新增数据模型的能力。</p>
+  <div class="sec">A · 记账类型</div>
+  <div class="screens">
+
+    <!-- 1 支出 主界面 -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span> 支出（主界面）</p>
+      <p class="note">类型条 → 金额条（币种/拍照）→ 彩色分类九宫格（选中带环、有子分类者右下角标）→ 维度 chips → 备注 → 计算器键盘。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>📋 模板</span><span>✓</span></span></div>
+          <div class="types">
+            <span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span><span class="ty">借贷</span>
+          </div>
+          <div class="amt">
+            <span class="cur">¥ CNY ▾</span>
+            <span class="amtv">38.00<span class="cursor"></span></span>
+            <span class="cam">📷<span class="t">票据</span></span>
+          </div>
+          <div class="cats">
+            <div class="cgrid">
+              <div class="cat on"><div class="cic" style="background:#e5793a">🍴<span class="subdot">▾</span></div><div class="l">餐饮</div></div>
+              <div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+              <div class="cat"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div>
+              <div class="cat"><div class="cic" style="background:#2eb8a6">🧴</div><div class="l">日用</div></div>
+              <div class="cat"><div class="cic" style="background:#e0609a">🎮</div><div class="l">娱乐</div></div>
+              <div class="cat"><div class="cic" style="background:#5b8def">🏠</div><div class="l">居住</div></div>
+              <div class="cat"><div class="cic" style="background:#f0a13b">📱</div><div class="l">通讯</div></div>
+              <div class="cat"><div class="cic" style="background:#3ba55d">💊</div><div class="l">医疗</div></div>
+              <div class="cat"><div class="cic" style="background:#d0574e">🎁</div><div class="l">人情</div></div>
+              <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip on">💳 招商信用卡(1957)</span><span class="chip">📅 今天</span><span class="chip">🏪 商家</span><span class="chip">🏷️ 标签</span><span class="chip">📁 项目</span>
+          </div>
+          <div class="note-in">添加备注…</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 2 收入 -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span> 收入</p>
+      <p class="note">同结构，切到收入分类；完成键与金额语义色转绿。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>📋 模板</span><span>✓</span></span></div>
+          <div class="types"><span class="ty">支出</span><span class="ty on inc">收入</span><span class="ty">转账</span><span class="ty">余额</span><span class="ty">借贷</span></div>
+          <div class="amt"><span class="cur">¥ CNY ▾</span><span class="amtv">12,500.00<span class="cursor"></span></span><span class="cam">📷<span class="t">票据</span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat on"><div class="cic" style="background:#12a150">💰</div><div class="l">工资</div></div>
+            <div class="cat"><div class="cic" style="background:#e0a13b">🧧</div><div class="l">红包</div></div>
+            <div class="cat"><div class="cic" style="background:#8b78e0">💹</div><div class="l">理财</div></div>
+            <div class="cat"><div class="cic" style="background:#3aa0d0">💼</div><div class="l">兼职</div></div>
+            <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+          </div></div>
+          <div class="chips"><span class="chip on">🏦 招商储蓄卡(8801)</span><span class="chip">📅 今天</span><span class="chip">🏪 商家</span><span class="chip">🏷️ 标签</span></div>
+          <div class="note-in">添加备注…</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3 转账 -->
+    <div class="pw">
+      <p class="cap"><span class="n">3</span> 转账</p>
+      <p class="note">对向双账户；可选手续费；无「报错红」，用中性灰。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty">支出</span><span class="ty">收入</span><span class="ty on tr">转账</span><span class="ty">余额</span><span class="ty">借贷</span></div>
+          <div class="amt"><span class="cur">¥ CNY ▾</span><span class="amtv">2,000.00<span class="cursor"></span></span></div>
+          <div class="xfer">
+            <div class="xcard"><span class="xic" style="background:#fdece8;color:#f0553d">↗</span><div style="flex:1"><div style="font-size:11px;color:var(--ink-3)">转出</div><div style="font-weight:700">招商储蓄卡(8801)</div></div></div>
+            <div style="width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;color:var(--tr);margin:-4px 0;">⇅</div>
+            <div class="xcard"><span class="xic" style="background:#e6f6ec;color:#12a150">↘</span><div style="flex:1"><div style="font-size:11px;color:var(--ink-3)">转入</div><div style="font-weight:700">现金</div></div></div>
+          </div>
+          <div class="chips"><span class="chip">📅 今天</span><span class="chip">💸 手续费</span><span class="chip">📝 备注</span></div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done tr">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 4 余额 -->
+    <div class="pw">
+      <p class="cap"><span class="n">4</span> 余额调整 <span class="be">需后端</span></p>
+      <p class="note">选账户 → 输入实际余额 → 自动生成一笔「余额调整」补差流水，让账实相符（对账神器）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty on bal">余额</span><span class="ty">借贷</span></div>
+          <div class="amt"><span class="cur" style="font-size:13px">实际余额</span><span class="amtv">1,260.00<span class="cursor"></span></span></div>
+          <div class="rows">
+            <div class="frow"><span class="fk">账户</span><span class="fv">💵 现金 ›</span></div>
+            <div class="frow"><span class="fk">系统余额</span><span class="fv" style="color:var(--ink-3)">¥1,300.00</span></div>
+            <div class="frow"><span class="fk">调整差额</span><span class="fv" style="color:var(--exp)">-¥40.00（生成支出调整）</span></div>
+            <div class="frow"><span class="fk">日期</span><span class="fv">今天 ›</span></div>
+          </div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini"> </div><div class="key">0</div><div class="key">.</div><div class="key done tr">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 5 借贷 -->
+    <div class="pw">
+      <p class="cap"><span class="n">5</span> 借贷（借入/借出）</p>
+      <p class="note">记账入口直达借贷：借入/借出 + 对方 + 金额 + 关联账户；写入借贷台账（复用已有借贷功能）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span><span class="ty on bal">借贷</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">500.00<span class="cursor"></span></span></div>
+          <div class="seg"><span class="s on">借入（别人借我还）</span><span class="s">借出（我借出待收）</span></div>
+          <div class="rows">
+            <div class="frow"><span class="fk">对方</span><span class="fv">张三 ›</span></div>
+            <div class="frow"><span class="fk">收款账户</span><span class="fv">💵 现金 ›</span></div>
+            <div class="frow"><span class="fk">日期</span><span class="fv">今天 ›</span></div>
+          </div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini"> </div><div class="key">0</div><div class="key">.</div><div class="key done tr">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">B · 分类与维度</div>
+  <div class="screens">
+
+    <!-- 6 子分类展开 -->
+    <div class="pw">
+      <p class="cap"><span class="n">6</span> 子分类展开</p>
+      <p class="note">点带角标的父类（餐饮），下方弹出其子分类；两级层级已有数据支持。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>📋 模板</span><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span><span class="ty">借贷</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">38.00<span class="cursor"></span></span><span class="cam">📷<span class="t">票据</span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat on"><div class="cic" style="background:#e5793a">🍴<span class="subdot">▴</span></div><div class="l">餐饮</div></div>
+            <div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+            <div class="cat"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div>
+            <div class="cat"><div class="cic" style="background:#2eb8a6">🧴</div><div class="l">日用</div></div>
+            <div class="cat"><div class="cic" style="background:#e0609a">🎮</div><div class="l">娱乐</div></div>
+          </div>
+          <div style="background:var(--surface-2);border-radius:14px;margin:6px 8px;padding:10px 4px;">
+            <div class="cgrid">
+              <div class="cat on"><div class="cic" style="width:44px;height:44px;font-size:20px;background:#e5793a">🍚</div><div class="l">午餐</div></div>
+              <div class="cat"><div class="cic" style="width:44px;height:44px;font-size:20px;background:#eab08a">🥐</div><div class="l">早餐</div></div>
+              <div class="cat"><div class="cic" style="width:44px;height:44px;font-size:20px;background:#eab08a">🍜</div><div class="l">晚餐</div></div>
+              <div class="cat"><div class="cic" style="width:44px;height:44px;font-size:20px;background:#eab08a">🥡</div><div class="l">外卖</div></div>
+              <div class="cat"><div class="cic" style="width:44px;height:44px;font-size:20px;background:#eab08a">☕</div><div class="l">饮品</div></div>
+            </div>
+          </div></div>
+          <div class="chips"><span class="chip on">💳 招商信用卡(1957)</span><span class="chip">📅 今天</span><span class="chip">🏪 商家</span></div>
+          <div class="note-in">添加备注…</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 7 记账人（协作代记） -->
+    <div class="pw">
+      <p class="cap"><span class="n">7</span> 记账人（协作·代谁记）</p>
+      <p class="note">协作账本多一个「记账人」chip，默认自己；可代其他成员记（写入 created_by）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span><span class="ty">借贷</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">120.00<span class="cursor"></span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat on"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div>
+            <div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+            <div class="cat"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div>
+            <div class="cat"><div class="cic" style="background:#2eb8a6">🧴</div><div class="l">日用</div></div>
+            <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+          </div></div>
+          <div class="chips"><span class="chip">💳 公共钱包</span><span class="chip">📅 今天</span><span class="chip on">👤 记账人：我</span><span class="chip">🏪 商家</span></div>
+          <div class="note-in">添加备注…</div>
+          <div class="ovl">
+            <div class="sheet">
+              <div class="shd"><b>选择记账人</b><span style="color:var(--ink-3)">取消</span></div>
+              <div class="sitem"><span style="width:30px;height:30px;border-radius:50%;background:#12a150;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">明</span><div style="flex:1;font-weight:600">我（明轩）</div><span class="radio on"></span></div>
+              <div class="sitem"><span style="width:30px;height:30px;border-radius:50%;background:#0ea5e9;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">小</span><div style="flex:1;font-weight:600">小鱼</div><span class="radio"></span></div>
+              <div class="sitem"><span style="width:30px;height:30px;border-radius:50%;background:#f59e0b;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;">妈</span><div style="flex:1;font-weight:600">妈妈</div><span class="radio"></span></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 8 商家 -->
+    <div class="pw">
+      <p class="cap"><span class="n">8</span> 商家 <span class="be">需后端</span></p>
+      <p class="note">选择/新建商家（星巴克、盒马…），按商家统计消费；支持搜索与最近使用。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">38.00</span></div>
+          <div class="cats"><div class="cgrid"><div class="cat on"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div><div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div></div></div>
+          <div class="ovl">
+            <div class="sheet">
+              <div class="shd"><b>选择商家</b><span style="color:var(--brand-600);font-weight:700">＋ 新建</span></div>
+              <div style="background:var(--surface-2);border-radius:10px;padding:9px 12px;font-size:13px;color:var(--ink-3);margin-bottom:8px;">🔍 搜索商家</div>
+              <div style="font-size:12px;color:var(--ink-3);padding:6px 4px">最近使用</div>
+              <div class="sitem"><span style="font-size:20px">🏪</span><div style="flex:1;font-weight:600">星巴克</div><span class="radio on"></span></div>
+              <div class="sitem"><span style="font-size:20px">🛒</span><div style="flex:1;font-weight:600">盒马鲜生</div><span class="radio"></span></div>
+              <div class="sitem"><span style="font-size:20px">🍔</span><div style="flex:1;font-weight:600">麦当劳</div><span class="radio"></span></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 9 标签+项目 -->
+    <div class="pw">
+      <p class="cap"><span class="n">9</span> 标签 / 项目 <span class="be">需后端</span></p>
+      <p class="note">标签多选（可跨分类打标，如「报销」「旅行」）；项目单选（把一段时间/一次活动的开销归集，如「装修」）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">358.60</span></div>
+          <div class="rows" style="flex:none;padding-bottom:0">
+            <div style="font-size:13px;font-weight:700;padding:10px 0 6px">标签（可多选）</div>
+            <div class="tagwrap">
+              <span class="tg on">报销</span><span class="tg">旅行</span><span class="tg on">出差</span><span class="tg">必要开支</span><span class="tg">冲动消费</span><span class="tg">＋ 新建</span>
+            </div>
+            <div style="font-size:13px;font-weight:700;padding:16px 0 6px">项目（单选）</div>
+            <div class="tagwrap">
+              <span class="tg">日常</span><span class="tg on">五一西藏行</span><span class="tg">家装</span><span class="tg">＋ 新建</span>
+            </div>
+          </div>
+          <div class="kp" style="margin-top:auto">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 10 拍照票据 -->
+    <div class="pw">
+      <p class="cap"><span class="n">10</span> 拍照 / 票据 <span class="be">需后端</span></p>
+      <p class="note">金额条右侧「票据」拍照或选图，附在流水上（发票/收据存证）；可加多张、可删。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">358.60</span><span class="cam" style="background:var(--brand-weak);color:var(--brand-600)">📷<span class="t">2</span></span></div>
+          <div class="rows" style="flex:none">
+            <div style="font-size:13px;font-weight:700;padding:10px 0">票据附件</div>
+            <div style="display:flex;gap:12px">
+              <div class="receipt">🧾<span class="del">✕</span></div>
+              <div class="receipt">🧾<span class="del">✕</span></div>
+              <div class="receipt" style="color:var(--brand-600);font-size:26px">＋</div>
+            </div>
+          </div>
+          <div class="cats"><div class="cgrid"><div class="cat on"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div><div class="cat"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div></div></div>
+          <div class="chips"><span class="chip on">💳 招商信用卡(1957)</span><span class="chip">📅 今天</span></div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 11 多币种 -->
+    <div class="pw">
+      <p class="cap"><span class="n">11</span> 多币种 <span class="be">需后端</span></p>
+      <p class="note">金额条币种可切（CNY/USD/JPY…）；非本位币显示实时/自定义汇率与折合本位币金额，账户余额按各自币种。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur" style="background:var(--brand-weak);color:var(--brand-600);border-radius:8px;padding:4px 8px">$ USD ▾</span><span class="amtv">120.00</span></div>
+          <div style="padding:2px 18px 10px;font-size:12px;color:var(--ink-3)">≈ ¥864.00（汇率 7.20，点此调整）</div>
+          <div class="cats"><div class="cgrid"><div class="cat on"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div><div class="cat"><div class="cic" style="background:#3aa0d0">✈️</div><div class="l">旅行</div></div></div></div>
+          <div class="chips"><span class="chip on">💵 现金(USD)</span><span class="chip">📅 今天</span></div>
+          <div class="ovl">
+            <div class="sheet">
+              <div class="shd"><b>选择币种</b><span style="color:var(--ink-3)">取消</span></div>
+              <div class="sitem"><span style="font-size:18px">🇨🇳</span><div style="flex:1;font-weight:600">CNY 人民币</div><span class="radio"></span></div>
+              <div class="sitem"><span style="font-size:18px">🇺🇸</span><div style="flex:1;font-weight:600">USD 美元</div><span class="radio on"></span></div>
+              <div class="sitem"><span style="font-size:18px">🇯🇵</span><div style="flex:1;font-weight:600">JPY 日元</div><span class="radio"></span></div>
+              <div class="sitem"><span style="font-size:18px">🇭🇰</span><div style="flex:1;font-weight:600">HKD 港币</div><span class="radio"></span></div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">C · 效率 · 编辑 · 归属</div>
+  <div class="screens">
+
+    <!-- 12 模板 -->
+    <div class="pw">
+      <p class="cap"><span class="n">12</span> 模板（常用一键带入）<span class="be">需后端</span></p>
+      <p class="note">保存常记的组合（分类+账户+金额+备注），一键带入秒记；如「地铁 4 元」「午餐 25 元」。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:55</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span style="color:var(--ink);font-weight:800">模板</span><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="rows">
+            <div style="font-size:13px;color:var(--ink-3);padding:8px 0">选一个模板快速带入</div>
+            <div class="tmpl"><span class="ic" style="background:#3aa0d0">🚇</span><div style="flex:1"><div style="font-weight:700">地铁通勤</div><div style="font-size:12px;color:var(--ink-3)">交通 · 现金</div></div><div style="font-weight:800;color:var(--exp)">¥4.00</div></div>
+            <div class="tmpl"><span class="ic" style="background:#e5793a">🍚</span><div style="flex:1"><div style="font-weight:700">公司午餐</div><div style="font-size:12px;color:var(--ink-3)">餐饮›午餐 · 招商信用卡</div></div><div style="font-weight:800;color:var(--exp)">¥25.00</div></div>
+            <div class="tmpl"><span class="ic" style="background:#e0609a">☕</span><div style="flex:1"><div style="font-weight:700">下午咖啡</div><div style="font-size:12px;color:var(--ink-3)">餐饮›饮品 · 微信</div></div><div style="font-weight:800;color:var(--exp)">¥19.00</div></div>
+            <div class="tmpl"><span class="ic" style="background:#12a150">💰</span><div style="flex:1"><div style="font-weight:700">工资到账</div><div style="font-size:12px;color:var(--ink-3)">工资 · 招商储蓄卡</div></div><div style="font-weight:800;color:var(--inc)">¥12,500</div></div>
+            <div style="text-align:center;padding:16px;color:var(--brand-600);font-weight:700">＋ 把当前这笔存为模板</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 13 保存再记 -->
+    <div class="pw">
+      <p class="cap"><span class="n">13</span> 保存再记（连续记账）</p>
+      <p class="note">点「保存再记」→ 顶部轻提示"已记 1 笔"，金额清零、分类/账户保留，可立刻记下一笔，不退页。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:56</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div style="position:absolute;top:44px;left:50%;transform:translateX(-50%);background:rgba(22,24,28,.86);color:#fff;font-size:13px;padding:8px 18px;border-radius:999px;z-index:20;">✓ 已记 1 笔，继续</div>
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>📋 模板</span><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv" style="color:var(--ink-3)">0.00<span class="cursor"></span></span><span class="cam">📷<span class="t">票据</span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat on"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div>
+            <div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+            <div class="cat"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div>
+            <div class="cat"><div class="cic" style="background:#2eb8a6">🧴</div><div class="l">日用</div></div>
+            <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+          </div></div>
+          <div class="chips"><span class="chip on">💳 招商信用卡(1957)</span><span class="chip">📅 今天</span></div>
+          <div class="note-in">添加备注…</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini" style="color:var(--brand-600)">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 14 编辑态 -->
+    <div class="pw">
+      <p class="cap"><span class="n">14</span> 编辑一笔</p>
+      <p class="note">从流水进入：带出原值可改；协作账本显示「原记账人」；底部可删除（回滚余额）。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:56</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">‹</span><span style="font-weight:800">编辑记录</span><span class="r"><span>🗑</span><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">220.50<span class="cursor"></span></span><span class="cam">📷<span class="t">票据</span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div>
+            <div class="cat on"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+            <div class="cat"><div class="cic" style="background:#3aa0d0">🚌</div><div class="l">交通</div></div>
+            <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+          </div></div>
+          <div class="chips"><span class="chip on">💳 招商信用卡(1957)</span><span class="chip">📅 07/06 10:05</span><span class="chip">👤 明轩记</span></div>
+          <div class="note-in" style="color:var(--ink)">备注：日用采购</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini"> </div><div class="key">0</div><div class="key">.</div><div class="key done exp">保存</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 15 全部模式选归属账本 -->
+    <div class="pw">
+      <p class="cap"><span class="n">15</span> 全部模式 · 选归属账本</p>
+      <p class="note">在「全部账本」下记账，多一个「记到账本」chip，让用户选归到哪个账本。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>13:56</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="rnav"><span class="x">✕</span><span class="r"><span>📋 模板</span><span>✓</span></span></div>
+          <div class="types"><span class="ty on exp">支出</span><span class="ty">收入</span><span class="ty">转账</span><span class="ty">余额</span></div>
+          <div class="amt"><span class="cur">¥</span><span class="amtv">120.00<span class="cursor"></span></span></div>
+          <div class="cats"><div class="cgrid">
+            <div class="cat on"><div class="cic" style="background:#e5793a">🍴</div><div class="l">餐饮</div></div>
+            <div class="cat"><div class="cic" style="background:#8b78e0">🛍️</div><div class="l">购物</div></div>
+            <div class="cat"><div class="cic" style="background:#cbd3db">＋</div><div class="l">设置</div></div>
+          </div></div>
+          <div class="chips"><span class="chip on" style="background:#e6f6ec;color:#0e8a44">📓 记到：日常账本</span><span class="chip">💳 现金</span><span class="chip">📅 今天</span></div>
+          <div class="note-in">添加备注…</div>
+          <div class="kp">
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done exp">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <div><span class="t">A 键盘</span> 自绘计算器：数字 + 运算(＋−) + 删除 + 完成 + 保存再记；金额显示在固定金额条。</div>
+    <div><span class="t">B 图标</span> 彩色圆形分类图标（与首页一致），选中带环，父类右下角标可展开子分类。</div>
+    <div><span class="t">C 再记</span> 保存后不退页、清空金额继续记。</div>
+    <div><span class="t">D 日期</span>「今天」chip 可改发生时间。</div>
+    <div><span class="t">E/G 记账人</span> 协作账本可「代谁记」（写入 created_by）。</div>
+    <div><span class="t">F 备注</span> inline 备注。<span class="t">H 子分类</span> 父类展开子类。</div>
+    <div style="margin-top:8px"><span class="tb">需后端</span> 以下为新增数据模型：<b>商家</b>(merchant)、<b>标签</b>(tag,多对多)、<b>项目</b>(project)、<b>票据图片</b>(附件存储)、<b>多币种</b>(账户币种+交易币种+汇率+本位币)、<b>模板</b>(template)、<b>余额调整</b>(生成 adjust 类流水)。</div>
+    <div style="margin-top:6px;color:var(--ink-3)">建议落地分两批：<b>第一批（不改或小改后端）</b> A 键盘 / B 图标 / C 再记 / D 日期 / E 记账人 / H 子分类 / 借贷入口；<b>第二批（后端扩展）</b> 商家 / 标签 / 项目 / 票据 / 多币种 / 模板 / 余额调整。</div>
+  </div>
+
+</div>
+</body>
+</html>
