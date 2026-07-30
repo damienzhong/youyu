@@ -26,3 +26,10 @@ spring:
   # dev 下由 Hibernate 建表，关闭 Flyway（其迁移脚本为 MySQL 方言）
   flyway:
     enabled: false
+
+# 本地联调用「万能验证码」：登录/绑定/注销时验证码输入 000000 即通过，免去翻日志取码。
+# 仅 dev profile 生效；生产的 application.yml 不含该项，永不启用。
+app:
+  auth:
+    email-code:
+      dev-code: "000000"

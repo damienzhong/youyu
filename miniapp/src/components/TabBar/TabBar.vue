@@ -40,8 +40,11 @@ function goRecord() {
         <svg class="ic" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13" /><circle cx="4" cy="6" r="1.4" /><circle cx="4" cy="12" r="1.4" /><circle cx="4" cy="18" r="1.4" /></svg>
         <text class="t">明细</text>
       </view>
-      <!-- 中间占位（凸起键覆盖其上） -->
-      <view class="slot-mid"></view>
+      <!-- 中间：只放「记一笔」标签，上方图标区留白给凸起键 -->
+      <view class="tab center-slot" @click="goRecord">
+        <view class="ic-space"></view>
+        <text class="t hl">记一笔</text>
+      </view>
       <!-- 报表 -->
       <view class="tab" :class="{ on: active === 'report' }" @click="switchTo(TABS[2])">
         <svg class="ic" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
@@ -54,10 +57,9 @@ function goRecord() {
       </view>
     </view>
 
-    <!-- 中间凸起「记一笔」：白色护城河 + 实心圆 + 文字 -->
+    <!-- 中间凸起「记一笔」：白色护城河 + 实心圆 -->
     <view class="moat"></view>
     <view class="center" @click="goRecord">＋</view>
-    <text class="center-label" @click="goRecord">记一笔</text>
   </view>
 </template>
 
@@ -70,25 +72,27 @@ function goRecord() {
   z-index: 500;
 }
 .tabbar {
-  height: 100rpx;
+  height: 96rpx;
   padding-bottom: env(safe-area-inset-bottom);
   background: #fff;
   border-top: 1rpx solid #eef0f2;
   box-shadow: 0 -6rpx 20rpx rgba(20, 24, 28, 0.05);
   display: flex;
-  align-items: center;
+  align-items: flex-end; /* 所有标签基线对齐到栏底 */
 }
 .tab {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4rpx;
+  justify-content: flex-end;
+  gap: 6rpx;
+  padding-bottom: 12rpx;
   color: #9aa2ad;
 }
 .tab .ic {
-  width: 44rpx;
-  height: 44rpx;
+  width: 40rpx;
+  height: 40rpx;
   fill: none;
   stroke: #9aa2ad;
   stroke-width: 1.9;
@@ -97,6 +101,7 @@ function goRecord() {
 }
 .tab .t {
   font-size: 20rpx;
+  line-height: 1;
 }
 .tab.on {
   color: #12a150;
@@ -104,17 +109,23 @@ function goRecord() {
 .tab.on .ic {
   stroke: #12a150;
 }
-.slot-mid {
-  flex: 1;
+/* 中间槽：图标区留白（与其它 tab 的图标同高），使「记一笔」标签与其它标签对齐 */
+.center-slot .ic-space {
+  width: 40rpx;
+  height: 40rpx;
+}
+.center-slot .t.hl {
+  color: #12a150;
+  font-weight: 600;
 }
 /* 白色护城河：把凸起键托进栏里 */
 .moat {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(44rpx + env(safe-area-inset-bottom));
-  width: 128rpx;
-  height: 128rpx;
+  bottom: calc(40rpx + env(safe-area-inset-bottom));
+  width: 104rpx;
+  height: 104rpx;
   border-radius: 50%;
   background: #fff;
   z-index: 1;
@@ -123,27 +134,17 @@ function goRecord() {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(58rpx + env(safe-area-inset-bottom));
-  width: 104rpx;
-  height: 104rpx;
+  bottom: calc(50rpx + env(safe-area-inset-bottom));
+  width: 84rpx;
+  height: 84rpx;
   border-radius: 50%;
   background: linear-gradient(135deg, #18b85a, #0e8a44);
   color: #fff;
   text-align: center;
-  line-height: 100rpx;
-  font-size: 60rpx;
+  line-height: 80rpx;
+  font-size: 46rpx;
   font-weight: 300;
-  box-shadow: 0 12rpx 24rpx rgba(18, 161, 80, 0.5);
-  z-index: 2;
-}
-.center-label {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(14rpx + env(safe-area-inset-bottom));
-  font-size: 20rpx;
-  color: #12a150;
-  font-weight: 600;
+  box-shadow: 0 10rpx 22rpx rgba(18, 161, 80, 0.45);
   z-index: 2;
 }
 </style>

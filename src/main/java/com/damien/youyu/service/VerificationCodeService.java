@@ -60,6 +60,12 @@ public class VerificationCodeService {
     private final int ipPerMinuteLimit;
     private final int ipPerDayLimit;
     private final int maxAttempts;
+    /**
+     * 仅开发用「万能验证码」：非空时，任意 (email, purpose) 只要提交的码与之相等即校验通过，
+     * 免去本地翻日志取码。默认空字符串=关闭；生产 application.yml 不配置该项即永不启用。
+     * 仅在 application-dev.yml（dev profile）里设置。
+     */
+    private final String devCode;
 
     public VerificationCodeService(
             VerificationCodeRepository repository,
@@ -69,7 +75,8 @@ public class VerificationCodeService {
             @Value("${app.auth.email-code.cooldown-seconds:60}") int cooldownSeconds,
             @Value("${app.auth.email-code.ip-per-minute:3}") int ipPerMinuteLimit,
             @Value("${app.auth.email-code.ip-per-day:30}") int ipPerDayLimit,
-            @Value("${app.auth.email-code.max-attempts:5}") int maxAttempts) {
+            @Value("${app.auth.email-code.max-attempts:5}") int maxAttempts,
+            @Value("${app.auth.email-code.dev-code:}") String devCode) {
         this.repository = repository;
         this.sender = sender;
         this.clock = clock;
@@ -78,6 +85,7 @@ public class VerificationCodeService {
         this.ipPerMinuteLimit = ipPerMinuteLimit;
         this.ipPerDayLimit = ipPerDayLimit;
         this.maxAttempts = maxAttempts;
+        this.devCode = devCode == null ? "" : devCode.trim();
     }
 
     /**
@@ -157,6 +165,14 @@ public class VerificationCodeService {
     @Transactional
     public boolean verifyConsume(String email, EmailCodePurpose purpose, String code) {
         String normalized = email == null ? "" : email.trim();
+
+        // 仅开发：配置了万能验证码且匹配时直接放行（生产不配置 dev-code 则此分支永不触发）。
+        if (!devCode.isEmpty() && devCode.equals(code)) {
+            log.warn("[开发万能验证码] 校验放行：email={} purpose={}（请勿在生产启用 app.auth.email-code.dev-code）",
+                    normalized, purpose);
+            return true;
+        }
+
         Optional<VerificationCode> latest =
                 repository.findFirstByEmailAndPurposeAndConsumedFalseOrderByIdDesc(normalized, purpose);
 

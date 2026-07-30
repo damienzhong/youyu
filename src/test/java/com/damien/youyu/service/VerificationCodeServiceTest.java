@@ -55,8 +55,8 @@ class VerificationCodeServiceTest {
         clock = new MutableClock(Instant.parse("2025-01-01T00:00:00Z"), ZONE);
         repository = inMemoryRepository();
         sender = new RecordingSender();
-        // 默认：ttl=600s, cooldown=60s, ip/min=3, ip/day=30, maxAttempts=5
-        service = new VerificationCodeService(repository, sender, clock, 600, 60, 3, 30, 5);
+        // 默认：ttl=600s, cooldown=60s, ip/min=3, ip/day=30, maxAttempts=5, devCode 关闭
+        service = new VerificationCodeService(repository, sender, clock, 600, 60, 3, 30, 5, "");
     }
 
     // ---- sendCode：邮箱格式 ----
@@ -132,7 +132,7 @@ class VerificationCodeServiceTest {
     @Test
     void rejectsWhenIpPerDayLimitReached() {
         // 用小额度重建服务，便于验证日窗口独立于分钟窗口生效。
-        service = new VerificationCodeService(repository, sender, clock, 600, 60, 100, 2, 5);
+        service = new VerificationCodeService(repository, sender, clock, 600, 60, 100, 2, 5, "");
         service.sendCode("a@example.com", LOGIN, IP);
         clock.advance(Duration.ofMinutes(2));
         service.sendCode("b@example.com", LOGIN, IP);

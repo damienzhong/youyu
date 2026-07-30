@@ -217,7 +217,7 @@ class VerificationCodePropertyTest {
         VerificationCodeRepository repository = inMemoryRepository(store);
         VerificationCodeSender sender = (e, code, purpose) -> { /* 记录型：不发真实邮件 */ };
         VerificationCodeService service = new VerificationCodeService(
-                repository, sender, clock, ttl, cooldown, ipPerMinute, ipPerDay, maxAttempts);
+                repository, sender, clock, ttl, cooldown, ipPerMinute, ipPerDay, maxAttempts, "");
         return new Ctx(service, store, clock);
     }
 
