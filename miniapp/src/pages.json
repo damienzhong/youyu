@@ -57,6 +57,12 @@
       }
     },
     {
+      "path": "pages/account/account",
+      "style": {
+        "navigationBarTitleText": "账号设置"
+      }
+    },
+    {
       "path": "pages/budget/budget",
       "style": {
         "navigationBarTitleText": "预算"

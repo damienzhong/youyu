@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 「我的」页原型（对齐竞品）</title>
+<style>
+  :root{
+    --green:#12a150; --green-d:#0e8a44; --ink:#1b1f24; --muted:#9aa2ad;
+    --bg:#f2f4f6; --line:#eef0f2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#eceef1;color:var(--ink);padding:36px 20px 80px}
+  h1{text-align:center;font-size:22px;margin-bottom:6px}
+  .sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:34px}
+  .stage{display:flex;gap:46px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .col{width:330px}
+  .cap{text-align:center;font-weight:700;font-size:15px;margin-bottom:4px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:var(--green);border-radius:999px;padding:2px 8px;margin-left:6px}
+  .cap .tag.alt{background:#6b7280}
+  .note{text-align:center;color:#6b7280;font-size:12px;margin-bottom:14px;line-height:1.5}
+
+  .phone{width:330px;height:690px;background:var(--bg);border-radius:38px;border:6px solid #111827;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;position:relative}
+  .scroll{position:absolute;inset:0 0 62px 0;overflow:hidden;padding:16px 16px 0}
+
+  /* 顶部导航（子页用） */
+  .nav{display:flex;align-items:center;height:44px;padding:0 4px;margin:-4px 0 8px}
+  .nav .back{font-size:22px;color:#333;width:40px}
+  .nav .ttl{flex:1;text-align:center;font-size:16px;font-weight:700;margin-left:-40px}
+
+  /* 个人卡 */
+  .profile{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#22c55e,#0f8a45 70%);border-radius:20px;padding:22px 20px;color:#fff;box-shadow:0 14px 30px rgba(18,161,80,.28);cursor:pointer}
+  .avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800}
+  .p-main{flex:1}
+  .p-name{font-size:19px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .p-badge{font-size:11px;font-weight:600;background:rgba(255,255,255,.22);border-radius:999px;padding:2px 8px}
+  .p-sub{font-size:12px;opacity:.9;margin-top:4px}
+  .p-arrow{opacity:.8;font-size:20px}
+
+  /* 快捷宫格 */
+  .grid{display:flex;background:#fff;border-radius:16px;padding:16px 4px;margin-top:14px;box-shadow:0 8px 22px rgba(20,24,28,.05)}
+  .g{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:12px;color:#4b5563}
+  .tile{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center}
+  .tile svg{width:24px;height:24px;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+  /* 分组列表 */
+  .sect{font-size:12px;color:var(--muted);margin:18px 6px 8px}
+  .card{background:#fff;border-radius:16px;box-shadow:0 8px 22px rgba(20,24,28,.05);overflow:hidden}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-top:1px solid var(--line)}
+  .card .row:first-child{border-top:none}
+  .r-ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .r-ic svg{width:19px;height:19px;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .r-t{flex:1;font-size:15px;color:#25292e}
+  .r-v{font-size:13px;color:var(--muted)}
+  .r-arrow{color:#c7ccd2;font-size:18px;margin-left:4px}
+  .r-act{font-size:13px;color:var(--green);border:1px solid var(--green);border-radius:999px;padding:4px 14px}
+
+  .logout{margin:18px 0 8px;background:#fff;border-radius:14px;text-align:center;padding:15px;color:#e5484d;font-size:15px;font-weight:600;box-shadow:0 8px 22px rgba(20,24,28,.05)}
+  .danger-row .r-t{color:#e5484d}
+
+  /* tint palette */
+  .t-green{background:#e7f7ee;color:#12a150;stroke:#12a150}
+  .t-blue{background:#e8f0fe;color:#3b73f0;stroke:#3b73f0}
+  .t-orange{background:#fdf0e6;color:#e8843c;stroke:#e8843c}
+  .t-purple{background:#f0ecfe;color:#7c5cf0;stroke:#7c5cf0}
+  .t-teal{background:#e4f6f5;color:#14a8a0;stroke:#14a8a0}
+  .t-pink{background:#fdeaf0;color:#e0559a;stroke:#e0559a}
+  .t-gray{background:#eef1f4;color:#6b7280;stroke:#6b7280}
+  .t-red{background:#fdeceb;color:#e5484d;stroke:#e5484d}
+
+  /* 底部自定义导航（与已实现一致，示意） */
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:flex-end;padding-bottom:8px}
+  .tb{flex:1;text-align:center;font-size:11px;color:var(--muted)}
+  .tb .e{display:block;font-size:20px;filter:grayscale(35%);opacity:.55;margin-bottom:2px}
+  .tb.on{color:var(--green)} .tb.on .e{filter:none;opacity:1}
+  .tb.mid{color:var(--green)}
+  .tb.mid .e{opacity:0}
+  .cadd{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;border:4px solid #fff;box-shadow:0 8px 18px rgba(18,161,80,.45)}
+
+  .legend{max-width:760px;margin:44px auto 0;background:#fff;border-radius:14px;padding:20px 24px;box-shadow:0 8px 24px rgba(0,0,0,.06);font-size:13px;color:#374151;line-height:1.9}
+  .legend b{color:var(--ink)} .legend .k{color:var(--green);font-weight:700}
+</style>
+</head>
+<body>
+  <h1>有余 ·「我的」页原型</h1>
+  <div class="sub">对齐钱迹/随手记/鲨鱼记账等：个人卡 → 账号设置子页 · 快捷宫格 · 分组功能列表</div>
+
+  <div class="stage">
+
+    <!-- ============ A：我的 主页 ============ -->
+    <div class="col">
+      <div class="cap">我的（主页）<span class="tag">重构</span></div>
+      <div class="note">账号/绑定/注销收进「账号设置」子页；<br/>主页聚焦快捷宫格 + 分组功能。</div>
+      <div class="phone">
+        <div class="scroll">
+          <!-- 个人卡：点击进账号设置 -->
+          <div class="profile">
+            <div class="avatar">有</div>
+            <div class="p-main">
+              <div class="p-name">81165386 <span class="p-badge">免费版</span></div>
+              <div class="p-sub">点击管理账号与登录方式</div>
+            </div>
+            <div class="p-arrow">›</div>
+          </div>
+
+          <!-- 快捷宫格 -->
+          <div class="grid">
+            <div class="g"><div class="tile t-green"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/></svg></div>账本</div>
+            <div class="g"><div class="tile t-blue"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></div>预算</div>
+            <div class="g"><div class="tile t-orange"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>分类</div>
+            <div class="g"><div class="tile t-purple"><svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3"/></svg></div>借贷</div>
+          </div>
+
+          <!-- 记账工具 -->
+          <div class="sect">记账工具</div>
+          <div class="card">
+            <div class="row">
+              <div class="r-ic t-teal"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 21h16"/></svg></div>
+              <div class="r-t">账单导入</div><div class="r-v">支付宝 / 微信</div><div class="r-arrow">›</div>
+            </div>
+            <div class="row">
+              <div class="r-ic t-blue"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><path d="M8 4l-3 3 3 3"/></svg></div>
+              <div class="r-t">数据导出 / 导入</div><div class="r-arrow">›</div>
+            </div>
+            <div class="row">
+              <div class="r-ic t-gray"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>
+              <div class="r-t">回收站</div><div class="r-v">30 天可恢复</div><div class="r-arrow">›</div>
+            </div>
+          </div>
+
+          <!-- 标签体系 -->
+          <div class="sect">标签体系</div>
+          <div class="card">
+            <div class="row">
+              <div class="r-ic t-pink"><svg viewBox="0 0 24 24"><path d="M3 12l9-9 9 9-9 9z"/><circle cx="9" cy="9" r="1.4"/></svg></div>
+              <div class="r-t">项目 / 商家 / 标签</div><div class="r-arrow">›</div>
+            </div>
+          </div>
+
+          <!-- 关于 -->
+          <div class="sect">关于</div>
+          <div class="card">
+            <div class="row">
+              <div class="r-ic t-gray"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></div>
+              <div class="r-t">关于有余</div><div class="r-v">v0.1.0</div><div class="r-arrow">›</div>
+            </div>
+          </div>
+
+          <div class="logout">退出登录</div>
+          <div style="height:16px"></div>
+        </div>
+
+        <!-- 底部导航（示意，与已实现一致） -->
+        <div class="tabbar">
+          <div class="tb"><span class="e">🏠</span>首页</div>
+          <div class="tb"><span class="e">📋</span>明细</div>
+          <div class="tb mid"><span class="e">＋</span>记一笔</div>
+          <div class="tb"><span class="e">📊</span>报表</div>
+          <div class="tb on"><span class="e">👤</span>我的</div>
+        </div>
+        <div class="cadd">＋</div>
+      </div>
+    </div>
+
+    <!-- ============ B：账号设置 子页 ============ -->
+    <div class="col">
+      <div class="cap">账号设置（子页）<span class="tag alt">点个人卡进入</span></div>
+      <div class="note">昵称、登录方式绑定/解绑、套餐、注销集中在此，<br/>与钱迹/鲨鱼「账号设置」一致。</div>
+      <div class="phone">
+        <div class="scroll">
+          <div class="nav"><text class="back">‹</text><text class="ttl">账号设置</text></div>
+
+          <div class="sect">个人信息</div>
+          <div class="card">
+            <div class="row">
+              <div class="r-ic t-green"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
+              <div class="r-t">昵称</div><div class="r-v">81165386 ›</div>
+            </div>
+            <div class="row">
+              <div class="r-ic t-purple"><svg viewBox="0 0 24 24"><path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/></svg></div>
+              <div class="r-t">套餐</div><div class="r-v">免费版 · 到期 2027-07-30</div>
+            </div>
+          </div>
+
+          <div class="sect">登录方式（至少保留一种）</div>
+          <div class="card">
+            <div class="row">
+              <div class="r-ic t-blue"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg></div>
+              <div class="r-t">邮箱<div class="r-v">81165386@qq.com</div></div>
+              <div class="r-act">解绑</div>
+            </div>
+            <div class="row">
+              <div class="r-ic t-green"><svg viewBox="0 0 24 24"><path d="M8 10h.01M13 10h.01"/><path d="M12 4C6.5 4 3 7.4 3 11.2c0 2 1.2 3.9 3 5.1L5 20l3.4-1.7c1.1.3 2.3.4 3.6.3"/><path d="M21 14.5c0-2.7-2.6-4.9-6-4.9s-6 2.2-6 4.9 2.6 4.9 6 4.9c.8 0 1.6-.1 2.3-.3L21.5 21z"/></svg></div>
+              <div class="r-t">微信<div class="r-v">未绑定</div></div>
+              <div class="r-act">绑定</div>
+            </div>
+          </div>
+
+          <div class="sect">危险操作</div>
+          <div class="card">
+            <div class="row danger-row">
+              <div class="r-ic t-red"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></div>
+              <div class="r-t">注销账号</div><div class="r-v">永久删除，不可恢复</div><div class="r-arrow">›</div>
+            </div>
+          </div>
+
+          <div class="logout">退出登录</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <div><span class="k">对比结论</span>：竞品的「我的」主页都不堆账号细节——个人卡点进「账号设置」子页处理昵称/绑定/注销；主页留给快捷宫格 + 分组功能列表，图标统一为圆角方块线性风。</div>
+    <div style="margin-top:8px"><b>主页（A）</b>：① 个人卡（头像+昵称+套餐徽章，点击进账号设置）；② 快捷宫格（账本/预算/分类/借贷）；③ 分组卡片（记账工具：账单导入·数据导出导入·回收站 / 标签体系 / 关于）；④ 退出登录。绑定/注销从主页移走，层级更清晰。</div>
+    <div style="margin-top:8px"><b>账号设置（B）</b>：个人信息（昵称、套餐）+ 登录方式（邮箱/微信 绑定·解绑，提示至少保留一种）+ 危险操作（注销）+ 退出登录。对应后端已实现的 bind/unbind/delete 接口。</div>
+    <div style="margin-top:8px;color:#9aa2ad">图标为矢量占位，最终统一到一套线性图标库；配色沿用品牌绿 + 柔和分色 tile。</div>
+  </div>
+</body>
+</html>
