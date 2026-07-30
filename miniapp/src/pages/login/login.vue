@@ -41,6 +41,7 @@ const showEmail = ref(false)
 const email = ref('')
 const code = ref('')
 const emailLoading = ref(false)
+const sending = ref(false)
 const cooldown = ref(0)
 let cooldownTimer = null
 
@@ -69,18 +70,21 @@ onUnmounted(() => {
 })
 
 async function handleSendCode() {
-  if (!canSend.value) return
+  if (!canSend.value || sending.value) return
   const e = email.value.trim()
   if (!EMAIL_RE.test(e)) {
     uni.showToast({ title: '请输入正确的邮箱', icon: 'none' })
     return
   }
+  sending.value = true
   try {
     await sendCode(e, 'LOGIN')
     startCooldown()
     uni.showToast({ title: '验证码已发送', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '发送失败', icon: 'none' })
+  } finally {
+    sending.value = false
   }
 }
 
@@ -144,7 +148,7 @@ async function handleEmailLogin() {
           placeholder="6 位验证码"
           maxlength="6"
         />
-        <button class="code-btn" :disabled="!canSend" @click="handleSendCode">
+        <button class="code-btn" :disabled="!canSend || sending" @click="handleSendCode">
           {{ sendLabel }}
         </button>
       </view>

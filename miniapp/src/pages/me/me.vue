@@ -48,6 +48,7 @@ const showBindEmail = ref(false)
 const bindEmailValue = ref('')
 const bindEmailCode = ref('')
 const bindEmailLoading = ref(false)
+const sendingBindCode = ref(false)
 const cooldown = ref(0)
 let cooldownTimer = null
 
@@ -73,18 +74,21 @@ function toggleBindEmail() {
 }
 
 async function handleSendBindCode() {
-  if (!canSendBindCode.value) return
+  if (!canSendBindCode.value || sendingBindCode.value) return
   const e = bindEmailValue.value.trim()
   if (!EMAIL_RE.test(e)) {
     uni.showToast({ title: '请输入正确的邮箱', icon: 'none' })
     return
   }
+  sendingBindCode.value = true
   try {
     await sendCode(e, 'BIND')
     startCooldown()
     uni.showToast({ title: '验证码已发送', icon: 'none' })
   } catch (err) {
     uni.showToast({ title: err.message || '发送失败', icon: 'none' })
+  } finally {
+    sendingBindCode.value = false
   }
 }
 
@@ -292,7 +296,7 @@ function logout() {
             placeholder="6 位验证码"
             maxlength="6"
           />
-          <button class="code-btn" :disabled="!canSendBindCode" @click="handleSendBindCode">
+          <button class="code-btn" :disabled="!canSendBindCode || sendingBindCode" @click="handleSendBindCode">
             {{ sendLabel }}
           </button>
         </view>
