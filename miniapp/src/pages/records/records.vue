@@ -238,7 +238,10 @@ const yearTotals = computed(() => {
   return { income, expense, balance: income - expense }
 })
 
-onShow(load)
+onShow(() => {
+  uni.hideTabBar({ animation: false, fail() {} })
+  load()
+})
 
 // ---------- 月份/年份切换 ----------
 function prevPeriod() {

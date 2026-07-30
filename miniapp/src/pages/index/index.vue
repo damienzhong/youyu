@@ -148,6 +148,8 @@ function onMonthChange(e) {
 }
 
 onShow(async () => {
+  // 隐藏原生 H5/小程序 tabBar，只显示自定义 <TabBar>（custom:true 在 H5 不生效）
+  uni.hideTabBar({ animation: false, fail() {} })
   if (!auth.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/login' })
     return

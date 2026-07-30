@@ -130,7 +130,10 @@ async function loadAllAggregate() {
   rows.value = list
 }
 
-onShow(load)
+onShow(() => {
+  uni.hideTabBar({ animation: false, fail() {} })
+  load()
+})
 
 function selectKind(k) {
   kind.value = k

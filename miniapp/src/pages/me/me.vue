@@ -21,6 +21,7 @@ const canUnbind = computed(() => hasEmail.value && hasWechat.value)
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 onShow(() => {
+  uni.hideTabBar({ animation: false, fail() {} })
   if (!auth.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/login' })
     return
