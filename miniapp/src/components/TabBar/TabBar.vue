@@ -63,6 +63,10 @@ function goRecord() {
   right: 0;
   bottom: 0;
   z-index: 500;
+  /* 顶部留白容纳凸起键，避免被裁；空白区不挡上方内容点击 */
+  padding-top: 48rpx;
+  overflow: visible;
+  pointer-events: none;
 }
 .tabbar {
   height: 100rpx;
@@ -72,6 +76,7 @@ function goRecord() {
   box-shadow: 0 -6rpx 20rpx rgba(20, 24, 28, 0.05);
   display: flex;
   align-items: flex-end;
+  pointer-events: auto;
 }
 .tab {
   flex: 1;
@@ -136,6 +141,7 @@ function goRecord() {
   justify-content: center;
   box-shadow: 0 10rpx 22rpx rgba(18, 161, 80, 0.45);
   z-index: 2;
+  pointer-events: auto;
 }
 .center .plus {
   color: #fff;
