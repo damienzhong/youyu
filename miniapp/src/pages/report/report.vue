@@ -273,6 +273,9 @@ function nextMonth() {
         </view>
       </view>
     </template>
+
+    <view style="height:180rpx;"></view>
+    <TabBar active="report" />
   </view>
 </template>
 

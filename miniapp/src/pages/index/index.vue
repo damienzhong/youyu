@@ -270,7 +270,8 @@ function goEdit(t) {
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
 }
 function goAccounts() {
-  uni.switchTab({ url: '/pages/accounts/accounts' })
+  // 账户已从底部 tab 移除，改为从首页「资产」入口 push 进入。
+  uni.navigateTo({ url: '/pages/accounts/accounts' })
 }
 function goReport() {
   uni.switchTab({ url: '/pages/report/report' })
@@ -380,7 +381,7 @@ function goSearch() {
       <view v-else-if="loaded && !transactions.length" class="month-empty">
         <text class="me-em">🧾</text>
         <text class="me-t">本月还没有流水</text>
-        <text class="me-s">{{ isCollab ? '谁都可以记一笔，记账人会自动标注' : '点右下角「＋」记一笔，或点顶部切换月份' }}</text>
+        <text class="me-s">{{ isCollab ? '谁都可以记一笔，记账人会自动标注' : '点下方「＋」记一笔，或点顶部切换月份' }}</text>
       </view>
 
       <!-- 按日分组流水 -->
@@ -406,10 +407,10 @@ function goSearch() {
           </view>
         </view>
       </view>
-      <view style="height:120rpx;"></view>
+      <view style="height:180rpx;"></view>
     </view>
 
-    <view class="fab" @click="goRecord">＋</view>
+    <TabBar active="home" />
 
     <!-- 账本切换 -->
     <view v-if="showLedgerSheet" class="mask" @click="showLedgerSheet = false">

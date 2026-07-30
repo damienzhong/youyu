@@ -604,6 +604,9 @@ async function batchDelete() {
       </view>
     </template>
 
+    <view style="height:180rpx;"></view>
+    <TabBar v-if="!selectMode" active="records" />
+
     <!-- ============ 月份选择器 ============ -->
     <view v-if="pickerOpen" class="mask" @click="pickerOpen = false">
       <view class="sheet" @click.stop>

@@ -330,6 +330,9 @@ function logout() {
     <button class="danger" @click="handleDeleteAccount">注销账号</button>
 
     <text class="ver">有余 · 记好每一笔，日子有余</text>
+
+    <view style="height:180rpx;"></view>
+    <TabBar active="me" />
   </view>
 </template>
 

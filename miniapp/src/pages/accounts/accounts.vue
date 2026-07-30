@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { onShow, onHide } from '@dcloudio/uni-app'
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import {
   listAccounts,
   createAccount,
@@ -258,17 +258,11 @@ async function submit() {
 const adjustSheet = ref(false)
 const adjustCurrent = ref('0.00')
 
-// 任一底部弹层打开时：隐藏原生 tabBar（避免遮挡弹层底部）与右下角 FAB。
-// 集中式监听，免去在每个关闭路径逐一还原。
+// 账户页已从底部 tab 移出、改为从首页「资产」push 进入，底部不再有 tab 栏，
+// 故只需在弹层打开时隐藏右下角 FAB，避免遮挡弹层内容。
 const anySheetOpen = computed(
   () => typePickerOpen.value || showForm.value || adjustSheet.value
 )
-watch(anySheetOpen, (open) => {
-  if (open) uni.hideTabBar({ animation: false, fail() {} })
-  else uni.showTabBar({ animation: false, fail() {} })
-})
-// 离开页面兜底：确保不会把 tabBar 留在隐藏态。
-onHide(() => uni.showTabBar({ animation: false, fail() {} }))
 function openAdjust() {
   const acc = accounts.value.find((a) => a.id === form.value.id)
   adjustCurrent.value = acc ? String(acc.currentBalance) : '0.00'
