@@ -41,10 +41,13 @@ class AccountServiceTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private TransactionRepository transactionRepository;
 
     private AccountService service() {
-        return new AccountService(accountRepository, transactionRepository, Clock.fixed(T0, ZONE));
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
+                Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 创建 ----------------

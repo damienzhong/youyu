@@ -17,7 +17,8 @@ import jakarta.persistence.Table;
  *
  * <p>金额一律使用 {@link BigDecimal}（DECIMAL(18,2)），严禁 double/float。
  * {@code current_balance} 随流水事务性更新，并可由 {@code initial_balance} + 全量流水重算校验。
- * 归属关系以 {@code userId} 外键列表达，所有查询固定携带 user_id 过滤。</p>
+ * 账户是独立于账本的一等实体，始终归属某个用户（{@code userId} 即 owner）；账户在哪些账本可用、
+ * 是否对协作成员可见/显示余额，由 {@code account_ledger} 关联表表达（见 {@code AccountLedger}）。</p>
  */
 @Entity
 @Table(name = "accounts")
@@ -27,14 +28,9 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 归属用户 id。 */
-    /** 归属用户（账户为用户级：独立账本共享同一批账户）。 */
+    /** 归属用户（owner）：账户独立于账本，始终归属某个用户。 */
     @Column(name = "user_id", nullable = false)
     private Long userId;
-
-    /** 归属账本：仅协作账本的账本级账户使用；用户级账户为空。 */
-    @Column(name = "ledger_id")
-    private Long ledgerId;
 
     /** 账户名称，去空白后 1-50。 */
     @Column(name = "name", nullable = false, length = 50)
@@ -97,14 +93,6 @@ public class Account {
 
     public void setUserId(Long userId) {
         this.userId = userId;
-    }
-
-    public Long getLedgerId() {
-        return ledgerId;
-    }
-
-    public void setLedgerId(Long ledgerId) {
-        this.ledgerId = ledgerId;
     }
 
     public String getName() {

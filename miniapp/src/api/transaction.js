@@ -5,7 +5,10 @@ function opts(ledgerId) {
   return ledgerId != null ? { ledgerId } : undefined
 }
 
-/** 创建交易（支出/收入/转账）。 */
+/**
+ * 创建收支交易（expense/income）。转账已改为账户间动作，请用
+ * {@link transferBetweenAccounts}（api/account.js，POST /accounts/transfer）。
+ */
 export function createTransaction(payload, ledgerId) {
   return http.post('/transactions', payload, opts(ledgerId))
 }

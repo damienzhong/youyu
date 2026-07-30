@@ -70,9 +70,8 @@ class TransactionTransferRollbackIntegrationTest {
 
         // 合法的大额转账：金额在允许范围内，但会使目标账户余额溢出 DECIMAL(18,2) 列精度，
         // 在提交/刷库阶段触发数据库异常（真实的转账中途失败）。
-        Throwable thrown = catchThrowable(() -> transactionService.create(
-                ledgerId, ledgerId, "transfer", MAX, null, null,
-                source.getId(), dest.getId(), null, "溢出触发回滚"));
+        Throwable thrown = catchThrowable(() -> transactionService.transfer(
+                ledgerId, source.getId(), dest.getId(), MAX, null, "溢出触发回滚"));
 
         // 需求 4.10：转账中途失败 → 抛出异常。
         assertThat(thrown).isNotNull();

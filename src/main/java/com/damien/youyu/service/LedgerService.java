@@ -19,6 +19,7 @@ import com.damien.youyu.domain.LedgerInvite;
 import com.damien.youyu.domain.LedgerMember;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
@@ -49,6 +50,7 @@ public class LedgerService {
     private final LedgerRepository ledgerRepository;
     private final CategoryRepository categoryRepository;
     private final AccountRepository accountRepository;
+    private final AccountLedgerRepository accountLedgerRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
@@ -73,6 +75,7 @@ public class LedgerService {
             LedgerRepository ledgerRepository,
             CategoryRepository categoryRepository,
             AccountRepository accountRepository,
+            AccountLedgerRepository accountLedgerRepository,
             TransactionRepository transactionRepository,
             BudgetRepository budgetRepository,
             CategoryBudgetRepository categoryBudgetRepository,
@@ -89,6 +92,7 @@ public class LedgerService {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
         this.accountRepository = accountRepository;
+        this.accountLedgerRepository = accountLedgerRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
         this.categoryBudgetRepository = categoryBudgetRepository;
@@ -127,7 +131,7 @@ public class LedgerService {
     public Ledger ensureDefaultLedger(Long userId) {
         return ledgerRepository.findFirstByUserIdAndIsDefaultTrue(userId)
                 .or(() -> ledgerRepository.findFirstByUserIdOrderBySortOrderAscIdAsc(userId))
-                .orElseGet(() -> createLedger(userId, DEFAULT_NAME, "INDEPENDENT", 0, true));
+                .orElseGet(() -> createLedger(userId, DEFAULT_NAME, Ledger.TYPE_PERSONAL, 0, true));
     }
 
     /**
@@ -137,10 +141,10 @@ public class LedgerService {
     @Transactional(readOnly = true)
     public Ledger requireAccessible(Long userId, Long ledgerId) {
         if (!memberRepository.existsByLedgerIdAndUserId(ledgerId, userId)) {
-            throw ApiException.notFound("账本不存在");
+            throw ApiException.ledgerNotAccessible();
         }
         return ledgerRepository.findById(ledgerId)
-                .orElseThrow(() -> ApiException.notFound("账本不存在"));
+                .orElseThrow(ApiException::ledgerNotAccessible);
     }
 
     /**
@@ -178,24 +182,60 @@ public class LedgerService {
                 .orElse(null);
     }
 
-    /** 创建新账本。type：INDEPENDENT（默认）/ COLLABORATIVE。 */
+    /** 创建新账本（默认纳入该用户当前全部账户）。type：PERSONAL（默认）/ COLLABORATIVE。 */
     @Transactional
     public Ledger create(Long userId, String rawName, String rawType) {
+        return create(userId, rawName, rawType, null);
+    }
+
+    /**
+     * 创建新账本并选择纳入的账户（需求 3.2）。{@code accountIds} 为空表示默认全选当前用户的全部账户；
+     * 传入的账户须归属该用户，为每个所选账户建立 {@code account_ledger} 关联行（默认对他人可见、显示余额）。
+     */
+    @Transactional
+    public Ledger create(Long userId, String rawName, String rawType, java.util.List<Long> accountIds) {
         String name = validateName(rawName);
         String type = normalizeType(rawType);
         Ledger ledger = createLedger(userId, name, type, nextSortOrder(userId), false);
         // 用户主动创建的新账本预置一套默认收支分类，避免空账本、记第一笔前还得先建分类。
-        // （自动创建的默认账本不种子，保持与既有行为一致。）
         seedDefaultCategories(userId, ledger.getId(), ledger.getCreatedAt());
+        attachSelectedAccounts(userId, ledger.getId(), accountIds, ledger.getCreatedAt());
         return ledger;
+    }
+
+    /** 为新账本建立账户关联：accountIds 为空则全选用户账户；非本人账户忽略。 */
+    private void attachSelectedAccounts(Long userId, Long ledgerId, java.util.List<Long> accountIds,
+            LocalDateTime now) {
+        java.util.List<Long> ids;
+        if (accountIds == null) {
+            ids = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId).stream()
+                    .map(Account::getId)
+                    .toList();
+        } else {
+            // 仅纳入归属该用户的账户（去重）。
+            Set<Long> owned = new LinkedHashSet<>();
+            for (Account a : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId)) {
+                owned.add(a.getId());
+            }
+            ids = accountIds.stream().filter(owned::contains).distinct().toList();
+        }
+        for (Long accId : ids) {
+            com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+            al.setAccountId(accId);
+            al.setLedgerId(ledgerId);
+            al.setVisibleToOthers(true);
+            al.setShowBalance(true);
+            al.setCreatedAt(now);
+            accountLedgerRepository.save(al);
+        }
     }
 
     private String normalizeType(String rawType) {
         if (rawType == null || rawType.isBlank()) {
-            return "INDEPENDENT";
+            return Ledger.TYPE_PERSONAL;
         }
         String t = rawType.trim().toUpperCase();
-        return "COLLABORATIVE".equals(t) ? "COLLABORATIVE" : "INDEPENDENT";
+        return Ledger.TYPE_COLLABORATIVE.equals(t) ? Ledger.TYPE_COLLABORATIVE : Ledger.TYPE_PERSONAL;
     }
 
     /** 重命名账本。 */
@@ -217,7 +257,7 @@ public class LedgerService {
         if (ledgerRepository.countByUserId(userId) <= 1) {
             throw ApiException.ledgerLastOne();
         }
-        // 账户为用户级、跨账本共享，删除账本不删账户；先记录受影响账户，删除该账本流水后重算其余额。
+        // 账户是独立实体、跨账本共享，删除账本不删账户；先记录受影响账户，删除该账本流水后重算其余额。
         Set<Long> affectedAccountIds = new LinkedHashSet<>();
         for (Transaction t : transactionRepository.findByLedgerId(id)) {
             if (t.getAccountId() != null) {
@@ -230,8 +270,6 @@ public class LedgerService {
                 affectedAccountIds.add(t.getDestinationAccountId());
             }
         }
-
-        boolean collaborative = "COLLABORATIVE".equals(ledger.getType());
 
         // 级联清除该账本的业务数据（含回收站中的软删除记录，故用物理删除）。
         transactionRepository.hardDeleteByLedgerId(id);
@@ -246,22 +284,13 @@ public class LedgerService {
         categoryRepository.deleteByLedgerId(id);
         inviteRepository.deleteByLedgerId(id);
         memberRepository.deleteByLedgerId(id);
-        if (collaborative) {
-            // 协作账本的账户为账本级，随账本删除。
-            accountRepository.deleteByLedgerId(id);
-        }
+        // 账户与账本的可见性关联随账本删除（账户本身保留）。
+        accountLedgerRepository.deleteByLedgerId(id);
         ledgerRepository.delete(ledger);
 
-        if (!collaborative) {
-            // 独立账本的账户为用户级、跨账本共享：不删账户，重算受影响账户余额（初始余额 + 其余账本剩余流水）。
-            LocalDateTime now = LocalDateTime.now(clock);
-            for (Long accountId : affectedAccountIds) {
-                accountRepository.findByIdAndUserIdAndLedgerIdIsNull(accountId, userId).ifPresent(account -> {
-                    account.setCurrentBalance(accountService.recomputeBalance(userId, accountId));
-                    account.setUpdatedAt(now);
-                    accountRepository.save(account);
-                });
-            }
+        // 账户跨账本共享：不删账户，重算受影响账户余额（初始余额 + 其余剩余流水/转账）。
+        for (Long accountId : affectedAccountIds) {
+            accountService.recomputeAndSave(accountId);
         }
 
         // 若删的是默认账本，把默认标记转移到剩余排序第一的账本。
@@ -394,6 +423,14 @@ public class LedgerService {
             requireOwner(userId, ledgerId); // 移除他人须为 OWNER
         } else {
             requireAccessible(userId, ledgerId); // 退出须为成员
+        }
+        // 取消该成员账户在此账本的暴露（未来不可选）；历史流水与余额影响保留（需求 8.3）。
+        java.util.List<Long> memberAccountIds =
+                accountRepository.findByUserIdOrderBySortOrderAscIdAsc(targetUserId).stream()
+                        .map(Account::getId)
+                        .toList();
+        if (!memberAccountIds.isEmpty()) {
+            accountLedgerRepository.deleteByAccountIdInAndLedgerId(memberAccountIds, ledgerId);
         }
         memberRepository.deleteByLedgerIdAndUserId(ledgerId, targetUserId);
     }

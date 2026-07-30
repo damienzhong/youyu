@@ -49,6 +49,7 @@ class LedgerServiceTest {
     @Autowired private LedgerRepository ledgerRepository;
     @Autowired private CategoryRepository categoryRepository;
     @Autowired private AccountRepository accountRepository;
+    @Autowired private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
     @Autowired private TransactionRepository transactionRepository;
     @Autowired private BudgetRepository budgetRepository;
     @Autowired private CategoryBudgetRepository categoryBudgetRepository;
@@ -68,10 +69,10 @@ class LedgerServiceTest {
     private LedgerService serviceAt(Instant instant) {
         Clock clock = Clock.fixed(instant, ZONE);
         AccountService accountService =
-                new AccountService(accountRepository, transactionRepository, clock);
+                new AccountService(accountRepository, accountLedgerRepository, transactionRepository, clock);
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
-                transactionRepository, budgetRepository, categoryBudgetRepository, loanRepository,
-                memberRepository, inviteRepository, templateRepository, projectRepository,
+                accountLedgerRepository, transactionRepository, budgetRepository, categoryBudgetRepository,
+                loanRepository, memberRepository, inviteRepository, templateRepository, projectRepository,
                 merchantRepository, tagRepository, transactionTagRepository, accountService, clock);
     }
 
@@ -97,11 +98,11 @@ class LedgerServiceTest {
     // ---------------- 授权 ----------------
 
     @Test
-    void requireAccessible_nonMember_notFound() {
-        Ledger l = service().create(ALICE, "私账", "INDEPENDENT");
+    void requireAccessible_nonMember_ledgerNotAccessible() {
+        Ledger l = service().create(ALICE, "私账", "PERSONAL");
         ApiException ex = catchThrowableOfType(
                 () -> service().requireAccessible(BOB, l.getId()), ApiException.class);
-        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+        assertThat(ex.getCode()).isEqualTo("LEDGER_NOT_ACCESSIBLE");
     }
 
     @Test
@@ -226,32 +227,36 @@ class LedgerServiceTest {
     // ---------------- 删除级联：协作删账户 / 独立留账户 ----------------
 
     @Test
-    void delete_independentLedger_keepsUserLevelAccounts() {
+    void delete_personalLedger_keepsAccounts() {
         service().ensureDefaultLedger(ALICE); // 保证 >1 个自有账本
-        Ledger l = service().create(ALICE, "私账2", "INDEPENDENT");
-        AccountService accSvc = new AccountService(accountRepository, transactionRepository,
-                Clock.fixed(T0, ZONE));
-        var acc = accSvc.create(ALICE, "现金", "CASH", new java.math.BigDecimal("10.00"), 0);
+        Ledger l = service().create(ALICE, "私账2", "PERSONAL");
+        AccountService accSvc = new AccountService(accountRepository, accountLedgerRepository,
+                transactionRepository, Clock.fixed(T0, ZONE));
+        // 账户纳入待删账本。
+        var acc = accSvc.create(ALICE, "现金", "CASH", new java.math.BigDecimal("10.00"), 0,
+                true, false, null, null, l.getId());
 
         service().delete(ALICE, l.getId());
 
-        // 用户级账户不随独立账本删除。
-        assertThat(accountRepository.findByIdAndUserIdAndLedgerIdIsNull(acc.getId(), ALICE)).isPresent();
+        // 账户是独立实体，不随账本删除；其账本关联被清除。
+        assertThat(accountRepository.findByIdAndUserId(acc.getId(), ALICE)).isPresent();
+        assertThat(accountLedgerRepository.findByAccountIdAndLedgerId(acc.getId(), l.getId())).isEmpty();
     }
 
     @Test
-    void delete_collaborativeLedger_removesLedgerAccounts() {
+    void delete_collaborativeLedger_keepsAccountsButRemovesLinks() {
         service().ensureDefaultLedger(ALICE);
         Ledger lc = service().create(ALICE, "合租", "COLLABORATIVE");
-        AccountService accSvc = new AccountService(accountRepository, transactionRepository,
-                Clock.fixed(T0, ZONE));
-        var acc = accSvc.create(AccountScope.collaborative(lc.getId(), ALICE),
-                "公共钱包", "CASH", new java.math.BigDecimal("0.00"), 0);
-        assertThat(accountRepository.findByIdAndLedgerId(acc.getId(), lc.getId())).isPresent();
+        AccountService accSvc = new AccountService(accountRepository, accountLedgerRepository,
+                transactionRepository, Clock.fixed(T0, ZONE));
+        var acc = accSvc.create(ALICE, "公共钱包", "CASH", new java.math.BigDecimal("0.00"), 0,
+                true, false, null, null, lc.getId());
+        assertThat(accountLedgerRepository.findByAccountIdAndLedgerId(acc.getId(), lc.getId())).isPresent();
 
         service().delete(ALICE, lc.getId());
 
-        // 账本级账户随协作账本删除。
-        assertThat(accountRepository.findByIdAndLedgerId(acc.getId(), lc.getId())).isEmpty();
+        // 账户保留（归属用户），仅账本关联被清除。
+        assertThat(accountRepository.findByIdAndUserId(acc.getId(), ALICE)).isPresent();
+        assertThat(accountLedgerRepository.findByAccountIdAndLedgerId(acc.getId(), lc.getId())).isEmpty();
     }
 }

@@ -59,10 +59,13 @@ class BillImportServiceTest {
     private TagRepository tagRepository;
     @Autowired
     private TransactionTagRepository transactionTagRepository;
+    @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
 
     private BillImportService service() {
         return new BillImportService(transactionRepository, accountRepository, categoryRepository,
-                projectRepository, tagRepository, transactionTagRepository, FIXED);
+                projectRepository, tagRepository, transactionTagRepository,
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository), FIXED);
     }
 
     @Test
@@ -178,7 +181,16 @@ class BillImportServiceTest {
         a.setSortOrder(0);
         a.setCreatedAt(LocalDateTime.now(FIXED));
         a.setUpdatedAt(LocalDateTime.now(FIXED));
-        return accountRepository.save(a);
+        Account saved = accountRepository.save(a);
+        // 纳入账本 ledgerId，使其可用于该账本导入记账。
+        com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+        al.setAccountId(saved.getId());
+        al.setLedgerId(ledgerId);
+        al.setVisibleToOthers(true);
+        al.setShowBalance(true);
+        al.setCreatedAt(LocalDateTime.now(FIXED));
+        accountLedgerRepository.save(al);
+        return saved;
     }
 
     private Category category(long ledgerId, CategoryKind kind, String name) {

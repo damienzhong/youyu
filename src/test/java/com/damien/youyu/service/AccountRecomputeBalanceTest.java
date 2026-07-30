@@ -42,6 +42,8 @@ class AccountRecomputeBalanceTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private TransactionRepository transactionRepository;
     @Autowired
     private CategoryRepository categoryRepository;
@@ -49,15 +51,22 @@ class AccountRecomputeBalanceTest {
     private final Clock clock = Clock.fixed(T0, ZONE);
 
     private AccountService accountService() {
-        return new AccountService(accountRepository, transactionRepository, clock);
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository, clock);
+    }
+
+    private LedgerAccountResolver resolver() {
+        return new LedgerAccountResolver(accountRepository, accountLedgerRepository);
     }
 
     private TransactionService transactionService() {
-        return new TransactionService(transactionRepository, accountRepository, categoryRepository, clock);
+        return new TransactionService(transactionRepository, accountRepository, categoryRepository,
+                resolver(), clock);
     }
 
+    /** 创建账户并纳入账本 USER，使其可用于该账本记账。 */
     private Account account(String name, String balance) {
-        return accountService().create(USER, name, "CASH", new BigDecimal(balance), 0);
+        return accountService().create(USER, name, "CASH", new BigDecimal(balance), 0,
+                true, false, null, null, USER);
     }
 
     private Category category(CategoryKind kind, String name) {
@@ -109,11 +118,11 @@ class AccountRecomputeBalanceTest {
         TransactionService tx = transactionService();
 
         tx.create(USER, USER, "expense", new BigDecimal("30.00"), acc.getId(), expenseCat.getId(),
-                null, null, null, null);
+                null, null);
         tx.create(USER, USER, "income", new BigDecimal("250.00"), acc.getId(), incomeCat.getId(),
-                null, null, null, null);
+                null, null);
         tx.create(USER, USER, "expense", new BigDecimal("12.34"), acc.getId(), expenseCat.getId(),
-                null, null, null, null);
+                null, null);
 
         // 100 - 30 + 250 - 12.34 = 307.66
         BigDecimal recomputed = accountService().recomputeBalance(USER, acc.getId());
@@ -128,11 +137,9 @@ class AccountRecomputeBalanceTest {
         Account b = account("银行卡", "0.00");
         TransactionService tx = transactionService();
 
-        // 两笔转账：a -> b 共 320.75；金额守恒（总额不变）。
-        tx.create(USER, USER, "transfer", new BigDecimal("200.00"), null, null,
-                a.getId(), b.getId(), null, null);
-        tx.create(USER, USER, "transfer", new BigDecimal("120.75"), null, null,
-                a.getId(), b.getId(), null, null);
+        // 两笔转账：a -> b 共 320.75；金额守恒（总额不变）。转账脱离账本。
+        tx.transfer(USER, a.getId(), b.getId(), new BigDecimal("200.00"), null, null);
+        tx.transfer(USER, a.getId(), b.getId(), new BigDecimal("120.75"), null, null);
 
         AccountService svc = accountService();
         BigDecimal reA = svc.recomputeBalance(USER, a.getId());
@@ -155,26 +162,24 @@ class AccountRecomputeBalanceTest {
         TransactionService tx = transactionService();
 
         var expense = tx.create(USER, USER, "expense", new BigDecimal("40.00"), a.getId(),
-                expenseCat.getId(), null, null, null, null);
+                expenseCat.getId(), null, null);
         tx.create(USER, USER, "income", new BigDecimal("300.00"), b.getId(), incomeCat.getId(),
-                null, null, null, null);
-        var transfer = tx.create(USER, USER, "transfer", new BigDecimal("150.00"), null, null,
-                a.getId(), b.getId(), null, null);
+                null, null);
+        // 转账脱离账本，直接影响账户余额。
+        tx.transfer(USER, a.getId(), b.getId(), new BigDecimal("150.00"), null, null);
 
         // 修改：把支出金额从 40 改为 55（同账户）。
         tx.update(USER, USER, expense.getId(), "expense", new BigDecimal("55.00"), a.getId(),
-                expenseCat.getId(), null, null, null, null);
-        // 删除转账：应回滚其对 a、b 的影响。
-        tx.delete(USER, USER, transfer.getId());
+                expenseCat.getId(), null, null);
 
         AccountService svc = accountService();
         BigDecimal reA = svc.recomputeBalance(USER, a.getId());
         BigDecimal reB = svc.recomputeBalance(USER, b.getId());
 
-        // a: 1000 - 55 = 945（转账已删）
-        // b: 200 + 300 = 500（转账已删）
-        assertThat(reA).isEqualByComparingTo("945.00");
-        assertThat(reB).isEqualByComparingTo("500.00");
+        // a: 1000 - 55(改后支出) - 150(转出) = 795
+        // b: 200 + 300(收入) + 150(转入) = 650
+        assertThat(reA).isEqualByComparingTo("795.00");
+        assertThat(reB).isEqualByComparingTo("650.00");
         assertThat(reA).isEqualByComparingTo(currentBalanceOf(a.getId()));
         assertThat(reB).isEqualByComparingTo(currentBalanceOf(b.getId()));
     }

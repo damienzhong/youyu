@@ -21,7 +21,9 @@ import com.damien.youyu.domain.Category;
 import com.damien.youyu.domain.CategoryKind;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
+import com.damien.youyu.domain.AccountLedger;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.TransactionRepository;
@@ -65,6 +67,7 @@ public class ImportService {
     private static final DateTimeFormatter TS = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
     private final AccountRepository accountRepository;
+    private final AccountLedgerRepository accountLedgerRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final Clock clock;
@@ -72,10 +75,12 @@ public class ImportService {
 
     public ImportService(
             AccountRepository accountRepository,
+            AccountLedgerRepository accountLedgerRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
+        this.accountLedgerRepository = accountLedgerRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.clock = clock;
@@ -95,11 +100,6 @@ public class ImportService {
      */
     @Transactional
     public ImportResult importJson(Long userId, Long ledgerId, InputStream in) {
-        return importJson(AccountScope.independent(userId), ledgerId, in);
-    }
-
-    @Transactional
-    public ImportResult importJson(AccountScope scope, Long ledgerId, InputStream in) {
         JsonNode root;
         try {
             root = mapper.readTree(in);
@@ -112,10 +112,10 @@ public class ImportService {
 
         LocalDateTime now = LocalDateTime.now(clock);
 
-        Map<String, Account> accountByRef = restoreAccounts(scope, root.path("accounts"), now);
+        Map<String, Account> accountByRef = restoreAccounts(userId, ledgerId, root.path("accounts"), now);
         Map<String, Category> categoryByRef = restoreCategories(ledgerId, root.path("categories"), now);
         int txCount = restoreTransactions(
-                ledgerId, scope.userId(), root.path("transactions"), accountByRef, categoryByRef, now);
+                ledgerId, userId, root.path("transactions"), accountByRef, categoryByRef, now);
 
         // 逐笔交易已在内存中累加余额增量，统一持久化更新后的 current_balance。
         accountRepository.saveAll(accountByRef.values());
@@ -125,7 +125,8 @@ public class ImportService {
 
     // ---------------- 账户还原 ----------------
 
-    private Map<String, Account> restoreAccounts(AccountScope scope, JsonNode accounts, LocalDateTime now) {
+    private Map<String, Account> restoreAccounts(Long userId, Long ledgerId, JsonNode accounts,
+            LocalDateTime now) {
         Map<String, Account> byRef = new HashMap<>();
         if (accounts.isMissingNode() || accounts.isNull()) {
             return byRef;
@@ -138,9 +139,8 @@ public class ImportService {
             BigDecimal initial = money(requireText(node, "initialBalance", "账户"));
 
             Account account = new Account();
-            // 归属按作用域：独立账本为用户级(ledger_id 空)；协作账本为账本级(ledger_id = 账本)。
-            account.setUserId(scope.userId());
-            account.setLedgerId(scope.isCollaborative() ? scope.ledgerId() : null);
+            // 账户归属导入用户（owner）；忽略文档中任何归属信息（需求 2.2）。
+            account.setUserId(userId);
             account.setName(requireText(node, "name", "账户"));
             account.setType(parseAccountType(requireText(node, "type", "账户")));
             account.setInitialBalance(initial);
@@ -150,6 +150,15 @@ public class ImportService {
             account.setCreatedAt(now);
             account.setUpdatedAt(now);
             accountRepository.save(account);
+
+            // 导入的账户纳入目标账本，使其在该账本可用并可被交易引用（默认可见、显示余额）。
+            AccountLedger al = new AccountLedger();
+            al.setAccountId(account.getId());
+            al.setLedgerId(ledgerId);
+            al.setVisibleToOthers(true);
+            al.setShowBalance(true);
+            al.setCreatedAt(now);
+            accountLedgerRepository.save(al);
 
             if (byRef.putIfAbsent(ref, account) != null) {
                 throw ApiException.importInvalid("账户引用键重复: " + ref);

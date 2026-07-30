@@ -8,7 +8,9 @@ import { API_BASE, STORAGE_KEYS } from './config'
  * - 401 视为登录态失效：清除本地 token 并跳回登录页
  */
 export function request(options) {
-  const { url, method = 'GET', data, header = {}, auth = true, ledgerId } = options
+  const { url, method = 'GET', data, auth = true, ledgerId, noLedger = false } = options
+  // 每次构造独立 header，避免重试时残留过期的 X-Ledger-Id。
+  const header = { ...(options.header || {}) }
 
   const token = uni.getStorageSync(STORAGE_KEYS.token)
   if (auth && token) {
@@ -16,12 +18,16 @@ export function request(options) {
   }
   // 当前账本：后端据此做多账本隔离。
   // 优先用调用方显式传入的 ledgerId（在「全部」视图下按某笔流水/账户自己的账本路由读写）；
-  // 否则用全局当前账本；「全部」(all) 是聚合视图，不发送单账本头。
-  const stored = uni.getStorageSync(STORAGE_KEYS.ledgerId)
-  const effectiveLedger =
-    ledgerId != null ? ledgerId : stored && String(stored) !== 'all' ? stored : null
-  if (effectiveLedger != null) {
-    header['X-Ledger-Id'] = String(effectiveLedger)
+  // 否则用全局当前账本；「全部」(all) 是聚合视图，不发送单账本头。noLedger=true 时不带头（兜底重试用）。
+  let sentLedger = null
+  if (!noLedger) {
+    const stored = uni.getStorageSync(STORAGE_KEYS.ledgerId)
+    const effectiveLedger =
+      ledgerId != null ? ledgerId : stored && String(stored) !== 'all' ? stored : null
+    if (effectiveLedger != null) {
+      header['X-Ledger-Id'] = String(effectiveLedger)
+      sentLedger = effectiveLedger
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -40,6 +46,19 @@ export function request(options) {
           uni.removeStorageSync(STORAGE_KEYS.token)
           uni.removeStorageSync(STORAGE_KEYS.user)
           uni.reLaunch({ url: '/pages/login/login' })
+        }
+        // 失效账本兜底：当前账本(X-Ledger-Id)不存在或无权访问时，清除本地过期账本 id，
+        // 不带账本头重试一次（后端回退默认账本），避免整页空白。只重试一次，防止死循环。
+        if (
+          statusCode === 404 &&
+          body && body.code === 'LEDGER_NOT_ACCESSIBLE' &&
+          sentLedger != null && !noLedger
+        ) {
+          uni.removeStorageSync(STORAGE_KEYS.ledgerId)
+          request({ ...options, ledgerId: null, header: undefined, noLedger: true })
+            .then(resolve)
+            .catch(reject)
+          return
         }
         // 后端统一错误体：{ code, message, field }
         reject(body || { code: 'HTTP_' + statusCode, message: '请求失败' })

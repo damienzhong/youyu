@@ -58,6 +58,7 @@ public class BillImportService {
     private final ProjectRepository projectRepository;
     private final TagRepository tagRepository;
     private final TransactionTagRepository transactionTagRepository;
+    private final LedgerAccountResolver accountResolver;
     private final Clock clock;
 
     public BillImportService(
@@ -67,6 +68,7 @@ public class BillImportService {
             ProjectRepository projectRepository,
             TagRepository tagRepository,
             TransactionTagRepository transactionTagRepository,
+            LedgerAccountResolver accountResolver,
             Clock clock) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
@@ -74,6 +76,7 @@ public class BillImportService {
         this.projectRepository = projectRepository;
         this.tagRepository = tagRepository;
         this.transactionTagRepository = transactionTagRepository;
+        this.accountResolver = accountResolver;
         this.clock = clock;
     }
 
@@ -84,11 +87,6 @@ public class BillImportService {
      */
     @Transactional
     public BillImportResponse importBills(Long userId, Long ledgerId, BillImportRequest req) {
-        return importBills(AccountScope.independent(userId), ledgerId, req);
-    }
-
-    @Transactional
-    public BillImportResponse importBills(AccountScope scope, Long ledgerId, BillImportRequest req) {
         if (req == null || req.accountId() == null) {
             throw ApiException.importInvalid("请选择导入目标账户");
         }
@@ -97,11 +95,8 @@ public class BillImportService {
             throw ApiException.importInvalid("没有可导入的账单条目");
         }
 
-        // 目标账户按作用域加锁（独立账本用户级 / 协作账本账本级），导入结束一次性更新余额。
-        Account account = (scope.isCollaborative()
-                ? accountRepository.findForUpdateByIdAndLedgerId(req.accountId(), scope.ledgerId())
-                : accountRepository.findForUpdateByIdAndUserIdAndLedgerIdIsNull(req.accountId(), scope.userId()))
-                .orElseThrow(() -> ApiException.notFound("账户不存在"));
+        // 目标账户须在该账本对该用户可用；加锁后导入结束一次性更新余额。
+        Account account = accountResolver.lockUsableAccount(userId, ledgerId, req.accountId());
 
         Category defExpense = resolveDefault(ledgerId, req.defaultExpenseCategoryId(), CategoryKind.EXPENSE);
         Category defIncome = resolveDefault(ledgerId, req.defaultIncomeCategoryId(), CategoryKind.INCOME);
@@ -158,7 +153,7 @@ public class BillImportService {
 
             Transaction tx = new Transaction();
             tx.setLedgerId(ledgerId);
-            tx.setCreatedBy(scope.userId());
+            tx.setCreatedBy(userId);
             tx.setType(type);
             tx.setAmount(amount);
             tx.setAccountId(account.getId());

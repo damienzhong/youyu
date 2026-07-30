@@ -55,6 +55,37 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /** 某账本最近一笔交易，供快速记账默认账户选择（需求 6.1）。 */
     Optional<Transaction> findFirstByLedgerIdOrderByOccurredAtDescIdDesc(Long ledgerId);
 
+    /** 某账本内某用户最近记的一笔交易（按记账时间倒序），供「上一笔账户」记忆（需求 7.1）。 */
+    Optional<Transaction> findFirstByLedgerIdAndCreatedByOrderByCreatedAtDescIdDesc(
+            Long ledgerId, Long createdBy);
+
+    /**
+     * 引用某账户（作为账户/源/目标）的全部交易，按时间倒序（账户明细：owner 全量视图，跨账本 + 转账）。
+     */
+    @Query("""
+            SELECT t FROM Transaction t
+            WHERE t.accountId = :accountId
+               OR t.sourceAccountId = :accountId
+               OR t.destinationAccountId = :accountId
+            ORDER BY t.occurredAt DESC, t.id DESC
+            """)
+    List<Transaction> findByAccountReferencedOrderByTime(@Param("accountId") Long accountId);
+
+    /**
+     * 某账本内引用某账户的交易，按时间倒序（账户明细：协作成员仅见本账本流水，需求 5.2）。
+     * 转账 {@code ledger_id} 为空，天然不在此范围内。
+     */
+    @Query("""
+            SELECT t FROM Transaction t
+            WHERE t.ledgerId = :ledgerId
+              AND (t.accountId = :accountId
+               OR t.sourceAccountId = :accountId
+               OR t.destinationAccountId = :accountId)
+            ORDER BY t.occurredAt DESC, t.id DESC
+            """)
+    List<Transaction> findByLedgerIdAndAccountReferencedOrderByTime(
+            @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
+
     /** 某账本某项目的全部交易，按时间倒序（项目明细/统计用）。 */
     List<Transaction> findByLedgerIdAndProjectIdOrderByOccurredAtDescIdDesc(Long ledgerId, Long projectId);
 
@@ -98,6 +129,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /** 某分类是否被该账本的任一交易引用（用于「被引用分类不可删除」校验，需求 5.5）。 */
     boolean existsByLedgerIdAndCategoryId(Long ledgerId, Long categoryId);
+
+    /**
+     * 某账户是否在某账本内被任一交易引用（作为账户/源/目标）。
+     * 用于取消账户在账本的参与（detach）前的历史提示（需求 3.5）。
+     */
+    @Query("""
+            SELECT COUNT(t) > 0 FROM Transaction t
+            WHERE t.ledgerId = :ledgerId
+              AND (t.accountId = :accountId
+               OR t.sourceAccountId = :accountId
+               OR t.destinationAccountId = :accountId)
+            """)
+    boolean existsByLedgerIdAndAccountReferenced(
+            @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
 
     /** 该账本已存在的第三方账单标识（账单导入去重用）：返回给定候选集中已入库的 external_id。 */
     @Query("SELECT t.externalId FROM Transaction t "

@@ -5,9 +5,12 @@ export function listLedgers() {
   return http.get('/ledgers')
 }
 
-/** 新建账本。type：INDEPENDENT（独立，默认）/ COLLABORATIVE（协作）。 */
-export function createLedger(name, type = 'INDEPENDENT') {
-  return http.post('/ledgers', { name, type })
+/**
+ * 新建账本。type：PERSONAL（个人，默认）/ COLLABORATIVE（协作）。
+ * accountIds：纳入该账本的账户 id 列表（本人账户）；为空/省略表示默认全选当前用户的全部账户。
+ */
+export function createLedger(name, type = 'PERSONAL', accountIds) {
+  return http.post('/ledgers', { name, type, accountIds })
 }
 
 /** 重命名账本（仅 OWNER）。 */

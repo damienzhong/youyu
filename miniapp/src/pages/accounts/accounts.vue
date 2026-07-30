@@ -6,6 +6,9 @@ import {
   createAccount,
   updateAccount,
   deleteAccount,
+  getAccountVisibility,
+  setAccountVisibility,
+  transferAccountOwnership,
   accountTypeLabel,
   accountTypeEmoji,
   accountGroupLabel,
@@ -15,11 +18,15 @@ import {
 } from '../../api/account'
 import { listAllAccounts } from '../../api/aggregate'
 import { listLoans } from '../../api/loan'
+import { listMembers } from '../../api/ledger'
 import { adjustBalance } from '../../api/transaction'
 import { useLedgerStore } from '../../stores/ledger'
+import { useAuthStore } from '../../stores/auth'
 import { formatAmount } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
+const authStore = useAuthStore()
+const selfId = computed(() => authStore.user?.id ?? null)
 
 const accounts = ref([])
 const loading = ref(false)
@@ -33,6 +40,12 @@ const showLoans = computed(() => !ledgerStore.isAll)
 const hasLoan = computed(() => Number(borrowOutstanding.value) > 0 || Number(lendOutstanding.value) > 0)
 function goLoans() {
   uni.navigateTo({ url: '/pages/loans/loans' })
+}
+// 转账为账户间动作，入口在资产页；进入记账页的转账模式。
+function goTransfer() {
+  const lid = ledgerStore.isAll ? null : ledgerStore.current?.id
+  const q = lid ? `?type=transfer&ledgerId=${lid}` : '?type=transfer'
+  uni.navigateTo({ url: `/pages/record/record${q}` })
 }
 
 // 计入净资产、非隐藏的账户参与统计
@@ -131,13 +144,83 @@ function pickTypeForEdit(t) {
     pickType(t)
   }
 }
-function openEdit(acc) {
+async function openEdit(acc) {
   form.value = {
     id: acc.id, type: acc.type, name: acc.name, initialBalance: '',
     creditLimit: acc.creditLimit != null ? String(acc.creditLimit) : '',
-    includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note, _ledgerId: acc.ledgerId
+    includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note,
+    _ownerId: acc.ownerId, _ledgerId: null
   }
   showForm.value = true
+  // 协作账本内、且账户归属自己时，加载其在本账本的可见性设置。
+  vis.value = { participates: false, visibleToOthers: true, showBalance: true }
+  if (canManageSharing.value) {
+    try {
+      vis.value = await getAccountVisibility(acc.id)
+    } catch (e) {
+      /* 读取失败用默认 */
+    }
+  }
+}
+
+// ---------- 协作账本：账户共享可见性 / 转交 ----------
+const vis = ref({ participates: false, visibleToOthers: true, showBalance: true })
+const canManageSharing = computed(
+  () =>
+    isEditing.value &&
+    !ledgerStore.isAll &&
+    ledgerStore.current?.type === 'COLLABORATIVE' &&
+    form.value._ownerId != null &&
+    form.value._ownerId === selfId.value
+)
+
+async function onVisChange(field, val) {
+  vis.value[field] = val
+  try {
+    await setAccountVisibility(form.value.id, {
+      visibleToOthers: vis.value.visibleToOthers,
+      showBalance: vis.value.showBalance
+    })
+    vis.value.participates = true
+  } catch (e) {
+    uni.showToast({ title: e.message || '设置失败', icon: 'none' })
+  }
+}
+
+async function openTransferOwner() {
+  let ms = []
+  try {
+    ms = (await listMembers(ledgerStore.current.id)).filter((m) => m.userId !== selfId.value)
+  } catch (e) {
+    ms = []
+  }
+  if (!ms.length) {
+    uni.showToast({ title: '暂无可转交的成员', icon: 'none' })
+    return
+  }
+  uni.showActionSheet({
+    itemList: ms.map((m) => m.displayName || `成员${m.userId}`),
+    success: ({ tapIndex }) => confirmTransferOwner(ms[tapIndex])
+  })
+}
+
+function confirmTransferOwner(m) {
+  uni.showModal({
+    title: '转交账户',
+    content: `确定把「${form.value.name}」转交给 ${m.displayName || '成员'}？转交后该账户归属对方。`,
+    confirmColor: '#e5484d',
+    success: async (r) => {
+      if (!r.confirm) return
+      try {
+        await transferAccountOwnership(form.value.id, m.userId)
+        showForm.value = false
+        uni.showToast({ title: '已转交', icon: 'success' })
+        await load()
+      } catch (e) {
+        uni.showToast({ title: e.message || '转交失败', icon: 'none' })
+      }
+    }
+  })
 }
 
 async function submit() {
@@ -246,6 +329,13 @@ function confirmDelete() {
       <text class="loan-caret">›</text>
     </view>
 
+    <!-- 账户转账入口（账户间动作，脱离账本） -->
+    <view v-if="accounts.length > 1" class="xfer-row" @click="goTransfer">
+      <text class="xfer-ic">🔁</text>
+      <text class="xfer-t">账户转账</text>
+      <text class="xfer-caret">›</text>
+    </view>
+
     <view v-if="!accounts.length && !loading" class="empty">还没有账户，点右下角添加</view>
 
     <!-- 分组账户 -->
@@ -324,6 +414,25 @@ function confirmDelete() {
             <text class="fk">余额调整</text>
             <text class="fv">校准到目标余额 ›</text>
           </view>
+
+          <!-- 协作账本：账户共享设置（仅账户 owner 可见） -->
+          <template v-if="canManageSharing">
+            <view class="fsec">共享设置（本账本）</view>
+            <view class="frow">
+              <text class="fk">对成员可见</text>
+              <switch :checked="vis.visibleToOthers" color="#12a150"
+                @change="onVisChange('visibleToOthers', $event.detail.value)" />
+            </view>
+            <view class="frow">
+              <text class="fk">显示余额给成员</text>
+              <switch :checked="vis.showBalance" color="#12a150"
+                @change="onVisChange('showBalance', $event.detail.value)" />
+            </view>
+            <view class="frow" @click="openTransferOwner">
+              <text class="fk">转交账户</text>
+              <text class="fv">转交给其他成员 ›</text>
+            </view>
+          </template>
         </view>
         <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
       </view>
@@ -432,6 +541,27 @@ function confirmDelete() {
   color: #c0c4cc;
   font-size: 34rpx;
   margin-left: 12rpx;
+}
+.xfer-row {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  margin: 0 24rpx 20rpx;
+}
+.xfer-ic {
+  font-size: 34rpx;
+  margin-right: 16rpx;
+}
+.xfer-t {
+  flex: 1;
+  font-size: 28rpx;
+  color: #2b2f36;
+}
+.xfer-caret {
+  color: #c0c4cc;
+  font-size: 34rpx;
 }
 .empty {
   margin-top: 120rpx;
@@ -639,6 +769,11 @@ function confirmDelete() {
 }
 .frow:first-child {
   border-top: none;
+}
+.fsec {
+  font-size: 24rpx;
+  color: #9aa2ad;
+  padding: 18rpx 0 6rpx;
 }
 .fk {
   font-size: 30rpx;

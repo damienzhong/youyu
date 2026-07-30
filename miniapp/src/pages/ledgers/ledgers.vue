@@ -11,6 +11,7 @@ import {
   listMembers,
   removeMember
 } from '../../api/ledger'
+import { listAccounts, accountTypeEmoji } from '../../api/account'
 import { useAuthStore } from '../../stores/auth'
 
 const ledgerStore = useLedgerStore()
@@ -52,19 +53,51 @@ function switchTo(l) {
   uni.reLaunch({ url: '/pages/index/index' })
 }
 
-// 新建账本：先选类型，再输入名称。
+// 新建账本：先选类型，再输入名称，最后选择纳入的账户。
 function addLedger() {
   uni.showActionSheet({
-    itemList: ['独立账本（自己记账）', '协作账本（可邀请他人共同记账）'],
+    itemList: ['个人账本（仅自己记账）', '协作账本（可邀请他人共同记账）'],
     success: ({ tapIndex }) => {
-      const type = tapIndex === 1 ? 'COLLABORATIVE' : 'INDEPENDENT'
+      const type = tapIndex === 1 ? 'COLLABORATIVE' : 'PERSONAL'
       openSheet({
         title: type === 'COLLABORATIVE' ? '新建协作账本' : '新建账本',
         placeholder: '账本名称',
-        onConfirm: (name) => mutate(() => createLedger(name, type))
+        onConfirm: (name) => openAccountSelect(name, type)
       })
     }
   })
+}
+
+// 账户多选（新建账本时选择纳入的账户，默认全选）。
+const acctSel = ref({ visible: false, name: '', type: '', accounts: [], selected: {} })
+async function openAccountSelect(name, type) {
+  let accs = []
+  try {
+    accs = await listAccounts()
+  } catch (e) {
+    accs = []
+  }
+  // 无账户则直接创建（后端默认全选，等价空集）。
+  if (!accs.length) {
+    return mutate(() => createLedger(name, type, []))
+  }
+  const selected = {}
+  accs.forEach((a) => {
+    selected[a.id] = true
+  })
+  acctSel.value = { visible: true, name, type, accounts: accs, selected }
+}
+function toggleAcct(id) {
+  acctSel.value.selected[id] = !acctSel.value.selected[id]
+}
+const acctSelCount = computed(
+  () => acctSel.value.accounts.filter((a) => acctSel.value.selected[a.id]).length
+)
+async function confirmAccountSelect() {
+  const { name, type, accounts, selected } = acctSel.value
+  const ids = accounts.filter((a) => selected[a.id]).map((a) => a.id)
+  acctSel.value.visible = false
+  await mutate(() => createLedger(name, type, ids))
 }
 
 // 加入协作账本：输入邀请码。
@@ -193,7 +226,7 @@ function roleLabel(l) {
 
 <template>
   <view class="page">
-    <text class="hint">点击切换当前账本。独立账本自己记账；协作账本可邀请他人共同记账。</text>
+    <text class="hint">点击切换当前账本。个人账本仅自己记账；协作账本可邀请他人共同记账。</text>
 
     <view class="join-row" @click="joinByCode">
       <text class="join-icon">🔗</text>
@@ -244,6 +277,22 @@ function roleLabel(l) {
       @update:visible="sheet.visible = $event"
       @confirm="onSheetConfirm"
     />
+
+    <!-- 新建账本：账户多选 -->
+    <view v-if="acctSel.visible" class="mask" @click="acctSel.visible = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">选择纳入的账户</text>
+        <text class="as-tip">选中的账户将在此账本可用（默认全选，可稍后调整）</text>
+        <scroll-view scroll-y class="as-list">
+          <view v-for="a in acctSel.accounts" :key="a.id" class="as-item" @click="toggleAcct(a.id)">
+            <text class="as-ic">{{ accountTypeEmoji(a.type) }}</text>
+            <text class="as-name">{{ a.name }}</text>
+            <text class="as-check">{{ acctSel.selected[a.id] ? '✓' : '' }}</text>
+          </view>
+        </scroll-view>
+        <button class="as-confirm" @click="confirmAccountSelect">创建账本（已选 {{ acctSelCount }}）</button>
+      </view>
+    </view>
 
     <!-- 成员弹层 -->
     <view v-if="showMembers" class="mask" @click="showMembers = false">
@@ -398,6 +447,45 @@ function roleLabel(l) {
   font-size: 32rpx;
   font-weight: 800;
   margin-bottom: 12rpx;
+}
+.as-tip {
+  display: block;
+  font-size: 24rpx;
+  color: #9ca3af;
+  margin-bottom: 12rpx;
+}
+.as-list {
+  max-height: 560rpx;
+}
+.as-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 22rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.as-ic {
+  font-size: 34rpx;
+}
+.as-name {
+  flex: 1;
+  font-size: 30rpx;
+  color: #16181c;
+}
+.as-check {
+  width: 40rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #16a34a;
+  font-weight: 800;
+}
+.as-confirm {
+  margin-top: 20rpx;
+  background: #16a34a;
+  color: #fff;
+  font-size: 30rpx;
+  border-radius: 16rpx;
+  padding: 20rpx 0;
 }
 .m-empty {
   color: #9ca3af;

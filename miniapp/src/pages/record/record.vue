@@ -1,7 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { listAccounts, accountTypeEmoji, accountTypeLabel } from '../../api/account'
+import {
+  listSelectableAccounts,
+  getDefaultAccount,
+  transferBetweenAccounts,
+  accountTypeEmoji,
+  accountTypeLabel
+} from '../../api/account'
 import { listCategories } from '../../api/category'
 import { createTransaction, getTransaction, updateTransaction } from '../../api/transaction'
 import { createLoan } from '../../api/loan'
@@ -405,6 +411,10 @@ async function onTplNameConfirm(name) {
 
 onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
+  // 支持从账户/资产页以 ?type=transfer 直接进入转账模式。
+  if (q && q.type && ['expense', 'income', 'transfer'].includes(q.type)) {
+    type.value = q.type
+  }
   // 确保账本列表就绪，用于判断目标账本是否为协作账本（协作代记入口）。
   try {
     if (!ledgerStore.ledgers.length) await ledgerStore.load()
@@ -421,14 +431,23 @@ onLoad(async (q) => {
 
 async function load() {
   try {
+    // 记账账户来自当前账本的可选集（本人纳入 + 他人暴露）；余额不可见时字段为 null。
     const [accs, cats] = await Promise.all([
-      listAccounts(targetLedgerId.value),
+      listSelectableAccounts(targetLedgerId.value),
       listCategories(targetLedgerId.value)
     ])
     accounts.value = accs
     tree.value = cats
-    accountId.value = accs[0]?.id ?? null
-    destId.value = accs.length > 1 ? accs[1].id : null
+    // 默认账户：上一笔在此账本记账用的账户（后端记忆，回退可选集第一）。
+    let defId = accs[0]?.id ?? null
+    try {
+      const d = await getDefaultAccount(targetLedgerId.value)
+      if (d && d.id != null) defId = d.id
+    } catch (e) {
+      /* 无默认时用可选集第一 */
+    }
+    accountId.value = defId
+    destId.value = accs.find((a) => a.id !== defId)?.id ?? null
     loadProjects()
     loadMerchants()
     loadTags()
@@ -508,32 +527,40 @@ async function submit(cont) {
   if (projectId.value != null) payload.projectId = projectId.value
   if (merchantId.value != null) payload.merchantId = merchantId.value
   if (tagIds.value.length) payload.tagIds = tagIds.value.slice()
+  // 转账：账户间动作，脱离账本，独立提交（不支持编辑/协作代记）。
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
       return
     }
-    payload.sourceAccountId = accountId.value
-    payload.destinationAccountId = destId.value
-  } else {
-    if (!parents.value.length) {
-      uni.showModal({
-        title: '还没有分类',
-        content: '支出/收入需要选择分类，先去创建一个吧。',
-        confirmText: '去创建',
-        success: (r) => {
-          if (r.confirm) uni.navigateTo({ url: '/pages/categories/categories' })
-        }
-      })
-      return
-    }
-    if (!categoryId.value) {
-      uni.showToast({ title: '请选择分类', icon: 'none' })
-      return
-    }
-    payload.accountId = accountId.value
-    payload.categoryId = categoryId.value
+    await run(() => transferBetweenAccounts({
+      sourceAccountId: accountId.value,
+      destinationAccountId: destId.value,
+      amount: String(amount),
+      occurredAt: occurredAtIso(),
+      note: note.value.trim() || undefined
+    }), cont)
+    return
   }
+
+  // 收支：需分类。
+  if (!parents.value.length) {
+    uni.showModal({
+      title: '还没有分类',
+      content: '支出/收入需要选择分类，先去创建一个吧。',
+      confirmText: '去创建',
+      success: (r) => {
+        if (r.confirm) uni.navigateTo({ url: '/pages/categories/categories' })
+      }
+    })
+    return
+  }
+  if (!categoryId.value) {
+    uni.showToast({ title: '请选择分类', icon: 'none' })
+    return
+  }
+  payload.accountId = accountId.value
+  payload.categoryId = categoryId.value
 
   if (isEditing.value) {
     await run(() => updateTransaction(editingId.value, payload, targetLedgerId.value), false)
@@ -674,10 +701,15 @@ function goBack() {
     <view v-if="sheetTarget" class="mask" @click="sheetTarget = null">
       <view class="sheet" @click.stop>
         <text class="sheet-title">{{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}</text>
+        <view v-if="!accounts.length" class="sempty">
+          该账本还没有可用账户，
+          <text class="link" @click="uni.navigateTo({ url: '/pages/accounts/accounts' })">去创建</text>
+        </view>
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
           <text class="si-ic">{{ accountTypeEmoji(a.type) }}</text>
           <view class="si-name"><text>{{ a.name }}</text><text class="si-type">{{ accountTypeLabel(a.type) }}</text></view>
-          <text class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
+          <text v-if="a.canSeeBalance === false" class="si-bal masked">余额隐藏</text>
+          <text v-else class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
         </view>
       </view>
     </view>
@@ -932,6 +964,8 @@ function goBack() {
 .si-type { font-size: 22rpx; color: #9aa2ad; }
 .si-bal { font-size: 30rpx; font-weight: 700; }
 .si-bal.neg { color: #e5484d; }
+.si-bal.masked { font-size: 24rpx; font-weight: 500; color: #9aa2ad; }
+.sempty { padding: 48rpx 24rpx; text-align: center; color: #6b7280; font-size: 28rpx; }
 .radio { width: 36rpx; height: 36rpx; border-radius: 50%; border: 3rpx solid #d1d5db; box-sizing: border-box; }
 .radio.on { border-color: #12a150; background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%); }
 

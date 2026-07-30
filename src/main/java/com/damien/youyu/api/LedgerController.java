@@ -66,7 +66,7 @@ public class LedgerController {
     @PostMapping
     public ResponseEntity<LedgerResponse> create(@RequestBody LedgerCreateRequest req) {
         Long userId = currentUser.requireUserId();
-        Ledger ledger = ledgerService.create(userId, req.name(), req.type());
+        Ledger ledger = ledgerService.create(userId, req.name(), req.type(), req.accountIds());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(LedgerResponse.from(ledger, LedgerMember.ROLE_OWNER));
     }

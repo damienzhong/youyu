@@ -33,6 +33,7 @@ import com.damien.youyu.domain.TransactionTag;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.MerchantRepository;
@@ -85,6 +86,7 @@ public class ExportService {
     private static final String CRLF = "\r\n";
 
     private final AccountRepository accountRepository;
+    private final AccountLedgerRepository accountLedgerRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectRepository projectRepository;
@@ -97,6 +99,7 @@ public class ExportService {
 
     public ExportService(
             AccountRepository accountRepository,
+            AccountLedgerRepository accountLedgerRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
             ProjectRepository projectRepository,
@@ -106,6 +109,7 @@ public class ExportService {
             UserRepository userRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
+        this.accountLedgerRepository = accountLedgerRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
         this.projectRepository = projectRepository;
@@ -124,12 +128,7 @@ public class ExportService {
      */
     @Transactional(readOnly = true)
     public void writeJson(Long userId, Long ledgerId, OutputStream out) {
-        writeJson(AccountScope.independent(userId), ledgerId, out);
-    }
-
-    @Transactional(readOnly = true)
-    public void writeJson(AccountScope scope, Long ledgerId, OutputStream out) {
-        List<Account> accounts = scopedAccounts(scope);
+        List<Account> accounts = ledgerAccounts(ledgerId);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
@@ -191,12 +190,7 @@ public class ExportService {
      */
     @Transactional(readOnly = true)
     public void writeCsv(Long userId, Long ledgerId, OutputStream out) {
-        writeCsv(AccountScope.independent(userId), ledgerId, out);
-    }
-
-    @Transactional(readOnly = true)
-    public void writeCsv(AccountScope scope, Long ledgerId, OutputStream out) {
-        List<Account> accounts = scopedAccounts(scope);
+        List<Account> accounts = ledgerAccounts(ledgerId);
         List<Category> categories = orderedCategories(ledgerId);
         Map<Long, String> accountRef = accountRefs(accounts);
         Map<Long, String> categoryRef = categoryRefs(categories);
@@ -292,11 +286,9 @@ public class ExportService {
         g.writeEndObject();
     }
 
-    /** 按作用域取账户：独立账本用户级、协作账本账本级。 */
-    private List<Account> scopedAccounts(AccountScope scope) {
-        return scope.isCollaborative()
-                ? accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(scope.ledgerId())
-                : accountRepository.findByUserIdAndLedgerIdIsNullOrderBySortOrderAscIdAsc(scope.userId());
+    /** 参与该账本的全部账户（导出引用键映射用）。 */
+    private List<Account> ledgerAccounts(Long ledgerId) {
+        return accountLedgerRepository.findAccountsByLedgerId(ledgerId);
     }
 
     /** 分类排序：父分类（parentId 为空）在前、再按 id 升序，保证 parentRef 先于其子分类出现（利于导入）。 */

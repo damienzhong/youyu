@@ -40,8 +40,8 @@ public class Transaction {
     @Column(name = "user_id")
     private Long userId;
 
-    /** 归属账本 id（多账本隔离键）。 */
-    @Column(name = "ledger_id", nullable = false)
+    /** 归属账本 id（收支的多账本隔离键；转账脱离账本，为空）。 */
+    @Column(name = "ledger_id")
     private Long ledgerId;
 
     /** 记账人 id（协作账本区分是哪位成员记的账）。 */

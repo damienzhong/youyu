@@ -12,13 +12,18 @@ import jakarta.persistence.Table;
 /**
  * 账本实体，对应 {@code ledgers} 表。
  *
- * <p>账本是一个完整独立的记账空间：账户/分类/交易/预算/借贷归属到某个账本。一个用户可拥有多个账本，
- * 其中恰有一个为默认账本（{@code isDefault}）。多租户隔离在账本维度进行：业务数据按 {@code ledger_id}
- * 过滤，账本本身按 {@code user_id} 归属用户。</p>
+ * <p>账本是一个记账空间：分类/交易/预算/借贷归属到某个账本；账户是独立实体，通过 {@code account_ledger}
+ * 关联被账本引用。一个用户可拥有多个账本，其中恰有一个为默认账本（{@code isDefault}）。多租户隔离在账本
+ * 维度进行：业务数据按 {@code ledger_id} 过滤，账本本身按 {@code user_id} 归属用户。</p>
  */
 @Entity
 @Table(name = "ledgers")
 public class Ledger {
+
+    /** 类型：个人账本（仅本人记账）。 */
+    public static final String TYPE_PERSONAL = "PERSONAL";
+    /** 类型：协作账本（可邀请成员共同记账）。 */
+    public static final String TYPE_COLLABORATIVE = "COLLABORATIVE";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,9 +37,9 @@ public class Ledger {
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
-    /** 账本类型：INDEPENDENT（独立，用用户级账户）/ COLLABORATIVE（协作，用账本级账户）。 */
+    /** 账本类型：PERSONAL（个人）/ COLLABORATIVE（协作）。 */
     @Column(name = "type", nullable = false, length = 16)
-    private String type = "INDEPENDENT";
+    private String type = TYPE_PERSONAL;
 
     /** 列表排序。 */
     @Column(name = "sort_order", nullable = false)
@@ -83,6 +88,11 @@ public class Ledger {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    /** 是否协作账本。 */
+    public boolean isCollaborative() {
+        return TYPE_COLLABORATIVE.equals(type);
     }
 
     public int getSortOrder() {

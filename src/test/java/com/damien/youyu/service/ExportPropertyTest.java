@@ -69,6 +69,8 @@ class ExportPropertyTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
     @Autowired
     private TransactionRepository transactionRepository;
@@ -84,17 +86,18 @@ class ExportPropertyTest {
     private UserRepository userRepository;
 
     private ExportService exportService() {
-        return new ExportService(accountRepository, categoryRepository, transactionRepository,
-                projectRepository, merchantRepository, tagRepository, transactionTagRepository,
-                userRepository, CLOCK);
+        return new ExportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, projectRepository, merchantRepository, tagRepository,
+                transactionTagRepository, userRepository, CLOCK);
     }
 
     private ImportService importService() {
-        return new ImportService(accountRepository, categoryRepository, transactionRepository, CLOCK);
+        return new ImportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, CLOCK);
     }
 
     private AccountService accountService() {
-        return new AccountService(accountRepository, transactionRepository, CLOCK);
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository, CLOCK);
     }
 
     /** 一个用户数据集的记录数摘要。 */
@@ -264,7 +267,16 @@ class ExportPropertyTest {
             a.setSortOrder(rng.nextInt(1000));
             a.setCreatedAt(BASE);
             a.setUpdatedAt(BASE);
-            accountIds.add(accountRepository.save(a).getId());
+            Account savedAcc = accountRepository.save(a);
+            accountIds.add(savedAcc.getId());
+            // 纳入账本，使其出现在该账本导出中。
+            com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+            al.setAccountId(savedAcc.getId());
+            al.setLedgerId(ledgerId);
+            al.setVisibleToOthers(true);
+            al.setShowBalance(true);
+            al.setCreatedAt(BASE);
+            accountLedgerRepository.save(al);
         }
 
         int categoryCount = 0;

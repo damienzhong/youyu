@@ -65,6 +65,8 @@ class ImportServiceRoundTripTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
     @Autowired
     private TransactionRepository transactionRepository;
@@ -80,17 +82,18 @@ class ImportServiceRoundTripTest {
     private UserRepository userRepository;
 
     private ExportService exportService() {
-        return new ExportService(accountRepository, categoryRepository, transactionRepository,
-                projectRepository, merchantRepository, tagRepository, transactionTagRepository,
-                userRepository, CLOCK);
+        return new ExportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, projectRepository, merchantRepository, tagRepository,
+                transactionTagRepository, userRepository, CLOCK);
     }
 
     private ImportService importService() {
-        return new ImportService(accountRepository, categoryRepository, transactionRepository, CLOCK);
+        return new ImportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, CLOCK);
     }
 
     private AccountService accountService() {
-        return new AccountService(accountRepository, transactionRepository, CLOCK);
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository, CLOCK);
     }
 
     @Test
@@ -235,7 +238,16 @@ class ImportServiceRoundTripTest {
         a.setSortOrder(sortOrder);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        return accountRepository.save(a);
+        Account saved = accountRepository.save(a);
+        // 纳入账本，使其出现在该账本导出中。
+        com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+        al.setAccountId(saved.getId());
+        al.setLedgerId(ledgerId);
+        al.setVisibleToOthers(true);
+        al.setShowBalance(true);
+        al.setCreatedAt(now);
+        accountLedgerRepository.save(al);
+        return saved;
     }
 
     private void setCurrentBalance(Long accountId, String balance) {

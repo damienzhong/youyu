@@ -91,6 +91,15 @@ public class ApiException extends RuntimeException {
                 "只有账本创建者可执行该操作", null);
     }
 
+    /**
+     * 指定的当前账本不可访问（不存在或当前用户非其成员）。用于 {@code X-Ledger-Id} 头解析失败时，
+     * 让客户端据此清除本地过期账本并回退默认账本（例如账本被删、退出协作账本、或换环境后 id 失效）。
+     */
+    public static ApiException ledgerNotAccessible() {
+        return new ApiException("LEDGER_NOT_ACCESSIBLE", HttpStatus.NOT_FOUND,
+                "当前账本不存在或无权访问", null);
+    }
+
     /** 该操作仅适用于协作账本。 */
     public static ApiException ledgerNotCollaborative() {
         return new ApiException("LEDGER_NOT_COLLABORATIVE", HttpStatus.BAD_REQUEST,

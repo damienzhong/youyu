@@ -5,12 +5,32 @@ function opts(ledgerId) {
   return ledgerId != null ? { ledgerId } : undefined
 }
 
-/** 列出账户（按 sortOrder、id 升序）。 */
+/** 列出本人全部账户（管理视图，余额可见；按 sortOrder、id 升序）。 */
 export function listAccounts(ledgerId) {
   return http.get('/accounts', opts(ledgerId))
 }
 
-/** 创建账户。 */
+/** 列出当前账本可选账户（记账用）：本人纳入的 + 他人暴露的；余额不可见时字段为 null 且 canSeeBalance=false。 */
+export function listSelectableAccounts(ledgerId) {
+  return http.get('/accounts/selectable', opts(ledgerId))
+}
+
+/** 快速记账默认账户：上一笔在此账本记账用的账户（仍可选则用之），否则可选集第一个；无则返回空。 */
+export function getDefaultAccount(ledgerId) {
+  return http.get('/accounts/default', opts(ledgerId))
+}
+
+/** 账户明细：owner 见全部流水（跨账本 + 转账）；协作成员仅见该账户在当前账本内的流水。 */
+export function listAccountTransactions(id, ledgerId) {
+  return http.get(`/accounts/${id}/transactions`, opts(ledgerId))
+}
+
+/** 读取账户在当前账本的可见性状态（owner 视角）：{ ledgerId, participates, visibleToOthers, showBalance }。 */
+export function getAccountVisibility(id, ledgerId) {
+  return http.get(`/accounts/${id}/visibility`, opts(ledgerId))
+}
+
+/** 创建账户（默认纳入当前账本，便于立即记账）。 */
 export function createAccount(payload, ledgerId) {
   return http.post('/accounts', payload, opts(ledgerId))
 }
@@ -23,6 +43,32 @@ export function updateAccount(id, payload, ledgerId) {
 /** 删除账户（无关联交易才允许）。 */
 export function deleteAccount(id, ledgerId) {
   return http.del(`/accounts/${id}`, opts(ledgerId))
+}
+
+/**
+ * 设置账户在某账本的可见性（纳入/更新）。
+ * payload：{ ledgerId?, visibleToOthers?, showBalance? }；ledgerId 缺省用当前账本。
+ */
+export function setAccountVisibility(id, payload, ledgerId) {
+  return http.put(`/accounts/${id}/visibility`, payload, opts(ledgerId))
+}
+
+/** 取消账户在某账本的参与（未来不可选，历史保留）。返回 { hasHistory }。 */
+export function detachAccountFromLedger(id, targetLedgerId, ledgerId) {
+  return http.del(`/accounts/${id}/ledgers/${targetLedgerId}`, opts(ledgerId))
+}
+
+/**
+ * 账户间转账（脱离账本，源/目标须为本人账户）。
+ * payload：{ sourceAccountId, destinationAccountId, amount, occurredAt?, note? }
+ */
+export function transferBetweenAccounts(payload) {
+  return http.post('/accounts/transfer', payload)
+}
+
+/** 转交账户给另一用户。 */
+export function transferAccountOwnership(id, newOwnerUserId) {
+  return http.post(`/accounts/${id}/transfer-ownership`, { newOwnerUserId })
 }
 
 /** 账户分组（展示顺序即分组顺序），与后端 AccountGroup 对应。 */

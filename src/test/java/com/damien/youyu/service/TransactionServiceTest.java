@@ -15,21 +15,24 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.AccountLedger;
 import com.damien.youyu.domain.AccountType;
 import com.damien.youyu.domain.Category;
 import com.damien.youyu.domain.CategoryKind;
 import com.damien.youyu.domain.Transaction;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.TransactionRepository;
 
 /**
- * {@link TransactionService} 的示例与边界单元测试（关联需求 4.1-4.5、4.8-4.11）。
+ * {@link TransactionService} 的示例与边界单元测试（账户与账本解耦后）。
  *
- * <p>使用 H2 + 真实 Repository，不使用任何桩，以固定 {@link Clock} 做确定性时间。
- * 守恒不变式与非法输入的属性测试（Property 1/2/3）在任务 6.4 中实现。</p>
+ * <p>收支记账通过账本可选集校验账户（账户须已纳入该账本）；转账为脱离账本的账户间动作，
+ * 走 {@link TransactionService#transfer}，源/目标须为本人账户。使用 H2 + 真实 Repository，
+ * 以固定 {@link Clock} 做确定性时间。</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -45,13 +48,16 @@ class TransactionServiceTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
 
     private TransactionService service() {
-        return new TransactionService(
-                transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE));
+        return new TransactionService(transactionRepository, accountRepository, categoryRepository,
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository), Clock.fixed(T0, ZONE));
     }
 
+    /** 创建账户并纳入 ledgerId=userId 的账本，使其可用于该账本记账。 */
     private Account account(long userId, String name, String balance) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Account a = new Account();
@@ -63,7 +69,15 @@ class TransactionServiceTest {
         a.setSortOrder(0);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        return accountRepository.save(a);
+        Account saved = accountRepository.save(a);
+        AccountLedger al = new AccountLedger();
+        al.setAccountId(saved.getId());
+        al.setLedgerId(userId);
+        al.setVisibleToOthers(true);
+        al.setShowBalance(true);
+        al.setCreatedAt(now);
+        accountLedgerRepository.save(al);
+        return saved;
     }
 
     private Category category(long ledgerId, CategoryKind kind, String name) {
@@ -78,7 +92,7 @@ class TransactionServiceTest {
     }
 
     private BigDecimal balanceOf(Long accountId) {
-        return accountRepository.findByIdAndUserId(accountId, USER).orElseThrow().getCurrentBalance();
+        return accountRepository.findById(accountId).orElseThrow().getCurrentBalance();
     }
 
     // ---------------- 支出 / 收入 ----------------
@@ -89,12 +103,11 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("23.50"),
-                acc.getId(), cat.getId(), null, null, null, "午餐");
+                acc.getId(), cat.getId(), null, "午餐");
 
         assertThat(tx.getId()).isNotNull();
         assertThat(tx.getType()).isEqualTo(TransactionType.EXPENSE);
         assertThat(tx.getLedgerId()).isEqualTo(USER);
-        // 需求 4.1：支出减少账户余额。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("76.50");
     }
 
@@ -104,26 +117,36 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.INCOME, "工资");
 
         service().create(USER, USER, "income", new BigDecimal("2500.00"),
-                acc.getId(), cat.getId(), null, null, null, null);
+                acc.getId(), cat.getId(), null, null);
 
-        // 需求 4.2：收入增加账户余额。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("2600.00");
     }
 
-    // ---------------- 转账 ----------------
+    @Test
+    void createTransferType_viaRecordingPath_rejected() {
+        Account acc = account(USER, "现金", "100.00");
+        Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
+
+        ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "transfer",
+                new BigDecimal("10.00"), acc.getId(), cat.getId(), null, null), ApiException.class);
+
+        // 转账不走记账路径。
+        assertThat(ex.getCode()).isEqualTo("TRANSACTION_TYPE_INVALID");
+    }
+
+    // ---------------- 转账（脱离账本，账户间动作） ----------------
 
     @Test
-    void createTransfer_movesBalanceBetweenAccounts_singleRow() {
+    void transfer_movesBalanceBetweenAccounts_ledgerless() {
         Account src = account(USER, "银行卡", "1000.00");
         Account dst = account(USER, "信用卡", "-500.00");
 
-        Transaction tx = service().create(USER, USER, "transfer", new BigDecimal("500.00"),
-                null, null, src.getId(), dst.getId(), null, "还信用卡");
+        Transaction tx = service().transfer(USER, src.getId(), dst.getId(),
+                new BigDecimal("500.00"), null, "还信用卡");
 
-        // 需求 4.3：单条建模，源减、目标增。
         assertThat(tx.getType()).isEqualTo(TransactionType.TRANSFER);
+        assertThat(tx.getLedgerId()).isNull();
         assertThat(tx.getAccountId()).isNull();
-        assertThat(tx.getCategoryId()).isNull();
         assertThat(tx.getSourceAccountId()).isEqualTo(src.getId());
         assertThat(tx.getDestinationAccountId()).isEqualTo(dst.getId());
         assertThat(balanceOf(src.getId())).isEqualByComparingTo("500.00");
@@ -133,17 +156,50 @@ class TransactionServiceTest {
     }
 
     @Test
-    void createTransfer_sameSourceAndDestination_rejectedWithZeroSideEffect() {
+    void transfer_sameSourceAndDestination_rejectedWithZeroSideEffect() {
         Account acc = account(USER, "银行卡", "1000.00");
 
-        ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "transfer",
-                new BigDecimal("100.00"), null, null, acc.getId(), acc.getId(), null, null),
-                ApiException.class);
+        ApiException ex = catchThrowableOfType(() -> service().transfer(USER, acc.getId(), acc.getId(),
+                new BigDecimal("100.00"), null, null), ApiException.class);
 
-        // 需求 4.5：源=目标被拒。
         assertThat(ex.getCode()).isEqualTo("TRANSFER_SAME_ACCOUNT");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("1000.00");
-        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
+    }
+
+    @Test
+    void transfer_missingDestination_rejectedWithFieldRequired() {
+        Account src = account(USER, "银行卡", "1000.00");
+
+        ApiException ex = catchThrowableOfType(() -> service().transfer(USER, src.getId(), null,
+                new BigDecimal("100.00"), null, null), ApiException.class);
+
+        assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
+        assertThat(ex.getField()).isEqualTo("destinationAccountId");
+        assertThat(balanceOf(src.getId())).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void transfer_nonexistentSource_rejectedWithNotFoundAndNoSideEffect() {
+        Account dst = account(USER, "信用卡", "-500.00");
+
+        ApiException ex = catchThrowableOfType(() -> service().transfer(USER, 9999L, dst.getId(),
+                new BigDecimal("100.00"), null, null), ApiException.class);
+
+        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+        assertThat(balanceOf(dst.getId())).isEqualByComparingTo("-500.00");
+    }
+
+    @Test
+    void transfer_otherUsersAccount_rejectedWithNotFound() {
+        Account mine = account(USER, "现金", "100.00");
+        Account other = account(OTHER_USER, "别人的", "100.00");
+
+        ApiException ex = catchThrowableOfType(() -> service().transfer(USER, mine.getId(), other.getId(),
+                new BigDecimal("10.00"), null, null), ApiException.class);
+
+        // 跨用户转账不支持：目标非本人账户视为不存在。
+        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+        assertThat(balanceOf(mine.getId())).isEqualByComparingTo("100.00");
     }
 
     // ---------------- 金额校验（零副作用） ----------------
@@ -154,10 +210,8 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("0.00"), acc.getId(), cat.getId(), null, null, null, null),
-                ApiException.class);
+                new BigDecimal("0.00"), acc.getId(), cat.getId(), null, null), ApiException.class);
 
-        // 需求 4.4：金额 < 0.01 非法。
         assertThat(ex.getCode()).isEqualTo("AMOUNT_INVALID");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
         assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
@@ -169,8 +223,7 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("1.234"), acc.getId(), cat.getId(), null, null, null, null),
-                ApiException.class);
+                new BigDecimal("1.234"), acc.getId(), cat.getId(), null, null), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("AMOUNT_INVALID");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
@@ -182,7 +235,7 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10000000000000000.00"), acc.getId(), cat.getId(), null, null, null, null),
+                new BigDecimal("10000000000000000.00"), acc.getId(), cat.getId(), null, null),
                 ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("AMOUNT_INVALID");
@@ -196,9 +249,8 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                null, acc.getId(), cat.getId(), null, null, null, null), ApiException.class);
+                null, acc.getId(), cat.getId(), null, null), ApiException.class);
 
-        // 需求 4.8：金额缺失属必填缺失。
         assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
         assertThat(ex.getField()).isEqualTo("amount");
         assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
@@ -209,7 +261,7 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10.00"), null, cat.getId(), null, null, null, null), ApiException.class);
+                new BigDecimal("10.00"), null, cat.getId(), null, null), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
         assertThat(ex.getField()).isEqualTo("accountId");
@@ -220,23 +272,11 @@ class TransactionServiceTest {
         Account acc = account(USER, "现金", "100.00");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10.00"), acc.getId(), null, null, null, null, null), ApiException.class);
+                new BigDecimal("10.00"), acc.getId(), null, null, null), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
         assertThat(ex.getField()).isEqualTo("categoryId");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-    }
-
-    @Test
-    void createTransfer_missingDestination_rejectedWithFieldRequired() {
-        Account src = account(USER, "银行卡", "1000.00");
-
-        ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "transfer",
-                new BigDecimal("100.00"), null, null, src.getId(), null, null, null), ApiException.class);
-
-        assertThat(ex.getCode()).isEqualTo("FIELD_REQUIRED");
-        assertThat(ex.getField()).isEqualTo("destinationAccountId");
-        assertThat(balanceOf(src.getId())).isEqualByComparingTo("1000.00");
     }
 
     // ---------------- 账户/分类存在性（零副作用） ----------------
@@ -246,27 +286,23 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10.00"), 9999L, cat.getId(), null, null, null, null), ApiException.class);
+                new BigDecimal("10.00"), 9999L, cat.getId(), null, null), ApiException.class);
 
-        // 需求 4.9：引用账户不存在。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     @Test
-    void createExpense_otherUsersAccount_rejectedWithNotFound() {
+    void createExpense_accountNotInLedger_rejectedWithNotFound() {
+        // 他人账户未纳入本账本 → 记账时不可用。
         Account other = account(OTHER_USER, "别人的", "100.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10.00"), other.getId(), cat.getId(), null, null, null, null),
-                ApiException.class);
+                new BigDecimal("10.00"), other.getId(), cat.getId(), null, null), ApiException.class);
 
-        // 需求 2.4/4.9：他人账户视为不存在。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        // 零副作用：他人账户余额不变，本人无任何交易落库。
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
-                .getCurrentBalance()).isEqualByComparingTo("100.00");
+        assertThat(balanceOf(other.getId())).isEqualByComparingTo("100.00");
         assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
@@ -275,24 +311,10 @@ class TransactionServiceTest {
         Account acc = account(USER, "现金", "100.00");
 
         ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "expense",
-                new BigDecimal("10.00"), acc.getId(), 9999L, null, null, null, null), ApiException.class);
+                new BigDecimal("10.00"), acc.getId(), 9999L, null, null), ApiException.class);
 
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        // 校验前置：账户余额不变。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-    }
-
-    @Test
-    void createTransfer_nonexistentSource_rejectedWithNotFoundAndNoSideEffect() {
-        Account dst = account(USER, "信用卡", "-500.00");
-
-        ApiException ex = catchThrowableOfType(() -> service().create(USER, USER, "transfer",
-                new BigDecimal("100.00"), null, null, 9999L, dst.getId(), null, null), ApiException.class);
-
-        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        // 需求 4.10：中途失败零副作用，目标账户余额不变。
-        assertThat(balanceOf(dst.getId())).isEqualByComparingTo("-500.00");
-        assertThat(transactionRepository.findByLedgerId(USER)).isEmpty();
     }
 
     // ---------------- 读取 ----------------
@@ -301,10 +323,8 @@ class TransactionServiceTest {
     void get_otherUsersTransaction_returnsNotFound() {
         Account acc = account(OTHER_USER, "别人的", "100.00");
         Category cat = category(OTHER_USER, CategoryKind.EXPENSE, "餐饮");
-        Transaction tx = new TransactionService(
-                transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE))
-                .create(OTHER_USER, OTHER_USER, "expense", new BigDecimal("10.00"),
-                        acc.getId(), cat.getId(), null, null, null, null);
+        Transaction tx = service().create(OTHER_USER, OTHER_USER, "expense", new BigDecimal("10.00"),
+                acc.getId(), cat.getId(), null, null);
 
         ApiException ex = catchThrowableOfType(
                 () -> service().get(USER, tx.getId()), ApiException.class);
@@ -312,21 +332,19 @@ class TransactionServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
 
-    // ---------------- 修改（回滚原影响 + 应用新影响，需求 4.6、4.7） ----------------
+    // ---------------- 修改（回滚原影响 + 应用新影响） ----------------
 
     @Test
     void updateExpense_changeAmount_adjustsBalance() {
         Account acc = account(USER, "现金", "100.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("30.00"),
-                acc.getId(), cat.getId(), null, null, null, "午餐");
-        // 创建后：100 - 30 = 70。
+                acc.getId(), cat.getId(), null, "午餐");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
 
         Transaction updated = service().update(USER, USER, tx.getId(), "expense", new BigDecimal("50.00"),
-                acc.getId(), cat.getId(), null, null, null, "午餐+咖啡");
+                acc.getId(), cat.getId(), null, "午餐+咖啡");
 
-        // 回滚 -30（+30）再应用 -50：100 - 50 = 50。
         assertThat(updated.getAmount()).isEqualByComparingTo("50.00");
         assertThat(updated.getNote()).isEqualTo("午餐+咖啡");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("50.00");
@@ -338,37 +356,30 @@ class TransactionServiceTest {
         Account to = account(USER, "银行卡", "200.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("40.00"),
-                from.getId(), cat.getId(), null, null, null, null);
+                from.getId(), cat.getId(), null, null);
         assertThat(balanceOf(from.getId())).isEqualByComparingTo("60.00");
 
         service().update(USER, USER, tx.getId(), "expense", new BigDecimal("40.00"),
-                to.getId(), cat.getId(), null, null, null, null);
+                to.getId(), cat.getId(), null, null);
 
-        // 原账户恢复：60 + 40 = 100；新账户扣减：200 - 40 = 160。
         assertThat(balanceOf(from.getId())).isEqualByComparingTo("100.00");
         assertThat(balanceOf(to.getId())).isEqualByComparingTo("160.00");
     }
 
     @Test
-    void update_changeExpenseToTransfer_rollsBackOldAndAppliesNewShape() {
+    void update_toTransferType_rejected() {
         Account acc = account(USER, "现金", "100.00");
         Account dst = account(USER, "银行卡", "200.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("30.00"),
-                acc.getId(), cat.getId(), null, null, null, null);
+                acc.getId(), cat.getId(), null, null);
+
+        ApiException ex = catchThrowableOfType(() -> service().update(USER, USER, tx.getId(), "transfer",
+                new BigDecimal("25.00"), acc.getId(), dst.getId(), null, "转到银行卡"), ApiException.class);
+
+        // 收支交易不能改为转账（转账为独立的账户间动作）。
+        assertThat(ex.getCode()).isEqualTo("TRANSACTION_TYPE_INVALID");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
-
-        Transaction updated = service().update(USER, USER, tx.getId(), "transfer", new BigDecimal("25.00"),
-                null, null, acc.getId(), dst.getId(), null, "转到银行卡");
-
-        // 回滚支出 -30（现金 +30 → 100），再应用转账（现金 -25 → 75，银行卡 +25 → 225）。
-        assertThat(updated.getType()).isEqualTo(TransactionType.TRANSFER);
-        assertThat(updated.getAccountId()).isNull();
-        assertThat(updated.getCategoryId()).isNull();
-        assertThat(updated.getSourceAccountId()).isEqualTo(acc.getId());
-        assertThat(updated.getDestinationAccountId()).isEqualTo(dst.getId());
-        assertThat(balanceOf(acc.getId())).isEqualByComparingTo("75.00");
-        assertThat(balanceOf(dst.getId())).isEqualByComparingTo("225.00");
     }
 
     @Test
@@ -377,34 +388,10 @@ class TransactionServiceTest {
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
 
         ApiException ex = catchThrowableOfType(() -> service().update(USER, USER, 9999L, "expense",
-                new BigDecimal("10.00"), acc.getId(), cat.getId(), null, null, null, null),
-                ApiException.class);
+                new BigDecimal("10.00"), acc.getId(), cat.getId(), null, null), ApiException.class);
 
-        // 需求 4.7：目标交易不存在则拒绝且不改余额。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-    }
-
-    @Test
-    void update_otherUsersTransaction_rejectedWithNotFound() {
-        Account other = account(OTHER_USER, "别人的", "100.00");
-        Category otherCat = category(OTHER_USER, CategoryKind.EXPENSE, "餐饮");
-        Transaction tx = new TransactionService(
-                transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE))
-                .create(OTHER_USER, OTHER_USER, "expense", new BigDecimal("10.00"),
-                        other.getId(), otherCat.getId(), null, null, null, null);
-        Account mine = account(USER, "现金", "100.00");
-        Category myCat = category(USER, CategoryKind.EXPENSE, "餐饮");
-
-        ApiException ex = catchThrowableOfType(() -> service().update(USER, USER, tx.getId(), "expense",
-                new BigDecimal("20.00"), mine.getId(), myCat.getId(), null, null, null, null),
-                ApiException.class);
-
-        // 需求 2.4/4.7：他人交易视为不存在，拒绝且不改余额。
-        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        assertThat(balanceOf(mine.getId())).isEqualByComparingTo("100.00");
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
-                .getCurrentBalance()).isEqualByComparingTo("90.00");
     }
 
     @Test
@@ -412,49 +399,29 @@ class TransactionServiceTest {
         Account acc = account(USER, "现金", "100.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("30.00"),
-                acc.getId(), cat.getId(), null, null, null, null);
+                acc.getId(), cat.getId(), null, null);
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
 
         ApiException ex = catchThrowableOfType(() -> service().update(USER, USER, tx.getId(), "expense",
-                new BigDecimal("30.00"), 9999L, cat.getId(), null, null, null, null),
-                ApiException.class);
+                new BigDecimal("30.00"), 9999L, cat.getId(), null, null), ApiException.class);
 
-        // 需求 4.9：引用账户不存在 → NOT_FOUND，且事务回滚，原余额不变。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
     }
 
-    // ---------------- 删除（回滚原影响，需求 4.6、4.7） ----------------
+    // ---------------- 删除（回滚原影响） ----------------
 
     @Test
-    void deleteExpense_rollsBackBalanceAndRemovesRow() {
+    void deleteExpense_rollsBackBalanceAndMovesToRecycleBin() {
         Account acc = account(USER, "现金", "100.00");
         Category cat = category(USER, CategoryKind.EXPENSE, "餐饮");
         Transaction tx = service().create(USER, USER, "expense", new BigDecimal("30.00"),
-                acc.getId(), cat.getId(), null, null, null, null);
+                acc.getId(), cat.getId(), null, null);
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
 
         service().delete(USER, USER, tx.getId());
 
-        // 回滚支出 -30（+30）：恢复到 100。
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-        assertThat(transactionRepository.findByIdAndLedgerId(tx.getId(), USER)).isEmpty();
-    }
-
-    @Test
-    void deleteTransfer_restoresBothAccounts() {
-        Account src = account(USER, "银行卡", "1000.00");
-        Account dst = account(USER, "信用卡", "-500.00");
-        Transaction tx = service().create(USER, USER, "transfer", new BigDecimal("500.00"),
-                null, null, src.getId(), dst.getId(), null, "还信用卡");
-        assertThat(balanceOf(src.getId())).isEqualByComparingTo("500.00");
-        assertThat(balanceOf(dst.getId())).isEqualByComparingTo("0.00");
-
-        service().delete(USER, USER, tx.getId());
-
-        // 回滚转账：源 +500 → 1000，目标 -500 → -500。
-        assertThat(balanceOf(src.getId())).isEqualByComparingTo("1000.00");
-        assertThat(balanceOf(dst.getId())).isEqualByComparingTo("-500.00");
         assertThat(transactionRepository.findByIdAndLedgerId(tx.getId(), USER)).isEmpty();
     }
 
@@ -465,26 +432,7 @@ class TransactionServiceTest {
         ApiException ex = catchThrowableOfType(
                 () -> service().delete(USER, USER, 9999L), ApiException.class);
 
-        // 需求 4.7：目标交易不存在则拒绝且不改余额。
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
-    }
-
-    @Test
-    void delete_otherUsersTransaction_rejectedWithNotFound() {
-        Account other = account(OTHER_USER, "别人的", "100.00");
-        Category otherCat = category(OTHER_USER, CategoryKind.EXPENSE, "餐饮");
-        Transaction tx = new TransactionService(
-                transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE))
-                .create(OTHER_USER, OTHER_USER, "expense", new BigDecimal("10.00"),
-                        other.getId(), otherCat.getId(), null, null, null, null);
-
-        ApiException ex = catchThrowableOfType(
-                () -> service().delete(USER, USER, tx.getId()), ApiException.class);
-
-        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
-        // 他人账户余额不变（90 = 100 - 10）。
-        assertThat(accountRepository.findByIdAndUserId(other.getId(), OTHER_USER).orElseThrow()
-                .getCurrentBalance()).isEqualByComparingTo("90.00");
     }
 }

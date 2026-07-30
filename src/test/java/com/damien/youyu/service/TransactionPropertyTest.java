@@ -75,15 +75,18 @@ class TransactionPropertyTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
 
     private TransactionService txService() {
-        return new TransactionService(
-                transactionRepository, accountRepository, categoryRepository, Clock.fixed(T0, ZONE));
+        return new TransactionService(transactionRepository, accountRepository, categoryRepository,
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository), Clock.fixed(T0, ZONE));
     }
 
     private AccountService accountService() {
-        return new AccountService(accountRepository, transactionRepository, Clock.fixed(T0, ZONE));
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
+                Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 智能生成器 ----------------
@@ -112,9 +115,10 @@ class TransactionPropertyTest {
     // ---------------- 持久化辅助 ----------------
 
     private Account createAccount(long ledgerId, Random rng) {
+        // 纳入 ledgerId 账本，使账户可用于该账本记账。
         return accountService().create(ledgerId, letters(rng, 1, 12),
                 AccountType.values()[rng.nextInt(AccountType.values().length)].name(),
-                validInitialBalance(rng), rng.nextInt(101));
+                validInitialBalance(rng), rng.nextInt(101), true, false, null, null, ledgerId);
     }
 
     private Category createCategory(long ledgerId, CategoryKind kind, Random rng) {
@@ -165,12 +169,14 @@ class TransactionPropertyTest {
             Long expenseCat = createCategory(ledgerId, CategoryKind.EXPENSE, rng).getId();
             Long incomeCat = createCategory(ledgerId, CategoryKind.INCOME, rng).getId();
 
-            // 模型：存活交易 id → 影响记录。
+            // 模型：存活交易 id → 影响记录。转账脱离账本、为账户间动作，仅创建（不经账本改/删）；
+            // 支出/收入归属账本，可修改/删除，其 id 记入 editableIds。
             Map<Long, TxRecord> live = new HashMap<>();
+            java.util.Set<Long> editableIds = new java.util.HashSet<>();
 
             for (int step = 0; step < STEPS; step++) {
-                int op = rng.nextInt(4); // 0/1/2=创建(支出/收入/转账)，3=修改或删除（若有存活交易）。
-                if (op == 3 && live.isEmpty()) {
+                int op = rng.nextInt(4); // 0/1/2=创建(支出/收入/转账)，3=修改或删除（若有可编辑交易）。
+                if (op == 3 && editableIds.isEmpty()) {
                     op = rng.nextInt(3);
                 }
 
@@ -179,19 +185,21 @@ class TransactionPropertyTest {
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
                         Transaction t = tx.create(ledgerId, ledgerId, "expense", amount, acc, expenseCat,
-                                null, null, null, "e");
+                                null, "e");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.EXPENSE, amount, acc, null, null));
+                        editableIds.add(t.getId());
                     }
                     case 1 -> { // 创建收入
                         Long acc = accountIds.get(rng.nextInt(accCount));
                         BigDecimal amount = validAmount(rng, 1_000_000L);
                         Transaction t = tx.create(ledgerId, ledgerId, "income", amount, acc, incomeCat,
-                                null, null, null, "i");
+                                null, "i");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.INCOME, amount, acc, null, null));
+                        editableIds.add(t.getId());
                     }
-                    case 2 -> { // 创建转账（源≠目标）
+                    case 2 -> { // 创建转账（源≠目标），脱离账本
                         int si = rng.nextInt(accCount);
                         int di = rng.nextInt(accCount);
                         while (di == si) {
@@ -200,46 +208,30 @@ class TransactionPropertyTest {
                         Long src = accountIds.get(si);
                         Long dst = accountIds.get(di);
                         BigDecimal amount = validAmount(rng, 1_000_000L);
-                        Transaction t = tx.create(ledgerId, ledgerId, "transfer", amount, null, null,
-                                src, dst, null, "t");
+                        Transaction t = tx.transfer(ledgerId, src, dst, amount, null, "t");
                         live.put(t.getId(), new TxRecord(
                                 com.damien.youyu.domain.TransactionType.TRANSFER, amount, null, src, dst));
                     }
-                    default -> { // 修改或删除一笔存活交易
-                        List<Long> ids = new ArrayList<>(live.keySet());
+                    default -> { // 修改或删除一笔可编辑（支出/收入）交易
+                        List<Long> ids = new ArrayList<>(editableIds);
                         Long targetId = ids.get(rng.nextInt(ids.size()));
                         if (rng.nextBoolean()) {
                             // 删除：回滚原影响。
                             tx.delete(ledgerId, ledgerId, targetId);
                             live.remove(targetId);
+                            editableIds.remove(targetId);
                         } else {
-                            // 修改：随机生成新的合法形态，替换记录。
-                            int newType = rng.nextInt(3);
+                            // 修改：随机生成新的合法收支形态，替换记录。
+                            int newType = rng.nextInt(2);
                             BigDecimal amount = validAmount(rng, 1_000_000L);
-                            if (newType == 2) {
-                                int si = rng.nextInt(accCount);
-                                int di = rng.nextInt(accCount);
-                                while (di == si) {
-                                    di = rng.nextInt(accCount);
-                                }
-                                Long src = accountIds.get(si);
-                                Long dst = accountIds.get(di);
-                                tx.update(ledgerId, ledgerId, targetId, "transfer", amount, null, null,
-                                        src, dst, null, "t2");
-                                live.put(targetId, new TxRecord(
-                                        com.damien.youyu.domain.TransactionType.TRANSFER,
-                                        amount, null, src, dst));
-                            } else {
-                                Long acc = accountIds.get(rng.nextInt(accCount));
-                                String type = newType == 0 ? "expense" : "income";
-                                Long cat = newType == 0 ? expenseCat : incomeCat;
-                                tx.update(ledgerId, ledgerId, targetId, type, amount, acc, cat,
-                                        null, null, null, "u");
-                                live.put(targetId, new TxRecord(newType == 0
-                                        ? com.damien.youyu.domain.TransactionType.EXPENSE
-                                        : com.damien.youyu.domain.TransactionType.INCOME,
-                                        amount, acc, null, null));
-                            }
+                            Long acc = accountIds.get(rng.nextInt(accCount));
+                            String type = newType == 0 ? "expense" : "income";
+                            Long cat = newType == 0 ? expenseCat : incomeCat;
+                            tx.update(ledgerId, ledgerId, targetId, type, amount, acc, cat, null, "u");
+                            live.put(targetId, new TxRecord(newType == 0
+                                    ? com.damien.youyu.domain.TransactionType.EXPENSE
+                                    : com.damien.youyu.domain.TransactionType.INCOME,
+                                    amount, acc, null, null));
                         }
                     }
                 }
@@ -389,7 +381,7 @@ class TransactionPropertyTest {
             }
 
             ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, ledgerId, type, amount,
-                    accountId, categoryId, null, null, null, null), ApiException.class);
+                    accountId, categoryId, null, null), ApiException.class);
 
             assertThat(ex).as("badCase=%d 应被拒绝", badCase).isNotNull();
             assertThat(ex.getCode()).isEqualTo(expectedCode);
@@ -416,8 +408,8 @@ class TransactionPropertyTest {
             BigDecimal balanceBefore = acc.getCurrentBalance();
             BigDecimal amount = validAmount(rng, 1_000_000L);
 
-            ApiException ex = catchThrowableOfType(() -> tx.create(ledgerId, ledgerId, "transfer", amount,
-                    null, null, acc.getId(), acc.getId(), null, null), ApiException.class);
+            ApiException ex = catchThrowableOfType(() -> tx.transfer(ledgerId, acc.getId(), acc.getId(),
+                    amount, null, null), ApiException.class);
 
             assertThat(ex).isNotNull();
             assertThat(ex.getCode()).isEqualTo("TRANSFER_SAME_ACCOUNT");

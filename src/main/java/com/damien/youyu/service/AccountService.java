@@ -10,25 +10,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.AccountLedger;
 import com.damien.youyu.domain.AccountType;
 import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.TransactionRepository;
 
 /**
- * 账户服务：账户的创建、列表、修改与删除（关联需求 3.1-3.9）。
+ * 账户服务：账户的创建、列表、修改、删除，以及账户与账本的可见性关联管理（关联需求 1、3、4、9）。
  *
- * <p>账户按 {@link AccountScope} 隔离：</p>
- * <ul>
- *   <li>独立账本 → 用户级账户池（{@code user_id} 且 {@code ledger_id IS NULL}），
- *       同一用户多个独立账本共享同一批账户；</li>
- *   <li>协作账本 → 账本级账户池（{@code ledger_id}），账本内成员共享。</li>
- * </ul>
- *
- * <p>越权访问（他人/他账本账户）一律返回 {@code NOT_FOUND}。账户余额跨账本按账户汇总
- * （其被引用的全部流水）。金额一律 {@link BigDecimal}（需求 3.9）。
- * 传入 {@code Long userId} 的重载等价于独立账本（用户级）作用域，供既有调用与测试使用。</p>
+ * <p>账户是独立于账本的一等实体，始终归属某个用户（owner=userId）。归属边界为 owner：越权访问
+ * （他人账户）一律返回 {@code NOT_FOUND}。账户拥有单一全局真实余额，跨账本 + 转账按账户汇总重算。
+ * 账户在哪些账本可用、是否对协作成员可见/显示余额，由 {@code account_ledger}（{@link AccountLedger}）表达。
+ * 金额一律 {@link BigDecimal}。</p>
  */
 @Service
 public class AccountService {
@@ -40,14 +36,17 @@ public class AccountService {
     static final BigDecimal BALANCE_MIN = BALANCE_MAX.negate();
 
     private final AccountRepository accountRepository;
+    private final AccountLedgerRepository accountLedgerRepository;
     private final TransactionRepository transactionRepository;
     private final Clock clock;
 
     public AccountService(
             AccountRepository accountRepository,
+            AccountLedgerRepository accountLedgerRepository,
             TransactionRepository transactionRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
+        this.accountLedgerRepository = accountLedgerRepository;
         this.transactionRepository = transactionRepository;
         this.clock = clock;
     }
@@ -57,48 +56,37 @@ public class AccountService {
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder) {
-        return create(AccountScope.independent(userId), rawName, rawType, rawInitialBalance, sortOrder);
-    }
-
-    @Transactional
-    public Account create(AccountScope scope, String rawName, String rawType,
-            BigDecimal rawInitialBalance, Integer sortOrder) {
-        return create(scope, rawName, rawType, rawInitialBalance, sortOrder, true, false, null, null);
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder, true, false, null, null, null);
     }
 
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote) {
-        return create(AccountScope.independent(userId), rawName, rawType, rawInitialBalance, sortOrder,
-                includeInTotal, hidden, rawNote, null);
-    }
-
-    @Transactional
-    public Account create(AccountScope scope, String rawName, String rawType,
-            BigDecimal rawInitialBalance, Integer sortOrder,
-            boolean includeInTotal, boolean hidden, String rawNote) {
-        return create(scope, rawName, rawType, rawInitialBalance, sortOrder,
-                includeInTotal, hidden, rawNote, null);
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
+                includeInTotal, hidden, rawNote, null, null);
     }
 
     @Transactional
     public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
-        return create(AccountScope.independent(userId), rawName, rawType, rawInitialBalance, sortOrder,
-                includeInTotal, hidden, rawNote, rawCreditLimit);
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
+                includeInTotal, hidden, rawNote, rawCreditLimit, null);
     }
 
     /**
      * 创建账户（含扩展字段）：校验通过后 {@code current_balance = initial_balance}。
+     * 若 {@code attachLedgerId} 非空，则同时把该账户纳入该账本（默认对他人可见、显示余额），
+     * 使"新建账户后立即在当前账本记账"可用。
      *
      * @throws ApiException ACCOUNT_FIELD_INVALID（名称/类型/初始余额/备注任一非法，需求 3.3）
      */
     @Transactional
-    public Account create(AccountScope scope, String rawName, String rawType,
+    public Account create(Long userId, String rawName, String rawType,
             BigDecimal rawInitialBalance, Integer sortOrder,
-            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
+            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
+            Long attachLedgerId) {
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
         BigDecimal initialBalance = validateBalance(rawInitialBalance);
@@ -107,9 +95,7 @@ public class AccountService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
-        // 归属：独立账本为用户级（ledger_id 为空）；协作账本为账本级（ledger_id = 账本）。
-        account.setUserId(scope.userId());
-        account.setLedgerId(scope.isCollaborative() ? scope.ledgerId() : null);
+        account.setUserId(userId);
         account.setName(name);
         account.setType(type);
         account.setInitialBalance(initialBalance);
@@ -121,65 +107,40 @@ public class AccountService {
         account.setCreditLimit(type.isCredit() ? creditLimit : null);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
-        return accountRepository.save(account);
+        Account saved = accountRepository.save(account);
+
+        if (attachLedgerId != null) {
+            attach(saved.getId(), attachLedgerId, true, true, now);
+        }
+        return saved;
     }
 
     // ---------------- 列表 ----------------
 
-    /** 列出作用域内全部账户，按 sort_order、id 升序；无账户返回空列表（需求 3.5）。 */
+    /** 列出某用户拥有的全部账户，按 sort_order、id 升序；无账户返回空列表（需求 3.5）。 */
     @Transactional(readOnly = true)
     public List<Account> list(Long userId) {
-        return list(AccountScope.independent(userId));
-    }
-
-    @Transactional(readOnly = true)
-    public List<Account> list(AccountScope scope) {
-        return scope.isCollaborative()
-                ? accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(scope.ledgerId())
-                : accountRepository.findByUserIdAndLedgerIdIsNullOrderBySortOrderAscIdAsc(scope.userId());
+        return accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
     }
 
     // ---------------- 修改 ----------------
 
     @Transactional
     public Account update(Long userId, Long id, String rawName, String rawType) {
-        return update(AccountScope.independent(userId), id, rawName, rawType);
-    }
-
-    @Transactional
-    public Account update(AccountScope scope, Long id, String rawName, String rawType) {
-        Account account = requireAccount(scope, id);
-        account.setName(validateName(rawName));
-        account.setType(validateType(rawType));
-        account.setUpdatedAt(LocalDateTime.now(clock));
-        return accountRepository.save(account);
+        return update(userId, id, rawName, rawType, true, false, null, null);
     }
 
     @Transactional
     public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote) {
-        return update(AccountScope.independent(userId), id, rawName, rawType,
-                includeInTotal, hidden, rawNote, null);
-    }
-
-    @Transactional
-    public Account update(AccountScope scope, Long id, String rawName, String rawType,
-            boolean includeInTotal, boolean hidden, String rawNote) {
-        return update(scope, id, rawName, rawType, includeInTotal, hidden, rawNote, null);
-    }
-
-    @Transactional
-    public Account update(Long userId, Long id, String rawName, String rawType,
-            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
-        return update(AccountScope.independent(userId), id, rawName, rawType,
-                includeInTotal, hidden, rawNote, rawCreditLimit);
+        return update(userId, id, rawName, rawType, includeInTotal, hidden, rawNote, null);
     }
 
     /** 修改账户名称/类型及扩展字段（计入总资产/隐藏/备注/信用额度），保留余额（需求 3.6）。 */
     @Transactional
-    public Account update(AccountScope scope, Long id, String rawName, String rawType,
+    public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
-        Account account = requireAccount(scope, id);
+        Account account = requireAccount(userId, id);
 
         AccountType type = validateType(rawType);
         account.setName(validateName(rawName));
@@ -194,37 +155,97 @@ public class AccountService {
 
     // ---------------- 删除 ----------------
 
-    @Transactional
-    public void delete(Long userId, Long id) {
-        delete(AccountScope.independent(userId), id);
-    }
-
     /**
-     * 删除账户：仅当无任何交易引用（作为账户/源/目标）时删除，否则拒绝（需求 3.7/3.8）。
+     * 删除账户：仅当无任何交易引用（作为账户/源/目标）时删除，否则拒绝（需求 1.5）。
+     * 删除成功级联清除该账户的全部账本关联行（需求 1.6）。
      */
     @Transactional
-    public void delete(AccountScope scope, Long id) {
-        Account account = requireAccount(scope, id);
+    public void delete(Long userId, Long id) {
+        Account account = requireAccount(userId, id);
         if (transactionRepository.existsByAccountReferenced(id)) {
             throw ApiException.accountInUse();
         }
+        accountLedgerRepository.deleteByAccountId(id);
         accountRepository.delete(account);
+    }
+
+    // ---------------- 账户/账本可见性关联 ----------------
+
+    /** 把账户纳入某账本（幂等：已存在则更新标志）。仅账户 owner 可操作。 */
+    @Transactional
+    public AccountLedger attachToLedger(Long userId, Long accountId, Long ledgerId,
+            boolean visibleToOthers, boolean showBalance) {
+        requireAccount(userId, accountId);
+        return attach(accountId, ledgerId, visibleToOthers, showBalance, LocalDateTime.now(clock));
+    }
+
+    /** 更新账户在某账本的可见性标志。仅账户 owner 可操作；关联不存在返回 NOT_FOUND。 */
+    @Transactional
+    public AccountLedger updateVisibility(Long userId, Long accountId, Long ledgerId,
+            boolean visibleToOthers, boolean showBalance) {
+        requireAccount(userId, accountId);
+        AccountLedger link = accountLedgerRepository.findByAccountIdAndLedgerId(accountId, ledgerId)
+                .orElseThrow(() -> ApiException.notFound("账户未纳入该账本"));
+        link.setVisibleToOthers(visibleToOthers);
+        link.setShowBalance(showBalance);
+        return accountLedgerRepository.save(link);
+    }
+
+    /**
+     * 取消账户在某账本的参与（未来不可选）。历史流水与余额影响保留。
+     * 仅账户 owner 可操作。
+     *
+     * @return 该账户在此账本是否已有历史流水（供调用方提示）
+     */
+    @Transactional
+    public boolean detachFromLedger(Long userId, Long accountId, Long ledgerId) {
+        requireAccount(userId, accountId);
+        boolean hasHistory = transactionRepository.existsByLedgerIdAndAccountReferenced(ledgerId, accountId);
+        accountLedgerRepository.findByAccountIdAndLedgerId(accountId, ledgerId)
+                .ifPresent(accountLedgerRepository::delete);
+        return hasHistory;
+    }
+
+    // ---------------- 转交 ----------------
+
+    /**
+     * 把账户 owner 从当前用户转交给另一用户，保留余额、历史流水与账本关联行（需求 9）。
+     * 仅当前 owner 可操作。
+     */
+    @Transactional
+    public Account transferOwnership(Long userId, Long accountId, Long newOwnerUserId) {
+        Account account = requireAccount(userId, accountId);
+        account.setUserId(newOwnerUserId);
+        account.setUpdatedAt(LocalDateTime.now(clock));
+        return accountRepository.save(account);
     }
 
     // ---------------- 余额重算 ----------------
 
+    /**
+     * 由初始余额与全量流水聚合重算某账户应有余额（跨账本 + 转账按账户汇总，需求 1.4、Property 1）。
+     */
     @Transactional(readOnly = true)
     public BigDecimal recomputeBalance(Long userId, Long accountId) {
-        return recomputeBalance(AccountScope.independent(userId), accountId);
+        Account account = requireAccount(userId, accountId);
+        return recompute(account);
     }
 
     /**
-     * 由初始余额与全量流水聚合重算某账户应有余额（跨账本按账户汇总，需求 4.13、Property 1）。
+     * 按 accountId 重算并写回余额（owner 无关，供账本删除后重算受影响账户，需求 8.2）。
+     * 账户不存在则忽略。
      */
-    @Transactional(readOnly = true)
-    public BigDecimal recomputeBalance(AccountScope scope, Long accountId) {
-        Account account = requireAccount(scope, accountId);
+    @Transactional
+    public void recomputeAndSave(Long accountId) {
+        accountRepository.findById(accountId).ifPresent(account -> {
+            account.setCurrentBalance(recompute(account));
+            account.setUpdatedAt(LocalDateTime.now(clock));
+            accountRepository.save(account);
+        });
+    }
 
+    private BigDecimal recompute(Account account) {
+        Long accountId = account.getId();
         BigDecimal income = zeroIfNull(
                 transactionRepository.sumAmountByAccountIdAndType(accountId, TransactionType.INCOME));
         BigDecimal expense = zeroIfNull(
@@ -240,11 +261,33 @@ public class AccountService {
                 .setScale(2, RoundingMode.HALF_UP);
     }
 
-    private Account requireAccount(AccountScope scope, Long id) {
-        return (scope.isCollaborative()
-                ? accountRepository.findByIdAndLedgerId(id, scope.ledgerId())
-                : accountRepository.findByIdAndUserIdAndLedgerIdIsNull(id, scope.userId()))
+    /** 定位账户并校验归属（owner）；不匹配返回 NOT_FOUND。 */
+    public Account requireAccount(Long userId, Long id) {
+        return accountRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> ApiException.notFound("账户不存在"));
+    }
+
+    /** 读取账户在某账本的可见性关联（owner 视角）；未纳入返回空。仅账户 owner 可查询。 */
+    @Transactional(readOnly = true)
+    public java.util.Optional<AccountLedger> visibilityOf(Long userId, Long accountId, Long ledgerId) {
+        requireAccount(userId, accountId);
+        return accountLedgerRepository.findByAccountIdAndLedgerId(accountId, ledgerId);
+    }
+
+    /** 建立或更新账户在账本的关联行（幂等）。 */
+    private AccountLedger attach(Long accountId, Long ledgerId,
+            boolean visibleToOthers, boolean showBalance, LocalDateTime now) {
+        AccountLedger link = accountLedgerRepository.findByAccountIdAndLedgerId(accountId, ledgerId)
+                .orElseGet(() -> {
+                    AccountLedger al = new AccountLedger();
+                    al.setAccountId(accountId);
+                    al.setLedgerId(ledgerId);
+                    al.setCreatedAt(now);
+                    return al;
+                });
+        link.setVisibleToOthers(visibleToOthers);
+        link.setShowBalance(showBalance);
+        return accountLedgerRepository.save(link);
     }
 
     private static BigDecimal zeroIfNull(BigDecimal value) {

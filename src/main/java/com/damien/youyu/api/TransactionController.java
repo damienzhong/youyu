@@ -30,7 +30,6 @@ import com.damien.youyu.domain.Ledger;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.security.CurrentUser;
-import com.damien.youyu.service.AccountScope;
 import com.damien.youyu.service.LedgerService;
 import com.damien.youyu.service.MerchantService;
 import com.damien.youyu.service.ProjectService;
@@ -87,11 +86,10 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> create(@RequestBody TransactionCreateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
         Long userId = currentUser.requireUserId();
-        AccountScope scope = AccountScope.forLedger(userId, ledger);
         // 协作代记：仅协作账本、且指定记账人为账本成员时生效，否则以会话用户为记账人。
         Long createdBy = null;
         if (req.createdBy() != null
-                && "COLLABORATIVE".equals(ledger.getType())
+                && ledger.isCollaborative()
                 && ledgerService.isMember(ledger.getId(), req.createdBy())) {
             createdBy = req.createdBy();
         }
@@ -100,14 +98,12 @@ public class TransactionController {
         merchantService.requireInLedgerOrNull(ledger.getId(), req.merchantId());
         List<Long> tagIds = tagService.validateTagIds(ledger.getId(), req.tagIds());
         Transaction tx = transactionService.create(
-                scope,
+                userId,
                 ledger.getId(),
                 req.type(),
                 req.amount(),
                 req.accountId(),
                 req.categoryId(),
-                req.sourceAccountId(),
-                req.destinationAccountId(),
                 req.occurredAt(),
                 req.note(),
                 createdBy,
@@ -124,9 +120,9 @@ public class TransactionController {
     @PostMapping("/adjust")
     public ResponseEntity<TransactionResponse> adjust(@RequestBody BalanceAdjustRequest req) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long userId = currentUser.requireUserId();
         Transaction tx = transactionService.adjustBalance(
-                scope, ledger.getId(), req.accountId(), req.balance(), req.occurredAt(), req.note());
+                userId, ledger.getId(), req.accountId(), req.balance(), req.occurredAt(), req.note());
         if (tx == null) {
             return ResponseEntity.noContent().build();
         }
@@ -233,21 +229,19 @@ public class TransactionController {
     public ResponseEntity<TransactionResponse> update(
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long userId = currentUser.requireUserId();
         // 校验所属项目/商家/标签归属本账本（不存在则 404）；null 表示无。
         projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
         merchantService.requireInLedgerOrNull(ledger.getId(), req.merchantId());
         List<Long> tagIds = tagService.validateTagIds(ledger.getId(), req.tagIds());
         Transaction tx = transactionService.update(
-                scope,
+                userId,
                 ledger.getId(),
                 id,
                 req.type(),
                 req.amount(),
                 req.accountId(),
                 req.categoryId(),
-                req.sourceAccountId(),
-                req.destinationAccountId(),
                 req.occurredAt(),
                 req.note(),
                 req.projectId(),
@@ -260,9 +254,9 @@ public class TransactionController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long userId = currentUser.requireUserId();
         // 软删除（移入回收站）：保留标签关联以便恢复，不在此清除。
-        transactionService.delete(scope, ledger.getId(), id);
+        transactionService.delete(userId, ledger.getId(), id);
         return ResponseEntity.noContent().build();
     }
 
@@ -270,7 +264,7 @@ public class TransactionController {
     @PostMapping("/batch-delete")
     public ResponseEntity<java.util.Map<String, Integer>> batchDelete(@RequestBody BatchIdsRequest req) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
+        Long userId = currentUser.requireUserId();
         int deleted = 0;
         if (req != null && req.ids() != null) {
             for (Long id : req.ids()) {
@@ -278,7 +272,7 @@ public class TransactionController {
                     continue;
                 }
                 try {
-                    transactionService.delete(scope, ledger.getId(), id);
+                    transactionService.delete(userId, ledger.getId(), id);
                     deleted++;
                 } catch (ApiException ex) {
                     // 不存在/越权的 id 跳过，不影响其余。
@@ -299,8 +293,8 @@ public class TransactionController {
     @PostMapping("/{id}/restore")
     public ResponseEntity<TransactionResponse> restore(@PathVariable Long id) {
         Ledger ledger = currentLedger.requireLedger();
-        AccountScope scope = AccountScope.forLedger(currentUser.requireUserId(), ledger);
-        Transaction tx = transactionService.restore(scope, ledger.getId(), id);
+        Long userId = currentUser.requireUserId();
+        Transaction tx = transactionService.restore(userId, ledger.getId(), id);
         return ResponseEntity.ok(TransactionResponse.from(tx, tagService.tagIdsOf(id)));
     }
 

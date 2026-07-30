@@ -52,20 +52,12 @@ public class AggregateService {
     }
 
     /**
-     * 「全部」视图账户：用户级账户（独立账本共享池）+ 用户可访问的每个协作账本的账本级账户。
+     * 「全部」视图账户：账户是独立于账本的一等实体，均归属用户，故直接返回该用户拥有的全部账户
+     * （净资产按账户口径，跨账本共享的账户不重复计入）。
      */
     @Transactional(readOnly = true)
     public List<Account> allAccounts(Long userId) {
-        List<Account> result = new java.util.ArrayList<>(
-                accountRepository.findByUserIdAndLedgerIdIsNullOrderBySortOrderAscIdAsc(userId));
-        for (Long ledgerId : ledgerIds(userId)) {
-            ledgerRepository.findById(ledgerId).ifPresent(l -> {
-                if ("COLLABORATIVE".equals(l.getType())) {
-                    result.addAll(accountRepository.findByLedgerIdOrderBySortOrderAscIdAsc(ledgerId));
-                }
-            });
-        }
-        return result;
+        return accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
     }
 
     /** 当前用户全部账本在指定自然月的交易（跨账本聚合，按时间倒序）。 */

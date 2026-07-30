@@ -73,6 +73,8 @@ class ExportIntegrationTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
     @Autowired
     private TransactionRepository transactionRepository;
@@ -88,9 +90,9 @@ class ExportIntegrationTest {
     private UserRepository userRepository;
 
     private ExportService exportService() {
-        return new ExportService(accountRepository, categoryRepository, transactionRepository,
-                projectRepository, merchantRepository, tagRepository, transactionTagRepository,
-                userRepository, CLOCK);
+        return new ExportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, projectRepository, merchantRepository, tagRepository,
+                transactionTagRepository, userRepository, CLOCK);
     }
 
     // ---------------- 集成测试 1：CSV/JSON 全量 UTF-8 导出 ----------------
@@ -210,7 +212,15 @@ class ExportIntegrationTest {
         a.setSortOrder(sortOrder);
         a.setCreatedAt(BASE);
         a.setUpdatedAt(BASE);
-        return accountRepository.save(a);
+        Account saved = accountRepository.save(a);
+        com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+        al.setAccountId(saved.getId());
+        al.setLedgerId(USER);
+        al.setVisibleToOthers(true);
+        al.setShowBalance(true);
+        al.setCreatedAt(BASE);
+        accountLedgerRepository.save(al);
+        return saved;
     }
 
     private Category category(CategoryKind kind, String name, Long parentId) {

@@ -54,6 +54,8 @@ class ExportServiceTest {
     @Autowired
     private AccountRepository accountRepository;
     @Autowired
+    private com.damien.youyu.repository.AccountLedgerRepository accountLedgerRepository;
+    @Autowired
     private CategoryRepository categoryRepository;
     @Autowired
     private TransactionRepository transactionRepository;
@@ -69,9 +71,9 @@ class ExportServiceTest {
     private UserRepository userRepository;
 
     private ExportService service() {
-        return new ExportService(accountRepository, categoryRepository, transactionRepository,
-                projectRepository, merchantRepository, tagRepository, transactionTagRepository,
-                userRepository, Clock.fixed(T0, ZONE));
+        return new ExportService(accountRepository, accountLedgerRepository, categoryRepository,
+                transactionRepository, projectRepository, merchantRepository, tagRepository,
+                transactionTagRepository, userRepository, Clock.fixed(T0, ZONE));
     }
 
     // ---------------- JSON 导出：引用键与记录数（需求 8.2、8.5 基础） ----------------
@@ -247,7 +249,16 @@ class ExportServiceTest {
         a.setSortOrder(sortOrder);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        return accountRepository.save(a);
+        Account saved = accountRepository.save(a);
+        // 纳入账本，使其出现在该账本导出中。
+        com.damien.youyu.domain.AccountLedger al = new com.damien.youyu.domain.AccountLedger();
+        al.setAccountId(saved.getId());
+        al.setLedgerId(ledgerId);
+        al.setVisibleToOthers(true);
+        al.setShowBalance(true);
+        al.setCreatedAt(now);
+        accountLedgerRepository.save(al);
+        return saved;
     }
 
     private Category category(long ledgerId, CategoryKind kind, String name, Long parentId) {

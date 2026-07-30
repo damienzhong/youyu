@@ -138,14 +138,14 @@ class EndToEndMainPathIntegrationTest {
         assertThat(trend.months().get(0).expense()).usingComparator(BigDecimal::compareTo)
                 .isEqualTo(new BigDecimal("38.80"));
 
-        // 6) 导出 JSON：断言包含已创建数据
+        // 6) 导出 JSON：账本导出含收支流水（转账为账户间动作、脱离账本，不计入账本导出）
         String exportedJson = getForBody(token, "/api/export?format=json", String.class);
         JsonNode root = MAPPER.readTree(exportedJson);
         assertThat(root.get("accounts")).hasSize(2);
         assertThat(root.get("categories")).hasSize(3);
-        assertThat(root.get("transactions")).hasSize(3);
+        assertThat(root.get("transactions")).hasSize(2); // expense + income（转账不在账本内）
         assertThat(exportedJson).contains("现金", "招商银行卡", "餐饮", "外卖", "工资");
-        assertThat(exportedJson).contains("午餐，麻辣烫", "六月工资", "取现金");
+        assertThat(exportedJson).contains("午餐，麻辣烫", "六月工资");
 
         // 7) 重新加载一致（需求 11.4）：服务端为唯一数据源，重新拉取应还原已保存状态
         Map<Long, AccountResponse> reloaded = listAccountsById(token);
@@ -155,11 +155,12 @@ class EndToEndMainPathIntegrationTest {
         assertThat(reloaded.get(card.id()).currentBalance()).usingComparator(BigDecimal::compareTo)
                 .isEqualTo(new BigDecimal("10500.00"));
 
+        // 账本流水列表仅含收支（转账脱离账本，记入账户明细，不在账本列表中）。
         TransactionResponse[] txs = getForBody(token, "/api/transactions?page=0&size=50",
                 TransactionResponse[].class);
-        assertThat(txs).hasSize(3);
+        assertThat(txs).hasSize(2);
         assertThat(List.of(txs)).extracting(TransactionResponse::type)
-                .containsExactlyInAnyOrder("expense", "income", "transfer");
+                .containsExactlyInAnyOrder("expense", "income");
 
         UserSummaryResponse me = getForBody(token, "/api/me", UserSummaryResponse.class);
         assertThat(me.username()).isEqualTo("e2e_owner");
@@ -171,19 +172,19 @@ class EndToEndMainPathIntegrationTest {
         assertThat(listAccountsById(token2)).isEmpty(); // 隔离：无法看到用户一的账户（需求 2.3）
         assertThat(getForBody(token2, "/api/transactions", TransactionResponse[].class)).isEmpty();
 
-        // 往返：把用户一导出的 JSON 导入用户二，记录数应一致
+        // 往返：把用户一导出的 JSON 导入用户二，记录数应一致（账本内收支 2 笔；转账不在账本导出内）
         ImportService.ImportResult imported = importJson(token2, exportedJson);
         assertThat(imported.accounts()).isEqualTo(2);
         assertThat(imported.categories()).isEqualTo(3);
-        assertThat(imported.transactions()).isEqualTo(3);
+        assertThat(imported.transactions()).isEqualTo(2);
 
-        // 导入后用户二的账户余额与用户一一致（除自增 ID 外业务状态相等）
-        Map<String, BigDecimal> ownerBalances = balancesByName(reloaded.values());
+        // 导入后用户二余额 = 账户初始余额 + 账本内收支（不含转账，转账为账户间动作、未随账本导出）：
+        // 现金 1000 - 38.80 = 961.20；招商银行卡 0 + 12500 = 12500.00
         Map<String, BigDecimal> otherBalances = balancesByName(listAccountsById(token2).values());
         assertThat(otherBalances.get("现金")).usingComparator(BigDecimal::compareTo)
-                .isEqualTo(ownerBalances.get("现金"));
+                .isEqualTo(new BigDecimal("961.20"));
         assertThat(otherBalances.get("招商银行卡")).usingComparator(BigDecimal::compareTo)
-                .isEqualTo(ownerBalances.get("招商银行卡"));
+                .isEqualTo(new BigDecimal("12500.00"));
 
         // 用户一数据不受用户二导入影响（隔离仍成立）
         assertThat(listAccountsById(token)).hasSize(2);
@@ -251,10 +252,13 @@ class EndToEndMainPathIntegrationTest {
 
     private void createTransfer(String token, String amount, Long sourceId, Long destId,
             String note) {
-        Map<String, Object> body = Map.of("type", "transfer", "amount", amount,
+        // 转账为账户间动作，脱离账本，走账户转账端点。
+        Map<String, Object> body = Map.of("amount", amount,
                 "sourceAccountId", sourceId, "destinationAccountId", destId,
                 "occurredAt", OCCURRED_AT, "note", note);
-        postTransaction(token, body);
+        ResponseEntity<TransactionResponse> resp = rest.exchange(url("/api/accounts/transfer"),
+                HttpMethod.POST, new HttpEntity<>(body, authJson(token)), TransactionResponse.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
     private void postTransaction(String token, Map<String, Object> body) {
