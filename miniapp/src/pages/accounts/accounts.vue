@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { ref, computed, watch } from 'vue'
+import { onShow, onHide } from '@dcloudio/uni-app'
 import {
   listAccounts,
   createAccount,
@@ -257,6 +257,18 @@ async function submit() {
 // ---------- 余额调整 ----------
 const adjustSheet = ref(false)
 const adjustCurrent = ref('0.00')
+
+// 任一底部弹层打开时：隐藏原生 tabBar（避免遮挡弹层底部）与右下角 FAB。
+// 集中式监听，免去在每个关闭路径逐一还原。
+const anySheetOpen = computed(
+  () => typePickerOpen.value || showForm.value || adjustSheet.value
+)
+watch(anySheetOpen, (open) => {
+  if (open) uni.hideTabBar({ animation: false, fail() {} })
+  else uni.showTabBar({ animation: false, fail() {} })
+})
+// 离开页面兜底：确保不会把 tabBar 留在隐藏态。
+onHide(() => uni.showTabBar({ animation: false, fail() {} }))
 function openAdjust() {
   const acc = accounts.value.find((a) => a.id === form.value.id)
   adjustCurrent.value = acc ? String(acc.currentBalance) : '0.00'
@@ -361,7 +373,7 @@ function confirmDelete() {
     </view>
 
     <view style="height:140rpx;"></view>
-    <view class="fab" @click="openCreate">＋</view>
+    <view v-if="!anySheetOpen" class="fab" @click="openCreate">＋</view>
 
     <!-- 类型选择器 -->
     <view v-if="typePickerOpen" class="mask" @click="typePickerOpen = false">
