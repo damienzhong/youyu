@@ -36,12 +36,17 @@ async function handleWxLogin() {
   }
 }
 
-// 邮箱验证码登录/注册合一
+// 邮箱验证码登录/注册合一（默认折叠，微信一键为主路径，需要时展开）
+const showEmail = ref(false)
 const email = ref('')
 const code = ref('')
 const emailLoading = ref(false)
 const cooldown = ref(0)
 let cooldownTimer = null
+
+function toggleEmail() {
+  showEmail.value = !showEmail.value
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -113,13 +118,16 @@ async function handleEmailLogin() {
 
     <button class="wx-btn" :loading="loading" @click="handleWxLogin">微信一键登录</button>
 
-    <view class="divider">
+    <view class="divider" @click="toggleEmail">
       <view class="line"></view>
-      <text class="divider-text">或使用邮箱</text>
+      <text class="divider-text">
+        或使用邮箱登录 / 注册
+        <text class="chevron">{{ showEmail ? '▲' : '▼' }}</text>
+      </text>
       <view class="line"></view>
     </view>
 
-    <view class="email-box">
+    <view v-if="showEmail" class="email-box">
       <input
         v-model="email"
         class="field"
@@ -210,6 +218,14 @@ async function handleEmailLogin() {
 .divider-text {
   font-size: 24rpx;
   color: #9ca3af;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  white-space: nowrap;
+}
+.chevron {
+  font-size: 18rpx;
+  color: #c0c4cc;
 }
 .email-box {
   width: 560rpx;
