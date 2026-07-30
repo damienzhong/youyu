@@ -30,7 +30,7 @@ public class SmtpVerificationCodeSender implements VerificationCodeSender {
     private static final Logger log = LoggerFactory.getLogger(SmtpVerificationCodeSender.class);
 
     /** 邮件主题（固定品牌文案）。 */
-    static final String SUBJECT = "有余 验证码";
+    static final String SUBJECT = "【有余】邮箱验证码";
 
     private final JavaMailSender mailSender;
     private final String from;
@@ -65,17 +65,53 @@ public class SmtpVerificationCodeSender implements VerificationCodeSender {
         log.debug("已发送验证码邮件 to={} purpose={}", email, purpose);
     }
 
-    /** 构建含验证码与用途说明的 HTML 正文。 */
+    /**
+     * 构建品牌化 HTML 邮件正文。
+     *
+     * <p>采用表格 + 全内联样式，兼容 QQ 邮箱 / Gmail / Outlook 等常见客户端（这些客户端会
+     * 剥离 {@code <style>}、不支持 flex/部分 CSS）。渐变色带 solid 兜底色，验证码用大号
+     * 字距 + 浅绿色块突出，便于识别与复制。</p>
+     */
     private String buildHtmlBody(String code, EmailCodePurpose purpose) {
         String action = describePurpose(purpose);
-        return "<div style=\"font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;"
-                + "font-size:14px;color:#333;line-height:1.6\">"
-                + "<p>你正在进行「" + action + "」操作，验证码为：</p>"
-                + "<p style=\"font-size:28px;font-weight:700;letter-spacing:4px;color:#111\">"
-                + code + "</p>"
-                + "<p>验证码 10 分钟内有效，请勿泄露给他人。如非本人操作，请忽略本邮件。</p>"
-                + "<p style=\"color:#999;margin-top:24px\">— 有余</p>"
-                + "</div>";
+        return "<!DOCTYPE html><html><body style=\"margin:0;padding:0;background:#f3f4f6;\">"
+            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" "
+            + "style=\"background:#f3f4f6;padding:32px 12px;\"><tr><td align=\"center\">"
+            // 卡片
+            + "<table role=\"presentation\" width=\"480\" cellpadding=\"0\" cellspacing=\"0\" "
+            + "style=\"width:480px;max-width:100%;background:#ffffff;border-radius:16px;overflow:hidden;"
+            + "box-shadow:0 8px 30px rgba(20,24,28,0.08);\">"
+            // 顶部品牌带（绿色，渐变+solid 兜底）
+            + "<tr><td style=\"background:#16a34a;background:linear-gradient(135deg,#22c55e,#0b6b34);"
+            + "padding:28px 32px;\">"
+            + "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\"><tr>"
+            + "<td style=\"width:44px;height:44px;background:rgba(255,255,255,0.22);border-radius:12px;"
+            + "text-align:center;font-size:26px;font-weight:800;color:#ffffff;\">&yen;</td>"
+            + "<td style=\"padding-left:14px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;"
+            + "font-size:22px;font-weight:800;color:#ffffff;\">有余</td>"
+            + "</tr></table></td></tr>"
+            // 正文
+            + "<tr><td style=\"padding:32px;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;"
+            + "color:#16181c;\">"
+            + "<p style=\"margin:0 0 8px;font-size:18px;font-weight:700;\">邮箱验证码</p>"
+            + "<p style=\"margin:0 0 20px;font-size:14px;color:#6b7280;line-height:1.6;\">"
+            + "你正在进行「" + action + "」，请在页面输入以下验证码完成验证：</p>"
+            // 验证码块
+            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">"
+            + "<tr><td align=\"center\" style=\"background:#eafaf1;border:1px solid #b7ebc9;"
+            + "border-radius:12px;padding:18px 0;\">"
+            + "<span style=\"font-size:36px;font-weight:800;letter-spacing:10px;color:#0e8a44;"
+            + "font-family:Consolas,Menlo,monospace;\">" + code + "</span>"
+            + "</td></tr></table>"
+            + "<p style=\"margin:20px 0 0;font-size:13px;color:#9aa2ad;line-height:1.7;\">"
+            + "验证码 <b style=\"color:#6b7280;\">10 分钟</b>内有效，请勿泄露给任何人。<br/>"
+            + "如非本人操作，请忽略本邮件，你的账号仍然安全。</p>"
+            + "</td></tr>"
+            // 页脚
+            + "<tr><td style=\"padding:18px 32px;border-top:1px solid #f0f1f3;"
+            + "font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:12px;color:#b6bcc4;\">"
+            + "有余 · 记好每一笔，日子有余</td></tr>"
+            + "</table></td></tr></table></body></html>";
     }
 
     /** 将用途枚举翻译为面向用户的中文说明。 */
