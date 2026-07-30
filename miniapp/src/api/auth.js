@@ -60,6 +60,14 @@ export function deleteAccount({ code, wxCode } = {}) {
   return http.post('/me/delete', { code, wxCode })
 }
 
+/**
+ * 修改昵称，对应后端 POST /api/me/nickname，返回用户摘要。
+ * 需登录态；昵称去空白后长度需为 1-64，仅用于展示。
+ */
+export function updateNickname(nickname) {
+  return http.post('/me/nickname', { nickname })
+}
+
 /** 获取当前登录用户信息，对应后端 GET /api/me。 */
 export function fetchMe() {
   return http.get('/me')

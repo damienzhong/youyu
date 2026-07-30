@@ -11,6 +11,7 @@ import com.damien.youyu.api.dto.BindEmailRequest;
 import com.damien.youyu.api.dto.BindWechatRequest;
 import com.damien.youyu.api.dto.DeleteAccountRequest;
 import com.damien.youyu.api.dto.UnbindRequest;
+import com.damien.youyu.api.dto.UpdateNicknameRequest;
 import com.damien.youyu.api.dto.UserSummaryResponse;
 import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
@@ -60,6 +61,14 @@ public class MeController {
         Long userId = currentUser.requireUserId();
         User user = userRepository.findById(userId)
                 .orElseThrow(ApiException::unauthenticated);
+        return ResponseEntity.ok(UserSummaryResponse.from(user));
+    }
+
+    /** 修改昵称（需求 4.4）：仅展示名，长度 1-64。 */
+    @PostMapping("/nickname")
+    public ResponseEntity<UserSummaryResponse> updateNickname(@RequestBody UpdateNicknameRequest request) {
+        Long userId = currentUser.requireUserId();
+        User user = authService.updateNickname(userId, request.nickname());
         return ResponseEntity.ok(UserSummaryResponse.from(user));
     }
 

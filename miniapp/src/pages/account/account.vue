@@ -2,7 +2,7 @@
 import { computed, ref, onUnmounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore, getWxLoginCode } from '../../stores/auth'
-import { sendCode, bindEmail, bindWechat, unbind, deleteAccount } from '../../api/auth'
+import { sendCode, bindEmail, bindWechat, unbind, deleteAccount, updateNickname } from '../../api/auth'
 
 const auth = useAuthStore()
 
@@ -222,6 +222,31 @@ async function doDeleteAccount(params) {
   }
 }
 
+// ---- 修改昵称 ----
+function editNickname() {
+  uni.showModal({
+    title: '修改昵称',
+    editable: true,
+    placeholderText: '1-64 个字符',
+    content: nickname.value === '有余用户' ? '' : nickname.value,
+    success: async (r) => {
+      if (!r.confirm) return
+      const nn = (r.content || '').trim()
+      if (!nn || nn.length > 64) {
+        uni.showToast({ title: '昵称长度需为 1 到 64 个字符', icon: 'none' })
+        return
+      }
+      try {
+        await updateNickname(nn)
+        await auth.refreshUser().catch(() => {})
+        uni.showToast({ title: '已保存', icon: 'success' })
+      } catch (err) {
+        uni.showToast({ title: err.message || '保存失败', icon: 'none' })
+      }
+    }
+  })
+}
+
 function logout() {
   uni.showModal({
     title: '退出登录',
@@ -240,10 +265,11 @@ function logout() {
     <!-- 个人信息 -->
     <view class="sect">个人信息</view>
     <view class="card">
-      <view class="row">
+      <view class="row" @click="editNickname">
         <view class="r-ic t-green"><text>👤</text></view>
         <text class="r-t">昵称</text>
         <text class="r-v">{{ nickname }}</text>
+        <text class="arrow">›</text>
       </view>
       <view class="row">
         <view class="r-ic t-purple"><text>🎫</text></view>

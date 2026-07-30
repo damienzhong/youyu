@@ -296,4 +296,25 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now(clock));
         return userRepository.save(user);
     }
+
+    /**
+     * 修改当前账号昵称（需求 4.4：昵称仅展示，可改，不用于登录）。
+     *
+     * <p>去空白后校验长度 1-64；非法则 {@code NICKNAME_INVALID}，不修改。昵称可重复，无唯一性约束。</p>
+     *
+     * @param userId      当前会话用户 id
+     * @param rawNickname 新昵称
+     * @throws ApiException UNAUTHENTICATED(会话用户不存在) / NICKNAME_INVALID(去空白后为空或超 64)
+     */
+    @Transactional
+    public User updateNickname(Long userId, String rawNickname) {
+        User user = userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
+        String nickname = rawNickname == null ? "" : rawNickname.trim();
+        if (nickname.isEmpty() || nickname.length() > 64) {
+            throw ApiException.nicknameInvalid();
+        }
+        user.setNickname(nickname);
+        user.setUpdatedAt(LocalDateTime.now(clock));
+        return userRepository.save(user);
+    }
 }

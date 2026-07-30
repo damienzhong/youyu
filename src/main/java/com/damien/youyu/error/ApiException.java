@@ -135,6 +135,12 @@ public class ApiException extends RuntimeException {
         return new ApiException("UNAUTHENTICATED", HttpStatus.UNAUTHORIZED, "未认证", null);
     }
 
+    /** 昵称非法（去空白后为空或长度超过 64）。 */
+    public static ApiException nicknameInvalid() {
+        return new ApiException("NICKNAME_INVALID", HttpStatus.BAD_REQUEST,
+                "昵称长度需为 1 到 64 个字符", "nickname");
+    }
+
     // ---- 常用工厂方法（邮箱验证码 / 身份 / 注销域） ----
     // 无密码鉴权（邮箱验证码 + 身份绑定/解绑 + 账号注销）相关的统一错误码，
     // 对应设计文档「错误处理策略」。失败一律零副作用（不改账号、不签发令牌）。
