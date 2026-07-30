@@ -135,6 +135,74 @@ public class ApiException extends RuntimeException {
         return new ApiException("UNAUTHENTICATED", HttpStatus.UNAUTHORIZED, "未认证", null);
     }
 
+    // ---- 常用工厂方法（邮箱验证码 / 身份 / 注销域） ----
+    // 无密码鉴权（邮箱验证码 + 身份绑定/解绑 + 账号注销）相关的统一错误码，
+    // 对应设计文档「错误处理策略」。失败一律零副作用（不改账号、不签发令牌）。
+
+    /** 邮箱格式非法（正则校验未通过），不发送邮件（需求 1.1）。 */
+    public static ApiException emailInvalid() {
+        return new ApiException("EMAIL_INVALID", HttpStatus.BAD_REQUEST,
+                "邮箱格式不正确", "email");
+    }
+
+    /** 同一 (email, purpose) 仍处于发码冷却期，拒绝再次发送（需求 1.3）。 */
+    public static ApiException codeCooldown() {
+        return new ApiException("CODE_COOLDOWN", HttpStatus.TOO_MANY_REQUESTS,
+                "验证码发送过于频繁，请稍后再试", null);
+    }
+
+    /** 同一来源 IP 的发码请求超过每分钟/每日上限（需求 1.4）。 */
+    public static ApiException codeRateLimited() {
+        return new ApiException("CODE_RATE_LIMITED", HttpStatus.TOO_MANY_REQUESTS,
+                "请求过于频繁，请稍后再试", null);
+    }
+
+    /** 邮件发送失败（SMTP 异常），不得以成功状态返回（需求 1.5）。 */
+    public static ApiException emailSendFailed() {
+        return new ApiException("EMAIL_SEND_FAILED", HttpStatus.BAD_GATEWAY,
+                "验证码邮件发送失败，请稍后重试", null);
+    }
+
+    /** 验证码错误/过期/已使用/超次失效（需求 2.2、2.3）。 */
+    public static ApiException codeInvalid() {
+        return new ApiException("CODE_INVALID", HttpStatus.BAD_REQUEST,
+                "验证码错误或已失效", "code");
+    }
+
+    /** 目标身份（email 或 wx_openid）已被其它账号占用，绑定被拒且零副作用（需求 5.2、6.2）。 */
+    public static ApiException identityTaken() {
+        return new ApiException("IDENTITY_TAKEN", HttpStatus.CONFLICT,
+                "该身份已被其它账号占用", null);
+    }
+
+    /**
+     * 当前账号已绑定该类身份（一个账号至多一个 email、至多一个 wx_openid，换绑需先解绑，
+     * 需求 5.3、6.3）。
+     */
+    public static ApiException identityAlreadyBound() {
+        return new ApiException("IDENTITY_ALREADY_BOUND", HttpStatus.CONFLICT,
+                "当前账号已绑定该类身份，换绑请先解绑", null);
+    }
+
+    /**
+     * 解绑将使账号失去唯一登录方式（解绑后既无 email 也无 wx_openid，违背「至少一种登录方式」，
+     * 需求 7.2）。解绑被拒且账号身份保持不变。
+     */
+    public static ApiException lastLoginMethod() {
+        return new ApiException("LAST_LOGIN_METHOD", HttpStatus.CONFLICT,
+                "至少保留一种登录方式，不能解绑最后一种身份", null);
+    }
+
+    /**
+     * 注销存在协作牵连，需先处理再注销（需求 8.2）：注销者拥有仍有其他成员的协作账本，或其账户被
+     * 其它人的流水引用（协作场景，删除会孤立他人数据）。注销被拒且零副作用。
+     */
+    public static ApiException deleteBlockedCollab() {
+        return new ApiException("DELETE_BLOCKED_COLLAB", HttpStatus.CONFLICT,
+                "账号存在协作牵连（协作账本仍有其他成员，或账户被他人流水引用），"
+                        + "请先转交/删除相关账本或处理引用后再注销", null);
+    }
+
     // ---- 常用工厂方法（Account 域） ----
 
     /** 账户字段非法（名称/类型/初始余额），携带具体无效字段（需求 3.3）。 */

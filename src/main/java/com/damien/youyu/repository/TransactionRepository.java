@@ -127,6 +127,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             """)
     boolean existsByAccountReferenced(@Param("accountId") Long accountId);
 
+    /**
+     * 某账户是否被「他人（{@code createdBy != userId}）」记的任一交易引用（作为账户/源/目标）。
+     * 用于注销协作牵连检查（需求 8.2）：本人账户被协作成员在共享账本中记账引用时，直接注销会孤立他人数据，
+     * 故此类引用应拦截注销。{@code userId} 传账户 owner 的用户 id。
+     */
+    @Query("""
+            SELECT COUNT(t) > 0 FROM Transaction t
+            WHERE (t.accountId = :accountId
+               OR t.sourceAccountId = :accountId
+               OR t.destinationAccountId = :accountId)
+              AND t.createdBy <> :userId
+            """)
+    boolean existsByAccountReferencedByOtherUser(
+            @Param("accountId") Long accountId, @Param("userId") Long userId);
+
     /** 某分类是否被该账本的任一交易引用（用于「被引用分类不可删除」校验，需求 5.5）。 */
     boolean existsByLedgerIdAndCategoryId(Long ledgerId, Long categoryId);
 
@@ -168,6 +183,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Modifying
     @Query(value = "DELETE FROM transactions WHERE ledger_id = :ledgerId", nativeQuery = true)
     void hardDeleteByLedgerId(@Param("ledgerId") Long ledgerId);
+
+    /**
+     * 某用户名下全部交易 id（含回收站软删记录）。走原生 SQL 绕过 {@code @SQLRestriction}，
+     * 供注销级联删除时先收集交易 id、再清理其标签关联（需求 8.3）。
+     */
+    @Query(value = "SELECT id FROM transactions WHERE user_id = :userId", nativeQuery = true)
+    List<Long> findAllIdsByUserId(@Param("userId") Long userId);
+
+    /**
+     * 物理删除某用户名下全部交易（含回收站软删记录，注销级联硬删用，需求 8.3、8.5）。
+     * 走原生 SQL 绕过 {@code @SQLRestriction}，确保软删副本一并被硬删（不保留可恢复副本）。
+     */
+    @Modifying
+    @Query(value = "DELETE FROM transactions WHERE user_id = :userId", nativeQuery = true)
+    void hardDeleteByUserId(@Param("userId") Long userId);
 
     // ---------------- 余额可重算校验的聚合查询（需求 4.13）----------------
 

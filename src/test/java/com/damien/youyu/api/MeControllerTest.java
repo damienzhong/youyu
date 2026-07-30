@@ -33,7 +33,8 @@ class MeControllerTest {
 
     private final InMemoryUserRepository repository = new InMemoryUserRepository();
     private final CurrentUser currentUser = new CurrentUser();
-    private final MeController controller = new MeController(currentUser, repository);
+    // bind/unbind/delete 端点测试属于任务 9.3；此处仅覆盖 GET /me，AuthService/AccountDeletionService 不参与，置 null。
+    private final MeController controller = new MeController(currentUser, repository, null, null);
 
     @AfterEach
     void clearContext() {
@@ -48,8 +49,8 @@ class MeControllerTest {
 
     private User seed(Plan plan, Role role) {
         User u = new User();
-        u.setUsername("alice");
-        u.setPasswordHash("hash");
+        u.setEmail("alice@example.com");
+        u.setNickname("alice");
         u.setPlan(plan);
         u.setRole(role);
         LocalDateTime t = LocalDateTime.of(2025, 6, 1, 12, 30);
@@ -71,7 +72,10 @@ class MeControllerTest {
         assertThat(response.getStatusCode().value()).isEqualTo(200);
         assertThat(body).isNotNull();
         assertThat(body.id()).isEqualTo(user.getId());
-        assertThat(body.username()).isEqualTo("alice");
+        assertThat(body.nickname()).isEqualTo("alice");
+        assertThat(body.email()).isEqualTo("alice@example.com");
+        assertThat(body.hasEmail()).isTrue();
+        assertThat(body.hasWechat()).isFalse();
         assertThat(body.plan()).isEqualTo("free");
         assertThat(body.role()).isEqualTo("user");
         assertThat(body.planStartedAt()).isEqualTo(user.getPlanStartedAt());

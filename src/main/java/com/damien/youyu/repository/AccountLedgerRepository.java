@@ -42,6 +42,12 @@ public interface AccountLedgerRepository extends JpaRepository<AccountLedger, Lo
     /** 删除某组账户在某账本的关联行（成员退出协作账本时取消其账户暴露）。 */
     void deleteByAccountIdInAndLedgerId(Collection<Long> accountIds, Long ledgerId);
 
+    /** 删除一批账户的全部关联行（注销级联硬删：按注销者拥有的账户清理，需求 8.3）。 */
+    void deleteByAccountIdIn(Collection<Long> accountIds);
+
+    /** 删除一批账本的全部关联行（注销级联硬删：按注销者拥有的账本清理，需求 8.3）。 */
+    void deleteByLedgerIdIn(Collection<Long> ledgerIds);
+
     /**
      * 某用户在某账本记账时可选的账户：该用户拥有且参与此账本的账户，
      * 并集他人拥有、参与此账本且 {@code visible_to_others=true} 的账户，按 sort_order、id 升序。

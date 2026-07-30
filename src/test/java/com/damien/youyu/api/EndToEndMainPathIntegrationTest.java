@@ -26,6 +26,7 @@ import com.damien.youyu.api.dto.MonthlyReportResponse;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.api.dto.UserSummaryResponse;
+import com.damien.youyu.domain.EmailCodePurpose;
 import com.damien.youyu.service.ImportService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,14 +69,17 @@ class EndToEndMainPathIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private com.damien.youyu.repository.VerificationCodeRepository verificationCodeRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
     @Test
     void mainHappyPath_registerToExportToReload_isConsistentAndIsolated() throws Exception {
-        // 1) 注册 + 登录 → JWT
-        String token = registerAndLogin("e2e_owner", "password123");
+        // 1) 邮箱验证码登录/注册合一 → JWT
+        String token = registerAndLogin("e2e_owner@example.com");
 
         // 2) 建账户：现金（初始 1000.00）+ 银行卡（初始 0.00），供转账使用
         AccountResponse cash = createAccount(token, "现金", "CASH", "1000.00", 0);
@@ -163,12 +167,14 @@ class EndToEndMainPathIntegrationTest {
                 .containsExactlyInAnyOrder("expense", "income");
 
         UserSummaryResponse me = getForBody(token, "/api/me", UserSummaryResponse.class);
-        assertThat(me.username()).isEqualTo("e2e_owner");
+        assertThat(me.nickname()).isEqualTo("e2e_owner");
+        assertThat(me.email()).isEqualTo("e2e_owner@example.com");
+        assertThat(me.hasEmail()).isTrue();
         assertThat(me.plan()).isEqualTo("free");
         assertThat(me.role()).isEqualTo("user");
 
         // 8/9) 第二个全新用户：先验证多租户隔离（看不到用户一的数据），再往返导入
-        String token2 = registerAndLogin("e2e_other", "password456");
+        String token2 = registerAndLogin("e2e_other@example.com");
         assertThat(listAccountsById(token2)).isEmpty(); // 隔离：无法看到用户一的账户（需求 2.3）
         assertThat(getForBody(token2, "/api/transactions", TransactionResponse[].class)).isEmpty();
 
@@ -192,13 +198,22 @@ class EndToEndMainPathIntegrationTest {
 
     // ---------------- HTTP 辅助 ----------------
 
-    private String registerAndLogin(String username, String password) {
-        ResponseEntity<Map> reg = rest.postForEntity(url("/api/auth/register"),
-                Map.of("username", username, "password", password), Map.class);
-        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    /**
+     * 邮箱验证码登录/注册合一：先请求发码（未配置 SMTP，走日志降级发送器，验证码落库），
+     * 从验证码仓库读回刚生成的 LOGIN 验证码，再以邮箱 + 验证码登录换取 JWT。新邮箱自动建号。
+     */
+    private String registerAndLogin(String email) {
+        ResponseEntity<Void> send = rest.postForEntity(url("/api/auth/send-code"),
+                Map.of("email", email, "purpose", "LOGIN"), Void.class);
+        assertThat(send.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        ResponseEntity<Map> login = rest.postForEntity(url("/api/auth/login"),
-                Map.of("username", username, "password", password), Map.class);
+        String code = verificationCodeRepository
+                .findFirstByEmailAndPurposeAndConsumedFalseOrderByIdDesc(email, EmailCodePurpose.LOGIN)
+                .orElseThrow(() -> new AssertionError("验证码未生成: " + email))
+                .getCode();
+
+        ResponseEntity<Map> login = rest.postForEntity(url("/api/auth/email-login"),
+                Map.of("email", email, "code", code), Map.class);
         assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
         String token = (String) login.getBody().get("token");
         assertThat(token).isNotBlank();

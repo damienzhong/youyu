@@ -38,22 +38,33 @@ class SecurityFilterChainIntegrationTest {
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @Autowired
+    private com.damien.youyu.repository.VerificationCodeRepository verificationCodeRepository;
+
     private String url(String path) {
         return "http://localhost:" + port + path;
     }
 
-    private String registerAndLogin(String username, String password) {
-        // 注册（公开端点，无需令牌）
-        ResponseEntity<Map> reg = restTemplate.postForEntity(
-                url("/api/auth/register"),
-                Map.of("username", username, "password", password),
-                Map.class);
-        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    /**
+     * 邮箱验证码登录/注册合一（公开端点，无需令牌）：发码（日志降级，验证码落库）→ 读回 LOGIN 验证码
+     * → 邮箱 + 验证码换取 JWT。新邮箱自动建号。
+     */
+    private String registerAndLogin(String email) {
+        ResponseEntity<Void> send = restTemplate.postForEntity(
+                url("/api/auth/send-code"),
+                Map.of("email", email, "purpose", "LOGIN"),
+                Void.class);
+        assertThat(send.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // 登录换取令牌（公开端点）
+        String code = verificationCodeRepository
+                .findFirstByEmailAndPurposeAndConsumedFalseOrderByIdDesc(
+                        email, com.damien.youyu.domain.EmailCodePurpose.LOGIN)
+                .orElseThrow(() -> new AssertionError("验证码未生成: " + email))
+                .getCode();
+
         ResponseEntity<Map> login = restTemplate.postForEntity(
-                url("/api/auth/login"),
-                Map.of("username", username, "password", password),
+                url("/api/auth/email-login"),
+                Map.of("email", email, "code", code),
                 Map.class);
         assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
         String token = (String) login.getBody().get("token");
@@ -81,13 +92,13 @@ class SecurityFilterChainIntegrationTest {
 
     @Test
     void validToken_passesFilterChainAndPopulatesCurrentUser() {
-        String token = registerAndLogin("alice_sec", "password123");
+        String token = registerAndLogin("alice_sec@example.com");
 
         ResponseEntity<Map> response = restTemplate.exchange(
                 url("/api/me"), HttpMethod.GET, bearer(token), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).containsEntry("username", "alice_sec");
+        assertThat(response.getBody()).containsEntry("nickname", "alice_sec");
         assertThat(response.getBody()).containsEntry("role", "user");
         assertThat(response.getBody()).containsEntry("plan", "free");
     }

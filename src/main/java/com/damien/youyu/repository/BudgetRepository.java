@@ -18,4 +18,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
 
     /** 删除某账本的全部月度总预算（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
+
+    /** 删除某用户的全部月度总预算（注销级联硬删，需求 8.3）。 */
+    void deleteByUserId(Long userId);
 }

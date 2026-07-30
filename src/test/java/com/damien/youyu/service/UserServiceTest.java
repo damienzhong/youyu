@@ -41,8 +41,8 @@ class UserServiceTest {
 
     private User seedUser() {
         User u = new User();
-        u.setUsername("seed");
-        u.setPasswordHash("hash");
+        u.setEmail("seed@example.com");
+        u.setNickname("seed");
         u.setPlan(Plan.FREE);
         u.setRole(Role.USER);
         LocalDateTime t = LocalDateTime.ofInstant(Instant.parse("2020-01-01T00:00:00Z"), ZONE);

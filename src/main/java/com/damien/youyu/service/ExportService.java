@@ -340,7 +340,9 @@ public class ExportService {
             return "";
         }
         return cache.computeIfAbsent(userId, id ->
-                userRepository.findById(id).map(User::getUsername).orElse("用户" + id));
+                userRepository.findById(id)
+                        .map(u -> u.getNickname() != null ? u.getNickname() : "用户" + id)
+                        .orElse("用户" + id));
     }
 
     /** 账户业务引用键：按列表顺序生成 a1、a2、……。 */

@@ -25,13 +25,13 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** 账号标识(登录名)，去空白后 1-64，全局唯一。纯微信用户可为空。 */
-    @Column(name = "username", length = 64, unique = true)
-    private String username;
+    /** 邮箱身份（登录凭证），全局唯一、可空。纯微信用户可为空。 */
+    @Column(name = "email", length = 255, unique = true)
+    private String email;
 
-    /** BCrypt 加盐哈希(盐内嵌)。纯微信用户可为空。 */
-    @Column(name = "password_hash", length = 100)
-    private String passwordHash;
+    /** 昵称，仅用于展示，可空、可重复、可修改，不用于登录鉴权。 */
+    @Column(name = "nickname", length = 64)
+    private String nickname;
 
     /** 微信小程序 openid（同一小程序内唯一），微信用户的稳定标识。 */
     @Column(name = "wx_openid", length = 64, unique = true)
@@ -59,14 +59,6 @@ public class User {
     @Column(name = "role", nullable = false, length = 16)
     private Role role = Role.USER;
 
-    /** 连续登录失败次数。 */
-    @Column(name = "failed_login_count", nullable = false)
-    private int failedLoginCount = 0;
-
-    /** 锁定截止时刻，未锁定为 null。 */
-    @Column(name = "locked_until")
-    private LocalDateTime lockedUntil;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -85,20 +77,20 @@ public class User {
         this.id = id;
     }
 
-    public String getUsername() {
-        return username;
+    public String getEmail() {
+        return email;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
-    public String getPasswordHash() {
-        return passwordHash;
+    public String getNickname() {
+        return nickname;
     }
 
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public String getWxOpenid() {
@@ -147,22 +139,6 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
-    }
-
-    public int getFailedLoginCount() {
-        return failedLoginCount;
-    }
-
-    public void setFailedLoginCount(int failedLoginCount) {
-        this.failedLoginCount = failedLoginCount;
-    }
-
-    public LocalDateTime getLockedUntil() {
-        return lockedUntil;
-    }
-
-    public void setLockedUntil(LocalDateTime lockedUntil) {
-        this.lockedUntil = lockedUntil;
     }
 
     public LocalDateTime getCreatedAt() {

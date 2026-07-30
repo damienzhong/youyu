@@ -28,4 +28,7 @@ public interface LedgerRepository extends JpaRepository<Ledger, Long> {
 
     /** 某用户账本数量（删除时保证至少保留一个）。 */
     long countByUserId(Long userId);
+
+    /** 删除某用户拥有的全部账本（注销级联硬删，需求 8.3）。 */
+    void deleteByUserId(Long userId);
 }

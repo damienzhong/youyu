@@ -122,6 +122,8 @@ public class LedgerController {
     }
 
     private String displayName(Long userId) {
-        return userRepository.findById(userId).map(User::getUsername).orElse(null);
+        return userRepository.findById(userId)
+                .map(u -> u.getNickname() != null ? u.getNickname() : "用户" + u.getId())
+                .orElse(null);
     }
 }

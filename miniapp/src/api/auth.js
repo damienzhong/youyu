@@ -1,6 +1,24 @@
 import { http } from '../utils/request'
 
 /**
+ * 发送邮箱验证码，对应后端 POST /api/auth/send-code。
+ * purpose ∈ 'LOGIN' | 'BIND' | 'DELETE'，缺省为 'LOGIN'。
+ * 该接口无需登录态，故 auth: false。
+ */
+export function sendCode(email, purpose = 'LOGIN') {
+  return http.post('/auth/send-code', { email, purpose }, { auth: false })
+}
+
+/**
+ * 邮箱验证码登录（登录/注册合一），对应后端 POST /api/auth/email-login，
+ * 返回 { token, tokenType, user }。首次登录自动建号。
+ * 该接口无需登录态，故 auth: false。
+ */
+export function emailLogin(email, code) {
+  return http.post('/auth/email-login', { email, code }, { auth: false })
+}
+
+/**
  * 用微信一次性 code 换取本系统令牌。
  * 对应后端 POST /api/auth/wx-login，返回 { token, tokenType, user }。
  * 该接口无需登录态，故 auth: false。
@@ -10,19 +28,36 @@ export function wxLogin(code) {
 }
 
 /**
- * 账号密码登录，对应后端 POST /api/auth/login，返回 { token, tokenType, user }。
- * 主要用于无微信环境（浏览器/H5）下的联调与备用登录。
+ * 绑定邮箱，对应后端 POST /api/me/bind-email，返回用户摘要。
+ * 需登录态，需先通过 sendCode(email, 'BIND') 获取验证码。
  */
-export function passwordLogin(username, password) {
-  return http.post('/auth/login', { username, password }, { auth: false })
+export function bindEmail(email, code) {
+  return http.post('/me/bind-email', { email, code })
 }
 
 /**
- * 账号密码注册，对应后端 POST /api/auth/register，返回用户摘要（不含 token）。
- * 注册成功后仍需调用登录换取 token。
+ * 绑定微信，对应后端 POST /api/me/bind-wechat，返回用户摘要。
+ * 需登录态，code 为微信一次性授权 code。
  */
-export function register(username, password) {
-  return http.post('/auth/register', { username, password }, { auth: false })
+export function bindWechat(code) {
+  return http.post('/me/bind-wechat', { code })
+}
+
+/**
+ * 解绑登录方式，对应后端 POST /api/me/unbind，返回用户摘要。
+ * type ∈ 'email' | 'wechat'；需保留至少一种登录方式，否则后端拒绝。
+ */
+export function unbind(type) {
+  return http.post('/me/unbind', { type })
+}
+
+/**
+ * 注销账号，对应后端 POST /api/me/delete，成功返回 204（无响应体）。
+ * 需二次验证：邮箱用户传 code（DELETE 验证码），微信用户传 wxCode（重新授权 code）。
+ * @param {{ code?: string, wxCode?: string }} params
+ */
+export function deleteAccount({ code, wxCode } = {}) {
+  return http.post('/me/delete', { code, wxCode })
 }
 
 /** 获取当前登录用户信息，对应后端 GET /api/me。 */

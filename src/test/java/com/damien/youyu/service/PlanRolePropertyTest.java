@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Set;
 
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.mockito.Mockito;
 
+import com.damien.youyu.domain.EmailCodePurpose;
 import com.damien.youyu.domain.Plan;
 import com.damien.youyu.domain.Role;
 import com.damien.youyu.domain.User;
@@ -41,9 +41,6 @@ class PlanRolePropertyTest {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final Duration ONE_YEAR = Duration.ofHours(365L * 24L);
-
-    /** BCrypt 强度设为 4（默认 10），仅为在数百次迭代下保持速度；语义与真实一致。 */
-    private final PasswordEncoder encoder = new BCryptPasswordEncoder(4);
 
     // ---------------- 可调时钟：用于让不同用户在不同时刻注册 ----------------
 
@@ -78,7 +75,7 @@ class PlanRolePropertyTest {
 
     // ---------------- 生成器 ----------------
 
-    /** 合法账号标识：小写字母 1-32。 */
+    /** 合法邮箱本地部分：小写字母 1-32（拼上 @example.com 作为登录邮箱）。 */
     @Provide
     Arbitrary<String> usernames() {
         return Arbitraries.strings().withCharRange('a', 'z').ofMinLength(1).ofMaxLength(32);
@@ -120,16 +117,24 @@ class PlanRolePropertyTest {
 
         InMemoryUserRepository repository = new InMemoryUserRepository();
         MutableClock clock = new MutableClock(Instant.ofEpochSecond(epoch1), ZONE);
-        AuthService service = new AuthService(repository, encoder, clock, null, 5, 15);
+        // 无密码模型下"注册"经由邮箱验证码登录/注册合一；验证码校验以测试替身恒真隔离。
+        VerificationCodeService verificationCodeService = Mockito.mock(VerificationCodeService.class);
+        Mockito.when(verificationCodeService.verifyConsume(
+                Mockito.anyString(), Mockito.eq(EmailCodePurpose.LOGIN), Mockito.anyString()))
+                .thenReturn(true);
+        AuthService service = new AuthService(repository, clock, null, verificationCodeService);
 
-        // 用户 1 在 epoch1 注册
+        String email1 = username1 + "@example.com";
+        String email2 = username2 + "@example.com";
+
+        // 用户 1 在 epoch1 首次邮箱登录（建号）
         clock.setInstant(Instant.ofEpochSecond(epoch1));
-        User user1 = service.register(username1, "password123");
+        User user1 = service.emailLogin(email1, "123456");
         LocalDateTime expectedStart1 = LocalDateTime.ofInstant(Instant.ofEpochSecond(epoch1), ZONE);
 
-        // 用户 2 在 epoch2 注册（可能早于或晚于 epoch1）
+        // 用户 2 在 epoch2 首次邮箱登录（可能早于或晚于 epoch1）
         clock.setInstant(Instant.ofEpochSecond(epoch2));
-        User user2 = service.register(username2, "password123");
+        User user2 = service.emailLogin(email2, "123456");
         LocalDateTime expectedStart2 = LocalDateTime.ofInstant(Instant.ofEpochSecond(epoch2), ZONE);
 
         // 各自到期 = 各自起始 + 精确 365×24 小时
@@ -171,8 +176,8 @@ class PlanRolePropertyTest {
 
         // 预置一名初始用户（plan=free, role=user），并记录原始快照。
         User seed = new User();
-        seed.setUsername("seed");
-        seed.setPasswordHash("hash");
+        seed.setEmail("seed@example.com");
+        seed.setNickname("seed");
         seed.setPlan(Plan.FREE);
         seed.setRole(Role.USER);
         LocalDateTime t0 = LocalDateTime.ofInstant(Instant.parse("2020-01-01T00:00:00Z"), ZONE);

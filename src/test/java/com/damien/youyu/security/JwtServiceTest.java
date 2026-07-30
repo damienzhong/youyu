@@ -21,7 +21,7 @@ class JwtServiceTest {
     private User userWith(Long id, Role role) {
         User u = new User();
         u.setId(id);
-        u.setUsername("u" + id);
+        u.setNickname("u" + id);
         u.setPlan(Plan.FREE);
         u.setRole(role);
         return u;

@@ -33,15 +33,15 @@ public class InMemoryUserRepository implements UserRepository {
     private final AtomicLong sequence = new AtomicLong(0);
 
     @Override
-    public Optional<User> findByUsername(String username) {
+    public Optional<User> findByEmail(String email) {
         return byId.values().stream()
-                .filter(u -> u.getUsername() != null && u.getUsername().equals(username))
+                .filter(u -> u.getEmail() != null && u.getEmail().equals(email))
                 .findFirst();
     }
 
     @Override
-    public boolean existsByUsername(String username) {
-        return findByUsername(username).isPresent();
+    public boolean existsByEmail(String email) {
+        return findByEmail(email).isPresent();
     }
 
     @Override

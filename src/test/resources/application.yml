@@ -21,7 +21,22 @@ spring:
   flyway:
     enabled: false
 
+  # 测试环境刻意不配置 SMTP：host/username 留空，Spring Boot 不会创建 JavaMailSender，
+  # 验证码发送自动降级为日志实现，避免测试期间发起真实 SMTP 连接（需求 1.5、1.6）。
+  mail:
+    host:
+    username:
+    password:
+
 app:
   jwt:
     secret: test-secret-key-only-for-unit-tests-do-not-use-in-prod
     expiration-ms: 3600000
+  # 邮箱验证码策略：显式给出确定值，保证限额/TTL 相关测试可复现（需求 1、2）
+  auth:
+    email-code:
+      ttl-seconds: 600
+      cooldown-seconds: 60
+      ip-per-minute: 3
+      ip-per-day: 30
+      max-attempts: 5

@@ -1,6 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { sendCode } from '../../api/auth'
 import { listAccounts } from '../../api/account'
 
 const auth = useAuthStore()
@@ -22,13 +23,7 @@ async function routeAfterLogin() {
   uni.reLaunch({ url: '/pages/index/index' })
 }
 
-const showPwd = ref(false)
-const isRegister = ref(false)
-const username = ref('')
-const password = ref('')
-const pwdLoading = ref(false)
-
-async function handleLogin() {
+async function handleWxLogin() {
   if (loading.value) return
   loading.value = true
   try {
@@ -41,21 +36,69 @@ async function handleLogin() {
   }
 }
 
-async function handlePwdSubmit() {
-  const u = username.value.trim()
-  if (!u || !password.value) {
-    uni.showToast({ title: '请输入账号和密码', icon: 'none' })
+// 邮箱验证码登录/注册合一
+const email = ref('')
+const code = ref('')
+const emailLoading = ref(false)
+const cooldown = ref(0)
+let cooldownTimer = null
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const canSend = computed(() => cooldown.value === 0)
+const sendLabel = computed(() => (cooldown.value > 0 ? `${cooldown.value}s` : '发送验证码'))
+
+function startCooldown() {
+  cooldown.value = 60
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0) {
+      clearInterval(cooldownTimer)
+      cooldownTimer = null
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (cooldownTimer) clearInterval(cooldownTimer)
+})
+
+async function handleSendCode() {
+  if (!canSend.value) return
+  const e = email.value.trim()
+  if (!EMAIL_RE.test(e)) {
+    uni.showToast({ title: '请输入正确的邮箱', icon: 'none' })
     return
   }
-  pwdLoading.value = true
   try {
-    if (isRegister.value) await auth.registerAndLogin(u, password.value)
-    else await auth.loginWithPassword(u, password.value)
+    await sendCode(e, 'LOGIN')
+    startCooldown()
+    uni.showToast({ title: '验证码已发送', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '发送失败', icon: 'none' })
+  }
+}
+
+async function handleEmailLogin() {
+  if (emailLoading.value) return
+  const e = email.value.trim()
+  const c = code.value.trim()
+  if (!EMAIL_RE.test(e)) {
+    uni.showToast({ title: '请输入正确的邮箱', icon: 'none' })
+    return
+  }
+  if (!/^\d{6}$/.test(c)) {
+    uni.showToast({ title: '请输入 6 位验证码', icon: 'none' })
+    return
+  }
+  emailLoading.value = true
+  try {
+    await auth.loginWithEmail(e, c)
     await routeAfterLogin()
-  } catch (e) {
-    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
+  } catch (err) {
+    uni.showToast({ title: err.message || '登录失败', icon: 'none' })
   } finally {
-    pwdLoading.value = false
+    emailLoading.value = false
   }
 }
 </script>
@@ -68,21 +111,38 @@ async function handlePwdSubmit() {
       <text class="slogan">记好每一笔，日子有余</text>
     </view>
 
-    <button class="wx-btn" :loading="loading" @click="handleLogin">微信一键登录</button>
+    <button class="wx-btn" :loading="loading" @click="handleWxLogin">微信一键登录</button>
 
-    <text class="toggle" @click="showPwd = !showPwd">
-      {{ showPwd ? '收起账号登录' : '用账号密码登录' }}
-    </text>
+    <view class="divider">
+      <view class="line"></view>
+      <text class="divider-text">或使用邮箱</text>
+      <view class="line"></view>
+    </view>
 
-    <view v-if="showPwd" class="pwd-box">
-      <input v-model="username" class="field" placeholder="账号" maxlength="64" />
-      <input v-model="password" class="field" password placeholder="密码（8-64 位）" maxlength="64" />
-      <button class="pwd-btn" :loading="pwdLoading" @click="handlePwdSubmit">
-        {{ isRegister ? '注册并登录' : '登录' }}
+    <view class="email-box">
+      <input
+        v-model="email"
+        class="field"
+        type="text"
+        confirm-type="next"
+        placeholder="邮箱"
+        maxlength="128"
+      />
+      <view class="code-row">
+        <input
+          v-model="code"
+          class="field code-field"
+          type="number"
+          placeholder="6 位验证码"
+          maxlength="6"
+        />
+        <button class="code-btn" :disabled="!canSend" @click="handleSendCode">
+          {{ sendLabel }}
+        </button>
+      </view>
+      <button class="email-btn" :loading="emailLoading" @click="handleEmailLogin">
+        登录 / 注册
       </button>
-      <text class="switch" @click="isRegister = !isRegister">
-        {{ isRegister ? '已有账号？去登录' : '没有账号？去注册' }}
-      </text>
     </view>
 
     <text class="tips">登录即表示同意用户协议与隐私政策</text>
@@ -135,13 +195,23 @@ async function handlePwdSubmit() {
   border-radius: 44rpx;
   font-size: 32rpx;
 }
-.toggle {
-  margin-top: 32rpx;
-  font-size: 26rpx;
-  color: #16a34a;
-  font-weight: 600;
+.divider {
+  width: 560rpx;
+  margin-top: 40rpx;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
 }
-.pwd-box {
+.divider .line {
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+.divider-text {
+  font-size: 24rpx;
+  color: #9ca3af;
+}
+.email-box {
   width: 560rpx;
   margin-top: 32rpx;
   display: flex;
@@ -154,16 +224,36 @@ async function handlePwdSubmit() {
   padding: 26rpx;
   font-size: 30rpx;
 }
-.pwd-btn {
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.code-field {
+  flex: 1;
+}
+.code-btn {
+  flex-shrink: 0;
+  width: 200rpx;
+  background: #fff;
+  color: #16a34a;
+  border: 1px solid #16a34a;
+  border-radius: 14rpx;
+  font-size: 26rpx;
+  padding: 0;
+  line-height: 82rpx;
+  height: 82rpx;
+}
+.code-btn[disabled] {
+  color: #9ca3af;
+  border-color: #e5e7eb;
+  background: #f3f4f6;
+}
+.email-btn {
   background: #16a34a;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
-}
-.switch {
-  text-align: center;
-  font-size: 24rpx;
-  color: #9ca3af;
 }
 .tips {
   margin-top: 48rpx;

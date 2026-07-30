@@ -135,7 +135,9 @@ public class ReportController {
         if (userId == null || userId == 0L) {
             return "未知";
         }
-        return userRepository.findById(userId).map(User::getUsername).orElse("用户" + userId);
+        return userRepository.findById(userId)
+                .map(u -> u.getNickname() != null ? u.getNickname() : "用户" + userId)
+                .orElse("用户" + userId);
     }
 
     /** 月度趋势报表：fromMonth/toMonth 为 {@code YYYY-MM}。 */

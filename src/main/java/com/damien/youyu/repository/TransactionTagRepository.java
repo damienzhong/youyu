@@ -34,6 +34,9 @@ public interface TransactionTagRepository extends JpaRepository<TransactionTag, 
     /** 删除某标签的全部关联（删除标签时清理）。 */
     void deleteByTagId(Long tagId);
 
+    /** 删除一批交易的全部标签关联（注销级联硬删：按注销者名下交易清理，需求 8.3）。 */
+    void deleteByTransactionIdIn(Collection<Long> transactionIds);
+
     /** 删除某账本全部标签关联（账本删除级联）：按该账本的标签清理关联行。 */
     @Modifying
     @Query("DELETE FROM TransactionTag tt WHERE tt.tagId IN "

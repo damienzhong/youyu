@@ -1,0 +1,279 @@
+package com.damien.youyu.service;
+
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.damien.youyu.domain.Account;
+import com.damien.youyu.domain.EmailCodePurpose;
+import com.damien.youyu.domain.Ledger;
+import com.damien.youyu.domain.User;
+import com.damien.youyu.error.ApiException;
+import com.damien.youyu.repository.AccountLedgerRepository;
+import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.BudgetRepository;
+import com.damien.youyu.repository.CategoryBudgetRepository;
+import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.LedgerInviteRepository;
+import com.damien.youyu.repository.LedgerMemberRepository;
+import com.damien.youyu.repository.LedgerRepository;
+import com.damien.youyu.repository.LoanRepository;
+import com.damien.youyu.repository.MerchantRepository;
+import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.TagRepository;
+import com.damien.youyu.repository.TransactionRepository;
+import com.damien.youyu.repository.TransactionTagRepository;
+import com.damien.youyu.repository.TransactionTemplateRepository;
+import com.damien.youyu.repository.UserRepository;
+import com.damien.youyu.repository.VerificationCodeRepository;
+import com.damien.youyu.wechat.WeChatClient;
+import com.damien.youyu.wechat.WxSession;
+
+/**
+ * 注销服务：注销的前置校验（协作牵连拦截）与级联硬删除。
+ *
+ * <p>任务(5.1) {@link #requireDeletable(Long)}：在真正删除前判断是否存在协作牵连，若存在则拒绝
+ * 注销并抛出 {@code DELETE_BLOCKED_COLLAB}，提示用户先转交/删除相关账本或处理引用（需求 8.2）。
+ * 任务(5.2) {@link #verifySecondFactor(Long, String, String)}：注销前的二次验证门禁（需求 8.1）。
+ * 单事务级联硬删（任务 5.3）在后续任务补全。</p>
+ *
+ * <p>协作牵连的两个拦截条件（满足其一即拦截）：</p>
+ * <ol>
+ *   <li><b>协作账本仍有他人成员</b>：注销者拥有（{@code ledgers.user_id = userId}）的某账本，其成员中除本人外
+ *       仍有其他成员（{@code ledger_members} 中存在 {@code user_id != userId} 的行）。直接删除会连带删除他人
+ *       仍在协作的账本，故拦截。</li>
+ *   <li><b>账户被他人流水引用</b>：注销者拥有（{@code accounts.user_id = userId}）的某账户，被「他人记账」
+ *       （{@code transactions.created_by != userId}）的交易作为账户/源/目标引用。直接删除会孤立协作成员在
+ *       共享账本里记的账，故拦截。</li>
+ * </ol>
+ */
+@Service
+public class AccountDeletionService {
+
+    private final LedgerRepository ledgerRepository;
+    private final LedgerMemberRepository memberRepository;
+    private final AccountRepository accountRepository;
+    private final TransactionRepository transactionRepository;
+    private final UserRepository userRepository;
+    private final VerificationCodeService verificationCodeService;
+    private final WeChatClient weChatClient;
+
+    // 级联硬删（任务 5.3）所需的其余仓储：按 user_id / 拥有的账本·账户·交易 id 清理各表。
+    private final AccountLedgerRepository accountLedgerRepository;
+    private final TransactionTagRepository transactionTagRepository;
+    private final CategoryRepository categoryRepository;
+    private final BudgetRepository budgetRepository;
+    private final CategoryBudgetRepository categoryBudgetRepository;
+    private final LoanRepository loanRepository;
+    private final ProjectRepository projectRepository;
+    private final MerchantRepository merchantRepository;
+    private final TagRepository tagRepository;
+    private final TransactionTemplateRepository templateRepository;
+    private final LedgerInviteRepository inviteRepository;
+    private final VerificationCodeRepository verificationCodeRepository;
+
+    public AccountDeletionService(
+            LedgerRepository ledgerRepository,
+            LedgerMemberRepository memberRepository,
+            AccountRepository accountRepository,
+            TransactionRepository transactionRepository,
+            UserRepository userRepository,
+            VerificationCodeService verificationCodeService,
+            WeChatClient weChatClient,
+            AccountLedgerRepository accountLedgerRepository,
+            TransactionTagRepository transactionTagRepository,
+            CategoryRepository categoryRepository,
+            BudgetRepository budgetRepository,
+            CategoryBudgetRepository categoryBudgetRepository,
+            LoanRepository loanRepository,
+            ProjectRepository projectRepository,
+            MerchantRepository merchantRepository,
+            TagRepository tagRepository,
+            TransactionTemplateRepository templateRepository,
+            LedgerInviteRepository inviteRepository,
+            VerificationCodeRepository verificationCodeRepository) {
+        this.ledgerRepository = ledgerRepository;
+        this.memberRepository = memberRepository;
+        this.accountRepository = accountRepository;
+        this.transactionRepository = transactionRepository;
+        this.userRepository = userRepository;
+        this.verificationCodeService = verificationCodeService;
+        this.weChatClient = weChatClient;
+        this.accountLedgerRepository = accountLedgerRepository;
+        this.transactionTagRepository = transactionTagRepository;
+        this.categoryRepository = categoryRepository;
+        this.budgetRepository = budgetRepository;
+        this.categoryBudgetRepository = categoryBudgetRepository;
+        this.loanRepository = loanRepository;
+        this.projectRepository = projectRepository;
+        this.merchantRepository = merchantRepository;
+        this.tagRepository = tagRepository;
+        this.templateRepository = templateRepository;
+        this.inviteRepository = inviteRepository;
+        this.verificationCodeRepository = verificationCodeRepository;
+    }
+
+    /**
+     * 注销前置校验：存在协作牵连则拒绝（需求 8.2）。无牵连则静默返回，可继续注销流程。
+     *
+     * @param userId 待注销用户 id
+     * @throws ApiException {@code DELETE_BLOCKED_COLLAB}（409）当存在协作账本他人成员或账户被他人流水引用时
+     */
+    @Transactional(readOnly = true)
+    public void requireDeletable(Long userId) {
+        // 条件一：拥有的账本中，是否有仍存在「他人成员」的账本（协作账本邀请了其他成员）。
+        List<Ledger> ownedLedgers = ledgerRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+        for (Ledger ledger : ownedLedgers) {
+            if (memberRepository.countByLedgerIdAndUserIdNot(ledger.getId(), userId) > 0) {
+                throw ApiException.deleteBlockedCollab();
+            }
+        }
+
+        // 条件二：拥有的账户中，是否有被「他人记账」的流水引用（协作成员用了本人共享账户记账）。
+        List<Account> ownedAccounts = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+        for (Account account : ownedAccounts) {
+            if (transactionRepository.existsByAccountReferencedByOtherUser(account.getId(), userId)) {
+                throw ApiException.deleteBlockedCollab();
+            }
+        }
+    }
+
+    /**
+     * 注销二次验证门禁（需求 8.1）：在执行级联删除前，强制用户完成一次二次验证。
+     *
+     * <p>验证方式按账号身份分流（与需求 8.1 一致）：</p>
+     * <ul>
+     *   <li><b>邮箱身份用户</b>（{@code email} 非空白）：提交一枚 {@link EmailCodePurpose#DELETE} 用途的
+     *       邮箱验证码。以 {@code verifyConsume(email, DELETE, code)} 单次消费校验，不通过 →
+     *       {@code CODE_INVALID}。即便该用户同时绑定了微信，也以邮箱验证码为准（有可靠的邮件通道即优先）。</li>
+     *   <li><b>纯微信用户</b>（无 email，仅有 {@code wx_openid}）：提交一枚新的微信一次性 {@code wxCode}
+     *       做重新授权。{@code wxCode} 为空 → {@code WX_CODE_REQUIRED}；用 {@code jscode2session} 换取
+     *       openid（换取失败沿用 {@code WX_LOGIN_FAILED}）；换回的 openid 必须与账号已存 {@code wx_openid}
+     *       一致，否则说明并非本人授权 → {@code WX_LOGIN_FAILED("微信校验失败")}。</li>
+     * </ul>
+     *
+     * <p>选择说明：openid 不匹配时采用 {@code WX_LOGIN_FAILED}（而非 {@code CODE_INVALID}），
+     * 与微信登录/绑定域的失败语义保持一致（问题出在微信授权主体不符，而非验证码本身格式/时效）。
+     * 校验成功静默返回（void），可继续注销流程；任一失败路径均抛出异常且不产生任何副作用
+     * （本方法只读，不写库）。</p>
+     *
+     * @param userId 待注销用户 id
+     * @param code   邮箱身份用户提交的 DELETE 用途验证码（纯微信用户忽略）
+     * @param wxCode 纯微信用户提交的一次性微信授权码（邮箱身份用户忽略）
+     * @throws ApiException UNAUTHENTICATED(会话用户不存在) / CODE_INVALID(邮箱验证码无效) /
+     *                      WX_CODE_REQUIRED(微信授权码缺失) / WX_LOGIN_FAILED(换取失败或 openid 不匹配)
+     */
+    @Transactional(readOnly = true)
+    public void verifySecondFactor(Long userId, String code, String wxCode) {
+        User user = userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
+
+        boolean hasEmail = user.getEmail() != null && !user.getEmail().isBlank();
+        if (hasEmail) {
+            // 邮箱身份用户：以 DELETE 用途单次消费校验验证码（需求 8.1）。
+            if (!verificationCodeService.verifyConsume(user.getEmail(), EmailCodePurpose.DELETE, code)) {
+                throw ApiException.codeInvalid();
+            }
+            return;
+        }
+
+        // 纯微信用户：重新授权换取 openid，且必须与账号已存 openid 一致（需求 8.1）。
+        String normalizedWxCode = wxCode == null ? "" : wxCode.trim();
+        if (normalizedWxCode.isEmpty()) {
+            throw ApiException.wxCodeRequired();
+        }
+        WxSession session = weChatClient.jscode2session(normalizedWxCode);
+        String openid = session.openid();
+        if (openid == null || !openid.equals(user.getWxOpenid())) {
+            throw ApiException.wxLoginFailed("微信校验失败");
+        }
+    }
+
+    /**
+     * 单事务级联硬删（任务 5.3，需求 8.3/8.4/8.5）：在<b>同一事务</b>内硬删注销者名下的全部数据与用户行本身。
+     *
+     * <p>本方法应在 {@link #requireDeletable(Long)}（协作牵连拦截，需求 8.2）与
+     * {@link #verifySecondFactor(Long, String, String)}（二次验证，需求 8.1）通过之后调用。前者已保证：
+     * 注销者拥有的账本不含他人成员、拥有的账户未被他人流水引用，因此级联仅清除注销者本人的数据足迹，
+     * 不会孤立协作成员的数据。</p>
+     *
+     * <p><b>删除顺序遵循外键依赖（子/关联表先于父表，用户行最后）</b>，与生产 MySQL 的外键约束一致
+     * （测试用 H2 由实体生成、无外键，顺序不影响结果，但仍保持一致）：</p>
+     * <ol>
+     *   <li>{@code transaction_tags}（按本人交易 id）——交易的子表；</li>
+     *   <li>{@code transactions}（按 user_id，物理删除含回收站软删副本，需求 8.5 不留可恢复副本）；</li>
+     *   <li>{@code category_budgets}、{@code budgets}、{@code loans}（按 user_id）；</li>
+     *   <li>{@code categories}（按 user_id，位于交易/分类预算之后）；</li>
+     *   <li>{@code account_ledger}（按本人拥有的账户 id 与账本 id，先于 accounts / ledgers）；</li>
+     *   <li>{@code accounts}（按 user_id）；</li>
+     *   <li>{@code transaction_templates}、{@code tags}、{@code projects}、{@code merchants}（按 user_id，先于 ledgers）；</li>
+     *   <li>{@code ledger_invites}（本人创建的 + 本人拥有账本的，先于 ledgers）；</li>
+     *   <li>{@code ledger_members}（本人的成员行，先于 ledgers / users）；</li>
+     *   <li>{@code ledgers}（按 user_id，先于 users）；</li>
+     *   <li>{@code verification_code}（按 email，干净释放邮箱身份）；</li>
+     *   <li>{@code users}（用户行本身，最后）。删除用户行即释放其 {@code email} 与 {@code wx_openid}
+     *       两个唯一键，供后续重新注册复用（需求 8.4）。</li>
+     * </ol>
+     *
+     * <p>整个方法是单个 {@link Transactional} 单元：任一步失败则整体回滚，绝不产生部分删除
+     * （需求 8.3）。全部为硬删除，不写任何软删/归档副本（需求 8.5）。</p>
+     *
+     * @param userId 待注销用户 id
+     * @throws ApiException {@code UNAUTHENTICATED} 当用户不存在（会话用户已失效）
+     */
+    @Transactional
+    public void deleteAccount(Long userId) {
+        User user = userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
+        String email = user.getEmail();
+
+        // 先收集「本人拥有的父级 id」，供关联表按父 id 批量清理（account_ledger / ledger_invites）。
+        List<Long> ownedAccountIds = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId)
+                .stream().map(Account::getId).toList();
+        List<Long> ownedLedgerIds = ledgerRepository.findByUserIdOrderBySortOrderAscIdAsc(userId)
+                .stream().map(Ledger::getId).toList();
+        // 本人名下全部交易 id（含回收站软删记录，走原生 SQL 绕过 @SQLRestriction），供清理交易-标签关联。
+        List<Long> transactionIds = transactionRepository.findAllIdsByUserId(userId);
+
+        // 1) 交易-标签关联（交易子表）先删。
+        if (!transactionIds.isEmpty()) {
+            transactionTagRepository.deleteByTransactionIdIn(transactionIds);
+        }
+        // 2) 交易（物理删除，含回收站软删副本，不留可恢复副本，需求 8.5）。
+        transactionRepository.hardDeleteByUserId(userId);
+        // 3) 分类预算 / 月度预算 / 借贷。
+        categoryBudgetRepository.deleteByUserId(userId);
+        budgetRepository.deleteByUserId(userId);
+        loanRepository.deleteByUserId(userId);
+        // 4) 分类（在交易、分类预算之后）。
+        categoryRepository.deleteByUserId(userId);
+        // 5) 账户-账本可见性关联（先于 accounts / ledgers）。
+        if (!ownedAccountIds.isEmpty()) {
+            accountLedgerRepository.deleteByAccountIdIn(ownedAccountIds);
+        }
+        if (!ownedLedgerIds.isEmpty()) {
+            accountLedgerRepository.deleteByLedgerIdIn(ownedLedgerIds);
+        }
+        // 6) 账户。
+        accountRepository.deleteByUserId(userId);
+        // 7) 账本下的目录型数据（模板/标签/项目/商家，先于 ledgers）。
+        templateRepository.deleteByUserId(userId);
+        tagRepository.deleteByUserId(userId);
+        projectRepository.deleteByUserId(userId);
+        merchantRepository.deleteByUserId(userId);
+        // 8) 邀请码：本人创建的 + 本人拥有账本上的（先于 ledgers）。
+        inviteRepository.deleteByCreatedBy(userId);
+        if (!ownedLedgerIds.isEmpty()) {
+            inviteRepository.deleteByLedgerIdIn(ownedLedgerIds);
+        }
+        // 9) 成员行：本人在各账本的成员记录（先于 ledgers / users）。
+        memberRepository.deleteByUserId(userId);
+        // 10) 账本（先于 users）。
+        ledgerRepository.deleteByUserId(userId);
+        // 11) 验证码：按邮箱清理，干净释放邮箱身份（需求 8.4）。
+        if (email != null && !email.isBlank()) {
+            verificationCodeRepository.deleteByEmail(email);
+        }
+        // 12) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）。
+        userRepository.delete(user);
+    }
+}

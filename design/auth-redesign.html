@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 登录/注册重设计原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --wechat:#07c160; --danger:#e5484d;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1560px;margin:0 auto;padding:48px 24px 90px;}
+  .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:980px;line-height:1.7;margin:0 0 6px;}
+  .rules{max-width:980px;margin:14px 0 8px;padding:16px 18px;background:#fff;border-radius:14px;box-shadow:0 6px 20px rgba(20,24,28,.05);}
+  .rules b{font-size:14px;}
+  .rules ul{margin:8px 0 0;padding-left:20px;color:var(--ink-2);font-size:13px;line-height:1.85;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:40px 0 18px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.55;min-height:52px;}
+  .phone{width:340px;height:724px;background:#fff;border-radius:42px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.15),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--surface);display:flex;flex-direction:column;position:relative;}
+  .sb{height:38px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 5px;font-size:11px;font-weight:700;}
+  .body{flex:1;overflow-y:auto;padding:0 26px;}
+  .body::-webkit-scrollbar{width:0;}
+
+  .topbar{display:flex;align-items:center;height:44px;font-size:15px;font-weight:800;}
+  .topbar .back{font-size:20px;width:28px;}
+  .topbar .t{flex:1;text-align:center;margin-right:28px;}
+
+  .brand{display:flex;flex-direction:column;align-items:center;margin-top:14px;}
+  .logo{width:76px;height:76px;border-radius:20px;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:38px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 14px 30px rgba(18,161,80,.35);}
+  .bname{font-size:30px;font-weight:800;margin-top:14px;letter-spacing:-.02em;}
+  .bslogan{font-size:13px;color:var(--ink-3);margin-top:6px;}
+
+  .headline{font-size:24px;font-weight:800;margin:18px 0 4px;}
+  .headsub{font-size:13px;color:var(--ink-3);margin-bottom:18px;}
+
+  .field{background:var(--surface-2);border-radius:14px;padding:0 16px;height:52px;display:flex;align-items:center;gap:10px;margin-top:14px;border:1.5px solid transparent;}
+  .field.focus{border-color:var(--brand);background:#fff;}
+  .field.err{border-color:var(--danger);background:#fff5f4;}
+  .field .ic{font-size:16px;color:var(--ink-3);}
+  .field input{flex:1;border:none;outline:none;background:transparent;font-size:15px;color:var(--ink);}
+  .field input::placeholder{color:var(--ink-3);}
+  .field .codebtn{font-size:13px;font-weight:700;color:var(--brand-600);white-space:nowrap;padding-left:12px;border-left:1px solid var(--line);}
+  .field .codebtn.dim{color:var(--ink-3);font-weight:600;}
+  .field .eye{font-size:15px;color:var(--ink-3);}
+  .errmsg{color:var(--danger);font-size:12px;margin:6px 4px 0;}
+  .hint{color:var(--ink-3);font-size:12px;margin:6px 4px 0;}
+
+  .btn{height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;margin-top:20px;}
+  .btn.primary{background:var(--brand);color:#fff;box-shadow:0 12px 26px rgba(18,161,80,.28);}
+  .btn.wechat{background:var(--wechat);color:#fff;gap:8px;box-shadow:0 12px 26px rgba(7,193,96,.25);}
+  .btn.ghost{background:var(--surface-2);color:var(--ink);}
+  .btn.disabled{background:#cfe9d8;color:#eafaf0;box-shadow:none;}
+
+  .divider{display:flex;align-items:center;gap:12px;margin:22px 2px;color:var(--ink-3);font-size:12px;}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .tabs{display:flex;background:var(--surface-2);border-radius:12px;padding:4px;margin-top:6px;}
+  .tabs .tb{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--ink-3);padding:9px 0;border-radius:9px;}
+  .tabs .tb.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(20,24,28,.06);}
+
+  .rowlinks{display:flex;justify-content:space-between;margin-top:14px;font-size:13px;}
+  .rowlinks a{color:var(--brand-600);font-weight:700;text-decoration:none;}
+  .rowlinks .muted{color:var(--ink-3);font-weight:600;}
+
+  .agree{display:flex;align-items:flex-start;gap:8px;margin-top:18px;font-size:12px;color:var(--ink-3);line-height:1.6;}
+  .cbox{width:16px;height:16px;border-radius:5px;border:1.5px solid #cfd4da;flex:0 0 auto;margin-top:1px;}
+  .cbox.on{background:var(--brand);border-color:var(--brand);position:relative;}
+  .cbox.on::after{content:"✓";color:#fff;font-size:11px;position:absolute;left:2px;top:-1px;}
+  .agree a{color:var(--brand-600);}
+
+  .foot{text-align:center;font-size:11px;color:var(--ink-3);padding:14px 0 18px;}
+  .switchline{text-align:center;font-size:13px;color:var(--ink-3);margin-top:16px;}
+  .switchline a{color:var(--brand-600);font-weight:700;text-decoration:none;}
+
+  .pwbar{display:flex;gap:6px;margin:8px 4px 0;}
+  .pwbar i{height:4px;flex:1;border-radius:3px;background:var(--line);}
+  .pwbar i.on{background:var(--brand);}
+  .steps{display:flex;align-items:center;gap:6px;margin:8px 0 4px;font-size:12px;color:var(--ink-3);}
+  .steps .dot{width:20px;height:20px;border-radius:50%;background:var(--surface-2);color:var(--ink-3);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;}
+  .steps .dot.on{background:var(--brand);color:#fff;}
+  .steps .ln{flex:1;height:1px;background:var(--line);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1 class="h1">有余 · 登录 / 注册重设计原型</h1>
+  <p class="sub">目标：区分登录与注册两条流程；非微信登录只允许<b>邮箱</b>身份，注册强制<b>邮箱验证码</b>校验，杜绝任意字符串账号。</p>
+
+  <div class="rules">
+    <b>设计规则</b>
+    <ul>
+      <li><b>两种身份方式</b>：① 微信一键登录（主推，注册/登录合一）；② 邮箱 —— 用邮箱地址作为唯一账号标识（校验邮箱格式）。</li>
+      <li><b>登录页</b>与<b>注册页</b>拆分为两个独立页面，互相有入口切换（不再同页「注册并登录」）。</li>
+      <li><b>登录</b>支持两种方式（Tab 切换）：邮箱 + 密码 / 邮箱 + 验证码。</li>
+      <li><b>注册</b>：邮箱 → 获取验证码（60s 倒计时、防刷）→ 输入验证码 → 设置密码（8–64）→ 完成。验证码校验通过才允许创建账号。</li>
+      <li><b>忘记密码</b>：邮箱 + 验证码 + 设置新密码，复用同一套验证码能力。</li>
+      <li>需勾选同意《用户协议》《隐私政策》后方可提交；密码框支持显示/隐藏与强度提示。</li>
+    </ul>
+  </div>
+
+  <div class="sec">登录流程</div>
+  <div class="screens">
+
+    <!-- 1. 登录 - 密码 -->
+    <div class="pw">
+      <div class="cap"><span class="n">1</span>登录页 · 邮箱密码</div>
+      <p class="note">进入即默认微信一键登录（主）。下方 Tab 切换邮箱密码 / 验证码。邮箱作为账号，非法格式即时提示。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="brand">
+            <div class="logo">¥</div>
+            <div class="bname">有余</div>
+            <div class="bslogan">记好每一笔，日子有余</div>
+          </div>
+          <div class="btn wechat">🟢 微信一键登录</div>
+          <div class="divider">或使用邮箱登录</div>
+          <div class="tabs">
+            <div class="tb on">密码登录</div>
+            <div class="tb">验证码登录</div>
+          </div>
+          <div class="field focus"><span class="ic">✉️</span><input placeholder="邮箱地址" value="me@youyu.app" /></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="密码（8–64 位）" value="········" /><span class="eye">👁</span></div>
+          <div class="rowlinks"><span></span><a href="#忘记密码">忘记密码？</a></div>
+          <div class="btn primary">登录</div>
+          <div class="switchline">还没有账号？<a href="#注册">去注册</a></div>
+        </div>
+        <div class="foot">登录即表示同意《用户协议》与《隐私政策》</div>
+      </div></div>
+    </div>
+
+    <!-- 2. 登录 - 验证码 -->
+    <div class="pw">
+      <div class="cap"><span class="n">2</span>登录页 · 邮箱验证码</div>
+      <p class="note">切到「验证码登录」：输入邮箱→获取验证码（发送后 60s 倒计时禁用按钮），免密登录。找回密码复用同一交互。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="brand">
+            <div class="logo">¥</div>
+            <div class="bname">有余</div>
+            <div class="bslogan">记好每一笔，日子有余</div>
+          </div>
+          <div class="btn wechat">🟢 微信一键登录</div>
+          <div class="divider">或使用邮箱登录</div>
+          <div class="tabs">
+            <div class="tb">密码登录</div>
+            <div class="tb on">验证码登录</div>
+          </div>
+          <div class="field"><span class="ic">✉️</span><input placeholder="邮箱地址" value="me@youyu.app" /></div>
+          <div class="field focus"><span class="ic">🔑</span><input placeholder="6 位验证码" value="038" /><span class="codebtn dim">重新获取（52s）</span></div>
+          <div class="hint">验证码已发送至 me@youyu.app，10 分钟内有效</div>
+          <div class="btn primary">登录 / 注册</div>
+          <div class="switchline">用密码登录？<a href="#登录">返回</a></div>
+        </div>
+        <div class="foot">登录即表示同意《用户协议》与《隐私政策》</div>
+      </div></div>
+    </div>
+
+    <!-- 3. 邮箱错误态 -->
+    <div class="pw">
+      <div class="cap"><span class="n">3</span>校验态 · 邮箱非法</div>
+      <p class="note">非邮箱格式（旧版可乱填账号）即时红框报错并禁用提交；获取验证码按钮在邮箱合法前为禁用灰态。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="brand">
+            <div class="logo">¥</div>
+            <div class="bname">有余</div>
+            <div class="bslogan">记好每一笔，日子有余</div>
+          </div>
+          <div class="btn wechat">🟢 微信一键登录</div>
+          <div class="divider">或使用邮箱登录</div>
+          <div class="tabs">
+            <div class="tb">密码登录</div>
+            <div class="tb on">验证码登录</div>
+          </div>
+          <div class="field err"><span class="ic">✉️</span><input placeholder="邮箱地址" value="zhangsan" /><span class="codebtn dim">获取验证码</span></div>
+          <div class="errmsg">请输入有效的邮箱地址</div>
+          <div class="field"><span class="ic">🔑</span><input placeholder="6 位验证码" /></div>
+          <div class="btn primary disabled">登录 / 注册</div>
+          <div class="switchline">还没有账号？<a href="#注册">去注册</a></div>
+        </div>
+        <div class="foot">登录即表示同意《用户协议》与《隐私政策》</div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">注册流程</div>
+  <div class="screens">
+
+    <!-- 4. 注册 -->
+    <div class="pw">
+      <div class="cap"><span class="n">4</span>注册页 · 邮箱验证码</div>
+      <p class="note">独立注册页（顶部返回登录）。顺序：邮箱→验证码→设置密码→确认→勾选协议→注册。验证码通过才建号。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="topbar"><span class="back">‹</span><span class="t">注册有余</span></div>
+          <div class="headline">创建账号</div>
+          <div class="headsub">用邮箱注册，验证后即可使用</div>
+          <div class="field"><span class="ic">✉️</span><input placeholder="邮箱地址" value="me@youyu.app" /></div>
+          <div class="field focus"><span class="ic">🔑</span><input placeholder="6 位验证码" value="0382" /><span class="codebtn">获取验证码</span></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="设置密码（8–64 位）" value="········" /><span class="eye">👁</span></div>
+          <div class="pwbar"><i class="on"></i><i class="on"></i><i></i></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="确认密码" value="········" /></div>
+          <div class="agree"><span class="cbox on"></span><span>我已阅读并同意 <a href="#">《用户协议》</a> 与 <a href="#">《隐私政策》</a></span></div>
+          <div class="btn primary">注册</div>
+          <div class="switchline">已有账号？<a href="#登录">去登录</a></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 5. 注册 - 验证码已发送/倒计时 -->
+    <div class="pw">
+      <div class="cap"><span class="n">5</span>注册页 · 验证码已发送</div>
+      <p class="note">点「获取验证码」后：校验邮箱是否已注册，未注册才发码；按钮进入 60s 倒计时防刷；顶部步骤条提示进度。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="topbar"><span class="back">‹</span><span class="t">注册有余</span></div>
+          <div class="steps"><span class="dot on">1</span><span class="ln"></span><span class="dot on">2</span><span class="ln"></span><span class="dot">3</span></div>
+          <div class="headline">输入验证码</div>
+          <div class="headsub">已发送至 me@youyu.app · 10 分钟内有效</div>
+          <div class="field"><span class="ic">✉️</span><input value="me@youyu.app" disabled /></div>
+          <div class="field focus"><span class="ic">🔑</span><input placeholder="6 位验证码" value="03" /><span class="codebtn dim">重新获取（58s）</span></div>
+          <div class="hint">没收到？检查垃圾邮件，或 58 秒后重试</div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="设置密码（8–64 位）" /></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="确认密码" /></div>
+          <div class="agree"><span class="cbox"></span><span>我已阅读并同意 <a href="#">《用户协议》</a> 与 <a href="#">《隐私政策》</a></span></div>
+          <div class="btn primary disabled">注册</div>
+          <div class="switchline">已有账号？<a href="#登录">去登录</a></div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 6. 忘记密码 -->
+    <div class="pw">
+      <div class="cap"><span class="n">6</span>忘记密码 · 重置</div>
+      <p class="note">从登录页「忘记密码」进入：邮箱 + 验证码 + 设置新密码，复用验证码能力，重置后回登录。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>●●● 📶 🔋</span></div>
+        <div class="body">
+          <div class="topbar"><span class="back">‹</span><span class="t">重置密码</span></div>
+          <div class="headline">找回密码</div>
+          <div class="headsub">验证邮箱后设置新密码</div>
+          <div class="field"><span class="ic">✉️</span><input placeholder="邮箱地址" value="me@youyu.app" /></div>
+          <div class="field"><span class="ic">🔑</span><input placeholder="6 位验证码" /><span class="codebtn">获取验证码</span></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="新密码（8–64 位）" /><span class="eye">👁</span></div>
+          <div class="field"><span class="ic">🔒</span><input type="password" placeholder="确认新密码" /></div>
+          <div class="btn primary">重置并登录</div>
+          <div class="switchline">想起来了？<a href="#登录">返回登录</a></div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

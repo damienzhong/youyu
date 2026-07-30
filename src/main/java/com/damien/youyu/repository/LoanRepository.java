@@ -32,4 +32,7 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
 
     /** 删除某账本的全部借贷（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
+
+    /** 删除某用户的全部借贷（注销级联硬删，需求 8.3）。 */
+    void deleteByUserId(Long userId);
 }
