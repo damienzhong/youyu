@@ -7,8 +7,9 @@ import {
   updateAccount,
   deleteAccount,
   listRepayReminders,
-  getAccountVisibility,
   setAccountVisibility,
+  detachAccountFromLedger,
+  listAccountLedgerLinks,
   transferAccountOwnership,
   accountTypeLabel,
   accountTypeEmoji,
@@ -34,6 +35,17 @@ const accounts = ref([])
 const loading = ref(false)
 const hideAmounts = ref(false)
 const collapsed = ref({})
+// 账户→账本参与关联（批量）：[{ accountId, ledgerId, visibleToOthers, showBalance }]
+const links = ref([])
+
+// 某账户参与的账本（连同名称/类型，从账本列表解析），用于卡片上的"参与账本"标签。
+function ledgersOfAccount(accountId) {
+  const all = ledgerStore.ledgers || []
+  return links.value
+    .filter((l) => l.accountId === accountId)
+    .map((l) => all.find((g) => g.id === l.ledgerId))
+    .filter(Boolean)
+}
 
 // 借贷汇总（仅具体账本显示；借贷为账本级台账）
 const borrowOutstanding = ref('0.00')
@@ -85,6 +97,13 @@ async function load() {
   loading.value = true
   try {
     accounts.value = ledgerStore.isAll ? await listAllAccounts() : await listAccounts()
+    // 账本列表（用于把关联行解析成账本名/类型）与账户→账本关联，失败不阻断主列表。
+    try {
+      if (!ledgerStore.ledgers.length) await ledgerStore.load()
+      links.value = await listAccountLedgerLinks()
+    } catch (e) {
+      links.value = []
+    }
     try {
       reminders.value = await listRepayReminders()
     } catch (e) {
@@ -174,7 +193,7 @@ function pickTypeForEdit(t) {
     pickType(t)
   }
 }
-async function openEdit(acc) {
+function openEdit(acc) {
   form.value = {
     id: acc.id, type: acc.type, name: acc.name, initialBalance: '', owed: '',
     creditLimit: acc.creditLimit != null ? String(acc.creditLimit) : '',
@@ -183,36 +202,66 @@ async function openEdit(acc) {
     _ownerId: acc.ownerId, _ledgerId: null
   }
   showForm.value = true
-  // 协作账本内、且账户归属自己时，加载其在本账本的可见性设置。
-  vis.value = { participates: false, visibleToOthers: true, showBalance: true }
-  if (canManageSharing.value) {
-    try {
-      vis.value = await getAccountVisibility(acc.id)
-    } catch (e) {
-      /* 读取失败用默认 */
+  buildPartList(acc.id)
+}
+
+// ---------- 参与账本：账户在各账本的参与 / 可见性 / 转交 ----------
+// 仅本人账户可管理参与关系（后端以 owner 为边界）。
+const isOwnAccount = computed(
+  () => isEditing.value && (form.value._ownerId == null || form.value._ownerId === selfId.value)
+)
+// 转交仅在当前为协作账本、且账户归属自己时提供（需要成员上下文）。
+const canManageSharing = computed(
+  () =>
+    isOwnAccount.value &&
+    !ledgerStore.isAll &&
+    ledgerStore.current?.type === 'COLLABORATIVE'
+)
+
+// 编辑态下，账户在全部账本的参与状态（含协作可见性标志），从批量关联解析。
+const partList = ref([])
+function buildPartList(accId) {
+  const mine = links.value.filter((l) => l.accountId === accId)
+  partList.value = (ledgerStore.ledgers || []).map((g) => {
+    const link = mine.find((l) => l.ledgerId === g.id)
+    return {
+      id: g.id,
+      name: g.name,
+      type: g.type,
+      participates: !!link,
+      visibleToOthers: link ? link.visibleToOthers : true,
+      showBalance: link ? link.showBalance : true
     }
+  })
+}
+
+async function toggleParticipate(p, val) {
+  const accId = form.value.id
+  try {
+    if (val) {
+      await setAccountVisibility(accId, {
+        ledgerId: p.id, visibleToOthers: p.visibleToOthers, showBalance: p.showBalance
+      })
+      p.participates = true
+    } else {
+      const r = await detachAccountFromLedger(accId, p.id)
+      p.participates = false
+      if (r && r.hasHistory) uni.showToast({ title: '已移出，历史流水保留', icon: 'none' })
+    }
+    links.value = await listAccountLedgerLinks()
+  } catch (e) {
+    p.participates = !val
+    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
   }
 }
 
-// ---------- 协作账本：账户共享可见性 / 转交 ----------
-const vis = ref({ participates: false, visibleToOthers: true, showBalance: true })
-const canManageSharing = computed(
-  () =>
-    isEditing.value &&
-    !ledgerStore.isAll &&
-    ledgerStore.current?.type === 'COLLABORATIVE' &&
-    form.value._ownerId != null &&
-    form.value._ownerId === selfId.value
-)
-
-async function onVisChange(field, val) {
-  vis.value[field] = val
+async function onPartVisChange(p, field, val) {
+  p[field] = val
   try {
     await setAccountVisibility(form.value.id, {
-      visibleToOthers: vis.value.visibleToOthers,
-      showBalance: vis.value.showBalance
+      ledgerId: p.id, visibleToOthers: p.visibleToOthers, showBalance: p.showBalance
     })
-    vis.value.participates = true
+    links.value = await listAccountLedgerLinks()
   } catch (e) {
     uni.showToast({ title: e.message || '设置失败', icon: 'none' })
   }
@@ -364,6 +413,12 @@ function confirmDelete() {
       </view>
     </view>
 
+    <!-- 作用域说明：账户独立于账本、被所有账本共用 -->
+    <view class="scope-note">
+      <text class="sn-ic">💡</text>
+      <text class="sn-t">这里是你的全部账户，被所有账本共用；余额与选哪个账本无关。</text>
+    </view>
+
     <!-- 借贷往来（借入待还 / 借出待收） -->
     <view v-if="showLoans" class="loan-row" @click="goLoans">
       <view class="loan-tile">
@@ -418,7 +473,15 @@ function confirmDelete() {
           <view class="acc-main">
             <text class="acc-name">{{ a.name }}<text v-if="!a.includeInTotal" class="acc-flag"> · 不计入</text></text>
             <text v-if="availableOf(a) != null" class="acc-sub">可用 {{ money(availableOf(a)) }}</text>
-            <text v-else class="acc-sub">{{ accountTypeLabel(a.type) }}</text>
+            <text v-else-if="!ledgersOfAccount(a.id).length" class="acc-sub">{{ accountTypeLabel(a.type) }}</text>
+            <view v-if="ledgersOfAccount(a.id).length" class="acc-chips">
+              <text
+                v-for="lg in ledgersOfAccount(a.id)"
+                :key="lg.id"
+                class="acc-chip"
+                :class="lg.type === 'COLLABORATIVE' ? 'collab' : 'personal'"
+              >{{ lg.name }}</text>
+            </view>
           </view>
           <text class="acc-bal" :class="{ neg: Number(a.currentBalance) < 0 }">{{ money(a.currentBalance) }}</text>
         </view>
@@ -544,19 +607,39 @@ function confirmDelete() {
           </view>
         </view>
 
-        <!-- 协作账本：账户共享设置（仅账户 owner 可见） -->
+        <!-- 参与账本：账户在各账本的参与与协作可见性（仅本人账户可管理） -->
+        <view v-if="isOwnAccount" class="form-body">
+          <view class="fsec">参与账本</view>
+          <view class="fhint" style="padding-bottom:12rpx;">账户是你的资产，可同时在多个账本使用。关掉某账本后，该账本记账时不再能选这张卡，历史流水与余额保留。</view>
+          <block v-for="p in partList" :key="p.id">
+            <view class="frow">
+              <view class="pl-main">
+                <text class="fk">{{ p.name }}</text>
+                <text class="pl-tag" :class="p.type === 'COLLABORATIVE' ? 'collab' : 'personal'">
+                  {{ p.type === 'COLLABORATIVE' ? '协作' : '个人' }}
+                </text>
+              </view>
+              <switch :checked="p.participates" color="#12a150"
+                @change="toggleParticipate(p, $event.detail.value)" />
+            </view>
+            <!-- 协作账本且已参与：附可见性子开关 -->
+            <template v-if="p.participates && p.type === 'COLLABORATIVE'">
+              <view class="frow sub">
+                <text class="fk sub">对成员可见</text>
+                <switch :checked="p.visibleToOthers" color="#12a150"
+                  @change="onPartVisChange(p, 'visibleToOthers', $event.detail.value)" />
+              </view>
+              <view class="frow sub">
+                <text class="fk sub">显示余额给成员</text>
+                <switch :checked="p.showBalance" color="#12a150"
+                  @change="onPartVisChange(p, 'showBalance', $event.detail.value)" />
+              </view>
+            </template>
+          </block>
+        </view>
+
+        <!-- 转交账户（协作账本内成员之间） -->
         <view v-if="canManageSharing" class="form-body">
-          <view class="fsec">共享设置（本账本）</view>
-          <view class="frow">
-            <text class="fk">对成员可见</text>
-            <switch :checked="vis.visibleToOthers" color="#12a150"
-              @change="onVisChange('visibleToOthers', $event.detail.value)" />
-          </view>
-          <view class="frow">
-            <text class="fk">显示余额给成员</text>
-            <switch :checked="vis.showBalance" color="#12a150"
-              @change="onVisChange('showBalance', $event.detail.value)" />
-          </view>
           <view class="frow" @click="openTransferOwner">
             <text class="fk">转交账户</text>
             <text class="fv">转交给其他成员 ›</text>
@@ -625,6 +708,26 @@ function confirmDelete() {
   justify-content: space-between;
   font-size: 24rpx;
   opacity: 0.9;
+}
+.scope-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+  background: #e6f6ec;
+  border-radius: 16rpx;
+  padding: 18rpx 22rpx;
+  margin-bottom: 24rpx;
+}
+.sn-ic {
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+.sn-t {
+  flex: 1;
+  font-size: 24rpx;
+  color: #0e8a44;
+  font-weight: 600;
+  line-height: 1.5;
 }
 .loan-row {
   display: flex;
@@ -842,6 +945,25 @@ function confirmDelete() {
   font-size: 22rpx;
   color: #9aa2ad;
 }
+.acc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+.acc-chip {
+  font-size: 20rpx;
+  font-weight: 700;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+}
+.acc-chip.personal {
+  background: #eef1f5;
+  color: #5b6470;
+}
+.acc-chip.collab {
+  background: #e6f6ec;
+  color: #0e8a44;
+}
 .acc-bal {
   font-size: 32rpx;
   font-weight: 800;
@@ -969,6 +1091,32 @@ function confirmDelete() {
   font-size: 24rpx;
   color: #9aa2ad;
   padding: 18rpx 0 6rpx;
+}
+.pl-main {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.pl-tag {
+  font-size: 20rpx;
+  font-weight: 700;
+  padding: 2rpx 12rpx;
+  border-radius: 999rpx;
+}
+.pl-tag.personal {
+  background: #eef1f5;
+  color: #5b6470;
+}
+.pl-tag.collab {
+  background: #e6f6ec;
+  color: #0e8a44;
+}
+.frow.sub {
+  padding: 20rpx 0 20rpx 24rpx;
+}
+.fk.sub {
+  font-size: 26rpx;
+  color: #9aa2ad;
 }
 .fk {
   font-size: 30rpx;

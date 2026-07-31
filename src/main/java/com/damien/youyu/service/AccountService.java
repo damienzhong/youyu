@@ -259,6 +259,21 @@ public class AccountService {
         return attach(accountId, ledgerId, visibleToOthers, showBalance, LocalDateTime.now(clock));
     }
 
+    /**
+     * 某用户全部账户的账本参与关联（批量）：用于资产页展示每个账户"参与了哪些账本"。
+     * 仅返回该用户拥有的账户的关联行；账本名称/类型由前端解析。
+     */
+    @Transactional(readOnly = true)
+    public List<AccountLedger> ledgerLinksOfUser(Long userId) {
+        List<Long> accountIds = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId).stream()
+                .map(Account::getId)
+                .toList();
+        if (accountIds.isEmpty()) {
+            return List.of();
+        }
+        return accountLedgerRepository.findByAccountIdIn(accountIds);
+    }
+
     /** 更新账户在某账本的可见性标志。仅账户 owner 可操作；关联不存在返回 NOT_FOUND。 */
     @Transactional
     public AccountLedger updateVisibility(Long userId, Long accountId, Long ledgerId,

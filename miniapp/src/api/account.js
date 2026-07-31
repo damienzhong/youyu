@@ -15,6 +15,11 @@ export function listSelectableAccounts(ledgerId) {
   return http.get('/accounts/selectable', opts(ledgerId))
 }
 
+/** 本人全部账户的账本参与关联（批量）：[{ accountId, ledgerId, visibleToOthers, showBalance }]。账本名/类型由前端按 ledgerId 解析。 */
+export function listAccountLedgerLinks() {
+  return http.get('/accounts/ledger-links')
+}
+
 /** 信用卡还款提醒：已开启提醒的信用卡，下一个还款日/剩余天数/待还金额，按剩余天数升序。 */
 export function listRepayReminders() {
   return http.get('/accounts/repay-reminders')

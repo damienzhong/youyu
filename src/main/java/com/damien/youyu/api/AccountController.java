@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.AccountCreateRequest;
+import com.damien.youyu.api.dto.AccountLedgerLinkResponse;
 import com.damien.youyu.api.dto.AccountResponse;
 import com.damien.youyu.api.dto.AccountUpdateRequest;
 import com.damien.youyu.api.dto.AccountVisibilityRequest;
@@ -90,6 +91,16 @@ public class AccountController {
         Long userId = currentUser.requireUserId();
         List<AccountResponse> body = accountService.list(userId).stream()
                 .map(AccountResponse::from)
+                .toList();
+        return ResponseEntity.ok(body);
+    }
+
+    /** 本人全部账户的账本参与关联（批量）：资产页展示每个账户"参与了哪些账本"。 */
+    @GetMapping("/ledger-links")
+    public ResponseEntity<List<AccountLedgerLinkResponse>> ledgerLinks() {
+        Long userId = currentUser.requireUserId();
+        List<AccountLedgerLinkResponse> body = accountService.ledgerLinksOfUser(userId).stream()
+                .map(AccountLedgerLinkResponse::from)
                 .toList();
         return ResponseEntity.ok(body);
     }

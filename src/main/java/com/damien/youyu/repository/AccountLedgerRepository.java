@@ -27,6 +27,9 @@ public interface AccountLedgerRepository extends JpaRepository<AccountLedger, Lo
     /** 某账户的全部账本关联行。 */
     List<AccountLedger> findByAccountId(Long accountId);
 
+    /** 一批账户的全部账本关联行（资产页展示"参与账本"用）。 */
+    List<AccountLedger> findByAccountIdIn(Collection<Long> accountIds);
+
     /** 定位某账户在某账本的关联行。 */
     Optional<AccountLedger> findByAccountIdAndLedgerId(Long accountId, Long ledgerId);
 
