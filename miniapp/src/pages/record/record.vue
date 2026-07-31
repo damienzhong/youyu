@@ -828,7 +828,8 @@ function goBack() {
 <style scoped>
 .rec {
   --accent: #f0553d;
-  min-height: 100vh;
+  height: 100vh;        /* 锁定为一屏，避免整页下拉 */
+  overflow: hidden;
   background: #fff;
   display: flex;
   flex-direction: column;
@@ -885,7 +886,7 @@ function goBack() {
 
 .main {
   flex: 1;
-  min-height: 240rpx;
+  min-height: 0;        /* 允许在 flex 中收缩，仅本区内部滚动，键盘钉底 */
 }
 .cgrid { display: flex; flex-wrap: wrap; padding: 16rpx 8rpx 4rpx; }
 .cat { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 16rpx 0; }
