@@ -12,6 +12,7 @@ import {
   accountTypeLabel,
   accountTypeEmoji,
   accountGroupLabel,
+  accountGroupOf,
   isCreditType,
   ACCOUNT_TYPES,
   ACCOUNT_GROUPS
@@ -112,11 +113,27 @@ const groupedTypes = computed(() =>
 const showForm = ref(false)
 const submitting = ref(false)
 const form = ref({
-  id: null, type: 'CASH', name: '', initialBalance: '', creditLimit: '',
+  id: null, type: 'CASH', name: '', initialBalance: '', owed: '', creditLimit: '',
   includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
 })
 const isEditing = computed(() => form.value.id !== null)
 const formIsCredit = computed(() => isCreditType(form.value.type))
+const currentGroup = computed(() => accountGroupOf(form.value.type))
+// 余额字段标题随分组变化
+const balanceLabel = computed(() => {
+  const g = currentGroup.value
+  if (g === 'INVESTMENT') return '当前市值'
+  if (g === 'PREPAID') return '当前余额'
+  return '初始余额'
+})
+// 顶部图标底色随分组变化
+const iconBg = computed(() => {
+  const g = currentGroup.value
+  if (g === 'CREDIT') return '#fdece8'
+  if (g === 'INVESTMENT') return '#f0ecfe'
+  if (g === 'PREPAID') return '#e4f6f5'
+  return '#e7f7ee'
+})
 
 function openCreate() {
   // 先选类型，再填详情（对齐竞品）
@@ -125,7 +142,7 @@ function openCreate() {
 function pickType(t) {
   typePickerOpen.value = false
   form.value = {
-    id: null, type: t.value, name: t.label, initialBalance: '', creditLimit: '',
+    id: null, type: t.value, name: t.label, initialBalance: '', owed: '', creditLimit: '',
     includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
   }
   showForm.value = true
@@ -233,16 +250,24 @@ async function submit() {
   try {
     const creditLimit = formIsCredit.value && form.value.creditLimit !== ''
       ? form.value.creditLimit : undefined
+    const note = form.value._note ? form.value._note.trim() : undefined
     if (isEditing.value) {
       await updateAccount(form.value.id, {
         name, type: form.value.type, includeInTotal: form.value.includeInTotal,
-        hidden: form.value._hidden, note: form.value._note, creditLimit
+        hidden: form.value._hidden, note, creditLimit
       }, form.value._ledgerId)
     } else {
+      // 信贷账户：当前欠款以负余额入账（欠款为正 → 初始余额为负），其余按余额/市值直填。
+      let initialBalance
+      if (formIsCredit.value) {
+        initialBalance = form.value.owed === '' ? '0' : String(-Math.abs(Number(form.value.owed)))
+      } else {
+        initialBalance = form.value.initialBalance === '' ? '0' : form.value.initialBalance
+      }
       await createAccount({
-        name, type: form.value.type,
-        initialBalance: form.value.initialBalance === '' ? '0' : form.value.initialBalance,
-        includeInTotal: form.value.includeInTotal, creditLimit
+        name, type: form.value.type, initialBalance,
+        includeInTotal: form.value.includeInTotal,
+        hidden: form.value._hidden, note, creditLimit
       })
     }
     showForm.value = false
@@ -387,59 +412,101 @@ function confirmDelete() {
       </view>
     </view>
 
-    <!-- 新建/编辑表单 -->
+    <!-- 新建/编辑表单（按类型自适应） -->
     <view v-if="showForm" class="mask" @click="showForm = false">
-      <view class="sheet" @click.stop>
+      <view class="sheet form-sheet" @click.stop>
         <view class="form-head">
           <text class="fh-cancel" @click="showForm = false">取消</text>
           <text class="fh-title">{{ isEditing ? '编辑账户' : '新建账户' }}</text>
           <text class="fh-save" @click="submit">保存</text>
         </view>
+
+        <!-- 顶部图标预览 -->
+        <view class="hero">
+          <view class="hero-ic" :style="{ background: iconBg }">{{ accountTypeEmoji(form.type) }}</view>
+        </view>
+
+        <!-- 基本信息 -->
         <view class="form-body">
           <view class="frow" @click="reopenTypePicker">
             <text class="fk">类型</text>
-            <text class="fv">{{ accountTypeEmoji(form.type) }} {{ accountTypeLabel(form.type) }} ›</text>
+            <text class="fv">{{ accountTypeLabel(form.type) }} ›</text>
           </view>
           <view class="frow">
             <text class="fk">名称</text>
             <input v-model="form.name" class="finput" placeholder="账户名称" maxlength="50" />
           </view>
-          <view v-if="!isEditing" class="frow">
-            <text class="fk">初始余额</text>
-            <input v-model="form.initialBalance" class="finput" type="digit" placeholder="0.00" />
-          </view>
-          <view v-if="formIsCredit" class="frow">
-            <text class="fk">授信额度</text>
+
+          <!-- 新建：信贷=额度+当前欠款；其它=余额/市值 -->
+          <template v-if="!isEditing">
+            <template v-if="formIsCredit">
+              <view class="frow">
+                <text class="fk">信用额度</text>
+                <input v-model="form.creditLimit" class="finput" type="digit" placeholder="0.00" />
+              </view>
+              <view class="frow col">
+                <view class="frow-top">
+                  <text class="fk">当前欠款</text>
+                  <input v-model="form.owed" class="finput" type="digit" placeholder="0.00" />
+                </view>
+                <text class="fhint">正数代表欠款，将计入总负债</text>
+              </view>
+            </template>
+            <view v-else class="frow">
+              <text class="fk">{{ balanceLabel }}</text>
+              <input v-model="form.initialBalance" class="finput" type="digit" placeholder="0.00" />
+            </view>
+          </template>
+          <!-- 编辑：信贷仍可改额度 -->
+          <view v-else-if="formIsCredit" class="frow">
+            <text class="fk">信用额度</text>
             <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
           </view>
+        </view>
+
+        <!-- 更多设置 -->
+        <view class="form-body">
           <view class="frow">
-            <text class="fk">计入净资产</text>
+            <text class="fk">{{ formIsCredit ? '计入净资产（负债）' : '计入净资产' }}</text>
             <switch :checked="form.includeInTotal" color="#12a150" @change="form.includeInTotal = $event.detail.value" />
+          </view>
+          <view class="frow col">
+            <view class="frow-top">
+              <text class="fk">隐藏账户</text>
+              <switch :checked="form._hidden" color="#12a150" @change="form._hidden = $event.detail.value" />
+            </view>
+            <text class="fhint">开启后，选账户弹窗不显示此账户</text>
+          </view>
+          <view class="frow">
+            <text class="fk">备注</text>
+            <input v-model="form._note" class="finput" placeholder="选填" maxlength="200" />
           </view>
           <view v-if="isEditing" class="frow" @click="openAdjust">
             <text class="fk">余额调整</text>
             <text class="fv">校准到目标余额 ›</text>
           </view>
-
-          <!-- 协作账本：账户共享设置（仅账户 owner 可见） -->
-          <template v-if="canManageSharing">
-            <view class="fsec">共享设置（本账本）</view>
-            <view class="frow">
-              <text class="fk">对成员可见</text>
-              <switch :checked="vis.visibleToOthers" color="#12a150"
-                @change="onVisChange('visibleToOthers', $event.detail.value)" />
-            </view>
-            <view class="frow">
-              <text class="fk">显示余额给成员</text>
-              <switch :checked="vis.showBalance" color="#12a150"
-                @change="onVisChange('showBalance', $event.detail.value)" />
-            </view>
-            <view class="frow" @click="openTransferOwner">
-              <text class="fk">转交账户</text>
-              <text class="fv">转交给其他成员 ›</text>
-            </view>
-          </template>
         </view>
+
+        <!-- 协作账本：账户共享设置（仅账户 owner 可见） -->
+        <view v-if="canManageSharing" class="form-body">
+          <view class="fsec">共享设置（本账本）</view>
+          <view class="frow">
+            <text class="fk">对成员可见</text>
+            <switch :checked="vis.visibleToOthers" color="#12a150"
+              @change="onVisChange('visibleToOthers', $event.detail.value)" />
+          </view>
+          <view class="frow">
+            <text class="fk">显示余额给成员</text>
+            <switch :checked="vis.showBalance" color="#12a150"
+              @change="onVisChange('showBalance', $event.detail.value)" />
+          </view>
+          <view class="frow" @click="openTransferOwner">
+            <text class="fk">转交账户</text>
+            <text class="fv">转交给其他成员 ›</text>
+          </view>
+        </view>
+
+        <button class="big-save" @click="submit">保存</button>
         <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
       </view>
     </view>
@@ -797,11 +864,54 @@ function confirmDelete() {
   color: #16181c;
 }
 .del {
-  margin-top: 24rpx;
+  margin-top: 20rpx;
   background: #fff;
   color: #e5484d;
   border-radius: 44rpx;
   font-size: 30rpx;
   border: 1rpx solid #f1d4d4;
+}
+/* 新建/编辑：自适应表单 */
+.form-sheet {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.hero {
+  display: flex;
+  justify-content: center;
+  padding: 8rpx 0 16rpx;
+}
+.hero-ic {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60rpx;
+  box-shadow: 0 8rpx 22rpx rgba(0, 0, 0, 0.06);
+}
+.frow.col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8rpx;
+}
+.frow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.fhint {
+  font-size: 22rpx;
+  color: #9aa2ad;
+}
+.big-save {
+  margin-top: 24rpx;
+  background: linear-gradient(135deg, #18b85a, #0e8a44);
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+  box-shadow: 0 12rpx 24rpx rgba(18, 161, 80, 0.35);
 }
 </style>
