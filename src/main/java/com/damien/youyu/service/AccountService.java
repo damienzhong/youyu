@@ -87,11 +87,29 @@ public class AccountService {
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
             Long attachLedgerId) {
+        return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
+                includeInTotal, hidden, rawNote, rawCreditLimit, null, null, false, attachLedgerId);
+    }
+
+    /**
+     * 创建账户（含信用卡账单/还款字段）：账单日/还款日仅信用卡有意义（1-28），
+     * 非信用卡一律置空、还款提醒关闭。
+     *
+     * @throws ApiException ACCOUNT_FIELD_INVALID（名称/类型/初始余额/备注/账单日/还款日任一非法，需求 3.3）
+     */
+    @Transactional
+    public Account create(Long userId, String rawName, String rawType,
+            BigDecimal rawInitialBalance, Integer sortOrder,
+            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
+            Integer rawBillDay, Integer rawRepayDay, boolean repayReminder,
+            Long attachLedgerId) {
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
         BigDecimal initialBalance = validateBalance(rawInitialBalance);
         String note = validateNote(rawNote);
         BigDecimal creditLimit = validateCreditLimit(rawCreditLimit);
+        Integer billDay = validateCreditDay(rawBillDay, "billDay");
+        Integer repayDay = validateCreditDay(rawRepayDay, "repayDay");
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
@@ -104,7 +122,11 @@ public class AccountService {
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(note);
-        account.setCreditLimit(type.isCredit() ? creditLimit : null);
+        boolean credit = type.isCredit();
+        account.setCreditLimit(credit ? creditLimit : null);
+        account.setBillDay(credit ? billDay : null);
+        account.setRepayDay(credit ? repayDay : null);
+        account.setRepayReminder(credit && repayReminder);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         Account saved = accountRepository.save(account);
@@ -140,6 +162,15 @@ public class AccountService {
     @Transactional
     public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
+        return update(userId, id, rawName, rawType, includeInTotal, hidden, rawNote, rawCreditLimit,
+                null, null, false);
+    }
+
+    /** 修改账户（含信用卡账单/还款字段）：非信用卡类型置空账单/还款日并关闭提醒。 */
+    @Transactional
+    public Account update(Long userId, Long id, String rawName, String rawType,
+            boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
+            Integer rawBillDay, Integer rawRepayDay, boolean repayReminder) {
         Account account = requireAccount(userId, id);
 
         AccountType type = validateType(rawType);
@@ -148,7 +179,11 @@ public class AccountService {
         account.setIncludeInTotal(includeInTotal);
         account.setHidden(hidden);
         account.setNote(validateNote(rawNote));
-        account.setCreditLimit(type.isCredit() ? validateCreditLimit(rawCreditLimit) : null);
+        boolean credit = type.isCredit();
+        account.setCreditLimit(credit ? validateCreditLimit(rawCreditLimit) : null);
+        account.setBillDay(credit ? validateCreditDay(rawBillDay, "billDay") : null);
+        account.setRepayDay(credit ? validateCreditDay(rawRepayDay, "repayDay") : null);
+        account.setRepayReminder(credit && repayReminder);
         account.setUpdatedAt(LocalDateTime.now(clock));
         return accountRepository.save(account);
     }
@@ -344,6 +379,17 @@ public class AccountService {
                     "授信额度需为非负且不超过 9,999,999,999,999,999.99");
         }
         return normalized;
+    }
+
+    /** 校验账单日/还款日：null 放行（未设置）；否则须为 1-28（规避大小月/闰月边界）。 */
+    private Integer validateCreditDay(Integer day, String field) {
+        if (day == null) {
+            return null;
+        }
+        if (day < 1 || day > 28) {
+            throw ApiException.accountFieldInvalid(field, "日期需为 1 到 28");
+        }
+        return day;
     }
 
     private BigDecimal validateBalance(BigDecimal rawBalance) {

@@ -69,6 +69,18 @@ public class Account {
     @Column(name = "credit_limit", precision = 18, scale = 2)
     private BigDecimal creditLimit;
 
+    /** 账单日（1-28，可空，仅信用卡有意义）。 */
+    @Column(name = "bill_day")
+    private Integer billDay;
+
+    /** 还款日（1-28，可空，仅信用卡有意义）。 */
+    @Column(name = "repay_day")
+    private Integer repayDay;
+
+    /** 还款提醒：开启后还款日在记账日历高亮/提醒（仅信用卡有意义）。 */
+    @Column(name = "repay_reminder", nullable = false)
+    private boolean repayReminder = false;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -165,6 +177,30 @@ public class Account {
 
     public void setCreditLimit(BigDecimal creditLimit) {
         this.creditLimit = creditLimit;
+    }
+
+    public Integer getBillDay() {
+        return billDay;
+    }
+
+    public void setBillDay(Integer billDay) {
+        this.billDay = billDay;
+    }
+
+    public Integer getRepayDay() {
+        return repayDay;
+    }
+
+    public void setRepayDay(Integer repayDay) {
+        this.repayDay = repayDay;
+    }
+
+    public boolean isRepayReminder() {
+        return repayReminder;
+    }
+
+    public void setRepayReminder(boolean repayReminder) {
+        this.repayReminder = repayReminder;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -24,6 +24,9 @@ public record AccountResponse(
         boolean hidden,
         String note,
         BigDecimal creditLimit,
+        Integer billDay,
+        Integer repayDay,
+        boolean repayReminder,
         boolean canSeeBalance) {
 
     /** 账户 owner 视图：余额完全可见。 */
@@ -49,6 +52,9 @@ public record AccountResponse(
                 account.isHidden(),
                 account.getNote(),
                 canSeeBalance ? account.getCreditLimit() : null,
+                account.getBillDay(),
+                account.getRepayDay(),
+                account.isRepayReminder(),
                 canSeeBalance);
     }
 }

@@ -14,5 +14,8 @@ public record AccountUpdateRequest(
         Boolean includeInTotal,
         Boolean hidden,
         String note,
-        BigDecimal creditLimit) {
+        BigDecimal creditLimit,
+        Integer billDay,
+        Integer repayDay,
+        Boolean repayReminder) {
 }

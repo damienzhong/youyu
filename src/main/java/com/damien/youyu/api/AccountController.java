@@ -78,6 +78,7 @@ public class AccountController {
                 req.hidden() != null && req.hidden(),
                 req.note(),
                 req.creditLimit(),
+                req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder(),
                 ledgerId);
         return ResponseEntity.status(HttpStatus.CREATED).body(AccountResponse.from(account));
     }
@@ -139,7 +140,8 @@ public class AccountController {
                 req.includeInTotal() == null || req.includeInTotal(),
                 req.hidden() != null && req.hidden(),
                 req.note(),
-                req.creditLimit());
+                req.creditLimit(),
+                req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder());
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 

@@ -114,8 +114,13 @@ const showForm = ref(false)
 const submitting = ref(false)
 const form = ref({
   id: null, type: 'CASH', name: '', initialBalance: '', owed: '', creditLimit: '',
+  billDay: null, repayDay: null, repayReminder: false,
   includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
 })
+// 账单日/还款日候选（1-28，规避大小月边界）
+const DAY_LABELS = Array.from({ length: 28 }, (_, i) => `每月 ${i + 1} 日`)
+function onBillDayChange(e) { form.value.billDay = Number(e.detail.value) + 1 }
+function onRepayDayChange(e) { form.value.repayDay = Number(e.detail.value) + 1 }
 const isEditing = computed(() => form.value.id !== null)
 const formIsCredit = computed(() => isCreditType(form.value.type))
 const currentGroup = computed(() => accountGroupOf(form.value.type))
@@ -143,6 +148,7 @@ function pickType(t) {
   typePickerOpen.value = false
   form.value = {
     id: null, type: t.value, name: t.label, initialBalance: '', owed: '', creditLimit: '',
+    billDay: null, repayDay: null, repayReminder: false,
     includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
   }
   showForm.value = true
@@ -163,8 +169,9 @@ function pickTypeForEdit(t) {
 }
 async function openEdit(acc) {
   form.value = {
-    id: acc.id, type: acc.type, name: acc.name, initialBalance: '',
+    id: acc.id, type: acc.type, name: acc.name, initialBalance: '', owed: '',
     creditLimit: acc.creditLimit != null ? String(acc.creditLimit) : '',
+    billDay: acc.billDay ?? null, repayDay: acc.repayDay ?? null, repayReminder: !!acc.repayReminder,
     includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note,
     _ownerId: acc.ownerId, _ledgerId: null
   }
@@ -251,10 +258,14 @@ async function submit() {
     const creditLimit = formIsCredit.value && form.value.creditLimit !== ''
       ? form.value.creditLimit : undefined
     const note = form.value._note ? form.value._note.trim() : undefined
+    // 信用卡账单/还款字段（仅信贷账户传递）
+    const billing = formIsCredit.value
+      ? { billDay: form.value.billDay, repayDay: form.value.repayDay, repayReminder: form.value.repayReminder }
+      : {}
     if (isEditing.value) {
       await updateAccount(form.value.id, {
         name, type: form.value.type, includeInTotal: form.value.includeInTotal,
-        hidden: form.value._hidden, note, creditLimit
+        hidden: form.value._hidden, note, creditLimit, ...billing
       }, form.value._ledgerId)
     } else {
       // 信贷账户：当前欠款以负余额入账（欠款为正 → 初始余额为负），其余按余额/市值直填。
@@ -267,7 +278,7 @@ async function submit() {
       await createAccount({
         name, type: form.value.type, initialBalance,
         includeInTotal: form.value.includeInTotal,
-        hidden: form.value._hidden, note, creditLimit
+        hidden: form.value._hidden, note, creditLimit, ...billing
       })
     }
     showForm.value = false
@@ -461,6 +472,29 @@ function confirmDelete() {
           <view v-else-if="formIsCredit" class="frow">
             <text class="fk">信用额度</text>
             <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
+          </view>
+        </view>
+
+        <!-- 账单与还款（信贷账户专属） -->
+        <view v-if="formIsCredit" class="form-body">
+          <picker mode="selector" :range="DAY_LABELS" @change="onBillDayChange">
+            <view class="frow">
+              <text class="fk">账单日</text>
+              <text class="fv" :class="{ ph: !form.billDay }">{{ form.billDay ? '每月 ' + form.billDay + ' 日 ›' : '未设置 ›' }}</text>
+            </view>
+          </picker>
+          <picker mode="selector" :range="DAY_LABELS" @change="onRepayDayChange">
+            <view class="frow">
+              <text class="fk">还款日</text>
+              <text class="fv" :class="{ ph: !form.repayDay }">{{ form.repayDay ? '每月 ' + form.repayDay + ' 日 ›' : '未设置 ›' }}</text>
+            </view>
+          </picker>
+          <view class="frow col">
+            <view class="frow-top">
+              <text class="fk">还款提醒</text>
+              <switch :checked="form.repayReminder" color="#12a150" @change="form.repayReminder = $event.detail.value" />
+            </view>
+            <text class="fhint">开启后还款日在记账日历高亮提醒</text>
           </view>
         </view>
 
@@ -856,6 +890,10 @@ function confirmDelete() {
   font-size: 30rpx;
   color: #16181c;
   font-weight: 600;
+}
+.fv.ph {
+  color: #c2c7cd;
+  font-weight: 400;
 }
 .finput {
   flex: 1;
