@@ -925,7 +925,8 @@ function goSearch() {
   background: rgba(15, 23, 42, 0.42);
   display: flex;
   align-items: flex-end;
-  z-index: 50;
+  /* 高于底部 TabBar（z-index:500），作为模态完整覆盖导航栏，避免弹层底部被遮挡 */
+  z-index: 600;
 }
 .sheet {
   width: 100%;

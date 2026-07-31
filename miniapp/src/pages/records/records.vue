@@ -853,7 +853,7 @@ async function batchDelete() {
 .hint { display: block; text-align: center; font-size: 22rpx; color: #bbb; margin: 28rpx 0; }
 
 /* 遮罩/弹层 */
-.mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 50; }
+.mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 600; }
 .sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 28rpx 28rpx calc(28rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .sheet-title { display: block; text-align: center; font-size: 30rpx; font-weight: 800; margin-bottom: 16rpx; }
 
@@ -880,7 +880,7 @@ async function batchDelete() {
 .fdone { flex: 1; text-align: center; padding: 22rpx 0; border-radius: 14rpx; background: #12a150; color: #fff; font-weight: 700; font-size: 28rpx; }
 
 /* 搜索层 */
-.searchlayer { position: fixed; inset: 0; background: #eef0f2; z-index: 60; display: flex; flex-direction: column; }
+.searchlayer { position: fixed; inset: 0; background: #eef0f2; z-index: 600; display: flex; flex-direction: column; }
 .sbar { background: #fff; display: flex; align-items: center; gap: 16rpx; padding: 16rpx 24rpx; padding-top: calc(16rpx + env(safe-area-inset-top)); }
 .sback { font-size: 44rpx; color: #5b6470; }
 .sinput { flex: 1; background: #f2f4f6; border-radius: 999rpx; padding: 16rpx 28rpx; font-size: 28rpx; }
