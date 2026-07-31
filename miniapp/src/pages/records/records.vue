@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { listAccounts } from '../../api/account'
+import { listAccounts, listRepayReminders } from '../../api/account'
 import { listCategories, buildCategoryLabelMap } from '../../api/category'
 import { listTransactionsByMonth, deleteTransaction, searchTransactions, batchDeleteTransactions } from '../../api/transaction'
 import { listMembers } from '../../api/ledger'
@@ -328,6 +328,16 @@ const searchTotal = computed(() => {
 const calendarOpen = ref(false)
 const selectedDay = ref('')
 const WEEK = ['日', '一', '二', '三', '四', '五', '六']
+// 信用卡还款日集合（每月第几日），用于日历高亮
+const repayDaySet = ref(new Set())
+async function loadRepayDays() {
+  try {
+    const list = await listRepayReminders()
+    repayDaySet.value = new Set(list.map((r) => r.repayDay))
+  } catch (e) {
+    repayDaySet.value = new Set()
+  }
+}
 const dailyMap = computed(() => {
   const m = {}
   for (const t of transactions.value) {
@@ -347,14 +357,19 @@ const calendarCells = computed(() => {
   for (let d = 1; d <= days; d++) {
     const key = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     const info = dailyMap.value[key]
-    cells.push({ d, key, expense: info ? info.expense : 0, income: info ? info.income : 0 })
+    cells.push({
+      d, key,
+      expense: info ? info.expense : 0,
+      income: info ? info.income : 0,
+      repay: repayDaySet.value.has(d)
+    })
   }
   return cells
 })
 const selectedDayTx = computed(() =>
   selectedDay.value ? transactions.value.filter((t) => dayKeyOf(t.occurredAt) === selectedDay.value) : []
 )
-function openCalendar() { calendarOpen.value = true; selectedDay.value = '' }
+function openCalendar() { calendarOpen.value = true; selectedDay.value = ''; loadRepayDays() }
 function pickDay(c) { if (!c) return; selectedDay.value = selectedDay.value === c.key ? '' : c.key }
 
 // ---------- 行渲染 ----------
@@ -695,16 +710,17 @@ async function batchDelete() {
               v-for="(c, i) in calendarCells"
               :key="i"
               class="calcell"
-              :class="{ blank: !c, sel: c && selectedDay === c.key }"
+              :class="{ blank: !c, sel: c && selectedDay === c.key, repay: c && c.repay }"
               @click="pickDay(c)"
             >
               <template v-if="c">
-                <text class="cd">{{ c.d }}</text>
+                <text class="cd">{{ c.d }}<text v-if="c.repay" class="repaydot">💳</text></text>
                 <text v-if="c.expense" class="ce">-{{ formatAmount(c.expense) }}</text>
                 <text v-if="c.income" class="ci">+{{ formatAmount(c.income) }}</text>
               </template>
             </view>
           </view>
+          <view v-if="repayDaySet.size" class="cal-legend">💳 信用卡还款日</view>
         </view>
         <view v-if="selectedDay" class="daygrp">
           <view class="dayhead"><text class="dt">{{ selectedDay.slice(5) }}</text></view>
@@ -888,8 +904,12 @@ async function batchDelete() {
 }
 .calcell.blank { visibility: hidden; }
 .calcell.sel { background: #e6f6ec; }
+.calcell.repay { background: #fdf1ee; }
+.calcell.repay.sel { background: #e6f6ec; }
 .cd { font-size: 24rpx; color: #16181c; }
+.repaydot { font-size: 16rpx; margin-left: 2rpx; }
 .ce { font-size: 16rpx; color: #f0553d; margin-top: 2rpx; }
 .ci { font-size: 16rpx; color: #12a150; }
 .cal-hint { text-align: center; color: #9aa2ad; font-size: 24rpx; padding: 40rpx; }
+.cal-legend { text-align: center; color: #9aa2ad; font-size: 20rpx; padding: 8rpx 0 4rpx; }
 </style>
