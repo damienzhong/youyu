@@ -3,15 +3,13 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "description": "有余 - 营销落地站（记账应用本体为 uni-app H5，部署于 /app/）",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview --port 5175",
-    "test": "vitest run"
+    "preview": "vite preview --port 5175"
   },
   "dependencies": {
-    "axios": "^1.7.9",
-    "pinia": "^3.0.4",
     "vue": "^3.5.25",
     "vue-router": "^4.6.4"
   },
@@ -21,8 +19,6 @@
     "@vue/tsconfig": "^0.8.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
-    "vite-plugin-pwa": "^1.0.3",
-    "vitest": "^3.2.6",
     "vue-tsc": "^3.1.5"
   }
 }

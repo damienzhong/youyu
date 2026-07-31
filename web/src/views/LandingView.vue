@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 落地页（公开）：面向未登录访客的产品介绍与转化入口。
+ * 落地页：面向访客的产品介绍与转化入口，位于站点根路径 /。
  *
- * 路由 /welcome（公开）。未登录访问受保护路由时由守卫重定向至此；
- * 已登录访问则被守卫送回 App 首页。CTA 指向注册/登录。
+ * 记账应用本体是同源 /app/ 下的 uni-app H5，CTA（登录 / 开始记账）以普通链接跳转到 /app/。
+ * 法律文档（用户协议 / 隐私政策）为站内路由，用 RouterLink 跳转。
  */
 import { RouterLink } from 'vue-router'
 </script>
@@ -20,8 +20,8 @@ import { RouterLink } from 'vue-router'
           <a href="#start">如何开始</a>
         </nav>
         <div class="nav-actions">
-          <RouterLink class="btn btn-ghost" to="/login">登录</RouterLink>
-          <RouterLink class="btn btn-primary" to="/register">免费注册</RouterLink>
+          <a class="btn btn-ghost" href="/app/">登录</a>
+          <a class="btn btn-primary" href="/app/">免费记账</a>
         </div>
       </div>
     </header>
@@ -34,8 +34,8 @@ import { RouterLink } from 'vue-router'
           <h1 class="headline">干净记账，<br /><span class="hl">日子有余</span>。</h1>
           <p class="sub">没有广告，没有付费墙。三秒记好一笔，手机电脑一套账，数据随时带走——一个真正干净的记账本。</p>
           <div class="cta-row">
-            <RouterLink class="btn btn-primary btn-lg" to="/register">免费开始记账</RouterLink>
-            <RouterLink class="btn btn-ghost btn-lg" to="/login">已有账号，登录 →</RouterLink>
+            <a class="btn btn-primary btn-lg" href="/app/">免费开始记账</a>
+            <a class="btn btn-ghost btn-lg" href="/app/">已有账号，登录 →</a>
           </div>
           <p class="trust"><b>记好每一笔，日子有余</b> · 基础功能永久免费</p>
         </div>
@@ -109,7 +109,7 @@ import { RouterLink } from 'vue-router'
         <p class="section-desc">一分钟拥有一个干净的记账本。</p>
       </div>
       <div class="steps">
-        <div class="step"><div class="idx">1</div><div><h3>注册账号</h3><p>用账号和密码注册，无需手机号、无需实名。</p></div></div>
+        <div class="step"><div class="idx">1</div><div><h3>登录账号</h3><p>邮箱验证码或微信一键登录，无需设密码、无需实名。</p></div></div>
         <div class="step"><div class="idx">2</div><div><h3>建账户与分类</h3><p>添加现金、银行卡等账户，设置你习惯的收支分类。</p></div></div>
         <div class="step"><div class="idx">3</div><div><h3>记好每一笔</h3><p>三秒记一笔，随时看报表、导数据，日子越记越有余。</p></div></div>
       </div>
@@ -119,8 +119,8 @@ import { RouterLink } from 'vue-router'
     <div class="wrap">
       <div class="cta-band">
         <h2>今天，就从记好第一笔开始</h2>
-        <p>免费注册，一分钟拥有一个干净的记账本。</p>
-        <RouterLink class="btn btn-lg" to="/register">免费开始记账</RouterLink>
+        <p>免费登录，一分钟拥有一个干净的记账本。</p>
+        <a class="btn btn-lg" href="/app/">免费开始记账</a>
       </div>
     </div>
 
@@ -133,7 +133,7 @@ import { RouterLink } from 'vue-router'
             <p>记好每一笔，日子有余。一个干净、免费、数据自持的个人记账本。</p>
           </div>
           <div class="foot-col"><h4>产品</h4><a href="#features">功能特色</a><a href="#start">如何开始</a></div>
-          <div class="foot-col"><h4>账户</h4><RouterLink to="/login">登录</RouterLink><RouterLink to="/register">免费注册</RouterLink></div>
+          <div class="foot-col"><h4>账户</h4><a href="/app/">登录</a><a href="/app/">免费记账</a></div>
           <div class="foot-col"><h4>法律</h4><RouterLink to="/legal/agreement">用户协议</RouterLink><RouterLink to="/legal/privacy">隐私政策</RouterLink></div>
         </div>
         <div class="foot-bottom">

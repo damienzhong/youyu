@@ -29,7 +29,7 @@ jobs:
         run: ./mvnw -B -ntp package
 
   frontend:
-    name: Frontend (build H5 + 小程序)
+    name: App (build H5 + 小程序)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -47,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # uni-app 两端构建作为前端质量门（H5 用于线上、mp-weixin 用于小程序）
+      # uni-app 两端构建作为前端质量门（H5 用于线上 /app/、mp-weixin 用于小程序）
       - name: Build H5
         env:
           VITE_API_BASE: /api
@@ -55,3 +55,26 @@ jobs:
 
       - name: Build 小程序 (mp-weixin)
         run: npm run build:mp-weixin
+
+  landing:
+    name: Landing (build web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 营销落地站构建作为前端质量门（纯静态，部署在根路径 /）
+      - name: Build web
+        run: npm run build

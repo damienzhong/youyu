@@ -1,6 +1,13 @@
 # 有余(youyu) 部署指南
 
-架构：**Nginx**（对外 80/443，托管前端静态 + 反代 `/api`）→ **Spring Boot**（`youyu.jar`，监听 `127.0.0.1:8090`）→ **MySQL 8**。前端是 Vite 静态产物，后端是可执行 jar，二者分开部署。Flyway 在后端启动时自动建表/迁移，无需手动导入 SQL。
+架构：**Nginx**（对外 80/443，托管前端静态 + 反代 `/api`）→ **Spring Boot**（`youyu.jar`，监听 `127.0.0.1:8090`）→ **MySQL 8**。
+
+前端为两套同源静态产物，一起打包部署到 `/opt/youyu/web`：
+
+- **根路径 `/`**：营销落地站（`web/`，Vue 静态站点）。
+- **子路径 `/app/`**：记账应用本体（`miniapp/` 的 uni-app **H5** 产物，与微信小程序同一套代码）。
+
+后端是可执行 jar，与前端分开部署。Flyway 在后端启动时自动建表/迁移，无需手动导入 SQL。
 
 > 端口用 8090，避免与同机的 lodestar(8080) 冲突。
 
@@ -59,19 +66,20 @@ sudo bash /opt/youyu/source/deploy/deploy.sh
 ```bash
 curl -s http://127.0.0.1:8090/api/health        # 后端存活
 curl -s http://你的域名/api/health              # 经 nginx
-# 浏览器打开 http://你的域名 注册账号试用
+# 浏览器打开 http://你的域名        → 营销落地页
+# 浏览器打开 http://你的域名/app/   → 记账应用（邮箱验证码 / 微信登录）
 ```
 
 ## 五、HTTPS（强烈建议）
 
-登录涉及密码与 JWT，务必上 HTTPS：
+登录涉及邮箱验证码与 JWT，务必上 HTTPS：
 
 ```bash
 sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
-certbot 会自动改 nginx 配置并续期。上 HTTPS 后 PWA「添加到主屏/独立窗口」才完整可用。
+certbot 会自动改 nginx 配置并续期。微信小程序端要求后端为 HTTPS，正式联调前务必先配好证书。
 
 ## 六、运维
 
