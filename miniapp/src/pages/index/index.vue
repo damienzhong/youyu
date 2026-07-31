@@ -9,7 +9,7 @@ import { listTransactionsByMonth } from '../../api/transaction'
 import { listTags } from '../../api/tag'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
-import { createLedger, listMembers } from '../../api/ledger'
+import { createLedger, joinLedger, listMembers } from '../../api/ledger'
 import { formatAmount, categoryEmoji, dayKeyOf, dayLabel, currentMonth } from '../../utils/format'
 
 const auth = useAuthStore()
@@ -268,6 +268,25 @@ async function onCreateLedger(name) {
   }
 }
 
+// 加入协作账本：凭邀请码
+const joinSheet = ref(false)
+function joinLedgerByCode() {
+  showLedgerSheet.value = false
+  joinSheet.value = true
+}
+async function onJoinLedger(code) {
+  if (!code) return
+  joinSheet.value = false
+  try {
+    const l = await joinLedger(code)
+    ledgerStore.setCurrent(l.id)
+    uni.showToast({ title: `已加入「${l.name}」`, icon: 'success' })
+    uni.reLaunch({ url: '/pages/index/index' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '加入失败', icon: 'none' })
+  }
+}
+
 // ---------- 更多弹层 ----------
 const showMore = ref(false)
 function nav(url) {
@@ -458,7 +477,10 @@ function goSearch() {
             <text class="li-radio" :class="{ on: l.id === ledgerStore.currentLedgerId }"></text>
           </view>
         </scroll-view>
-        <view class="sheet-add" @click="addLedger">＋ 新建账本</view>
+        <view class="sheet-foot">
+          <view class="sheet-act" @click="addLedger"><text>＋ 新建账本</text></view>
+          <view class="sheet-act join" @click="joinLedgerByCode"><text>🔗 加入账本</text></view>
+        </view>
       </view>
     </view>
 
@@ -483,6 +505,8 @@ function goSearch() {
     </view>
 
     <InputSheet :visible="nameSheet" title="新建账本" placeholder="账本名称" @update:visible="nameSheet = $event" @confirm="onCreateLedger" />
+
+    <InputSheet :visible="joinSheet" title="加入协作账本" placeholder="输入邀请码" confirm-text="加入" tip="向账本创建者获取邀请码" @update:visible="joinSheet = $event" @confirm="onJoinLedger" />
   </view>
 </template>
 
@@ -999,13 +1023,23 @@ function goSearch() {
   border-color: #12a150;
   background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%);
 }
-.sheet-add {
+.sheet-foot {
+  display: flex;
+  border-top: 1rpx solid #f1f3f5;
+}
+.sheet-act {
+  flex: 1;
   text-align: center;
   padding: 30rpx;
   font-size: 30rpx;
   color: #0e8a44;
   font-weight: 700;
-  border-top: 1rpx solid #f1f3f5;
+}
+.sheet-act.join {
+  border-left: 1rpx solid #f1f3f5;
+}
+.sheet-act:active {
+  background: #f6f7f9;
 }
 .more-grid {
   display: flex;
