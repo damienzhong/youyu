@@ -25,9 +25,16 @@ const editingCatId = ref(null)
 
 function statusColor(status) {
   if (status === 'OVER') return '#f0553d'
-  if (status === 'WARN') return '#f59e0b'
+  if (status === 'WARN') return '#f4a72b'
   return '#12a150'
 }
+
+// 总预算状态：≥100% 超支 / ≥80% 预警 / 其余正常，驱动状态徽标与进度条颜色
+const totalStatus = computed(() => {
+  const p = Number(ov.value?.usedPercent) || 0
+  return p >= 100 ? 'OVER' : p >= 80 ? 'WARN' : 'OK'
+})
+const totalStatusLabel = computed(() => ({ OVER: '超支', WARN: '预警', OK: '正常' }[totalStatus.value]))
 
 async function load() {
   loading.value = true
@@ -136,30 +143,35 @@ function pct(v) {
 <template>
   <view class="page">
     <view class="month-bar">
-      <text class="nav" @click="prevMonth">‹</text>
+      <view class="nav" @click="prevMonth"><text>‹</text></view>
       <text class="month">{{ monthLabel(month) }}</text>
-      <text class="nav" @click="nextMonth">›</text>
+      <view class="nav" @click="nextMonth"><text>›</text></view>
     </view>
 
-    <!-- 总预算卡 -->
-    <view v-if="ov && ov.hasBudget" class="total-card">
-      <text class="tc-label">本月剩余可用</text>
+    <!-- 总预算卡（中性卡 + 语义色进度条） -->
+    <view v-if="ov && ov.hasBudget" class="total-card" @click="openTotal">
+      <view class="tc-top">
+        <text class="tc-label">本月剩余可用</text>
+        <text class="chip" :class="totalStatus.toLowerCase()">{{ totalStatusLabel }} {{ ov.usedPercent }}%</text>
+      </view>
       <text class="tc-remain" :class="{ neg: Number(ov.remaining) < 0 }">¥{{ formatAmount(ov.remaining) }}</text>
-      <view class="tc-bar-bg">
-        <view class="tc-bar" :style="{ width: pct(ov.usedPercent) + '%' }"></view>
+      <view class="barbg">
+        <view class="bar" :style="{ width: pct(ov.usedPercent) + '%', background: statusColor(totalStatus) }"></view>
       </view>
       <view class="tc-foot">
         <text>已用 ¥{{ formatAmount(ov.spent) }} / {{ formatAmount(ov.totalBudget) }}</text>
-        <text>{{ ov.usedPercent }}%</text>
+        <text class="tc-edit">编辑 ›</text>
       </view>
-      <text class="tc-edit" @click="openTotal">编辑总预算</text>
     </view>
 
-    <view v-else-if="ov" class="total-empty">
-      <text class="te-title">还没有设置本月预算</text>
-      <view class="te-actions">
-        <button class="te-btn primary" @click="openTotal">设置总预算</button>
-        <button class="te-btn" @click="copyPrev">沿用上月</button>
+    <!-- 空状态：图标 + 说明 + 双行动，撑满一屏 -->
+    <view v-else-if="ov" class="empty-budget">
+      <view class="eb-icon">🎯</view>
+      <text class="eb-title">还没有设置本月预算</text>
+      <text class="eb-sub">设定每月预算，随时知道还能花多少，花超了也能第一时间发现。</text>
+      <view class="eb-actions">
+        <view class="btn primary" @click="openTotal">设置总预算</view>
+        <view class="btn ghost" @click="copyPrev">沿用上月</view>
       </view>
     </view>
 
@@ -169,7 +181,7 @@ function pct(v) {
         <text class="h-k">剩余天数</text>
         <text class="h-v">{{ ov.health.daysLeft }} 天</text>
       </view>
-      <view class="h-item">
+      <view class="h-item mid">
         <text class="h-k">日均可用</text>
         <text class="h-v">¥{{ formatAmount(ov.health.dailyAvailable) }}</text>
       </view>
@@ -181,39 +193,44 @@ function pct(v) {
       </view>
     </view>
 
-    <!-- 分类预算 -->
-    <view class="section-head">
-      <text class="sh-title">分类预算</text>
-      <text class="sh-add" @click="openAddCategory">＋ 添加</text>
-    </view>
+    <!-- 分类预算：仅在已有总预算或已有分类预算时出现，避免空上加空 -->
+    <block v-if="ov && (ov.hasBudget || ov.categories.length)">
+      <view class="section-head">
+        <text class="sh-title">分类预算</text>
+        <text class="sh-add" @click="openAddCategory">＋ 添加</text>
+      </view>
 
-    <view v-if="ov && !ov.categories.length" class="empty">还没有分类预算</view>
+      <view v-if="!ov.categories.length" class="cat-empty">
+        <text class="ce-text">还没有分类预算</text>
+        <text class="ce-hint">为具体分类单独设限，控得更细</text>
+      </view>
 
-    <view class="cat-list" v-if="ov && ov.categories.length">
-      <view
-        v-for="c in ov.categories"
-        :key="c.categoryId"
-        class="cat"
-        @click="openEditCategory(c)"
-        @longpress="removeCategory(c)"
-      >
-        <view class="cat-head">
-          <text class="cat-name">{{ c.name }}</text>
-          <text class="cat-amt" :style="{ color: statusColor(c.status) }">
-            ¥{{ formatAmount(c.spent) }} / {{ formatAmount(c.budget) }}
-          </text>
-        </view>
-        <view class="cat-bar-bg">
-          <view class="cat-bar" :style="{ width: pct(c.usedPercent) + '%', background: statusColor(c.status) }"></view>
-        </view>
-        <view class="cat-foot">
-          <text>{{ c.txCount }} 笔</text>
-          <text :style="{ color: statusColor(c.status) }">{{ c.usedPercent }}%</text>
+      <view class="cat-list" v-else>
+        <view
+          v-for="c in ov.categories"
+          :key="c.categoryId"
+          class="cat"
+          @click="openEditCategory(c)"
+          @longpress="removeCategory(c)"
+        >
+          <view class="cat-head">
+            <text class="cat-name">{{ c.name }}</text>
+            <text class="cat-amt" :style="{ color: statusColor(c.status) }">
+              ¥{{ formatAmount(c.spent) }} / {{ formatAmount(c.budget) }}
+            </text>
+          </view>
+          <view class="barbg">
+            <view class="bar" :style="{ width: pct(c.usedPercent) + '%', background: statusColor(c.status) }"></view>
+          </view>
+          <view class="cat-foot">
+            <text>{{ c.txCount }} 笔</text>
+            <text :style="{ color: statusColor(c.status) }">{{ c.usedPercent }}%</text>
+          </view>
         </view>
       </view>
-    </view>
 
-    <text v-if="ov && ov.categories.length" class="hint">点击编辑 · 长按删除</text>
+      <text v-if="ov.categories.length" class="hint">点击编辑 · 长按删除</text>
+    </block>
 
     <!-- 弹层 -->
     <view v-if="sheet" class="mask" @click="sheet = null">
@@ -232,119 +249,201 @@ function pct(v) {
           <text>分类：{{ addableCats[catIndex]?.label || '-' }}</text>
         </picker>
         <input v-model="amountInput" class="field" type="digit" placeholder="预算金额" />
-        <button class="submit" @click="submitSheet">保存</button>
+        <view class="btn primary submit" @click="submitSheet">保存</view>
       </view>
     </view>
   </view>
 </template>
 
 <style scoped>
+/* 设计 token（对齐 design/youyu-ux-redesign.html）：中性底 + 品牌绿只做强调 */
 .page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 24rpx 28rpx;
+  background: #eef0f2;
+  box-sizing: border-box;
 }
+
+/* 月份切换 */
 .month-bar {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 40rpx;
-  margin-bottom: 20rpx;
+  gap: 28rpx;
+  margin: 8rpx 0 24rpx;
 }
 .nav {
-  font-size: 44rpx;
-  color: #576b95;
-  padding: 0 20rpx;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 4rpx 14rpx rgba(20, 24, 28, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  color: #5b6470;
+}
+.nav:active {
+  background: #f6f7f9;
 }
 .month {
   font-size: 32rpx;
-  font-weight: 700;
-  color: #1f2937;
+  font-weight: 800;
+  color: #16181c;
+  min-width: 220rpx;
+  text-align: center;
 }
 
-/* 总预算卡 */
+/* 通用卡片阴影/圆角 */
+.total-card,
+.health,
+.cat-list,
+.cat-empty {
+  background: #fff;
+  border-radius: 32rpx;
+  box-shadow: 0 6rpx 22rpx rgba(20, 24, 28, 0.06);
+}
+
+/* 通用进度条 */
+.barbg {
+  height: 18rpx;
+  background: #f6f7f9;
+  border-radius: 999rpx;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 999rpx;
+  background: #12a150;
+  transition: width 0.3s ease;
+}
+
+/* 状态徽标 */
+.chip {
+  font-size: 22rpx;
+  font-weight: 700;
+  padding: 6rpx 16rpx;
+  border-radius: 999rpx;
+}
+.chip.ok {
+  background: #e6f6ec;
+  color: #0e8a44;
+}
+.chip.warn {
+  background: #fdf3e2;
+  color: #b9761a;
+}
+.chip.over {
+  background: #fdece8;
+  color: #f0553d;
+}
+
+/* 总预算卡（中性） */
 .total-card {
-  border-radius: 28rpx;
-  padding: 36rpx;
-  color: #fff;
-  background: linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34);
-  box-shadow: 0 20rpx 44rpx rgba(22, 163, 74, 0.26);
+  padding: 32rpx;
   margin-bottom: 24rpx;
+}
+.tc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .tc-label {
   font-size: 24rpx;
-  opacity: 0.9;
+  color: #9aa2ad;
 }
 .tc-remain {
   display: block;
-  margin: 8rpx 0 24rpx;
-  font-size: 64rpx;
+  margin: 10rpx 0 24rpx;
+  font-size: 62rpx;
   font-weight: 800;
+  color: #16181c;
+  font-variant-numeric: tabular-nums;
 }
 .tc-remain.neg {
-  color: #fee2e2;
-}
-.tc-bar-bg {
-  height: 16rpx;
-  background: rgba(255, 255, 255, 0.28);
-  border-radius: 8rpx;
-  overflow: hidden;
-}
-.tc-bar {
-  height: 100%;
-  background: #fff;
-  border-radius: 8rpx;
+  color: #f0553d;
 }
 .tc-foot {
   display: flex;
   justify-content: space-between;
   margin-top: 16rpx;
   font-size: 24rpx;
-  opacity: 0.95;
+  color: #9aa2ad;
 }
 .tc-edit {
-  display: block;
-  margin-top: 20rpx;
-  text-align: center;
-  font-size: 26rpx;
-  padding: 14rpx;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 999rpx;
+  color: #0e8a44;
+  font-weight: 600;
 }
 
-.total-empty {
-  background: #fff;
-  border-radius: 28rpx;
-  padding: 48rpx 36rpx;
-  margin-bottom: 24rpx;
-  text-align: center;
-}
-.te-title {
-  display: block;
-  font-size: 30rpx;
-  color: #6b7280;
-  margin-bottom: 28rpx;
-}
-.te-actions {
+/* 空状态：撑满一屏，图标 + 说明 + 双行动 */
+.empty-budget {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 96rpx 48rpx 40rpx;
+}
+.eb-icon {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 50%;
+  background: #e6f6ec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 68rpx;
+  margin-bottom: 32rpx;
+}
+.eb-title {
+  font-size: 34rpx;
+  font-weight: 800;
+  color: #16181c;
+}
+.eb-sub {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #9aa2ad;
+  max-width: 460rpx;
+}
+.eb-actions {
+  margin-top: 48rpx;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 20rpx;
 }
-.te-btn {
-  flex: 1;
-  font-size: 28rpx;
-  border-radius: 44rpx;
-  background: #f0f2f5;
-  color: #4b5563;
+
+/* 按钮：用 view 规避原生 button 的默认边框/尺寸问题 */
+.btn {
+  height: 92rpx;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  font-weight: 700;
 }
-.te-btn.primary {
+.btn.primary {
   background: #12a150;
   color: #fff;
+  box-shadow: 0 14rpx 30rpx rgba(18, 161, 80, 0.24);
+}
+.btn.primary:active {
+  background: #0e8a44;
+}
+.btn.ghost {
+  background: #f6f7f9;
+  color: #16181c;
+}
+.btn.ghost:active {
+  background: #eceef1;
 }
 
 /* 预算健康 */
 .health {
   display: flex;
-  background: #fff;
-  border-radius: 24rpx;
   padding: 28rpx 0;
   margin-bottom: 24rpx;
 }
@@ -355,50 +454,64 @@ function pct(v) {
   align-items: center;
   gap: 8rpx;
 }
+.h-item.mid {
+  border-left: 1rpx solid #eceef1;
+  border-right: 1rpx solid #eceef1;
+}
 .h-k {
   font-size: 22rpx;
-  color: #9ca3af;
+  color: #9aa2ad;
 }
 .h-v {
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #16181c;
+  font-variant-numeric: tabular-nums;
 }
 .h-v.neg {
   color: #f0553d;
 }
 
+/* 分类预算 */
 .section-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 8rpx 8rpx 16rpx;
+  margin: 20rpx 8rpx 16rpx;
 }
 .sh-title {
-  font-size: 32rpx;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #16181c;
 }
 .sh-add {
   font-size: 26rpx;
-  color: #12a150;
+  color: #0e8a44;
+  font-weight: 700;
+}
+.cat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  padding: 56rpx 0;
+}
+.ce-text {
+  font-size: 28rpx;
+  color: #5b6470;
   font-weight: 600;
 }
-.empty {
-  text-align: center;
-  color: #9ca3af;
-  font-size: 28rpx;
-  padding: 40rpx 0;
+.ce-hint {
+  font-size: 24rpx;
+  color: #9aa2ad;
 }
 
 .cat-list {
-  background: #fff;
-  border-radius: 24rpx;
   padding: 8rpx 28rpx;
 }
 .cat {
   padding: 26rpx 0;
-  border-top: 1rpx solid #eef0f2;
+  border-top: 1rpx solid #eceef1;
 }
 .cat-list .cat:first-child {
   border-top: none;
@@ -406,54 +519,49 @@ function pct(v) {
 .cat-head {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 14rpx;
+  align-items: center;
+  margin-bottom: 16rpx;
 }
 .cat-name {
   font-size: 28rpx;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 700;
+  color: #16181c;
 }
 .cat-amt {
   font-size: 26rpx;
   font-weight: 700;
-}
-.cat-bar-bg {
-  height: 14rpx;
-  background: #f0f0f0;
-  border-radius: 8rpx;
-  overflow: hidden;
-}
-.cat-bar {
-  height: 100%;
-  border-radius: 8rpx;
+  font-variant-numeric: tabular-nums;
 }
 .cat-foot {
   display: flex;
   justify-content: space-between;
-  margin-top: 10rpx;
+  margin-top: 12rpx;
   font-size: 22rpx;
-  color: #9ca3af;
+  color: #9aa2ad;
 }
 .hint {
   display: block;
   text-align: center;
   font-size: 22rpx;
-  color: #bbb;
-  margin: 20rpx 0;
+  color: #9aa2ad;
+  margin: 24rpx 0;
 }
 
+/* 底部弹层 */
 .mask {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.4);
   display: flex;
   align-items: flex-end;
+  z-index: 100;
 }
 .sheet {
   width: 100%;
   background: #fff;
-  border-radius: 28rpx 28rpx 0 0;
+  border-radius: 32rpx 32rpx 0 0;
   padding: 40rpx;
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -462,17 +570,16 @@ function pct(v) {
 .sheet-title {
   font-size: 32rpx;
   font-weight: 800;
+  color: #16181c;
 }
 .field {
-  background: #f5f6f7;
-  border-radius: 14rpx;
+  background: #f6f7f9;
+  border-radius: 16rpx;
   padding: 26rpx;
   font-size: 30rpx;
+  color: #16181c;
 }
 .submit {
-  background: #12a150;
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 32rpx;
+  margin-top: 8rpx;
 }
 </style>
