@@ -828,8 +828,10 @@ function goBack() {
 <style scoped>
 .rec {
   --accent: #f0553d;
-  height: 100vh;        /* 锁定为一屏，避免整页下拉 */
+  height: 100vh;        /* 自定义导航下铺满整屏，避免整页下拉 */
   overflow: hidden;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);  /* 让出状态栏/刘海，内容不被遮 */
   background: #fff;
   display: flex;
   flex-direction: column;

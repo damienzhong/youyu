@@ -23,7 +23,8 @@
     {
       "path": "pages/record/record",
       "style": {
-        "navigationBarTitleText": "记一笔"
+        "navigationBarTitleText": "记一笔",
+        "navigationStyle": "custom"
       }
     },
     {
