@@ -15,6 +15,11 @@ export function listSelectableAccounts(ledgerId) {
   return http.get('/accounts/selectable', opts(ledgerId))
 }
 
+/** 信用卡还款提醒：已开启提醒的信用卡，下一个还款日/剩余天数/待还金额，按剩余天数升序。 */
+export function listRepayReminders() {
+  return http.get('/accounts/repay-reminders')
+}
+
 /** 快速记账默认账户：上一笔在此账本记账用的账户（仍可选则用之），否则可选集第一个；无则返回空。 */
 export function getDefaultAccount(ledgerId) {
   return http.get('/accounts/default', opts(ledgerId))

@@ -6,6 +6,7 @@ import {
   createAccount,
   updateAccount,
   deleteAccount,
+  listRepayReminders,
   getAccountVisibility,
   setAccountVisibility,
   transferAccountOwnership,
@@ -37,6 +38,7 @@ const collapsed = ref({})
 // 借贷汇总（仅具体账本显示；借贷为账本级台账）
 const borrowOutstanding = ref('0.00')
 const lendOutstanding = ref('0.00')
+const reminders = ref([])
 const showLoans = computed(() => !ledgerStore.isAll)
 const hasLoan = computed(() => Number(borrowOutstanding.value) > 0 || Number(lendOutstanding.value) > 0)
 function goLoans() {
@@ -83,6 +85,11 @@ async function load() {
   loading.value = true
   try {
     accounts.value = ledgerStore.isAll ? await listAllAccounts() : await listAccounts()
+    try {
+      reminders.value = await listRepayReminders()
+    } catch (e) {
+      /* 还款提醒加载失败不阻断资产页 */
+    }
     if (showLoans.value) {
       try {
         const r = await listLoans()
@@ -371,6 +378,22 @@ function confirmDelete() {
       <text class="loan-caret">›</text>
     </view>
 
+    <!-- 信用卡还款提醒 -->
+    <view v-if="reminders.length" class="repay">
+      <view class="repay-head"><text class="rp-title">信用卡还款</text></view>
+      <view v-for="r in reminders" :key="r.accountId" class="repay-row">
+        <text class="rp-ic">💳</text>
+        <view class="rp-main">
+          <text class="rp-name">{{ r.name }}</text>
+          <text class="rp-sub">每月 {{ r.repayDay }} 日还款</text>
+        </view>
+        <view class="rp-right">
+          <text class="rp-days" :class="{ soon: r.daysUntil <= 3 }">{{ r.daysUntil === 0 ? '今天' : r.daysUntil + ' 天后' }}</text>
+          <text class="rp-owed">待还 {{ money(r.owed) }}</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 账户转账入口（账户间动作，脱离账本） -->
     <view v-if="accounts.length > 1" class="xfer-row" @click="goTransfer">
       <text class="xfer-ic">🔁</text>
@@ -648,6 +671,71 @@ function confirmDelete() {
   color: #c0c4cc;
   font-size: 34rpx;
   margin-left: 12rpx;
+}
+.repay {
+  background: #fff;
+  border-radius: 22rpx;
+  padding: 8rpx 28rpx 12rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.repay-head {
+  padding: 20rpx 0 12rpx;
+}
+.rp-title {
+  font-size: 26rpx;
+  font-weight: 800;
+  color: #16181c;
+}
+.repay-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx 0;
+  border-top: 1rpx solid #f1f3f5;
+}
+.rp-ic {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: #fdece8;
+  text-align: center;
+  line-height: 64rpx;
+  font-size: 32rpx;
+  flex: 0 0 auto;
+}
+.rp-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.rp-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #16181c;
+}
+.rp-sub {
+  font-size: 22rpx;
+  color: #9aa2ad;
+}
+.rp-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6rpx;
+}
+.rp-days {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #5b6470;
+}
+.rp-days.soon {
+  color: #e5563d;
+}
+.rp-owed {
+  font-size: 22rpx;
+  color: #9aa2ad;
 }
 .xfer-row {
   display: flex;

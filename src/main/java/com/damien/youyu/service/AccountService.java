@@ -3,7 +3,11 @@ package com.damien.youyu.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -143,6 +147,47 @@ public class AccountService {
     @Transactional(readOnly = true)
     public List<Account> list(Long userId) {
         return accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId);
+    }
+
+    // ---------------- 信用卡还款提醒 ----------------
+
+    /** 单条还款提醒视图：下一个还款日、剩余天数、待还金额（当前欠款）。 */
+    public record RepayReminderView(
+            Long accountId, String name, int repayDay,
+            LocalDate nextRepayDate, int daysUntil, BigDecimal owed) {
+    }
+
+    /**
+     * 汇总当前用户「已开启还款提醒」的信用卡的下一个还款日与待还金额，按剩余天数升序。
+     * 仅纳入信贷类型、{@code repay_reminder=true} 且已设置 {@code repay_day} 的账户。
+     * 待还金额取当前欠款（{@code current_balance} 为负时取其相反数，否则为 0）。
+     */
+    @Transactional(readOnly = true)
+    public List<RepayReminderView> repayReminders(Long userId) {
+        LocalDate today = LocalDate.now(clock);
+        List<RepayReminderView> out = new ArrayList<>();
+        for (Account a : accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId)) {
+            if (!a.getType().isCredit() || !a.isRepayReminder() || a.getRepayDay() == null) {
+                continue;
+            }
+            LocalDate next = nextOccurrence(today, a.getRepayDay());
+            int days = (int) ChronoUnit.DAYS.between(today, next);
+            BigDecimal owed = a.getCurrentBalance() != null && a.getCurrentBalance().signum() < 0
+                    ? a.getCurrentBalance().negate() : BigDecimal.ZERO;
+            out.add(new RepayReminderView(a.getId(), a.getName(), a.getRepayDay(), next, days, owed));
+        }
+        out.sort(Comparator.comparingInt(RepayReminderView::daysUntil));
+        return out;
+    }
+
+    /** 从今天起某「每月第 day 日」的下一次出现（含今天）；day 已保证 1-28，跨月安全。 */
+    private LocalDate nextOccurrence(LocalDate today, int day) {
+        LocalDate thisMonth = today.withDayOfMonth(Math.min(day, today.lengthOfMonth()));
+        if (!thisMonth.isBefore(today)) {
+            return thisMonth;
+        }
+        LocalDate nm = today.plusMonths(1);
+        return nm.withDayOfMonth(Math.min(day, nm.lengthOfMonth()));
     }
 
     // ---------------- 修改 ----------------

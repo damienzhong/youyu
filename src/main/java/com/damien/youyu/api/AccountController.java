@@ -19,6 +19,7 @@ import com.damien.youyu.api.dto.AccountResponse;
 import com.damien.youyu.api.dto.AccountUpdateRequest;
 import com.damien.youyu.api.dto.AccountVisibilityRequest;
 import com.damien.youyu.api.dto.AccountVisibilityResponse;
+import com.damien.youyu.api.dto.RepayReminderResponse;
 import com.damien.youyu.api.dto.TransactionResponse;
 import com.damien.youyu.api.dto.TransferOwnershipRequest;
 import com.damien.youyu.api.dto.TransferRequest;
@@ -89,6 +90,16 @@ public class AccountController {
         Long userId = currentUser.requireUserId();
         List<AccountResponse> body = accountService.list(userId).stream()
                 .map(AccountResponse::from)
+                .toList();
+        return ResponseEntity.ok(body);
+    }
+
+    /** 信用卡还款提醒：已开启提醒的信用卡，下一个还款日与待还金额，按剩余天数升序。 */
+    @GetMapping("/repay-reminders")
+    public ResponseEntity<List<RepayReminderResponse>> repayReminders() {
+        Long userId = currentUser.requireUserId();
+        List<RepayReminderResponse> body = accountService.repayReminders(userId).stream()
+                .map(RepayReminderResponse::from)
                 .toList();
         return ResponseEntity.ok(body);
     }

@@ -219,6 +219,37 @@ class AccountServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
 
+    // ---------------- 信用卡还款提醒 ----------------
+
+    @Test
+    void repayReminders_onlyCreditWithReminder_sortedByDaysUntil() {
+        AccountService service = service();
+        // today = 2025-06-01（固定时钟）。
+        // 卡A：还款日 20 → 2025-06-20，剩余 19 天，欠款 500。
+        service.create(USER, "卡A", "CREDIT_CARD", new BigDecimal("-500.00"), 0,
+                true, false, null, new BigDecimal("10000"), 5, 20, true, null);
+        // 卡B：还款日 3 → 2025-06-03，剩余 2 天，余额 0 → 待还 0。
+        service.create(USER, "卡B", "CREDIT_CARD", new BigDecimal("0.00"), 0,
+                true, false, null, new BigDecimal("5000"), 1, 3, true, null);
+        // 卡C：未开启提醒 → 不计入。
+        service.create(USER, "卡C", "CREDIT_CARD", new BigDecimal("-100.00"), 0,
+                true, false, null, new BigDecimal("5000"), null, null, false, null);
+        // 普通账户 → 不计入。
+        service.create(USER, "现金", "CASH", new BigDecimal("100.00"), 0);
+
+        List<AccountService.RepayReminderView> list = service.repayReminders(USER);
+
+        assertThat(list).hasSize(2);
+        // 按剩余天数升序：卡B(2) 在前，卡A(19) 在后。
+        assertThat(list.get(0).name()).isEqualTo("卡B");
+        assertThat(list.get(0).daysUntil()).isEqualTo(2);
+        assertThat(list.get(0).owed()).isEqualByComparingTo("0.00");
+        assertThat(list.get(1).name()).isEqualTo("卡A");
+        assertThat(list.get(1).daysUntil()).isEqualTo(19);
+        assertThat(list.get(1).owed()).isEqualByComparingTo("500.00");
+        assertThat(list.get(1).nextRepayDate().toString()).isEqualTo("2025-06-20");
+    }
+
     private void persistExpense(Long ledgerId, Long accountId, BigDecimal amount) {
         LocalDateTime now = LocalDateTime.ofInstant(T0, ZONE);
         Transaction tx = new Transaction();
