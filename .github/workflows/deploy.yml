@@ -41,6 +41,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: |
+            miniapp/package-lock.json
+            web/package-lock.json
 
       # 记账应用本体 = uni-app 的 H5 产物（与小程序同一套代码），部署在同源 /app/。
       # API 走相对 /api，由 nginx 反代到后端 8090。
