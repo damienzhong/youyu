@@ -9,7 +9,7 @@ import { listTransactionsByMonth } from '../../api/transaction'
 import { listTags } from '../../api/tag'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
-import { createLedger, joinLedger, listMembers } from '../../api/ledger'
+import { createLedger, joinLedger, renameLedger, listMembers } from '../../api/ledger'
 import { formatAmount, categoryEmoji, dayKeyOf, dayLabel, currentMonth } from '../../utils/format'
 
 const auth = useAuthStore()
@@ -268,6 +268,25 @@ async function onCreateLedger(name) {
   }
 }
 
+// 重命名账本（仅自己拥有的账本）
+const renameSheet = ref({ visible: false, id: null, value: '' })
+function renameLedgerRow(l) {
+  showLedgerSheet.value = false
+  renameSheet.value = { visible: true, id: l.id, value: l.name }
+}
+async function onRenameLedger(name) {
+  const id = renameSheet.value.id
+  renameSheet.value.visible = false
+  if (!name || !id) return
+  try {
+    await renameLedger(id, name)
+    await ledgerStore.load()
+    uni.showToast({ title: '已改名', icon: 'success' })
+  } catch (e) {
+    uni.showToast({ title: e.message || '改名失败', icon: 'none' })
+  }
+}
+
 // 加入协作账本：凭邀请码
 const joinSheet = ref(false)
 function joinLedgerByCode() {
@@ -474,6 +493,7 @@ function goSearch() {
               <text>{{ l.name }}</text>
               <text v-if="l.type === 'COLLABORATIVE'" class="li-collab">协作</text>
             </view>
+            <text v-if="l.role === 'OWNER'" class="li-edit" @click.stop="renameLedgerRow(l)">改名</text>
             <text class="li-radio" :class="{ on: l.id === ledgerStore.currentLedgerId }"></text>
           </view>
         </scroll-view>
@@ -507,6 +527,8 @@ function goSearch() {
     <InputSheet :visible="nameSheet" title="新建账本" placeholder="账本名称" @update:visible="nameSheet = $event" @confirm="onCreateLedger" />
 
     <InputSheet :visible="joinSheet" title="加入协作账本" placeholder="输入邀请码" confirm-text="加入" tip="向账本创建者获取邀请码" @update:visible="joinSheet = $event" @confirm="onJoinLedger" />
+
+    <InputSheet :visible="renameSheet.visible" title="重命名账本" placeholder="账本名称" :value="renameSheet.value" @update:visible="renameSheet.visible = $event" @confirm="onRenameLedger" />
   </view>
 </template>
 
@@ -1022,6 +1044,17 @@ function goSearch() {
 .li-radio.on {
   border-color: #12a150;
   background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%);
+}
+.li-edit {
+  font-size: 24rpx;
+  color: #576b95;
+  padding: 6rpx 18rpx;
+  margin-right: 8rpx;
+  border-radius: 999rpx;
+  background: #f6f7f9;
+}
+.li-edit:active {
+  background: #eceef1;
 }
 .sheet-foot {
   display: flex;
