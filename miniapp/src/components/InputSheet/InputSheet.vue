@@ -59,7 +59,8 @@ function confirm() {
   background: rgba(15, 23, 42, 0.42);
   display: flex;
   align-items: flex-end;
-  z-index: 60;
+  /* 高于底部 TabBar（z-index:500），避免弹层与输入框被导航栏遮挡 */
+  z-index: 600;
 }
 .isheet {
   width: 100%;
