@@ -22,10 +22,10 @@ onShow(() => {
 
 // 快捷宫格（管理类高频入口）
 const grid = [
-  { key: 'ledgers', icon: '📚', label: '账本', tint: 't-green', url: '/pages/ledgers/ledgers' },
-  { key: 'budget', icon: '🧮', label: '预算', tint: 't-blue', url: '/pages/budget/budget' },
-  { key: 'categories', icon: '🏷️', label: '分类', tint: 't-orange', url: '/pages/categories/categories' },
-  { key: 'loans', icon: '🤝', label: '借贷', tint: 't-purple', url: '/pages/loans/loans' }
+  { key: 'ledgers', icon: 'book', label: '账本', url: '/pages/ledgers/ledgers' },
+  { key: 'budget', icon: 'budget', label: '预算', url: '/pages/budget/budget' },
+  { key: 'categories', icon: 'tag', label: '分类', url: '/pages/categories/categories' },
+  { key: 'loans', icon: 'loan', label: '借贷', url: '/pages/loans/loans' }
 ]
 
 // 分组列表
@@ -33,15 +33,15 @@ const groups = [
   {
     title: '记账工具',
     items: [
-      { key: 'bills', icon: '📥', tint: 't-teal', label: '账单导入', desc: '支付宝 / 微信', url: '/pages/billimport/billimport' },
-      { key: 'data', icon: '🗂️', tint: 't-blue', label: '数据导出 / 导入', desc: '', url: '/pages/data/data' },
-      { key: 'recycle', icon: '🗑️', tint: 't-gray', label: '回收站', desc: '30 天可恢复', url: '/pages/recycle/recycle' }
+      { key: 'bills', icon: 'import', label: '账单导入', desc: '支付宝 / 微信', url: '/pages/billimport/billimport' },
+      { key: 'data', icon: 'export', label: '数据导出 / 导入', desc: '', url: '/pages/data/data' },
+      { key: 'recycle', icon: 'recycle', label: '回收站', desc: '30 天可恢复', url: '/pages/recycle/recycle' }
     ]
   },
   {
     title: '标签体系',
     items: [
-      { key: 'labels', icon: '📁', tint: 't-pink', label: '项目 / 商家 / 标签', desc: '', url: '/pages/labels/labels' }
+      { key: 'labels', icon: 'folder', label: '项目 / 商家 / 标签', desc: '', url: '/pages/labels/labels' }
     ]
   }
 ]
@@ -83,7 +83,7 @@ function logout() {
     <!-- 快捷宫格 -->
     <view class="grid">
       <view v-for="g in grid" :key="g.key" class="g" @click="go(g.url)">
-        <view class="tile" :class="g.tint"><text>{{ g.icon }}</text></view>
+        <view class="tile"><AppIcon :name="g.icon" :size="44" /></view>
         <text class="g-t">{{ g.label }}</text>
       </view>
     </view>
@@ -93,7 +93,7 @@ function logout() {
       <view class="sect">{{ grp.title }}</view>
       <view class="card">
         <view v-for="it in grp.items" :key="it.key" class="row" @click="go(it.url)">
-          <view class="r-ic" :class="it.tint"><text>{{ it.icon }}</text></view>
+          <view class="r-ic"><AppIcon :name="it.icon" :size="36" /></view>
           <text class="r-t">{{ it.label }}</text>
           <text v-if="it.desc" class="r-v">{{ it.desc }}</text>
           <text class="arrow">›</text>
@@ -105,7 +105,7 @@ function logout() {
     <view class="sect">关于</view>
     <view class="card">
       <view class="row" @click="about">
-        <view class="r-ic t-gray"><text>ℹ️</text></view>
+        <view class="r-ic"><AppIcon name="info" :size="36" /></view>
         <text class="r-t">关于有余</text>
         <text class="r-v">v0.1.0</text>
         <text class="arrow">›</text>
@@ -192,10 +192,10 @@ function logout() {
   width: 84rpx;
   height: 84rpx;
   border-radius: 24rpx;
+  background: #f4f5f7;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
 }
 .g-t {
   font-size: 24rpx;
@@ -227,10 +227,10 @@ function logout() {
   width: 60rpx;
   height: 60rpx;
   border-radius: 16rpx;
+  background: #f4f5f7;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
   flex: 0 0 auto;
 }
 .r-t {
