@@ -5,18 +5,21 @@
  * 用法：在各 tab 页根节点末尾放 <TabBar active="home" />。
  * - 4 个 tab（首页/资产/报表/我的）用 uni.switchTab 切换（pages.json tabBar 设 custom:true）。
  * - 中间凸起键跳「记一笔」记账页（navigateTo，非 tab 页）。
- * - 图标用 emoji（在 uni-app H5/小程序均可靠渲染；内联 svg 受 scoped 样式限制不显示）。
+ * - 图标用统一线性图标集（AppIcon，SVG data-URI，H5/小程序通用），选中态品牌绿。
  * 依赖 easycom 自动注册（components/TabBar/TabBar.vue → <TabBar/>）。
  */
 const props = defineProps({
   active: { type: String, default: 'home' } // home | assets | report | me
 })
 
+const ACTIVE = '#12a150'
+const INACTIVE = '#9aa2ad'
+
 const TABS = [
-  { key: 'home', label: '首页', icon: '🏠', path: '/pages/index/index' },
-  { key: 'assets', label: '资产', icon: '💎', path: '/pages/accounts/accounts' },
-  { key: 'report', label: '报表', icon: '📊', path: '/pages/report/report' },
-  { key: 'me', label: '我的', icon: '👤', path: '/pages/me/me' }
+  { key: 'home', label: '首页', icon: 'home', path: '/pages/index/index' },
+  { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts' },
+  { key: 'report', label: '报表', icon: 'chart', path: '/pages/report/report' },
+  { key: 'me', label: '我的', icon: 'user', path: '/pages/me/me' }
 ]
 
 function switchTo(t) {
@@ -32,10 +35,10 @@ function goRecord() {
   <view class="tabbar-wrap">
     <view class="tabbar">
       <view class="tab" :class="{ on: active === 'home' }" @click="switchTo(TABS[0])">
-        <text class="ic">🏠</text><text class="t">首页</text>
+        <AppIcon class="ic" name="home" :size="42" :color="active === 'home' ? ACTIVE : INACTIVE" /><text class="t">首页</text>
       </view>
       <view class="tab" :class="{ on: active === 'assets' }" @click="switchTo(TABS[1])">
-        <text class="ic">💎</text><text class="t">资产</text>
+        <AppIcon class="ic" name="diamond" :size="42" :color="active === 'assets' ? ACTIVE : INACTIVE" /><text class="t">资产</text>
       </view>
       <!-- 中间：图标区留白给凸起键，只放「记一笔」标签，与其它标签基线对齐 -->
       <view class="tab center-slot" @click="goRecord">
@@ -43,10 +46,10 @@ function goRecord() {
         <text class="t hl">记一笔</text>
       </view>
       <view class="tab" :class="{ on: active === 'report' }" @click="switchTo(TABS[2])">
-        <text class="ic">📊</text><text class="t">报表</text>
+        <AppIcon class="ic" name="chart" :size="42" :color="active === 'report' ? ACTIVE : INACTIVE" /><text class="t">报表</text>
       </view>
       <view class="tab" :class="{ on: active === 'me' }" @click="switchTo(TABS[3])">
-        <text class="ic">👤</text><text class="t">我的</text>
+        <AppIcon class="ic" name="user" :size="42" :color="active === 'me' ? ACTIVE : INACTIVE" /><text class="t">我的</text>
       </view>
     </view>
 
@@ -88,19 +91,12 @@ function goRecord() {
   padding-bottom: 12rpx;
 }
 .tab .ic {
-  font-size: 40rpx;
   line-height: 1;
-  filter: grayscale(35%);
-  opacity: 0.55;
 }
 .tab .t {
   font-size: 20rpx;
   line-height: 1;
   color: #9aa2ad;
-}
-.tab.on .ic {
-  filter: none;
-  opacity: 1;
 }
 .tab.on .t {
   color: #12a150;

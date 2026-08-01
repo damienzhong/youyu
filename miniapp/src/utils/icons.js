@@ -31,7 +31,20 @@ const ICON_PATHS = {
   receipt: "<path d='M6 3h12v18l-3-2-3 2-3-2-3 2V3Z'/><path d='M9 8h6M9 12h6'/>",
   income: "<circle cx='12' cy='12' r='8'/><path d='M9 9l3 3 3-3M12 12v4M9.6 13h4.8'/>",
   more: "<circle cx='6' cy='12' r='1.4'/><circle cx='12' cy='12' r='1.4'/><circle cx='18' cy='12' r='1.4'/>",
-  transfer: "<path d='M4 9h13l-3-3M20 15H7l3 3'/>"
+  transfer: "<path d='M4 9h13l-3-3M20 15H7l3 3'/>",
+  chart: "<path d='M4 21h16'/><path d='M6 21V10M12 21V4M18 21v-7'/>",
+  budget: "<rect x='5' y='3' width='14' height='18' rx='2'/><path d='M8 7h8M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01'/>",
+  list: "<path d='M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01'/>",
+  diamond: "<path d='M6 4h12l3 5-9 11L3 9z'/><path d='M3 9h18M9.5 4L7 9l5 11 5-11-2.5-5'/>",
+  user: "<circle cx='12' cy='8' r='4'/><path d='M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5'/>",
+  search: "<circle cx='11' cy='11' r='7'/><path d='M20 20l-3.6-3.6'/>",
+  members: "<circle cx='9' cy='8' r='3.2'/><path d='M3 19c1-3.2 3.6-4.6 6-4.6s5 1.4 6 4.6'/><path d='M16 5.2a3.2 3.2 0 0 1 0 6M18 14.6c1.8.5 3.2 1.9 3.8 4'/>",
+  import: "<path d='M12 3v11M8 10l4 4 4-4'/><path d='M5 20h14'/>",
+  export: "<path d='M12 14V3M8 7l4-4 4 4'/><path d='M5 20h14'/>",
+  recycle: "<path d='M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13'/>",
+  tag: "<path d='M4 4h7l9 9-7 7-9-9V4Z'/><circle cx='8.5' cy='8.5' r='1.4'/>",
+  loan: "<path d='M4 11a8 8 0 0 1 14-5l2 2'/><path d='M20 4v4h-4'/><path d='M20 13a8 8 0 0 1-14 5l-2-2'/><path d='M4 20v-4h4'/>",
+  book: "<path d='M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3Z'/><path d='M4 5v14M9 8h6'/>"
 }
 
 /** 默认图标色（未选中）。 */

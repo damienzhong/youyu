@@ -374,10 +374,10 @@ function goSearch() {
     <!-- 快捷入口 -->
     <view class="quick-wrap">
       <view class="quick">
-        <view class="qa" @click="goReport"><text class="qa-ic" style="background:#eef4ff">📊</text><text class="qa-l">统计</text></view>
-        <view class="qa" @click="nav('/pages/budget/budget')"><text class="qa-ic" style="background:#fdf3e2">🧮</text><text class="qa-l">预算</text></view>
-        <view class="qa" @click="goRecords"><text class="qa-ic" style="background:#eef4ff">📋</text><text class="qa-l">明细</text></view>
-        <view class="qa" @click="showMore = true"><text class="qa-ic" style="background:#eef0f2">⋯</text><text class="qa-l">更多</text></view>
+        <view class="qa" @click="goReport"><view class="qa-ic"><AppIcon name="chart" :size="42" /></view><text class="qa-l">统计</text></view>
+        <view class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
+        <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
+        <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
       </view>
     </view>
 
@@ -520,12 +520,12 @@ function goSearch() {
           <text class="sheet-spacer"></text>
         </view>
         <view class="more-grid">
-          <view class="mi" @click="nav('/pages/loans/loans')"><text class="mi-ic">🤝</text><text class="mi-l">借贷往来</text></view>
-          <view class="mi" @click="nav('/pages/billimport/billimport')"><text class="mi-ic">📥</text><text class="mi-l">账单导入</text></view>
-          <view class="mi" @click="nav('/pages/data/data')"><text class="mi-ic">🗂️</text><text class="mi-l">数据备份</text></view>
-          <view class="mi" @click="nav('/pages/categories/categories')"><text class="mi-ic">🏷️</text><text class="mi-l">分类管理</text></view>
-          <view class="mi" @click="nav('/pages/budget/budget')"><text class="mi-ic">🧮</text><text class="mi-l">预算管理</text></view>
-          <view class="mi" @click="nav('/pages/ledgers/ledgers')"><text class="mi-ic">📓</text><text class="mi-l">账本管理</text></view>
+          <view class="mi" @click="nav('/pages/loans/loans')"><view class="mi-ic"><AppIcon name="loan" :size="44" /></view><text class="mi-l">借贷往来</text></view>
+          <view class="mi" @click="nav('/pages/billimport/billimport')"><view class="mi-ic"><AppIcon name="import" :size="44" /></view><text class="mi-l">账单导入</text></view>
+          <view class="mi" @click="nav('/pages/data/data')"><view class="mi-ic"><AppIcon name="export" :size="44" /></view><text class="mi-l">数据备份</text></view>
+          <view class="mi" @click="nav('/pages/categories/categories')"><view class="mi-ic"><AppIcon name="tag" :size="44" /></view><text class="mi-l">分类管理</text></view>
+          <view class="mi" @click="nav('/pages/budget/budget')"><view class="mi-ic"><AppIcon name="budget" :size="44" /></view><text class="mi-l">预算管理</text></view>
+          <view class="mi" @click="nav('/pages/ledgers/ledgers')"><view class="mi-ic"><AppIcon name="book" :size="44" /></view><text class="mi-l">账本管理</text></view>
         </view>
         <view style="height:calc(20rpx + env(safe-area-inset-bottom));"></view>
       </view>
@@ -660,10 +660,11 @@ function goSearch() {
 .qa-ic {
   width: 82rpx;
   height: 82rpx;
-  border-radius: 50%;
-  text-align: center;
-  line-height: 82rpx;
-  font-size: 38rpx;
+  border-radius: 24rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .qa-l {
   font-size: 22rpx;
@@ -1099,10 +1100,10 @@ function goSearch() {
   width: 92rpx;
   height: 92rpx;
   border-radius: 26rpx;
-  background: #f6f7f9;
-  text-align: center;
-  line-height: 92rpx;
-  font-size: 42rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .mi-l {
   font-size: 22rpx;
