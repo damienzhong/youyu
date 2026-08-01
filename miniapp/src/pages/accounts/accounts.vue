@@ -112,7 +112,13 @@ const typeSheet = ref(false)
 const editVisible = ref(false)
 const editCreateType = ref(null)
 function goBack() {
-  uni.navigateBack()
+  // 有上一页则返回；若本页处于栈底（冷启动/刷新直接进入、栈被重置等），回退到首页 tab，避免“点返回没反应”。
+  const pages = getCurrentPages()
+  if (pages && pages.length > 1) {
+    uni.navigateBack()
+  } else {
+    uni.switchTab({ url: '/pages/index/index' })
+  }
 }
 function openCreate() {
   typeSheet.value = true
