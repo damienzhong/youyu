@@ -167,6 +167,12 @@ const iconBg = computed(() => {
 })
 
 function openCreate() {
+  // 先重置为干净的新建态，避免残留上一次编辑的账户信息（否则 isEditing 仍为 true）。
+  form.value = {
+    id: null, type: 'CASH', name: '', initialBalance: '', owed: '', creditLimit: '',
+    billDay: null, repayDay: null, repayReminder: false,
+    includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
+  }
   // 先选类型，再填详情（对齐竞品）
   typePickerOpen.value = true
 }
