@@ -103,9 +103,16 @@ function subOf(t) {
   return parts.join(' · ')
 }
 
-// 顶部操作
+// 顶部操作：打开全屏编辑弹窗（不再跳转页面）。
+const editVisible = ref(false)
 function goEdit() {
-  uni.navigateTo({ url: `/pages/accountedit/accountedit?id=${accId.value}` })
+  editVisible.value = true
+}
+function onAccountSaved() {
+  load()
+}
+function onAccountDeleted() {
+  uni.navigateBack()
 }
 function goBack() { uni.navigateBack() }
 // 点击流水弹出账单详情半弹窗（可修改/删除）。
@@ -193,6 +200,14 @@ function goTransfer() {
       :id="detailId"
       :ledger-id="detailLedgerId"
       @deleted="onDetailDeleted"
+    />
+
+    <!-- 编辑账户全屏弹窗 -->
+    <AccountEditSheet
+      v-model:visible="editVisible"
+      :account-id="accId"
+      @saved="onAccountSaved"
+      @deleted="onAccountDeleted"
     />
   </view>
 </template>

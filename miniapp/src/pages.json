@@ -30,20 +30,14 @@
     {
       "path": "pages/accounts/accounts",
       "style": {
-        "navigationBarTitleText": "资产"
+        "navigationBarTitleText": "资产管理",
+        "navigationStyle": "custom"
       }
     },
     {
       "path": "pages/accountdetail/accountdetail",
       "style": {
         "navigationBarTitleText": "账户明细",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/accountedit/accountedit",
-      "style": {
-        "navigationBarTitleText": "编辑账户",
         "navigationStyle": "custom"
       }
     },
@@ -139,7 +133,6 @@
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/accounts/accounts", "text": "资产" },
       { "pagePath": "pages/report/report", "text": "报表" },
       { "pagePath": "pages/me/me", "text": "我的" }
     ]

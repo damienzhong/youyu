@@ -17,14 +17,19 @@ const INACTIVE = '#9aa2ad'
 
 const TABS = [
   { key: 'home', label: '首页', icon: 'home', path: '/pages/index/index' },
-  { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts' },
+  // 资产为二级页（自身不显示底部导航），用 navigateTo 进入。
+  { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts', push: true },
   { key: 'report', label: '报表', icon: 'chart', path: '/pages/report/report' },
   { key: 'me', label: '我的', icon: 'user', path: '/pages/me/me' }
 ]
 
 function switchTo(t) {
   if (t.key === props.active) return
-  uni.switchTab({ url: t.path })
+  if (t.push) {
+    uni.navigateTo({ url: t.path })
+  } else {
+    uni.switchTab({ url: t.path })
+  }
 }
 function goRecord() {
   uni.navigateTo({ url: '/pages/record/record' })

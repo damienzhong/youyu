@@ -1,6 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { ref, computed, watch } from 'vue'
 import {
   listAccounts,
   createAccount,
@@ -15,8 +14,6 @@ import {
   composeAccountName,
   accountGroupOf,
   isCreditType,
-  ACCOUNT_TYPES,
-  ACCOUNT_GROUPS,
   BANKS,
   bankOf
 } from '../../api/account'
@@ -26,12 +23,28 @@ import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { formatAmount } from '../../utils/format'
 
+const props = defineProps({
+  visible: { type: Boolean, default: false },
+  accountId: { type: Number, default: null },
+  createType: { type: String, default: null },
+  // 宿主页为自定义导航（webview 覆盖状态栏）时需为标题栏预留状态栏高度；
+  // 原生导航页（webview 已在状态栏下方）传 false 避免顶部多出空档。
+  coverStatusBar: { type: Boolean, default: true }
+})
+const emit = defineEmits(['update:visible', 'saved', 'deleted'])
+
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
 const selfId = computed(() => authStore.user?.id ?? null)
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
+const navPadTop = computed(() =>
+  props.coverStatusBar ? `calc(${statusBarHeight} + 16rpx)` : '22rpx'
+)
+// 标题栏内容高度（内容行 + 下内边距 + 分隔线）约 96rpx；scroll-view 需要确定高度才能内部滚动，
+// 否则手势会穿透到背后页面。这里显式算出可滚动区域高度。
+const bodyHeight = computed(() => `calc(100vh - ${navPadTop.value} - 96rpx)`)
 
-const acc = ref(null) // 编辑时加载的账户实体
+const acc = ref(null)
 const links = ref([])
 
 // ---------- 表单 ----------
@@ -45,7 +58,7 @@ function blankForm(type = 'CASH', name = '') {
 }
 const form = ref(blankForm())
 const submitting = ref(false)
-const showForm = ref(false) // 选完类型后展示表单主体（新建时先选类型）
+const showForm = ref(false)
 
 const needsBank = computed(() => ['BANK_CARD', 'CREDIT_CARD'].includes(form.value.type))
 const DAY_LABELS = Array.from({ length: 28 }, (_, i) => `每月 ${i + 1} 日`)
@@ -70,37 +83,53 @@ const iconBg = computed(() => {
   return '#e7f7ee'
 })
 
-onLoad(async (q) => {
-  const editId = q && q.id ? Number(q.id) : null
+// 弹窗打开时初始化：编辑（accountId）/ 新建指定类型（createType）/ 新建未指定（弹类型选择）。
+watch(
+  () => props.visible,
+  async (v) => {
+    if (v) await init()
+  },
+  { immediate: true }
+)
+
+async function init() {
+  acc.value = null
+  links.value = []
+  partList.value = []
+  showForm.value = false
+  typePickerOpen.value = false
+  bankPickerOpen.value = false
+  adjustSheet.value = false
+  submitting.value = false
+  form.value = blankForm()
   try {
     if (!ledgerStore.ledgers.length) await ledgerStore.load()
   } catch (e) { /* ignore */ }
-  if (editId) {
-    uni.setNavigationBarTitle && uni.setNavigationBarTitle({ title: '编辑账户' })
+  if (props.accountId) {
     try {
       const all = await listAccounts()
-      acc.value = all.find((a) => a.id === editId) || null
+      acc.value = all.find((a) => a.id === props.accountId) || null
     } catch (e) { acc.value = null }
     if (acc.value) {
       openEdit(acc.value)
       try { links.value = await listAccountLedgerLinks() } catch (e) { links.value = [] }
-      buildPartList(editId)
+      buildPartList(props.accountId)
     }
+  } else if (props.createType) {
+    pickType({ value: props.createType, label: accountTypeLabel(props.createType) })
   } else {
-    form.value = blankForm()
-    if (q && q.type) pickType({ value: q.type, label: accountTypeLabel(q.type) })
-    else typePickerOpen.value = true
+    typePickerOpen.value = true
   }
-})
+}
+
+function close() {
+  emit('update:visible', false)
+}
 
 // ---------- 类型选择器 ----------
 const typePickerOpen = ref(false)
-const groupedTypes = computed(() =>
-  ACCOUNT_GROUPS.map((g) => ({ ...g, types: ACCOUNT_TYPES.filter((t) => t.group === g.key) }))
-)
 function pickType(t) {
   typePickerOpen.value = false
-  // 名称留空，由占位符提示默认类型名；用户可自定义以区分同类型账户。
   form.value = blankForm(t.value, '')
   showForm.value = true
 }
@@ -199,7 +228,8 @@ function confirmTransferOwner(m) {
       try {
         await transferAccountOwnership(form.value.id, m.userId)
         uni.showToast({ title: '已转交', icon: 'success' })
-        setTimeout(() => uni.navigateBack(), 400)
+        emit('saved')
+        setTimeout(close, 400)
       } catch (e) {
         uni.showToast({ title: e.message || '转交失败', icon: 'none' })
       }
@@ -231,7 +261,8 @@ async function onAdjustConfirm(v) {
   try {
     await adjustBalance({ accountId: form.value.id, balance: String(target) }, form.value._ledgerId)
     uni.showToast({ title: '已校准余额', icon: 'success' })
-    setTimeout(() => uni.navigateBack(), 400)
+    emit('saved')
+    setTimeout(close, 400)
   } catch (e) {
     uni.showToast({ title: e.message || '调整失败', icon: 'none' })
   }
@@ -239,6 +270,7 @@ async function onAdjustConfirm(v) {
 
 // ---------- 保存 / 删除 ----------
 async function submit() {
+  if (submitting.value) return
   submitting.value = true
   try {
     const creditLimit = formIsCredit.value && form.value.creditLimit !== '' ? form.value.creditLimit : undefined
@@ -246,7 +278,6 @@ async function submit() {
     const issuingBank = needsBank.value ? (form.value._issuingBank || '') : ''
     const cardNo = needsBank.value && form.value._cardNo ? form.value._cardNo.trim() : ''
     const bank = { issuingBank, cardNo }
-    // 名称：银行卡由发卡行+类型+卡号后四位拼装；其它类型用自定义名（空则回退类型名）。
     const name = composeAccountName({ type: form.value.type, issuingBank, cardNo, name: form.value.name })
     const billing = formIsCredit.value
       ? {
@@ -274,7 +305,8 @@ async function submit() {
       })
     }
     uni.showToast({ title: '已保存', icon: 'success' })
-    setTimeout(() => uni.navigateBack(), 400)
+    emit('saved')
+    setTimeout(close, 400)
   } catch (e) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   } finally {
@@ -291,242 +323,236 @@ function confirmDelete() {
       try {
         await deleteAccount(form.value.id, form.value._ledgerId)
         uni.showToast({ title: '已删除', icon: 'success' })
-        setTimeout(() => uni.navigateBack(), 400)
+        emit('deleted', form.value.id)
+        setTimeout(close, 400)
       } catch (e) {
         uni.showToast({ title: e.message || '删除失败', icon: 'none' })
       }
     }
   })
 }
-function goBack() { uni.navigateBack() }
 </script>
 
 <template>
-  <view class="page">
-    <!-- 自定义头 -->
-    <view class="nav" :style="{ paddingTop: statusBarHeight }">
-      <text class="nav-cancel" @click="goBack">取消</text>
-      <text class="nav-title">{{ isEditing ? '编辑账户' : '新建账户' }}</text>
-      <text class="nav-save" @click="submit">保存</text>
-    </view>
-
-    <scroll-view scroll-y class="body" v-if="showForm">
-      <!-- 顶部图标预览 -->
-      <view class="hero">
-        <view class="hero-ic" :style="{ background: iconBg }"><AppIcon :name="accountTypeIcon(form.type)" :size="56" /></view>
+  <view v-if="visible" class="ae-mask" @touchmove.stop.prevent>
+    <view class="ae-panel">
+      <!-- 自定义头 -->
+      <view class="nav" :style="{ paddingTop: navPadTop }">
+        <text class="nav-cancel" @click="close">取消</text>
+        <text class="nav-title">{{ isEditing ? '编辑账户' : '新建账户' }}</text>
+        <text class="nav-save" @click="submit">保存</text>
       </view>
 
-      <!-- 基本信息 -->
-      <view class="form-body">
-        <view class="frow" @click="reopenTypePicker">
-          <text class="fk">类型</text>
-          <text class="fv">{{ accountTypeLabel(form.type) }} ›</text>
-        </view>
-        <!-- 非银行卡账户：可自定义名称，便于区分同类型的多个账户（如多个证券账户）。 -->
-        <view v-if="!needsBank" class="frow">
-          <text class="fk">名称</text>
-          <input v-model="form.name" class="finput" :placeholder="accountTypeLabel(form.type)" maxlength="50" />
-        </view>
-        <template v-if="needsBank">
-          <view class="frow" @click="openBankPicker">
-            <text class="fk">发卡银行</text>
-            <view v-if="form._issuingBank" class="bank-val">
-              <text class="bank-badge" :style="{ background: (bankOf(form._issuingBank) || {}).color || '#8a94a6' }">{{ (bankOf(form._issuingBank) || {}).short || '银' }}</text>
-              <text class="fv">{{ form._issuingBank }} ›</text>
+      <scroll-view scroll-y class="body" v-if="showForm" :style="{ height: bodyHeight }">
+        <!-- 基本信息 -->
+        <view class="form-body">
+          <view class="frow" @click="reopenTypePicker">
+            <view class="type-left">
+              <view class="type-ic" :style="{ background: iconBg }"><AppIcon :name="accountTypeIcon(form.type)" :size="40" /></view>
+              <text class="fk">类型</text>
             </view>
-            <text v-else class="fv ph">选择银行 ›</text>
+            <text class="fv">{{ accountTypeLabel(form.type) }} ›</text>
           </view>
-          <view class="frow">
-            <text class="fk">卡号</text>
-            <input v-model="form._cardNo" class="finput" placeholder="选填，建议填后四位" maxlength="30" />
+          <!-- 非银行卡账户：可自定义名称，便于区分同类型的多个账户（如多个证券账户）。 -->
+          <view v-if="!needsBank" class="frow">
+            <text class="fk">名称</text>
+            <input v-model="form.name" class="finput" :placeholder="accountTypeLabel(form.type)" maxlength="50" />
           </view>
-        </template>
-
-        <template v-if="!isEditing">
-          <template v-if="formIsCredit">
+          <template v-if="needsBank">
+            <view class="frow" @click="openBankPicker">
+              <text class="fk">发卡银行</text>
+              <view v-if="form._issuingBank" class="bank-val">
+                <text class="bank-badge" :style="{ background: (bankOf(form._issuingBank) || {}).color || '#8a94a6' }">{{ (bankOf(form._issuingBank) || {}).short || '银' }}</text>
+                <text class="fv">{{ form._issuingBank }} ›</text>
+              </view>
+              <text v-else class="fv ph">选择银行 ›</text>
+            </view>
             <view class="frow">
+              <text class="fk">卡号</text>
+              <input v-model="form._cardNo" class="finput" placeholder="选填，建议填后四位" maxlength="30" />
+            </view>
+          </template>
+
+          <template v-if="!isEditing">
+            <template v-if="formIsCredit">
+              <view class="frow">
+                <text class="fk">信用额度</text>
+                <input v-model="form.creditLimit" class="finput" type="digit" placeholder="0.00" />
+              </view>
+              <view class="frow col">
+                <view class="frow-top">
+                  <text class="fk">当前欠款</text>
+                  <input v-model="form.owed" class="finput" type="digit" placeholder="0.00" />
+                </view>
+                <text class="fhint">正数代表欠款，将计入总负债</text>
+              </view>
+            </template>
+            <view v-else class="frow">
+              <text class="fk">{{ balanceLabel }}</text>
+              <input v-model="form.initialBalance" class="finput" type="digit" placeholder="0.00" />
+            </view>
+          </template>
+          <template v-else>
+            <view v-if="formIsCredit" class="frow">
               <text class="fk">信用额度</text>
-              <input v-model="form.creditLimit" class="finput" type="digit" placeholder="0.00" />
+              <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
             </view>
-            <view class="frow col">
-              <view class="frow-top">
-                <text class="fk">当前欠款</text>
-                <input v-model="form.owed" class="finput" type="digit" placeholder="0.00" />
-              </view>
-              <text class="fhint">正数代表欠款，将计入总负债</text>
+            <view class="frow" @click="openAdjust">
+              <text class="fk">{{ formIsCredit ? '当前欠款' : '账户余额' }}</text>
+              <text class="fv">¥{{ editingAmountDisplay }} · 调整 ›</text>
             </view>
           </template>
-          <view v-else class="frow">
-            <text class="fk">{{ balanceLabel }}</text>
-            <input v-model="form.initialBalance" class="finput" type="digit" placeholder="0.00" />
-          </view>
-        </template>
-        <template v-else>
-          <view v-if="formIsCredit" class="frow">
-            <text class="fk">信用额度</text>
-            <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
-          </view>
-          <view class="frow" @click="openAdjust">
-            <text class="fk">{{ formIsCredit ? '当前欠款' : '账户余额' }}</text>
-            <text class="fv">¥{{ editingAmountDisplay }} · 调整 ›</text>
-          </view>
-        </template>
-      </view>
+        </view>
 
-      <!-- 账单与还款（信贷）-->
-      <view v-if="formIsCredit" class="form-body">
-        <picker mode="selector" :range="DAY_LABELS" @change="onBillDayChange">
-          <view class="frow">
-            <text class="fk">账单日</text>
-            <text class="fv" :class="{ ph: !form.billDay }">{{ form.billDay ? '每月 ' + form.billDay + ' 日 ›' : '未设置 ›' }}</text>
-          </view>
-        </picker>
-        <picker mode="selector" :range="DAY_LABELS" @change="onRepayDayChange">
-          <view class="frow">
-            <text class="fk">还款日</text>
-            <text class="fv" :class="{ ph: !form.repayDay }">{{ form.repayDay ? '每月 ' + form.repayDay + ' 日 ›' : '未设置 ›' }}</text>
-          </view>
-        </picker>
-        <view class="frow col">
-          <view class="frow-top">
-            <text class="fk">还款提醒</text>
-            <switch :checked="form.repayReminder" color="#12a150" @change="form.repayReminder = $event.detail.value" />
-          </view>
-          <text class="fhint">开启后还款日临近时在资产页高亮提醒</text>
-        </view>
-        <picker v-if="form.repayReminder" mode="selector" :range="REMIND_DAY_LABELS" @change="onRemindDaysChange">
-          <view class="frow">
-            <text class="fk">提前提醒</text>
-            <text class="fv">还款日前 {{ form.repayRemindDays }} 天 ›</text>
-          </view>
-        </picker>
-      </view>
-
-      <!-- 更多设置 -->
-      <view class="form-body">
-        <view class="frow">
-          <text class="fk">{{ formIsCredit ? '计入净资产（负债）' : '余额计入总资产' }}</text>
-          <switch :checked="form.includeInTotal" color="#12a150" @change="form.includeInTotal = $event.detail.value" />
-        </view>
-        <view class="frow col">
-          <view class="frow-top">
-            <text class="fk">隐藏账户</text>
-            <switch :checked="form._hidden" color="#12a150" @change="form._hidden = $event.detail.value" />
-          </view>
-          <text class="fhint">开启后，选账户弹窗不显示此账户</text>
-        </view>
-        <view class="frow">
-          <text class="fk">备注</text>
-          <input v-model="form._note" class="finput" placeholder="选填" maxlength="200" />
-        </view>
-      </view>
-
-      <!-- 参与账本 -->
-      <view v-if="isOwnAccount" class="form-body">
-        <view class="fsec">参与账本</view>
-        <view class="fhint" style="padding-bottom:12rpx;">账户是你的资产，可同时在多个账本使用。关掉某账本后，该账本记账时不再能选这张卡，历史流水与余额保留。</view>
-        <block v-for="p in partList" :key="p.id">
-          <view class="frow">
-            <view class="pl-main">
-              <text class="fk">{{ p.name }}</text>
-              <text class="pl-tag" :class="p.type === 'COLLABORATIVE' ? 'collab' : 'personal'">{{ p.type === 'COLLABORATIVE' ? '协作' : '个人' }}</text>
+        <!-- 账单与还款（信贷）-->
+        <view v-if="formIsCredit" class="form-body">
+          <picker mode="selector" :range="DAY_LABELS" @change="onBillDayChange">
+            <view class="frow">
+              <text class="fk">账单日</text>
+              <text class="fv" :class="{ ph: !form.billDay }">{{ form.billDay ? '每月 ' + form.billDay + ' 日 ›' : '未设置 ›' }}</text>
             </view>
-            <switch :checked="p.participates" color="#12a150" @change="toggleParticipate(p, $event.detail.value)" />
+          </picker>
+          <picker mode="selector" :range="DAY_LABELS" @change="onRepayDayChange">
+            <view class="frow">
+              <text class="fk">还款日</text>
+              <text class="fv" :class="{ ph: !form.repayDay }">{{ form.repayDay ? '每月 ' + form.repayDay + ' 日 ›' : '未设置 ›' }}</text>
+            </view>
+          </picker>
+          <view class="frow col">
+            <view class="frow-top">
+              <text class="fk">还款提醒</text>
+              <switch :checked="form.repayReminder" color="#12a150" @change="form.repayReminder = $event.detail.value" />
+            </view>
+            <text class="fhint">开启后还款日临近时在资产页高亮提醒</text>
           </view>
-          <template v-if="p.participates && p.type === 'COLLABORATIVE'">
-            <view class="frow sub">
-              <text class="fk sub">对成员可见</text>
-              <switch :checked="p.visibleToOthers" color="#12a150" @change="onPartVisChange(p, 'visibleToOthers', $event.detail.value)" />
+          <picker v-if="form.repayReminder" mode="selector" :range="REMIND_DAY_LABELS" @change="onRemindDaysChange">
+            <view class="frow">
+              <text class="fk">提前提醒</text>
+              <text class="fv">还款日前 {{ form.repayRemindDays }} 天 ›</text>
             </view>
-            <view class="frow sub">
-              <text class="fk sub">显示余额给成员</text>
-              <switch :checked="p.showBalance" color="#12a150" @change="onPartVisChange(p, 'showBalance', $event.detail.value)" />
-            </view>
-          </template>
-        </block>
-      </view>
-
-      <!-- 转交账户 -->
-      <view v-if="canManageSharing" class="form-body">
-        <view class="frow" @click="openTransferOwner">
-          <text class="fk">转交账户</text>
-          <text class="fv">转交给其他成员 ›</text>
+          </picker>
         </view>
-      </view>
 
-      <button class="big-save" @click="submit">保存</button>
-      <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
-      <view style="height:40rpx;"></view>
-    </scroll-view>
+        <!-- 更多设置 -->
+        <view class="form-body">
+          <view class="frow">
+            <text class="fk">{{ formIsCredit ? '计入净资产（负债）' : '余额计入总资产' }}</text>
+            <switch :checked="form.includeInTotal" color="#12a150" @change="form.includeInTotal = $event.detail.value" />
+          </view>
+          <view class="frow col">
+            <view class="frow-top">
+              <text class="fk">隐藏账户</text>
+              <switch :checked="form._hidden" color="#12a150" @change="form._hidden = $event.detail.value" />
+            </view>
+            <text class="fhint">开启后，选账户弹窗不显示此账户</text>
+          </view>
+          <view class="frow">
+            <text class="fk">备注</text>
+            <input v-model="form._note" class="finput" placeholder="选填" maxlength="200" />
+          </view>
+        </view>
 
-    <!-- 类型选择器 -->
-    <view v-if="typePickerOpen" class="mask" @click="typePickerOpen = false">
-      <view class="sheet type-sheet" @click.stop>
-        <text class="sheet-title">选择账户类型</text>
-        <scroll-view scroll-y class="type-scroll">
-          <view v-for="g in groupedTypes" :key="g.key" class="tg">
-            <text class="tg-title">{{ g.label }}</text>
-            <view class="tg-grid">
-              <view v-for="t in g.types" :key="t.value" class="tt" @click="pickTypeForEdit(t)">
-                <view class="tt-ic"><AppIcon :name="accountTypeIcon(t.value)" :size="40" /></view>
-                <text class="tt-label">{{ t.label }}</text>
+        <!-- 参与账本 -->
+        <view v-if="isOwnAccount" class="form-body">
+          <view class="fsec">参与账本</view>
+          <view class="fhint" style="padding-bottom:12rpx;">账户是你的资产，可同时在多个账本使用。关掉某账本后，该账本记账时不再能选这张卡，历史流水与余额保留。</view>
+          <block v-for="p in partList" :key="p.id">
+            <view class="frow">
+              <view class="pl-main">
+                <text class="fk">{{ p.name }}</text>
+                <text class="pl-tag" :class="p.type === 'COLLABORATIVE' ? 'collab' : 'personal'">{{ p.type === 'COLLABORATIVE' ? '协作' : '个人' }}</text>
+              </view>
+              <switch :checked="p.participates" color="#12a150" @change="toggleParticipate(p, $event.detail.value)" />
+            </view>
+            <template v-if="p.participates && p.type === 'COLLABORATIVE'">
+              <view class="frow sub">
+                <text class="fk sub">对成员可见</text>
+                <switch :checked="p.visibleToOthers" color="#12a150" @change="onPartVisChange(p, 'visibleToOthers', $event.detail.value)" />
+              </view>
+              <view class="frow sub">
+                <text class="fk sub">显示余额给成员</text>
+                <switch :checked="p.showBalance" color="#12a150" @change="onPartVisChange(p, 'showBalance', $event.detail.value)" />
+              </view>
+            </template>
+          </block>
+        </view>
+
+        <!-- 转交账户 -->
+        <view v-if="canManageSharing" class="form-body">
+          <view class="frow" @click="openTransferOwner">
+            <text class="fk">转交账户</text>
+            <text class="fv">转交给其他成员 ›</text>
+          </view>
+        </view>
+
+        <button class="big-save" @click="submit">保存</button>
+        <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
+        <view style="height:calc(48rpx + env(safe-area-inset-bottom));"></view>
+      </scroll-view>
+
+      <!-- 类型选择器（编辑改类型 / 新建未指定类型的兜底） -->
+      <AccountTypeSheet v-model:visible="typePickerOpen" @pick="pickTypeForEdit" />
+
+      <!-- 发卡银行选择器 -->
+      <view v-if="bankPickerOpen" class="mask mask-top" @click="bankPickerOpen = false">
+        <view class="sheet bank-sheet" @click.stop>
+          <text class="sheet-title">选择发卡银行</text>
+          <scroll-view scroll-y class="bank-scroll">
+            <view class="bank-grid">
+              <view v-for="b in banks" :key="b.label" class="bk" @click="pickBank(b)">
+                <text class="bk-badge" :style="{ background: b.color }">{{ b.short }}</text>
+                <text class="bk-label">{{ b.label }}</text>
               </view>
             </view>
-          </view>
-        </scroll-view>
+          </scroll-view>
+          <view class="bank-clear" @click="clearBank">不设置 / 清除</view>
+        </view>
       </view>
-    </view>
 
-    <!-- 发卡银行选择器 -->
-    <view v-if="bankPickerOpen" class="mask mask-top" @click="bankPickerOpen = false">
-      <view class="sheet bank-sheet" @click.stop>
-        <text class="sheet-title">选择发卡银行</text>
-        <scroll-view scroll-y class="bank-scroll">
-          <view class="bank-grid">
-            <view v-for="b in banks" :key="b.label" class="bk" @click="pickBank(b)">
-              <text class="bk-badge" :style="{ background: b.color }">{{ b.short }}</text>
-              <text class="bk-label">{{ b.label }}</text>
-            </view>
-          </view>
-        </scroll-view>
-        <view class="bank-clear" @click="clearBank">不设置 / 清除</view>
-      </view>
+      <InputSheet
+        :visible="adjustSheet"
+        :title="adjustOwed ? '调整欠款' : '余额调整'"
+        type="digit"
+        :placeholder="adjustOwed ? '调整后的欠款' : '目标余额'"
+        confirmText="校准"
+        :tip="adjustOwed
+          ? `当前欠款 ¥${adjustCurrent}，输入调整后的欠款金额，系统将自动补一笔差额流水。`
+          : `当前余额 ¥${adjustCurrent}，输入调整后的目标余额，系统将自动补一笔差额流水。`"
+        @update:visible="adjustSheet = $event"
+        @confirm="onAdjustConfirm"
+      />
     </view>
-
-    <InputSheet
-      :visible="adjustSheet"
-      :title="adjustOwed ? '调整欠款' : '余额调整'"
-      type="digit"
-      :placeholder="adjustOwed ? '调整后的欠款' : '目标余额'"
-      confirmText="校准"
-      :tip="adjustOwed
-        ? `当前欠款 ¥${adjustCurrent}，输入调整后的欠款金额，系统将自动补一笔差额流水。`
-        : `当前余额 ¥${adjustCurrent}，输入调整后的目标余额，系统将自动补一笔差额流水。`"
-      @update:visible="adjustSheet = $event"
-      @confirm="onAdjustConfirm"
-    />
   </view>
 </template>
 
 <style scoped>
-.page { min-height: 100vh; background: #eef0f2; }
+.ae-mask { position: fixed; inset: 0; z-index: 900; background: #eef0f2; }
+.ae-panel {
+  width: 100%; height: 100vh; background: #eef0f2;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  animation: ae-up 0.26s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ae-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .nav {
-  display: flex; align-items: center; justify-content: space-between;
-  background: #fff; padding-left: 28rpx; padding-right: 28rpx; padding-bottom: 20rpx;
+  display: flex; align-items: center;
+  background: #fff; padding-left: 28rpx; padding-right: 28rpx; padding-bottom: 22rpx;
+  border-bottom: 1rpx solid #f0f1f3;
+  flex: 0 0 auto;
 }
-.nav-cancel { font-size: 30rpx; color: #9aa2ad; }
-.nav-title { font-size: 32rpx; font-weight: 800; color: #16181c; }
-.nav-save { font-size: 30rpx; color: #12a150; font-weight: 700; }
-.body { height: calc(100vh - 100rpx); padding: 0 24rpx; box-sizing: border-box; }
-.hero { display: flex; justify-content: center; padding: 24rpx 0 8rpx; }
-.hero-ic {
-  width: 120rpx; height: 120rpx; border-radius: 32rpx;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8rpx 22rpx rgba(0, 0, 0, 0.06);
+.nav-cancel { flex: 0 0 auto; min-width: 120rpx; font-size: 30rpx; color: #8a94a6; }
+.nav-title { flex: 1; text-align: center; font-size: 34rpx; font-weight: 800; color: #16181c; }
+.nav-save {
+  flex: 0 0 auto; min-width: 120rpx; text-align: right;
+  font-size: 28rpx; font-weight: 700; color: #12a150;
 }
+.body { padding: 24rpx 24rpx 0; box-sizing: border-box; }
 .form-body { background: #fff; border-radius: 18rpx; padding: 0 24rpx; margin-top: 16rpx; }
+.form-body:first-child { margin-top: 0; }
 .frow { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 0; border-top: 1rpx solid #eceef1; }
 .frow:first-child { border-top: none; }
+.type-left { display: flex; align-items: center; gap: 20rpx; }
+.type-ic { width: 72rpx; height: 72rpx; border-radius: 20rpx; display: flex; align-items: center; justify-content: center; }
 .fsec { font-size: 24rpx; color: #9aa2ad; padding: 18rpx 0 6rpx; }
 .pl-main { display: flex; align-items: center; gap: 12rpx; }
 .pl-tag { font-size: 20rpx; font-weight: 700; padding: 2rpx 12rpx; border-radius: 999rpx; }
@@ -547,18 +573,10 @@ function goBack() { uni.navigateBack() }
   box-shadow: 0 12rpx 24rpx rgba(18, 161, 80, 0.35);
 }
 .del { margin-top: 20rpx; background: #fff; color: #e5484d; border-radius: 44rpx; font-size: 30rpx; border: 1rpx solid #f1d4d4; }
-.mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.42); display: flex; align-items: flex-end; z-index: 50; }
-.mask-top { z-index: 80; }
+.mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.42); display: flex; align-items: flex-end; z-index: 910; }
+.mask-top { z-index: 920; }
 .sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .sheet-title { display: block; text-align: center; font-size: 30rpx; font-weight: 800; color: #16181c; margin-bottom: 20rpx; }
-.type-sheet { max-height: 84vh; }
-.type-scroll { max-height: 70vh; }
-.tg { margin-bottom: 10rpx; }
-.tg-title { font-size: 24rpx; font-weight: 700; color: #5b6470; padding: 12rpx 4rpx; }
-.tg-grid { display: flex; flex-wrap: wrap; }
-.tt { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 18rpx 0; }
-.tt-ic { width: 84rpx; height: 84rpx; border-radius: 24rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; }
-.tt-label { font-size: 22rpx; color: #4b5563; }
 .bank-val { display: flex; align-items: center; gap: 12rpx; }
 .bank-badge { width: 40rpx; height: 40rpx; border-radius: 50%; color: #fff; font-size: 22rpx; font-weight: 700; text-align: center; line-height: 40rpx; }
 .bank-sheet { max-height: 82vh; }

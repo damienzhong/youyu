@@ -122,13 +122,15 @@ export const ACCOUNT_TYPES = [
  * issuingBank 以中文行名（label）持久化；显示时用 bankOf(label) 取徽标样式。
  */
 export const BANKS = [
+  // 国有大型 + 邮储
   { label: '工商银行', short: '工', color: '#c7000b' },
   { label: '农业银行', short: '农', color: '#00954c' },
   { label: '中国银行', short: '中', color: '#b01c2e' },
   { label: '建设银行', short: '建', color: '#005baa' },
   { label: '交通银行', short: '交', color: '#004a9f' },
-  { label: '招商银行', short: '招', color: '#c7000b' },
   { label: '邮储银行', short: '邮', color: '#00713c' },
+  // 全国性股份制
+  { label: '招商银行', short: '招', color: '#c7000b' },
   { label: '民生银行', short: '民', color: '#0a8a3c' },
   { label: '中信银行', short: '信', color: '#c8102e' },
   { label: '光大银行', short: '光', color: '#6f2c91' },
@@ -137,8 +139,24 @@ export const BANKS = [
   { label: '平安银行', short: '平', color: '#e60012' },
   { label: '广发银行', short: '广', color: '#e60012' },
   { label: '华夏银行', short: '华', color: '#c8102e' },
+  { label: '浙商银行', short: '浙', color: '#b12028' },
+  { label: '渤海银行', short: '渤', color: '#1b4a9c' },
+  { label: '恒丰银行', short: '恒', color: '#c1272d' },
+  // 主要城市 / 农商行
   { label: '北京银行', short: '京', color: '#c8102e' },
+  { label: '上海银行', short: '沪', color: '#005ba1' },
+  { label: '江苏银行', short: '苏', color: '#007a4d' },
+  { label: '南京银行', short: '南', color: '#b01c2e' },
   { label: '宁波银行', short: '甬', color: '#d40f2b' },
+  { label: '杭州银行', short: '杭', color: '#c8102e' },
+  { label: '徽商银行', short: '徽', color: '#c1272d' },
+  { label: '天津银行', short: '津', color: '#005baa' },
+  { label: '成都银行', short: '成', color: '#b01c2e' },
+  { label: '广州银行', short: '穗', color: '#c8102e' },
+  { label: '青岛银行', short: '青', color: '#0a6cb5' },
+  { label: '长沙银行', short: '长', color: '#c8102e' },
+  { label: '哈尔滨银行', short: '哈', color: '#c1272d' },
+  { label: '农村信用社', short: '社', color: '#00954c' },
   { label: '其他银行', short: '银', color: '#8a94a6' }
 ]
 const BANK_MAP = Object.fromEntries(BANKS.map((b) => [b.label, b]))

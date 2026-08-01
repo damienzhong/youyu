@@ -14,6 +14,7 @@ import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
+const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
 const accounts = ref([])
 const loading = ref(false)
@@ -106,13 +107,35 @@ function goLoans() {
 function openAccount(a) {
   uni.navigateTo({ url: `/pages/accountdetail/accountdetail?id=${a.id}` })
 }
+// 添加账户：先弹类型选择，选完打开全屏编辑弹窗（不再跳转页面）。
+const typeSheet = ref(false)
+const editVisible = ref(false)
+const editCreateType = ref(null)
+function goBack() {
+  uni.navigateBack()
+}
 function openCreate() {
-  uni.navigateTo({ url: '/pages/accountedit/accountedit' })
+  typeSheet.value = true
+}
+function onPickType(t) {
+  typeSheet.value = false
+  editCreateType.value = t.value
+  editVisible.value = true
+}
+function onAccountSaved() {
+  load()
 }
 </script>
 
 <template>
   <view class="page">
+    <!-- 页面标题（自定义导航，二级页含返回）-->
+    <view class="topbar" :style="{ paddingTop: statusBarHeight }">
+      <text class="topbar-back" @click="goBack">‹</text>
+      <text class="topbar-title">资产管理</text>
+      <text class="topbar-back placeholder"></text>
+    </view>
+
     <!-- 净资产卡 -->
     <view class="networth">
       <view class="nw-top">
@@ -172,17 +195,49 @@ function openCreate() {
       <text class="aa-t">添加账户</text>
     </view>
 
-    <view style="height:210rpx;"></view>
+    <view style="height:calc(40rpx + env(safe-area-inset-bottom));"></view>
 
-    <TabBar active="assets" />
+    <!-- 账户类型选择（本页弹出，选完再打开编辑弹窗） -->
+    <AccountTypeSheet v-model:visible="typeSheet" @pick="onPickType" />
+
+    <!-- 新建账户全屏弹窗（资产页已改自定义导航，弹窗需让出状态栏高度）-->
+    <AccountEditSheet
+      v-model:visible="editVisible"
+      :create-type="editCreateType"
+      @saved="onAccountSaved"
+    />
+
   </view>
 </template>
 
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 24rpx;
+  padding: 0 24rpx 24rpx;
   background: #eef0f2;
+}
+/* 自定义页面标题（二级页导航，含返回）*/
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 8rpx;
+  margin: 0 -24rpx 8rpx;
+}
+.topbar-back {
+  width: 72rpx;
+  text-align: center;
+  font-size: 48rpx;
+  line-height: 1;
+  color: #16181c;
+}
+.topbar-back.placeholder { color: transparent; }
+.topbar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 34rpx;
+  font-weight: 800;
+  color: #16181c;
 }
 /* 净资产卡 */
 .networth {

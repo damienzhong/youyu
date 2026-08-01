@@ -747,7 +747,7 @@ function goAddCategory() {
         <text class="sheet-title">{{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}</text>
         <view v-if="!accounts.length" class="sempty">
           该账本还没有可用账户，
-          <text class="link" @click="uni.switchTab({ url: '/pages/accounts/accounts' })">去创建</text>
+          <text class="link" @click="uni.navigateTo({ url: '/pages/accounts/accounts' })">去创建</text>
         </view>
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
           <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
