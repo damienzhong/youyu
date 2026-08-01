@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useLedgerStore } from '../../stores/ledger'
-import { listAccounts, listRepayReminders, accountDisplayName } from '../../api/account'
+import { listAccounts, accountDisplayName } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth } from '../../api/transaction'
@@ -26,11 +26,6 @@ const transactions = ref([])
 const budget = ref(null)
 const memberMap = ref({})
 const tagNameById = ref({})
-const repaySoon = ref([])
-
-// 首页只提醒「近 7 天内」到期的信用卡，取最近一张（其余在账户页汇总）
-const repayNudge = computed(() => repaySoon.value.find((r) => r.daysUntil <= 7) || null)
-const repaySoonCount = computed(() => repaySoon.value.filter((r) => r.daysUntil <= 7).length)
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const isAll = computed(() => ledgerStore.isAll)
@@ -138,11 +133,6 @@ async function load() {
       }
     }
     loaded.value = true
-    try {
-      repaySoon.value = await listRepayReminders()
-    } catch (e) {
-      /* 还款提醒加载失败不阻断首页 */
-    }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   }
@@ -378,18 +368,6 @@ function goSearch() {
         <view class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
         <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
         <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
-      </view>
-    </view>
-
-    <!-- 信用卡还款提醒（近 7 天内到期） -->
-    <view v-if="repayNudge" class="pad">
-      <view class="repay-nudge" @click="goAccounts">
-        <view class="rn-ic"><AppIcon name="card" :size="38" color="#e5563d" /></view>
-        <view class="rn-main">
-          <text class="rn-title">{{ repayNudge.name }} {{ repayNudge.daysUntil === 0 ? '今天还款' : repayNudge.daysUntil + ' 天后还款' }}</text>
-          <text class="rn-sub">待还 ¥{{ formatAmount(repayNudge.owed) }}<text v-if="repaySoonCount > 1"> · 另有 {{ repaySoonCount - 1 }} 张临近</text></text>
-        </view>
-        <text class="rn-arrow">›</text>
       </view>
     </view>
 
