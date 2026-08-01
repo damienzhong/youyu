@@ -191,10 +191,19 @@ export function accountDisplayName(a) {
     const last4 = a.cardNo ? String(a.cardNo).slice(-4) : ''
     return last4 ? `${a.issuingBank}${label}（${last4}）` : `${a.issuingBank}${label}`
   }
-  return label
+  // 非银行卡账户：优先展示自定义名称（如「华泰证券」），便于区分同类型的多个账户；缺省回退类型名。
+  return a.name && String(a.name).trim() ? String(a.name).trim() : label
 }
 
-/** 保存时用于持久化的账户名（与 accountDisplayName 一致）。 */
-export function composeAccountName({ type, issuingBank, cardNo }) {
-  return accountDisplayName({ type, issuingBank, cardNo })
+/**
+ * 保存时用于持久化的账户名。
+ * - 银行卡/信用卡：由发卡行+类型+卡号后四位拼装（忽略自定义名）。
+ * - 其它类型：优先用自定义名称，为空则回退类型名。
+ */
+export function composeAccountName({ type, issuingBank, cardNo, name }) {
+  if (issuingBank) {
+    return accountDisplayName({ type, issuingBank, cardNo })
+  }
+  const custom = name != null ? String(name).trim() : ''
+  return custom || accountTypeLabel(type)
 }

@@ -26,8 +26,12 @@ const lendOutstanding = ref('0.00')
 const reminders = ref([])
 const showLoans = computed(() => !ledgerStore.isAll)
 
-// 计入净资产、非隐藏的账户参与统计
-const counted = computed(() => accounts.value.filter((a) => a.includeInTotal && !a.hidden))
+// 是否计入资产统计：仅由「余额计入总资产」决定。
+// 「隐藏账户」只影响记账时的选账户弹窗（见账户编辑页说明），不改变资产/净资产口径。
+function countsToTotal(a) {
+  return a.includeInTotal
+}
+const counted = computed(() => accounts.value.filter(countsToTotal))
 const netWorth = computed(() => counted.value.reduce((s, a) => s + Number(a.currentBalance), 0))
 const totalAssets = computed(() =>
   counted.value.reduce((s, a) => s + Math.max(Number(a.currentBalance), 0), 0)
@@ -36,11 +40,12 @@ const totalLiab = computed(() =>
   counted.value.reduce((s, a) => s + Math.min(Number(a.currentBalance), 0), 0)
 )
 
-// 按分组聚合（仅展示有账户的组），组内保持后端排序
+// 按分组聚合（仅展示有账户的组），组内保持后端排序。
+// 小计与净资产同口径：只累加「计入总资产」的账户，保证各组小计之和等于净资产（不计入账户仍单独展示，但不计入小计）。
 const groups = computed(() => {
   return ACCOUNT_GROUPS.map((g) => {
     const items = accounts.value.filter((a) => (a.group || 'FUNDS') === g.key)
-    const subtotal = items.reduce((s, a) => s + Number(a.currentBalance), 0)
+    const subtotal = items.reduce((s, a) => s + (countsToTotal(a) ? Number(a.currentBalance) : 0), 0)
     return { ...g, items, subtotal }
   }).filter((g) => g.items.length)
 })

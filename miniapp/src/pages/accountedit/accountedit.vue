@@ -100,7 +100,8 @@ const groupedTypes = computed(() =>
 )
 function pickType(t) {
   typePickerOpen.value = false
-  form.value = blankForm(t.value, t.label)
+  // 名称留空，由占位符提示默认类型名；用户可自定义以区分同类型账户。
+  form.value = blankForm(t.value, '')
   showForm.value = true
 }
 function reopenTypePicker() { typePickerOpen.value = true }
@@ -245,8 +246,8 @@ async function submit() {
     const issuingBank = needsBank.value ? (form.value._issuingBank || '') : ''
     const cardNo = needsBank.value && form.value._cardNo ? form.value._cardNo.trim() : ''
     const bank = { issuingBank, cardNo }
-    // 名称由属性自动拼装：发卡行+类型+（卡号后四位），或直接类型名。
-    const name = composeAccountName({ type: form.value.type, issuingBank, cardNo })
+    // 名称：银行卡由发卡行+类型+卡号后四位拼装；其它类型用自定义名（空则回退类型名）。
+    const name = composeAccountName({ type: form.value.type, issuingBank, cardNo, name: form.value.name })
     const billing = formIsCredit.value
       ? {
           billDay: form.value.billDay, repayDay: form.value.repayDay,
@@ -320,6 +321,11 @@ function goBack() { uni.navigateBack() }
         <view class="frow" @click="reopenTypePicker">
           <text class="fk">类型</text>
           <text class="fv">{{ accountTypeLabel(form.type) }} ›</text>
+        </view>
+        <!-- 非银行卡账户：可自定义名称，便于区分同类型的多个账户（如多个证券账户）。 -->
+        <view v-if="!needsBank" class="frow">
+          <text class="fk">名称</text>
+          <input v-model="form.name" class="finput" :placeholder="accountTypeLabel(form.type)" maxlength="50" />
         </view>
         <template v-if="needsBank">
           <view class="frow" @click="openBankPicker">
