@@ -30,7 +30,21 @@
     {
       "path": "pages/accounts/accounts",
       "style": {
-        "navigationBarTitleText": "账户"
+        "navigationBarTitleText": "资产"
+      }
+    },
+    {
+      "path": "pages/accountdetail/accountdetail",
+      "style": {
+        "navigationBarTitleText": "账户明细",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/accountedit/accountedit",
+      "style": {
+        "navigationBarTitleText": "编辑账户",
+        "navigationStyle": "custom"
       }
     },
     {

@@ -421,8 +421,11 @@ async function onTplNameConfirm(name) {
   }
 }
 
+const preAccountId = ref(null)
 onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
+  // 从账户明细页带入的预选账户（记一笔=账户，转账=转出账户）。
+  preAccountId.value = q && q.accountId ? Number(q.accountId) : null
   // 支持从账户/资产页以 ?type=transfer 直接进入转账模式。
   if (q && q.type && ['expense', 'income', 'transfer'].includes(q.type)) {
     type.value = q.type
@@ -465,6 +468,10 @@ async function load() {
       if (d && d.id != null) defId = d.id
     } catch (e) {
       /* 无默认时用可选集第一 */
+    }
+    // 明细页带入的预选账户优先（若在可选集内）。
+    if (preAccountId.value != null && accs.some((a) => a.id === preAccountId.value)) {
+      defId = preAccountId.value
     }
     accountId.value = defId
     destId.value = accs.find((a) => a.id !== defId)?.id ?? null
