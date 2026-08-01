@@ -43,6 +43,16 @@ export YOUYU_PORT="$PORT"
 [ -n "${WX_APPID:-}" ]       && export YOUYU_WX_APPID="$WX_APPID"
 [ -n "${WX_SECRET:-}" ]      && export YOUYU_WX_SECRET="$WX_SECRET"
 
+# 本地"万能验证码"：默认 000000，登录/绑定/注销时输入它即通过，免去翻日志取码。
+# 仅作用于本地这个进程（通过命令行参数注入），不影响服务器配置。置空可关闭。
+DEV_LOGIN_CODE="${DEV_LOGIN_CODE:-000000}"
+
 # 默认 profile（非 dev）→ 走 MySQL 数据源。
 cd "$ROOT"
-exec ./mvnw spring-boot:run
+if [ -n "$DEV_LOGIN_CODE" ]; then
+  echo "== 本地万能验证码已启用：${DEV_LOGIN_CODE}（仅本进程，服务器不受影响）=="
+  exec ./mvnw spring-boot:run \
+    -Dspring-boot.run.arguments="--app.auth.email-code.dev-code=${DEV_LOGIN_CODE}"
+else
+  exec ./mvnw spring-boot:run
+fi
