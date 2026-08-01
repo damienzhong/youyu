@@ -552,8 +552,8 @@ function confirmDelete() {
       </view>
     </view>
 
-    <!-- 发卡银行选择器 -->
-    <view v-if="bankPickerOpen" class="mask" @click="bankPickerOpen = false">
+    <!-- 发卡银行选择器（层级高于编辑表单，避免被其遮住） -->
+    <view v-if="bankPickerOpen" class="mask mask-top" @click="bankPickerOpen = false">
       <view class="sheet bank-sheet" @click.stop>
         <text class="sheet-title">选择发卡银行</text>
         <scroll-view scroll-y class="bank-scroll">
@@ -1073,6 +1073,10 @@ function confirmDelete() {
   display: flex;
   align-items: flex-end;
   z-index: 50;
+}
+/* 叠在编辑表单之上的二级弹层（如发卡银行选择器） */
+.mask-top {
+  z-index: 80;
 }
 .sheet {
   width: 100%;
