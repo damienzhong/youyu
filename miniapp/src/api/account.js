@@ -178,3 +178,23 @@ export function accountGroupOf(type) {
 export function isCreditType(type) {
   return accountGroupOf(type) === 'CREDIT'
 }
+
+/**
+ * 账户显示名：由属性自动拼装，不再手填。
+ * - 有发卡银行（储蓄卡/信用卡）：`${发卡行}${类型}` + 有卡号则追加 `（后四位）`，如「民生银行储蓄卡（0010）」。
+ * - 其它类型：直接用类型名（现金/微信/支付宝…）。
+ */
+export function accountDisplayName(a) {
+  if (!a) return ''
+  const label = accountTypeLabel(a.type)
+  if (a.issuingBank) {
+    const last4 = a.cardNo ? String(a.cardNo).slice(-4) : ''
+    return last4 ? `${a.issuingBank}${label}（${last4}）` : `${a.issuingBank}${label}`
+  }
+  return label
+}
+
+/** 保存时用于持久化的账户名（与 accountDisplayName 一致）。 */
+export function composeAccountName({ type, issuingBank, cardNo }) {
+  return accountDisplayName({ type, issuingBank, cardNo })
+}

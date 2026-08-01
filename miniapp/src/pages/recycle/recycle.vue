@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
+import { accountDisplayName } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listRecycle, restoreTransaction, purgeTransaction } from '../../api/transaction'
@@ -17,7 +18,7 @@ async function load() {
   loading.value = true
   try {
     const [accs, cats, txs] = await Promise.all([listAccounts(), listCategories(), listRecycle()])
-    accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+    accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
     categoryMap.value = buildCategoryLabelMap(cats)
     categoryIconMap.value = buildCategoryIconMap(cats)
     items.value = txs

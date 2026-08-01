@@ -1,8 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow, onLoad } from '@dcloudio/uni-app'
-import { listAccounts, accountTypeIcon, accountTypeLabel } from '../../api/account'
-import { listAccountTransactions } from '../../api/account'
+import { listAccounts, accountTypeIcon, accountDisplayName, listAccountTransactions } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { formatAmount, dayKeyOf, dayLabel, timeLabelOf } from '../../utils/format'
@@ -123,7 +122,7 @@ function goTransfer() {
     <view class="hero" :style="{ paddingTop: statusBarHeight }">
       <view class="hero-nav">
         <text class="hn-back" @click="goBack">‹</text>
-        <text class="hn-title">{{ acc ? acc.name : '账户明细' }}</text>
+        <text class="hn-title">{{ acc ? accountDisplayName(acc) : '账户明细' }}</text>
         <text class="hn-more" @click="goEdit">•••</text>
       </view>
       <view class="hero-body">

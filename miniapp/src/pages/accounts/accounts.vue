@@ -4,8 +4,8 @@ import { onShow } from '@dcloudio/uni-app'
 import {
   listAccounts,
   listRepayReminders,
-  accountTypeLabel,
   accountTypeIcon,
+  accountDisplayName,
   isCreditType,
   ACCOUNT_GROUPS
 } from '../../api/account'
@@ -149,9 +149,8 @@ function openCreate() {
         <view v-for="a in g.items" :key="a.id" class="acc" @click="openAccount(a)">
           <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="42" /></view>
           <view class="acc-main">
-            <text class="acc-name">{{ a.name }}<text v-if="!a.includeInTotal" class="acc-flag"> · 不计入</text></text>
+            <text class="acc-name">{{ accountDisplayName(a) }}<text v-if="!a.includeInTotal" class="acc-flag"> · 不计入</text></text>
             <text v-if="availableOf(a) != null" class="acc-sub">可用 {{ money(availableOf(a)) }}</text>
-            <text v-else class="acc-sub">{{ accountTypeLabel(a.type) }}</text>
           </view>
           <text class="acc-bal" :class="{ neg: Number(a.currentBalance) < 0 }">{{ money(a.currentBalance) }}</text>
         </view>

@@ -12,6 +12,7 @@ import {
   transferAccountOwnership,
   accountTypeLabel,
   accountTypeIcon,
+  composeAccountName,
   accountGroupOf,
   isCreditType,
   ACCOUNT_TYPES,
@@ -234,16 +235,15 @@ async function onAdjustConfirm(v) {
 
 // ---------- 保存 / 删除 ----------
 async function submit() {
-  const name = form.value.name.trim()
-  if (!name) { uni.showToast({ title: '请输入账户名称', icon: 'none' }); return }
   submitting.value = true
   try {
     const creditLimit = formIsCredit.value && form.value.creditLimit !== '' ? form.value.creditLimit : undefined
     const note = form.value._note ? form.value._note.trim() : undefined
-    const bank = {
-      issuingBank: needsBank.value ? (form.value._issuingBank || '') : '',
-      cardNo: needsBank.value && form.value._cardNo ? form.value._cardNo.trim() : ''
-    }
+    const issuingBank = needsBank.value ? (form.value._issuingBank || '') : ''
+    const cardNo = needsBank.value && form.value._cardNo ? form.value._cardNo.trim() : ''
+    const bank = { issuingBank, cardNo }
+    // 名称由属性自动拼装：发卡行+类型+（卡号后四位），或直接类型名。
+    const name = composeAccountName({ type: form.value.type, issuingBank, cardNo })
     const billing = formIsCredit.value
       ? { billDay: form.value.billDay, repayDay: form.value.repayDay, repayReminder: form.value.repayReminder }
       : {}
@@ -313,10 +313,6 @@ function goBack() { uni.navigateBack() }
         <view class="frow" @click="reopenTypePicker">
           <text class="fk">类型</text>
           <text class="fv">{{ accountTypeLabel(form.type) }} ›</text>
-        </view>
-        <view class="frow">
-          <text class="fk">名称</text>
-          <input v-model="form.name" class="finput" placeholder="账户名称" maxlength="50" />
         </view>
         <template v-if="needsBank">
           <view class="frow" @click="openBankPicker">

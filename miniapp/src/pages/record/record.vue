@@ -7,7 +7,8 @@ import {
   transferBetweenAccounts,
   accountTypeEmoji,
   accountTypeIcon,
-  accountTypeLabel
+  accountTypeLabel,
+  accountDisplayName
 } from '../../api/account'
 import { listCategories } from '../../api/category'
 import { createTransaction, getTransaction, updateTransaction } from '../../api/transaction'
@@ -674,12 +675,12 @@ function goBack() {
         <view class="xfer">
           <view class="xcard" @click="sheetTarget = 'source'">
             <text class="xic out">↗</text>
-            <view class="xinfo"><text class="xk">转出</text><text class="xn">{{ sourceAccount ? sourceAccount.name : '选择账户' }}</text></view>
+            <view class="xinfo"><text class="xk">转出</text><text class="xn">{{ sourceAccount ? accountDisplayName(sourceAccount) : '选择账户' }}</text></view>
           </view>
           <text class="swap">⇅</text>
           <view class="xcard" @click="sheetTarget = 'dest'">
             <text class="xic in">↘</text>
-            <view class="xinfo"><text class="xk">转入</text><text class="xn">{{ destAccount ? destAccount.name : '选择账户' }}</text></view>
+            <view class="xinfo"><text class="xk">转入</text><text class="xn">{{ destAccount ? accountDisplayName(destAccount) : '选择账户' }}</text></view>
           </view>
         </view>
       </template>
@@ -701,7 +702,7 @@ function goBack() {
       <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">记到：{{ targetLedgerName }}</view>
       <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">记账人：{{ recorderName }}</view>
       <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
-        {{ sourceAccount ? sourceAccount.name : '选择账户' }}
+        {{ sourceAccount ? accountDisplayName(sourceAccount) : '选择账户' }}
       </view>
       <picker mode="date" :value="occurredDate" @change="onDateChange">
         <view class="chip">{{ dateLabel }}</view>
@@ -735,7 +736,7 @@ function goBack() {
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
           <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
           <view class="si-name">
-            <text class="si-nm">{{ a.name }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
+            <text class="si-nm">{{ accountDisplayName(a) }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
             <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
           </view>
           <text v-if="a.canSeeBalance !== false" class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>

@@ -11,7 +11,7 @@ import {
   listMembers,
   removeMember
 } from '../../api/ledger'
-import { listAccounts, accountTypeIcon } from '../../api/account'
+import { listAccounts, accountTypeIcon, accountDisplayName } from '../../api/account'
 import { useAuthStore } from '../../stores/auth'
 
 const ledgerStore = useLedgerStore()
@@ -286,7 +286,7 @@ function roleLabel(l) {
         <scroll-view scroll-y class="as-list">
           <view v-for="a in acctSel.accounts" :key="a.id" class="as-item" @click="toggleAcct(a.id)">
             <view class="as-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="38" /></view>
-            <text class="as-name">{{ a.name }}</text>
+            <text class="as-name">{{ accountDisplayName(a) }}</text>
             <text class="as-check">{{ acctSel.selected[a.id] ? '✓' : '' }}</text>
           </view>
         </scroll-view>

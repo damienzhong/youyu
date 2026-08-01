@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useLedgerStore } from '../../stores/ledger'
-import { listAccounts, listRepayReminders } from '../../api/account'
+import { listAccounts, listRepayReminders, accountDisplayName } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth } from '../../api/transaction'
@@ -103,7 +103,7 @@ async function load() {
       categoryMap.value = buildCategoryLabelMap(cats)
       categoryIconMap.value = buildCategoryIconMap(cats)
       accounts.value = accs
-      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
       transactions.value = txs
       budget.value = null
       memberMap.value = {}
@@ -117,7 +117,7 @@ async function load() {
       categoryMap.value = buildCategoryLabelMap(cats)
       categoryIconMap.value = buildCategoryIconMap(cats)
       accounts.value = accs
-      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
+      accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
       transactions.value = txs
       loadBudget()
       if (isCollab.value) {

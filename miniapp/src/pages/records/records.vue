@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { listAccounts, listRepayReminders } from '../../api/account'
+import { listAccounts, listRepayReminders, accountDisplayName } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth, deleteTransaction, searchTransactions, batchDeleteTransactions } from '../../api/transaction'
@@ -184,8 +184,8 @@ async function load() {
       all ? listAllCategories() : listCategories(),
       all ? listAllTransactionsByMonth(month.value) : listTransactionsByMonth(month.value)
     ])
-    accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
-    acctOptions.value = accs.map((a) => ({ id: a.id, name: a.name }))
+    accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
+    acctOptions.value = accs.map((a) => ({ id: a.id, name: accountDisplayName(a) }))
     categoryMap.value = buildCategoryLabelMap(cats)
     categoryIconMap.value = buildCategoryIconMap(cats)
     catOptions.value = [...(cats.expense || []), ...(cats.income || [])].map((c) => ({
