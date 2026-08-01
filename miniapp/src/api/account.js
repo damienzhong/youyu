@@ -117,6 +117,35 @@ export const ACCOUNT_TYPES = [
   { value: 'OTHER_INVESTMENT', label: '其他', emoji: '🗃️', group: 'INVESTMENT' }
 ]
 
+/**
+ * 常见发卡银行：以品牌色 + 简称徽标作为“图标”（避免引入受版权保护的行标图片）。
+ * issuingBank 以中文行名（label）持久化；显示时用 bankOf(label) 取徽标样式。
+ */
+export const BANKS = [
+  { label: '工商银行', short: '工', color: '#c7000b' },
+  { label: '农业银行', short: '农', color: '#00954c' },
+  { label: '中国银行', short: '中', color: '#b01c2e' },
+  { label: '建设银行', short: '建', color: '#005baa' },
+  { label: '交通银行', short: '交', color: '#004a9f' },
+  { label: '招商银行', short: '招', color: '#c7000b' },
+  { label: '邮储银行', short: '邮', color: '#00713c' },
+  { label: '民生银行', short: '民', color: '#0a8a3c' },
+  { label: '中信银行', short: '信', color: '#c8102e' },
+  { label: '光大银行', short: '光', color: '#6f2c91' },
+  { label: '浦发银行', short: '浦', color: '#003a70' },
+  { label: '兴业银行', short: '兴', color: '#1a4f9c' },
+  { label: '平安银行', short: '平', color: '#e60012' },
+  { label: '广发银行', short: '广', color: '#e60012' },
+  { label: '华夏银行', short: '华', color: '#c8102e' },
+  { label: '北京银行', short: '京', color: '#c8102e' },
+  { label: '宁波银行', short: '甬', color: '#d40f2b' },
+  { label: '其他银行', short: '银', color: '#8a94a6' }
+]
+const BANK_MAP = Object.fromEntries(BANKS.map((b) => [b.label, b]))
+export function bankOf(label) {
+  return BANK_MAP[label] || null
+}
+
 const TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map((t) => [t.value, t]))
 
 export function accountTypeLabel(type) {

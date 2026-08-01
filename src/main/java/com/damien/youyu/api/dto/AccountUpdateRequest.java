@@ -17,5 +17,7 @@ public record AccountUpdateRequest(
         BigDecimal creditLimit,
         Integer billDay,
         Integer repayDay,
-        Boolean repayReminder) {
+        Boolean repayReminder,
+        String issuingBank,
+        String cardNo) {
 }

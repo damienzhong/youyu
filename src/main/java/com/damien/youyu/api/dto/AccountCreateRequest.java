@@ -23,5 +23,7 @@ public record AccountCreateRequest(
         BigDecimal creditLimit,
         Integer billDay,
         Integer repayDay,
-        Boolean repayReminder) {
+        Boolean repayReminder,
+        String issuingBank,
+        String cardNo) {
 }

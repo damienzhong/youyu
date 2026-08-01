@@ -17,7 +17,9 @@ import {
   accountGroupOf,
   isCreditType,
   ACCOUNT_TYPES,
-  ACCOUNT_GROUPS
+  ACCOUNT_GROUPS,
+  BANKS,
+  bankOf
 } from '../../api/account'
 import { listAllAccounts } from '../../api/aggregate'
 import { listLoans } from '../../api/loan'
@@ -126,6 +128,21 @@ async function load() {
 }
 onShow(load)
 
+// ---------- 发卡银行选择器 ----------
+const bankPickerOpen = ref(false)
+const banks = BANKS
+function openBankPicker() {
+  bankPickerOpen.value = true
+}
+function pickBank(b) {
+  form.value._issuingBank = b.label
+  bankPickerOpen.value = false
+}
+function clearBank() {
+  form.value._issuingBank = ''
+  bankPickerOpen.value = false
+}
+
 // ---------- 类型选择器（分组九宫格） ----------
 const typePickerOpen = ref(false)
 const groupedTypes = computed(() =>
@@ -138,11 +155,17 @@ const groupedTypes = computed(() =>
 // ---------- 新建 / 编辑表单 ----------
 const showForm = ref(false)
 const submitting = ref(false)
-const form = ref({
-  id: null, type: 'CASH', name: '', initialBalance: '', owed: '', creditLimit: '',
-  billDay: null, repayDay: null, repayReminder: false,
-  includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
-})
+function blankForm(type = 'CASH', name = '') {
+  return {
+    id: null, type, name, initialBalance: '', owed: '', creditLimit: '',
+    billDay: null, repayDay: null, repayReminder: false,
+    includeInTotal: true, _hidden: false, _note: null, _ledgerId: null,
+    _issuingBank: '', _cardNo: ''
+  }
+}
+const form = ref(blankForm())
+// 仅储蓄卡 / 信用卡展示发卡银行与卡号
+const needsBank = computed(() => ['BANK_CARD', 'CREDIT_CARD'].includes(form.value.type))
 // 账单日/还款日候选（1-28，规避大小月边界）
 const DAY_LABELS = Array.from({ length: 28 }, (_, i) => `每月 ${i + 1} 日`)
 function onBillDayChange(e) { form.value.billDay = Number(e.detail.value) + 1 }
@@ -168,21 +191,13 @@ const iconBg = computed(() => {
 
 function openCreate() {
   // 先重置为干净的新建态，避免残留上一次编辑的账户信息（否则 isEditing 仍为 true）。
-  form.value = {
-    id: null, type: 'CASH', name: '', initialBalance: '', owed: '', creditLimit: '',
-    billDay: null, repayDay: null, repayReminder: false,
-    includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
-  }
+  form.value = blankForm()
   // 先选类型，再填详情（对齐竞品）
   typePickerOpen.value = true
 }
 function pickType(t) {
   typePickerOpen.value = false
-  form.value = {
-    id: null, type: t.value, name: t.label, initialBalance: '', owed: '', creditLimit: '',
-    billDay: null, repayDay: null, repayReminder: false,
-    includeInTotal: true, _hidden: false, _note: null, _ledgerId: null
-  }
+  form.value = blankForm(t.value, t.label)
   showForm.value = true
 }
 function reopenTypePicker() {
@@ -205,7 +220,8 @@ function openEdit(acc) {
     creditLimit: acc.creditLimit != null ? String(acc.creditLimit) : '',
     billDay: acc.billDay ?? null, repayDay: acc.repayDay ?? null, repayReminder: !!acc.repayReminder,
     includeInTotal: acc.includeInTotal, _hidden: acc.hidden, _note: acc.note,
-    _ownerId: acc.ownerId, _ledgerId: null
+    _ownerId: acc.ownerId, _ledgerId: null,
+    _issuingBank: acc.issuingBank || '', _cardNo: acc.cardNo || ''
   }
   showForm.value = true
   buildPartList(acc.id)
@@ -320,6 +336,11 @@ async function submit() {
     const creditLimit = formIsCredit.value && form.value.creditLimit !== ''
       ? form.value.creditLimit : undefined
     const note = form.value._note ? form.value._note.trim() : undefined
+    // 发卡行/卡号仅储蓄卡/信用卡有意义；空串用于清除（后端置 null）。
+    const bank = {
+      issuingBank: needsBank.value ? (form.value._issuingBank || '') : '',
+      cardNo: needsBank.value && form.value._cardNo ? form.value._cardNo.trim() : ''
+    }
     // 信用卡账单/还款字段（仅信贷账户传递）
     const billing = formIsCredit.value
       ? { billDay: form.value.billDay, repayDay: form.value.repayDay, repayReminder: form.value.repayReminder }
@@ -327,7 +348,7 @@ async function submit() {
     if (isEditing.value) {
       await updateAccount(form.value.id, {
         name, type: form.value.type, includeInTotal: form.value.includeInTotal,
-        hidden: form.value._hidden, note, creditLimit, ...billing
+        hidden: form.value._hidden, note, creditLimit, ...billing, ...bank
       }, form.value._ledgerId)
     } else {
       // 信贷账户：当前欠款以负余额入账（欠款为正 → 初始余额为负），其余按余额/市值直填。
@@ -340,7 +361,7 @@ async function submit() {
       await createAccount({
         name, type: form.value.type, initialBalance,
         includeInTotal: form.value.includeInTotal,
-        hidden: form.value._hidden, note, creditLimit, ...billing
+        hidden: form.value._hidden, note, creditLimit, ...billing, ...bank
       })
     }
     showForm.value = false
@@ -371,7 +392,7 @@ const editingAmountDisplay = computed(() =>
 // 账户页已从底部 tab 移出、改为从首页「资产」push 进入，底部不再有 tab 栏，
 // 故只需在弹层打开时隐藏右下角 FAB，避免遮挡弹层内容。
 const anySheetOpen = computed(
-  () => typePickerOpen.value || showForm.value || adjustSheet.value
+  () => typePickerOpen.value || showForm.value || adjustSheet.value || bankPickerOpen.value
 )
 function openAdjust() {
   const bal = editingBalance.value
@@ -531,6 +552,22 @@ function confirmDelete() {
       </view>
     </view>
 
+    <!-- 发卡银行选择器 -->
+    <view v-if="bankPickerOpen" class="mask" @click="bankPickerOpen = false">
+      <view class="sheet bank-sheet" @click.stop>
+        <text class="sheet-title">选择发卡银行</text>
+        <scroll-view scroll-y class="bank-scroll">
+          <view class="bank-grid">
+            <view v-for="b in banks" :key="b.label" class="bk" @click="pickBank(b)">
+              <text class="bk-badge" :style="{ background: b.color }">{{ b.short }}</text>
+              <text class="bk-label">{{ b.label }}</text>
+            </view>
+          </view>
+        </scroll-view>
+        <view class="bank-clear" @click="clearBank">不设置 / 清除</view>
+      </view>
+    </view>
+
     <!-- 新建/编辑表单（按类型自适应） -->
     <view v-if="showForm" class="mask" @click="showForm = false">
       <view class="sheet form-sheet" @click.stop>
@@ -555,6 +592,22 @@ function confirmDelete() {
             <text class="fk">名称</text>
             <input v-model="form.name" class="finput" placeholder="账户名称" maxlength="50" />
           </view>
+
+          <!-- 发卡银行 / 卡号（储蓄卡·信用卡）——紧随名称 -->
+          <template v-if="needsBank">
+            <view class="frow" @click="openBankPicker">
+              <text class="fk">发卡银行</text>
+              <view v-if="form._issuingBank" class="bank-val">
+                <text class="bank-badge" :style="{ background: (bankOf(form._issuingBank) || {}).color || '#8a94a6' }">{{ (bankOf(form._issuingBank) || {}).short || '银' }}</text>
+                <text class="fv">{{ form._issuingBank }} ›</text>
+              </view>
+              <text v-else class="fv ph">选择银行 ›</text>
+            </view>
+            <view class="frow">
+              <text class="fk">卡号</text>
+              <input v-model="form._cardNo" class="finput" placeholder="选填，建议填后四位" maxlength="30" />
+            </view>
+          </template>
 
           <!-- 新建：信贷=额度+当前欠款；其它=余额/市值 -->
           <template v-if="!isEditing">
@@ -1076,6 +1129,62 @@ function confirmDelete() {
 .tt-label {
   font-size: 22rpx;
   color: #4b5563;
+}
+/* 发卡银行：表单内展示 + 选择器 */
+.bank-val {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.bank-badge {
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  text-align: center;
+  line-height: 40rpx;
+}
+.bank-sheet {
+  max-height: 82vh;
+}
+.bank-scroll {
+  max-height: 62vh;
+}
+.bank-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+.bk {
+  width: 25%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  padding: 20rpx 0;
+}
+.bk-badge {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 38rpx;
+  font-weight: 800;
+  text-align: center;
+  line-height: 84rpx;
+}
+.bk-label {
+  font-size: 22rpx;
+  color: #4b5563;
+}
+.bank-clear {
+  margin-top: 16rpx;
+  text-align: center;
+  padding: 24rpx;
+  font-size: 28rpx;
+  color: #9aa2ad;
+  border-top: 1rpx solid #eceef1;
 }
 /* 表单 */
 .form-head {

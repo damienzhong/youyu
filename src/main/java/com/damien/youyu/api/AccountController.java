@@ -82,6 +82,9 @@ public class AccountController {
                 req.creditLimit(),
                 req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder(),
                 ledgerId);
+        if (req.issuingBank() != null || req.cardNo() != null) {
+            account = accountService.saveBankInfo(userId, account.getId(), req.issuingBank(), req.cardNo());
+        }
         return ResponseEntity.status(HttpStatus.CREATED).body(AccountResponse.from(account));
     }
 
@@ -164,6 +167,9 @@ public class AccountController {
                 req.note(),
                 req.creditLimit(),
                 req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder());
+        if (req.issuingBank() != null || req.cardNo() != null) {
+            account = accountService.saveBankInfo(userId, id, req.issuingBank(), req.cardNo());
+        }
         return ResponseEntity.ok(AccountResponse.from(account));
     }
 

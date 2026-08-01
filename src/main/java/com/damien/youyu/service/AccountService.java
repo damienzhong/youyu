@@ -260,6 +260,30 @@ public class AccountService {
     }
 
     /**
+     * 保存账户的发卡银行 / 卡号（可空即清除）。独立于 create/update 的字段流，
+     * 便于在不改动既有多重载签名的前提下扩展账户元信息。
+     */
+    @Transactional
+    public Account saveBankInfo(Long userId, Long accountId, String issuingBank, String cardNo) {
+        Account account = requireAccount(userId, accountId);
+        account.setIssuingBank(trimOrNull(issuingBank, 40));
+        account.setCardNo(trimOrNull(cardNo, 30));
+        account.setUpdatedAt(LocalDateTime.now(clock));
+        return accountRepository.save(account);
+    }
+
+    private static String trimOrNull(String s, int max) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        if (t.isEmpty()) {
+            return null;
+        }
+        return t.length() > max ? t.substring(0, max) : t;
+    }
+
+    /**
      * 某用户全部账户的账本参与关联（批量）：用于资产页展示每个账户"参与了哪些账本"。
      * 仅返回该用户拥有的账户的关联行；账本名称/类型由前端解析。
      */

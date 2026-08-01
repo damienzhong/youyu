@@ -81,6 +81,14 @@ public class Account {
     @Column(name = "repay_reminder", nullable = false)
     private boolean repayReminder = false;
 
+    /** 发卡银行名称（可空，储蓄卡/信用卡有意义），如“招商银行”。 */
+    @Column(name = "issuing_bank", length = 40)
+    private String issuingBank;
+
+    /** 卡号 / 尾号（可空，建议仅存后四位）。 */
+    @Column(name = "card_no", length = 30)
+    private String cardNo;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -137,6 +145,22 @@ public class Account {
 
     public void setCurrentBalance(BigDecimal currentBalance) {
         this.currentBalance = currentBalance;
+    }
+
+    public String getIssuingBank() {
+        return issuingBank;
+    }
+
+    public void setIssuingBank(String issuingBank) {
+        this.issuingBank = issuingBank;
+    }
+
+    public String getCardNo() {
+        return cardNo;
+    }
+
+    public void setCardNo(String cardNo) {
+        this.cardNo = cardNo;
     }
 
     public int getSortOrder() {

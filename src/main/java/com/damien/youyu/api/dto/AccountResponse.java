@@ -27,6 +27,8 @@ public record AccountResponse(
         Integer billDay,
         Integer repayDay,
         boolean repayReminder,
+        String issuingBank,
+        String cardNo,
         boolean canSeeBalance) {
 
     /** 账户 owner 视图：余额完全可见。 */
@@ -55,6 +57,8 @@ public record AccountResponse(
                 account.getBillDay(),
                 account.getRepayDay(),
                 account.isRepayReminder(),
+                account.getIssuingBank(),
+                account.getCardNo(),
                 canSeeBalance);
     }
 }
