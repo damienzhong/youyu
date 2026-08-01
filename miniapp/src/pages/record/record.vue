@@ -19,6 +19,7 @@ import { listTags, createTag } from '../../api/tag'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
+import { resolveIcon } from '../../utils/icons'
 
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
@@ -98,6 +99,10 @@ function catColor(name) {
 }
 function catEmoji(name) {
   return categoryEmoji(name, type.value)
+}
+// 分类图标 key：优先用分类自身 icon，否则按名称推断。
+function catIcon(c) {
+  return resolveIcon(c.icon, c.name, type.value)
 }
 function pickParent(p) {
   categoryId.value = p.id
@@ -639,19 +644,19 @@ function goBack() {
         <view v-else class="cgrid">
           <template v-for="p in parents" :key="p.id">
             <view class="cat" :class="{ on: categoryId === p.id }" @click="pickParent(p)">
-              <view class="cic" :style="{ background: catColor(p.name) }">
-                {{ catEmoji(p.name) }}
+              <view class="cic">
+                <AppIcon :name="catIcon(p)" :size="48" :active="categoryId === p.id" />
                 <text v-if="p.children && p.children.length" class="subdot">{{ expandedId === p.id ? '▴' : '▾' }}</text>
               </view>
-              <text class="cl">{{ p.name }}</text>
+              <text class="cl" :class="{ on: categoryId === p.id }">{{ p.name }}</text>
             </view>
           </template>
         </view>
         <!-- 子分类 -->
         <view v-if="expandedChildren.length" class="subwrap">
           <view v-for="c in expandedChildren" :key="c.id" class="cat" :class="{ on: categoryId === c.id }" @click="pickChild(c)">
-            <view class="cic sub" :style="{ background: catColor(c.name) }">{{ catEmoji(c.name) }}</view>
-            <text class="cl">{{ c.name }}</text>
+            <view class="cic sub"><AppIcon :name="catIcon(c)" :size="42" :active="categoryId === c.id" /></view>
+            <text class="cl" :class="{ on: categoryId === c.id }">{{ c.name }}</text>
           </view>
         </view>
       </template>
@@ -909,12 +914,13 @@ function goBack() {
 .cgrid { display: flex; flex-wrap: wrap; padding: 16rpx 8rpx 4rpx; }
 .cat { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 16rpx 0; }
 .cic {
-  width: 96rpx; height: 96rpx; border-radius: 50%;
+  width: 88rpx; height: 88rpx; border-radius: 26rpx;
+  background: #f4f5f7;
   display: flex; align-items: center; justify-content: center;
-  font-size: 46rpx; position: relative;
+  position: relative; transition: background .15s;
 }
-.cic.sub { width: 80rpx; height: 80rpx; font-size: 38rpx; }
-.cat.on .cic { box-shadow: 0 0 0 4rpx #fff, 0 0 0 8rpx var(--accent); }
+.cic.sub { width: 76rpx; height: 76rpx; border-radius: 22rpx; }
+.cat.on .cic { background: #e7f7ee; }
 .subdot {
   position: absolute; right: -2rpx; bottom: -2rpx;
   width: 30rpx; height: 30rpx; border-radius: 50%;
@@ -923,7 +929,7 @@ function goBack() {
   box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.15);
 }
 .cl { font-size: 22rpx; color: #5b6470; max-width: 120rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cat.on .cl { color: #16181c; font-weight: 700; }
+.cat.on .cl { color: #12a150; font-weight: 700; }
 .subwrap {
   display: flex; flex-wrap: wrap;
   background: #f6f7f9; border-radius: 18rpx; margin: 4rpx 20rpx 12rpx; padding: 10rpx 4rpx;

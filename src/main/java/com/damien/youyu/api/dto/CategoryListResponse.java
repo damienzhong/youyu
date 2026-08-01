@@ -18,7 +18,7 @@ import com.damien.youyu.domain.CategoryKind;
 public record CategoryListResponse(List<Node> expense, List<Node> income) {
 
     /** 层级节点：父分类含 children；子分类的 children 恒为空列表。 */
-    public record Node(Long id, String name, Long parentId, List<Node> children) {
+    public record Node(Long id, String name, Long parentId, String icon, List<Node> children) {
     }
 
     /**
@@ -50,9 +50,9 @@ public record CategoryListResponse(List<Node> expense, List<Node> income) {
                             .getOrDefault(parent.getId(), List.of())
                             .stream()
                             .sorted(Comparator.comparing(Category::getId))
-                            .map(c -> new Node(c.getId(), c.getName(), c.getParentId(), List.of()))
+                            .map(c -> new Node(c.getId(), c.getName(), c.getParentId(), c.getIcon(), List.of()))
                             .toList();
-                    roots.add(new Node(parent.getId(), parent.getName(), null, children));
+                    roots.add(new Node(parent.getId(), parent.getName(), null, parent.getIcon(), children));
                 });
         return roots;
     }

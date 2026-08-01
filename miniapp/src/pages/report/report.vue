@@ -6,6 +6,7 @@ import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggrega
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount, categoryEmoji, currentMonth, monthLabel } from '../../utils/format'
+import { guessIcon } from '../../utils/icons'
 
 const ledgerStore = useLedgerStore()
 
@@ -232,9 +233,9 @@ function nextMonth() {
 
     <view class="list" v-if="rows.length">
       <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row" @click="onRowTap(r)">
-        <text class="row-ic" :style="{ background: colorAt(i) + '22' }">
-          {{ categoryEmoji(r.categoryName, kind) }}
-        </text>
+        <view class="cat-ic">
+          <AppIcon :name="guessIcon(r.categoryName, kind)" :size="40" />
+        </view>
         <view class="row-body">
           <view class="row-head">
             <text class="row-name">{{ r.categoryName || '未分类' }}</text>
@@ -467,6 +468,16 @@ function nextMonth() {
   text-align: center;
   line-height: 72rpx;
   font-size: 34rpx;
+  flex: 0 0 auto;
+}
+.cat-ic {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
 }
 .row-body {

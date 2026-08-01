@@ -12,13 +12,13 @@ export function listCategories(ledgerId) {
  * 创建分类。kind 须为大写 EXPENSE/INCOME（后端按枚举校验）；
  * parentId 为空创建父分类，指向父分类则创建子分类（子分类 kind 以父级为准）。
  */
-export function createCategory({ kind, name, parentId = null }) {
-  return http.post('/categories', { kind, name, parentId })
+export function createCategory({ kind, name, parentId = null, icon = null }) {
+  return http.post('/categories', { kind, name, parentId, icon })
 }
 
-/** 重命名分类（仅改名称，保留 kind/父级/交易关联）。 */
-export function renameCategory(id, name) {
-  return http.put(`/categories/${id}`, { name })
+/** 更新分类名称/图标（保留 kind/父级/交易关联）；icon 传 null 表示不改图标。 */
+export function renameCategory(id, name, icon = null) {
+  return http.put(`/categories/${id}`, { name, icon })
 }
 
 /** 删除分类（无交易引用、无子分类才允许）。 */
@@ -39,12 +39,32 @@ export function seedDefaultCategories() {
 export function flattenCategories(nodes) {
   const out = []
   for (const parent of nodes || []) {
-    out.push({ id: parent.id, label: parent.name })
+    out.push({ id: parent.id, label: parent.name, icon: parent.icon, name: parent.name })
     for (const child of parent.children || []) {
-      out.push({ id: child.id, label: `${parent.name} / ${child.name}` })
+      out.push({
+        id: child.id,
+        label: `${parent.name} / ${child.name}`,
+        icon: child.icon,
+        name: child.name
+      })
     }
   }
   return out
+}
+
+/**
+ * 把完整分类树映射为 { [id]: iconKey }，供明细/报表等按 categoryId 渲染统一图标。
+ * 无 icon 的分类留空，由展示层按名称兜底推断。
+ * @param {{expense:Array,income:Array}} tree
+ */
+export function buildCategoryIconMap(tree) {
+  const map = {}
+  for (const kind of ['expense', 'income']) {
+    for (const opt of flattenCategories(tree?.[kind])) {
+      map[opt.id] = opt.icon || null
+    }
+  }
+  return map
 }
 
 /**

@@ -2,13 +2,15 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
-import { listCategories, buildCategoryLabelMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { resolveIcon } from '../../utils/icons'
 import { listRecycle, restoreTransaction, purgeTransaction } from '../../api/transaction'
 import { formatAmount, categoryEmoji, dayLabel, dayKeyOf } from '../../utils/format'
 
 const items = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
+const categoryIconMap = ref({})
 const loading = ref(false)
 
 async function load() {
@@ -17,6 +19,7 @@ async function load() {
     const [accs, cats, txs] = await Promise.all([listAccounts(), listCategories(), listRecycle()])
     accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
     categoryMap.value = buildCategoryLabelMap(cats)
+    categoryIconMap.value = buildCategoryIconMap(cats)
     items.value = txs
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -33,6 +36,10 @@ function titleOf(t) {
 function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
   return categoryEmoji(categoryMap.value[t.categoryId], t.type)
+}
+function iconKeyOf(t) {
+  if (t.type === 'transfer') return 'transfer'
+  return resolveIcon(categoryIconMap.value[t.categoryId], categoryMap.value[t.categoryId], t.type)
 }
 function subOf(t) {
   const d = dayKeyOf(t.occurredAt)
@@ -74,7 +81,7 @@ function purge(t) {
     <view v-if="!items.length && !loading" class="empty"><text class="big">🗑️</text><text>回收站是空的</text></view>
     <view v-else class="card">
       <view v-for="t in items" :key="t.id" class="row">
-        <text class="ico">{{ iconOf(t) }}</text>
+        <view class="ico"><AppIcon :name="iconKeyOf(t)" :size="40" /></view>
         <view class="info">
           <text class="name">{{ titleOf(t) }}</text>
           <text class="sub">{{ subOf(t) }}</text>
@@ -99,7 +106,7 @@ function purge(t) {
 .card { background: #fff; border-radius: 20rpx; overflow: hidden; box-shadow: 0 6rpx 18rpx rgba(20,24,28,0.05); }
 .row { display: flex; align-items: center; gap: 18rpx; padding: 24rpx 26rpx; border-top: 1rpx solid #f1f3f5; }
 .card .row:first-child { border-top: none; }
-.ico { width: 68rpx; height: 68rpx; border-radius: 50%; background: #f4f6f8; text-align: center; line-height: 68rpx; font-size: 34rpx; flex: 0 0 auto; }
+.ico { width: 68rpx; height: 68rpx; border-radius: 20rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .name { font-size: 30rpx; font-weight: 600; color: #16181c; }
 .sub { font-size: 22rpx; color: #9aa2ad; }

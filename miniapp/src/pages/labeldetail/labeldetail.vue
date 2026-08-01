@@ -4,6 +4,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { filterTransactions } from '../../api/transaction'
 import { listCategories } from '../../api/category'
 import { formatAmount, categoryEmoji, dayKeyOf, dayLabel } from '../../utils/format'
+import { guessIcon } from '../../utils/icons'
 
 const dim = ref('project')
 const id = ref(null)
@@ -30,6 +31,10 @@ const groups = computed(() => {
   return [...m.entries()].map(([key, list]) => ({ key, label: dayLabel(key), list }))
 })
 
+function iconKeyOf(t) {
+  if (t.type === 'transfer') return 'transfer'
+  return guessIcon(labelOf(t), t.type)
+}
 function labelOf(t) {
   if (t.type === 'transfer') return '转账'
   const nm = catMap.value[t.categoryId]
@@ -123,7 +128,7 @@ function viewInRecords() {
       <text class="g-date">{{ g.label }}</text>
       <view class="card">
         <view v-for="t in g.list" :key="t.id" class="tx" @click="openTx(t)">
-          <text class="tx-ic">{{ categoryEmoji(labelOf(t), t.type) }}</text>
+          <view class="tx-ic"><AppIcon :name="iconKeyOf(t)" :size="40" /></view>
           <view class="tx-main">
             <text class="tx-name">{{ labelOf(t) }}</text>
             <text v-if="t.note" class="tx-note">{{ t.note }}</text>
@@ -162,7 +167,7 @@ function viewInRecords() {
 .card { background: #fff; border-radius: 22rpx; overflow: hidden; box-shadow: 0 8rpx 24rpx rgba(20,24,28,0.05); }
 .tx { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 28rpx; border-top: 1rpx solid #f1f3f5; }
 .card .tx:first-child { border-top: none; }
-.tx-ic { width: 72rpx; height: 72rpx; border-radius: 20rpx; background: #f4f6f8; text-align: center; line-height: 72rpx; font-size: 36rpx; }
+.tx-ic { width: 72rpx; height: 72rpx; border-radius: 20rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .tx-name { font-size: 30rpx; color: #16181c; font-weight: 600; }
 .tx-note { font-size: 22rpx; color: #9aa2ad; }

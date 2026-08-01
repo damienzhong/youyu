@@ -349,6 +349,7 @@ public class LedgerService {
         c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
+        c.setIcon(CategoryIcons.guess(name, kind));
         c.setCreatedAt(now);
         c.setUpdatedAt(now);
         return c;

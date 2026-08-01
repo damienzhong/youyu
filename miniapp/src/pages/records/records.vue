@@ -2,7 +2,8 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts, listRepayReminders } from '../../api/account'
-import { listCategories, buildCategoryLabelMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth, deleteTransaction, searchTransactions, batchDeleteTransactions } from '../../api/transaction'
 import { listMembers } from '../../api/ledger'
 import { listProjects } from '../../api/project'
@@ -38,6 +39,7 @@ const isCollab = computed(() => !isAll.value && ledgerStore.current?.type === 'C
 const transactions = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
+const categoryIconMap = ref({})
 const memberMap = ref({})
 const tagNameById = ref({})
 const loading = ref(false)
@@ -185,6 +187,7 @@ async function load() {
     accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
     acctOptions.value = accs.map((a) => ({ id: a.id, name: a.name }))
     categoryMap.value = buildCategoryLabelMap(cats)
+    categoryIconMap.value = buildCategoryIconMap(cats)
     catOptions.value = [...(cats.expense || []), ...(cats.income || [])].map((c) => ({
       id: c.id, name: c.name, kind: (cats.expense || []).includes(c) ? 'expense' : 'income'
     }))
@@ -392,6 +395,15 @@ function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
   return categoryEmoji(categoryMap.value[t.categoryId], t.type)
 }
+// 交易行图标 key（统一线性图标）：转账用 transfer，收支按分类 icon/名称解析。
+function iconKeyOf(t) {
+  if (t.type === 'transfer') return 'transfer'
+  return resolveIcon(categoryIconMap.value[t.categoryId], categoryMap.value[t.categoryId], t.type)
+}
+// 分类汇总分组图标 key。
+function catGroupIcon(g) {
+  return resolveIcon(categoryIconMap.value[g.id], g.name, g.type)
+}
 function iconColor(t) {
   if (t.type === 'transfer') return '#8a94a6'
   return catColor(categoryMap.value[t.categoryId] || '')
@@ -559,7 +571,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
+              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -578,7 +590,7 @@ async function batchDelete() {
         <view class="daygrp">
           <view class="card">
             <view v-for="g in catGroups" :key="g.id" class="tx">
-              <text class="tico" :style="{ background: g.color }">{{ categoryEmoji(g.name, g.type) }}</text>
+              <view class="tico"><AppIcon :name="catGroupIcon(g)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ g.name }} · {{ g.count }} 笔</text>
                 <view class="pctbar"><view class="pctfill" :style="{ width: g.pct + '%', background: g.color }"></view></view>
@@ -602,7 +614,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
+              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -726,7 +738,7 @@ async function batchDelete() {
           <view v-if="!selectedDayTx.length" class="empty" style="padding:60rpx 0"><text>这天没有记录</text></view>
           <view v-else class="card">
             <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goEdit(t)" @longpress="confirmDelete(t)">
-              <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
+              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -753,7 +765,7 @@ async function batchDelete() {
           <view class="dayhead"><text class="dt">{{ g.label }}</text></view>
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)">
-              <text class="tico" :style="{ background: iconColor(t) }">{{ iconOf(t) }}</text>
+              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -833,7 +845,7 @@ async function batchDelete() {
 .card { background: #fff; border-radius: 20rpx; overflow: hidden; box-shadow: 0 6rpx 18rpx rgba(20,24,28,0.05); }
 .tx { display: flex; align-items: center; gap: 20rpx; padding: 24rpx 26rpx; border-top: 1rpx solid #f1f3f5; }
 .card .tx:first-child { border-top: none; }
-.tico { width: 76rpx; height: 76rpx; border-radius: 50%; text-align: center; line-height: 76rpx; font-size: 38rpx; color: #fff; flex: 0 0 auto; }
+.tico { width: 76rpx; height: 76rpx; border-radius: 22rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .tname { font-size: 30rpx; font-weight: 600; color: #16181c; }
 .tsub { font-size: 22rpx; color: #9aa2ad; }

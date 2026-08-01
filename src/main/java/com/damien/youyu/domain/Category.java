@@ -46,6 +46,10 @@ public class Category {
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
+    /** 图标标识（内置线性图标集的 key，如 food/transport）。为空时前端按名称回退推断。 */
+    @Column(name = "icon", length = 32)
+    private String icon;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -102,6 +106,14 @@ public class Category {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getIcon() {
+        return icon;
+    }
+
+    public void setIcon(String icon) {
+        this.icon = icon;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -218,6 +218,7 @@ public class ImportService {
         category.setParentId(parentId);
         category.setKind(parseCategoryKind(requireText(node, "kind", "分类")));
         category.setName(requireText(node, "name", "分类"));
+        category.setIcon(CategoryIcons.guess(category.getName(), category.getKind()));
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         return category;

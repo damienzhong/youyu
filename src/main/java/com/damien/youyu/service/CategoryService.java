@@ -67,6 +67,16 @@ public class CategoryService {
      */
     @Transactional
     public Category create(Long ledgerId, String rawKind, String rawName, Long parentId) {
+        return create(ledgerId, rawKind, rawName, parentId, null);
+    }
+
+    /**
+     * 创建父/子分类，并指定图标 key（为空时按名称启发式推断）。
+     *
+     * @param rawIcon 图标 key（内置图标集）；null/空时按名称推断
+     */
+    @Transactional
+    public Category create(Long ledgerId, String rawKind, String rawName, Long parentId, String rawIcon) {
         String name = validateName(rawName);
 
         CategoryKind kind;
@@ -99,9 +109,18 @@ public class CategoryService {
         category.setParentId(parentId);
         category.setKind(kind);
         category.setName(name);
+        category.setIcon(normalizeIcon(rawIcon, name, kind));
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         return categoryRepository.save(category);
+    }
+
+    /** 图标 key 规范化：非空取其修剪值，空时按名称启发式推断。 */
+    private String normalizeIcon(String rawIcon, String name, CategoryKind kind) {
+        if (rawIcon != null && !rawIcon.isBlank()) {
+            return rawIcon.trim();
+        }
+        return CategoryIcons.guess(name, kind);
     }
 
     /** 列出本人全部分类（供按 kind 分组与层级构建，需求 5.6）。 */
@@ -138,6 +157,7 @@ public class CategoryService {
         c.setLedgerId(ledgerId);
         c.setKind(kind);
         c.setName(name);
+        c.setIcon(CategoryIcons.guess(name, kind));
         c.setCreatedAt(now);
         c.setUpdatedAt(now);
         return c;
@@ -152,6 +172,16 @@ public class CategoryService {
      */
     @Transactional
     public Category rename(Long ledgerId, Long id, String rawName) {
+        return update(ledgerId, id, rawName, null);
+    }
+
+    /**
+     * 更新分类名称与图标：kind、parentId 与交易关联保持不变（需求 5.4）。
+     *
+     * @param rawIcon 新图标 key；null 表示不改动图标
+     */
+    @Transactional
+    public Category update(Long ledgerId, Long id, String rawName, String rawIcon) {
         Category category = categoryRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("分类不存在"));
 
@@ -170,6 +200,9 @@ public class CategoryService {
         }
 
         category.setName(name);
+        if (rawIcon != null && !rawIcon.isBlank()) {
+            category.setIcon(rawIcon.trim());
+        }
         category.setUpdatedAt(LocalDateTime.now(clock));
         return categoryRepository.save(category);
     }

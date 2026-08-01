@@ -8,5 +8,5 @@ package com.damien.youyu.api.dto;
  * {@code parentId} 时，子分类的种类以父分类为准（保证父子 kind 一致）。名称由服务层按
  * 去空白后 1-50 校验（非法返回 {@code CATEGORY_NAME_INVALID}）。</p>
  */
-public record CategoryCreateRequest(String kind, String name, Long parentId) {
+public record CategoryCreateRequest(String kind, String name, Long parentId, String icon) {
 }

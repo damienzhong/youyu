@@ -4,7 +4,8 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useLedgerStore } from '../../stores/ledger'
 import { listAccounts, listRepayReminders } from '../../api/account'
-import { listCategories, buildCategoryLabelMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth } from '../../api/transaction'
 import { listTags } from '../../api/tag'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
@@ -20,6 +21,7 @@ const loaded = ref(false)
 const accounts = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
+const categoryIconMap = ref({})
 const transactions = ref([])
 const budget = ref(null)
 const memberMap = ref({})
@@ -99,6 +101,7 @@ async function load() {
         listAllTransactionsByMonth(month.value)
       ])
       categoryMap.value = buildCategoryLabelMap(cats)
+      categoryIconMap.value = buildCategoryIconMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
       transactions.value = txs
@@ -112,6 +115,7 @@ async function load() {
         listTransactionsByMonth(month.value)
       ])
       categoryMap.value = buildCategoryLabelMap(cats)
+      categoryIconMap.value = buildCategoryIconMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, a.name]))
       transactions.value = txs
@@ -201,6 +205,11 @@ function categoryColor(t) {
 function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
   return categoryEmoji(categoryMap.value[t.categoryId], t.type)
+}
+// 交易行图标 key（统一线性图标）。
+function iconKeyOf(t) {
+  if (t.type === 'transfer') return 'transfer'
+  return resolveIcon(categoryIconMap.value[t.categoryId], categoryMap.value[t.categoryId], t.type)
 }
 function tagNamesOf(t) {
   if (!Array.isArray(t.tagIds) || !t.tagIds.length) return []
@@ -452,7 +461,7 @@ function goSearch() {
         </view>
         <view class="tx-list">
           <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)">
-            <text class="tx-ic" :style="{ background: categoryColor(t) }">{{ iconOf(t) }}</text>
+            <view class="tx-ic"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
             <view class="tx-info">
               <view class="tx-titrow">
                 <text class="tx-title">{{ titleOf(t) }}</text>
@@ -889,9 +898,10 @@ function goSearch() {
   width: 78rpx;
   height: 78rpx;
   border-radius: 22rpx;
-  text-align: center;
-  line-height: 78rpx;
-  font-size: 38rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
 }
 .tx-info {

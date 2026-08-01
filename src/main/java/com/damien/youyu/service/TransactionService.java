@@ -218,6 +218,7 @@ public class TransactionService {
                     c.setParentId(null);
                     c.setKind(kind);
                     c.setName(ADJUST_CATEGORY_NAME);
+                    c.setIcon(CategoryIcons.guess(ADJUST_CATEGORY_NAME, kind));
                     c.setCreatedAt(now);
                     c.setUpdatedAt(now);
                     return categoryRepository.save(c).getId();
