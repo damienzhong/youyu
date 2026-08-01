@@ -27,10 +27,10 @@ const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
 
 const TYPES = [
+  // 借贷改由「借贷往来」页新建，记账页对齐竞品仅保留 支出/收入/转账
   { value: 'expense', label: '支出' },
   { value: 'income', label: '收入' },
-  { value: 'transfer', label: '转账' },
-  { value: 'loan', label: '借贷' }
+  { value: 'transfer', label: '转账' }
 ]
 const type = ref('expense')
 const isTransfer = computed(() => type.value === 'transfer')
@@ -167,6 +167,14 @@ const editingId = ref(null)
 const isEditing = computed(() => editingId.value !== null)
 const targetLedgerId = ref(null)
 const showLedgerPicker = computed(() => !isEditing.value && ledgerStore.isAll)
+// 标题栏账本名：已选目标账本则用之，否则用当前账本（对齐竞品：标题常驻账本切换）。
+const headerLedgerName = computed(() => {
+  if (targetLedgerId.value) {
+    const l = (ledgerStore.ledgers || []).find((x) => x.id === targetLedgerId.value)
+    return l ? l.name : '账本'
+  }
+  return ledgerStore.current?.name || '默认账本'
+})
 const targetLedgerName = computed(() => {
   const l = (ledgerStore.ledgers || []).find((x) => x.id === targetLedgerId.value)
   return l ? l.name : '默认账本'
@@ -622,15 +630,22 @@ async function run(fn, cont) {
 function goBack() {
   uni.navigateBack()
 }
+// 标题栏右上「＋」：快速进入分类管理新建分类（对齐竞品）。
+function goAddCategory() {
+  uni.navigateTo({ url: '/pages/categories/categories' })
+}
 </script>
 
 <template>
   <view class="rec" :class="accentClass">
     <!-- 顶部 -->
     <view class="rnav">
-      <text class="x" @click="goBack">✕</text>
-      <text class="title" v-if="isEditing">编辑记录</text>
-      <text class="save" @click="submit(false)">{{ isEditing ? '保存' : '完成' }}</text>
+      <text class="nb" @click="goBack">‹</text>
+      <view class="ledgersw" :class="{ dis: isEditing }" @click="!isEditing && (showLedgerSheet = true)">
+        <text class="ls-name">{{ isEditing ? '编辑记录' : headerLedgerName }}</text>
+        <text v-if="!isEditing" class="ls-caret">▾</text>
+      </view>
+      <text class="nb add" @click="goAddCategory">＋</text>
     </view>
     <scroll-view scroll-x class="types" :show-scrollbar="false">
       <text v-for="t in TYPES" :key="t.value" class="ty" :class="{ on: type === t.value }" @click="setType(t.value)">{{ t.label }}</text>
@@ -699,7 +714,6 @@ function goBack() {
 
     <!-- chips -->
     <scroll-view scroll-x class="chips" :show-scrollbar="false">
-      <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">记到：{{ targetLedgerName }}</view>
       <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">记账人：{{ recorderName }}</view>
       <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
         {{ sourceAccount ? accountDisplayName(sourceAccount) : '选择账户' }}
@@ -716,9 +730,9 @@ function goBack() {
 
     <!-- 键盘 -->
     <view class="kp">
-      <text class="key" @click="tapKey('7')">7</text><text class="key" @click="tapKey('8')">8</text><text class="key" @click="tapKey('9')">9</text><text class="key op" @click="tapKey('del')">⌫</text>
+      <text class="key" @click="tapKey('1')">1</text><text class="key" @click="tapKey('2')">2</text><text class="key" @click="tapKey('3')">3</text><text class="key op" @click="tapKey('del')">⌫</text>
       <text class="key" @click="tapKey('4')">4</text><text class="key" @click="tapKey('5')">5</text><text class="key" @click="tapKey('6')">6</text><text class="key op" @click="tapKey('−')">−</text>
-      <text class="key" @click="tapKey('1')">1</text><text class="key" @click="tapKey('2')">2</text><text class="key" @click="tapKey('3')">3</text><text class="key op" @click="tapKey('+')">＋</text>
+      <text class="key" @click="tapKey('7')">7</text><text class="key" @click="tapKey('8')">8</text><text class="key" @click="tapKey('9')">9</text><text class="key op" @click="tapKey('+')">＋</text>
       <text v-if="!isEditing" class="key mini" @click="submit(true)">保存再记</text>
       <text v-else class="key mini"> </text>
       <text class="key" @click="tapKey('0')">0</text><text class="key" @click="tapKey('.')">.</text>
@@ -749,9 +763,9 @@ function goBack() {
       <view class="sheet" @click.stop>
         <text class="sheet-title">记到哪个账本</text>
         <view v-for="l in ledgerStore.ledgers" :key="l.id" class="sitem" @click="pickTargetLedger(l.id)">
-          <text class="si-ic">📓</text>
+          <view class="si-ic"><AppIcon name="book" :size="34" /></view>
           <view class="si-name"><text>{{ l.name }}</text></view>
-          <text class="radio" :class="{ on: l.id === targetLedgerId }"></text>
+          <text class="radio" :class="{ on: (targetLedgerId ? l.id === targetLedgerId : l.id === (ledgerStore.current && ledgerStore.current.id)) }"></text>
         </view>
       </view>
     </view>
@@ -876,9 +890,19 @@ function goBack() {
   height: 88rpx;
   padding: 0 28rpx;
 }
-.rnav .x { font-size: 40rpx; color: #5b6470; }
-.rnav .title { font-size: 32rpx; font-weight: 800; }
-.rnav .save { font-size: 28rpx; color: var(--accent); font-weight: 700; }
+.rnav .nb {
+  width: 64rpx; height: 64rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44rpx; color: #3a3f45; background: #f4f5f7;
+}
+.rnav .nb.add { font-size: 40rpx; }
+.rnav .ledgersw {
+  display: flex; align-items: center; gap: 8rpx;
+  padding: 8rpx 20rpx; border-radius: 999rpx;
+}
+.rnav .ledgersw.dis { background: transparent; }
+.rnav .ls-name { font-size: 32rpx; font-weight: 800; color: #16181c; }
+.rnav .ls-caret { font-size: 22rpx; color: #9aa2ad; }
 
 .types {
   white-space: nowrap;
