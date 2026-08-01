@@ -158,8 +158,13 @@ function openCreate() {
       </view>
     </view>
 
+    <!-- 添加账户（列表底部，替代悬浮按钮，避免与底部「记一笔」重复） -->
+    <view class="add-account" @click="openCreate">
+      <text class="aa-plus">＋</text>
+      <text class="aa-t">添加账户</text>
+    </view>
+
     <view style="height:210rpx;"></view>
-    <view class="fab" @click="openCreate">＋</view>
 
     <TabBar active="assets" />
   </view>
@@ -256,19 +261,19 @@ function openCreate() {
 .acc-sub { font-size: 22rpx; color: #9aa2ad; }
 .acc-bal { font-size: 32rpx; font-weight: 800; color: #16181c; }
 .acc-bal.neg { color: #e5484d; }
-.fab {
-  position: fixed;
-  right: 40rpx;
-  bottom: calc(180rpx + env(safe-area-inset-bottom));
-  width: 104rpx;
-  height: 104rpx;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #18b85a, #0e8a44);
-  color: #fff;
-  font-size: 62rpx;
-  line-height: 104rpx;
-  text-align: center;
-  box-shadow: 0 14rpx 34rpx rgba(18, 161, 80, 0.45);
-  z-index: 200;
+.add-account {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  margin: 8rpx 0 4rpx;
+  padding: 28rpx 0;
+  background: #fff;
+  border-radius: 22rpx;
+  color: #12a150;
+  font-weight: 700;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
+.aa-plus { font-size: 34rpx; line-height: 1; }
+.aa-t { font-size: 30rpx; }
 </style>
