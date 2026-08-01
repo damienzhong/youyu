@@ -53,7 +53,10 @@ const ICON_PATHS = {
   wallet: "<path d='M3 7a2 2 0 0 1 2-2h11v3'/><rect x='3' y='7' width='18' height='12' rx='2'/><circle cx='17' cy='13' r='1.4'/>",
   lock: "<rect x='5' y='10' width='14' height='10' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",
   coin: "<ellipse cx='12' cy='7' rx='7' ry='3'/><path d='M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7'/><path d='M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3'/>",
-  yuan: "<circle cx='12' cy='12' r='9'/><path d='M9 8l3 3 3-3M12 11v6M9.5 13.5h5'/>"
+  yuan: "<circle cx='12' cy='12' r='9'/><path d='M9 8l3 3 3-3M12 11v6M9.5 13.5h5'/>",
+  mail: "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M4 7l8 6 8-6'/>",
+  badge: "<circle cx='12' cy='9' r='5'/><path d='M9 13l-2 8 5-3 5 3-2-8'/>",
+  warning: "<path d='M12 4l9 16H3z'/><path d='M12 10v4M12 17h.01'/>"
 }
 
 /** 默认图标色（未选中）。 */

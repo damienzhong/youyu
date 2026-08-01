@@ -266,13 +266,13 @@ function logout() {
     <view class="sect">个人信息</view>
     <view class="card">
       <view class="row" @click="editNickname">
-        <view class="r-ic t-green"><text>👤</text></view>
+        <view class="r-ic"><AppIcon name="user" :size="34" /></view>
         <text class="r-t">昵称</text>
         <text class="r-v">{{ nickname }}</text>
         <text class="arrow">›</text>
       </view>
       <view class="row">
-        <view class="r-ic t-purple"><text>🎫</text></view>
+        <view class="r-ic"><AppIcon name="badge" :size="34" /></view>
         <text class="r-t">套餐</text>
         <text class="r-v">{{ plan }}<text v-if="planExpires"> · 到期 {{ planExpires }}</text></text>
       </view>
@@ -283,7 +283,7 @@ function logout() {
     <view class="card">
       <!-- 邮箱 -->
       <view class="row">
-        <view class="r-ic t-blue"><text>✉️</text></view>
+        <view class="r-ic"><AppIcon name="mail" :size="34" /></view>
         <view class="r-main">
           <text class="r-t">邮箱</text>
           <text class="r-sub">{{ hasEmail ? email : '未绑定' }}</text>
@@ -304,7 +304,7 @@ function logout() {
       </view>
       <!-- 微信 -->
       <view class="row">
-        <view class="r-ic t-teal"><text>💬</text></view>
+        <view class="r-ic"><AppIcon name="chat" :size="34" /></view>
         <view class="r-main">
           <text class="r-t">微信</text>
           <text class="r-sub">{{ hasWechat ? '已绑定' : '未绑定' }}</text>
@@ -318,7 +318,7 @@ function logout() {
     <view class="sect">危险操作</view>
     <view class="card">
       <view class="row danger" @click="handleDeleteAccount">
-        <view class="r-ic t-red"><text>⚠️</text></view>
+        <view class="r-ic danger-ic"><AppIcon name="warning" :size="34" color="#e5484d" /></view>
         <view class="r-main">
           <text class="r-t danger-t">注销账号</text>
           <text class="r-sub">永久删除，不可恢复</text>
@@ -363,17 +363,13 @@ function logout() {
   width: 64rpx;
   height: 64rpx;
   border-radius: 18rpx;
+  background: #f4f5f7;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32rpx;
   flex: 0 0 auto;
 }
-.t-green { background: #e7f7ee; }
-.t-blue { background: #e8f0fe; }
-.t-purple { background: #f0ecfe; }
-.t-teal { background: #e4f6f5; }
-.t-red { background: #fdeceb; }
+.r-ic.danger-ic { background: #fdeceb; }
 .r-t {
   font-size: 30rpx;
   color: #25292e;
