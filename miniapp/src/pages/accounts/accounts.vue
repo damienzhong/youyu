@@ -349,6 +349,18 @@ async function submit() {
 // ---------- 余额调整 ----------
 const adjustSheet = ref(false)
 const adjustCurrent = ref('0.00')
+// true=按“欠款”正数输入（信贷账户），false=按“目标余额”输入（其它账户）
+const adjustOwed = ref(false)
+
+// 正在编辑的账户实体与其当前余额/欠款（用于基本信息里直接展示与调整）。
+const editingAccount = computed(() => accounts.value.find((a) => a.id === form.value.id) || null)
+const editingBalance = computed(() =>
+  editingAccount.value ? Number(editingAccount.value.currentBalance) : 0
+)
+// 信贷账户以“欠款”正数呈现（= 负余额取正）。
+const editingAmountDisplay = computed(() =>
+  formIsCredit.value ? formatAmount(-editingBalance.value) : formatAmount(editingBalance.value)
+)
 
 // 账户页已从底部 tab 移出、改为从首页「资产」push 进入，底部不再有 tab 栏，
 // 故只需在弹层打开时隐藏右下角 FAB，避免遮挡弹层内容。
@@ -356,19 +368,23 @@ const anySheetOpen = computed(
   () => typePickerOpen.value || showForm.value || adjustSheet.value
 )
 function openAdjust() {
-  const acc = accounts.value.find((a) => a.id === form.value.id)
-  adjustCurrent.value = acc ? String(acc.currentBalance) : '0.00'
+  const bal = editingBalance.value
+  adjustOwed.value = formIsCredit.value
+  // 信贷按“欠款”正数呈现当前值；其它按余额。
+  adjustCurrent.value = adjustOwed.value ? formatAmount(-bal) : formatAmount(bal)
   adjustSheet.value = true
 }
 async function onAdjustConfirm(v) {
   adjustSheet.value = false
   const raw = (v || '').trim()
   if (raw === '') return
-  const target = Number(raw)
-  if (isNaN(target)) {
+  const num = Number(raw)
+  if (isNaN(num)) {
     uni.showToast({ title: '请输入正确金额', icon: 'none' })
     return
   }
+  // 信贷：输入的是欠款（正数）→ 目标余额取负；其它：输入即目标余额。
+  const target = adjustOwed.value ? -Math.abs(num) : num
   try {
     await adjustBalance({ accountId: form.value.id, balance: String(target) }, form.value._ledgerId)
     showForm.value = false
@@ -554,11 +570,17 @@ function confirmDelete() {
               <input v-model="form.initialBalance" class="finput" type="digit" placeholder="0.00" />
             </view>
           </template>
-          <!-- 编辑：信贷仍可改额度 -->
-          <view v-else-if="formIsCredit" class="frow">
-            <text class="fk">信用额度</text>
-            <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
-          </view>
+          <!-- 编辑：信贷可改额度；金额（欠款/余额）在此直接可调 -->
+          <template v-else>
+            <view v-if="formIsCredit" class="frow">
+              <text class="fk">信用额度</text>
+              <input v-model="form.creditLimit" class="finput" type="digit" placeholder="可选" />
+            </view>
+            <view class="frow" @click="openAdjust">
+              <text class="fk">{{ formIsCredit ? '当前欠款' : '当前余额' }}</text>
+              <text class="fv">¥{{ editingAmountDisplay }} · 调整 ›</text>
+            </view>
+          </template>
         </view>
 
         <!-- 账单与还款（信贷账户专属） -->
@@ -600,10 +622,6 @@ function confirmDelete() {
           <view class="frow">
             <text class="fk">备注</text>
             <input v-model="form._note" class="finput" placeholder="选填" maxlength="200" />
-          </view>
-          <view v-if="isEditing" class="frow" @click="openAdjust">
-            <text class="fk">余额调整</text>
-            <text class="fv">校准到目标余额 ›</text>
           </view>
         </view>
 
@@ -653,11 +671,13 @@ function confirmDelete() {
 
     <InputSheet
       :visible="adjustSheet"
-      title="余额调整"
+      :title="adjustOwed ? '调整欠款' : '余额调整'"
       type="digit"
-      placeholder="目标余额"
+      :placeholder="adjustOwed ? '调整后的欠款' : '目标余额'"
       confirmText="校准"
-      :tip="`当前余额 ¥${adjustCurrent}，输入调整后的目标余额，系统将自动补一笔差额流水。`"
+      :tip="adjustOwed
+        ? `当前欠款 ¥${adjustCurrent}，输入调整后的欠款金额，系统将自动补一笔差额流水。`
+        : `当前余额 ¥${adjustCurrent}，输入调整后的目标余额，系统将自动补一笔差额流水。`"
       @update:visible="adjustSheet = $event"
       @confirm="onAdjustConfirm"
     />
