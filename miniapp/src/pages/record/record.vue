@@ -671,19 +671,19 @@ function goBack() {
 
     <!-- chips -->
     <scroll-view scroll-x class="chips" :show-scrollbar="false">
-      <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">📓 记到：{{ targetLedgerName }}</view>
-      <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">👤 记账人：{{ recorderName }}</view>
+      <view v-if="showLedgerPicker" class="chip on" @click="showLedgerSheet = true">记到：{{ targetLedgerName }}</view>
+      <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">记账人：{{ recorderName }}</view>
       <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
-        {{ accountTypeEmoji(sourceAccount?.type) }} {{ sourceAccount ? sourceAccount.name : '选择账户' }}
+        {{ sourceAccount ? sourceAccount.name : '选择账户' }}
       </view>
       <picker mode="date" :value="occurredDate" @change="onDateChange">
-        <view class="chip">📅 {{ dateLabel }}</view>
+        <view class="chip">{{ dateLabel }}</view>
       </picker>
-      <view class="chip" @click="noteSheet = true">📝 {{ note ? note : '备注' }}</view>
-      <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">📁 {{ projectName || '项目' }}</view>
-      <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: merchantId != null }" @click="openMerchantSheet">🏪 {{ merchantName || '商家' }}</view>
-      <view v-if="!isLoan" class="chip" :class="{ on: tagCount > 0 }" @click="openTagSheet">🏷️ {{ tagCount > 0 ? `标签·${tagCount}` : '标签' }}</view>
-      <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">⭐ 模板</view>
+      <view class="chip" @click="noteSheet = true">{{ note ? note : '备注' }}</view>
+      <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">{{ projectName || '项目' }}</view>
+      <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: merchantId != null }" @click="openMerchantSheet">{{ merchantName || '商家' }}</view>
+      <view v-if="!isLoan" class="chip" :class="{ on: tagCount > 0 }" @click="openTagSheet">{{ tagCount > 0 ? `标签·${tagCount}` : '标签' }}</view>
+      <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">模板</view>
     </scroll-view>
 
     <!-- 键盘 -->
@@ -703,7 +703,7 @@ function goBack() {
         <text class="sheet-title">{{ sheetTarget === 'dest' ? '选择转入账户' : sheetTarget === 'source' ? '选择转出账户' : '选择账户' }}</text>
         <view v-if="!accounts.length" class="sempty">
           该账本还没有可用账户，
-          <text class="link" @click="uni.navigateTo({ url: '/pages/accounts/accounts' })">去创建</text>
+          <text class="link" @click="uni.switchTab({ url: '/pages/accounts/accounts' })">去创建</text>
         </view>
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
           <text class="si-ic">{{ accountTypeEmoji(a.type) }}</text>
