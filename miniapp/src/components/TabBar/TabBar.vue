@@ -3,18 +3,18 @@
  * 自定义底部导航（方案 B：满宽栏 + 中间凸起「记一笔」）。
  *
  * 用法：在各 tab 页根节点末尾放 <TabBar active="home" />。
- * - 4 个 tab（首页/明细/报表/我的）用 uni.switchTab 切换（pages.json tabBar 设 custom:true）。
+ * - 4 个 tab（首页/资产/报表/我的）用 uni.switchTab 切换（pages.json tabBar 设 custom:true）。
  * - 中间凸起键跳「记一笔」记账页（navigateTo，非 tab 页）。
  * - 图标用 emoji（在 uni-app H5/小程序均可靠渲染；内联 svg 受 scoped 样式限制不显示）。
  * 依赖 easycom 自动注册（components/TabBar/TabBar.vue → <TabBar/>）。
  */
 const props = defineProps({
-  active: { type: String, default: 'home' } // home | records | report | me
+  active: { type: String, default: 'home' } // home | assets | report | me
 })
 
 const TABS = [
   { key: 'home', label: '首页', icon: '🏠', path: '/pages/index/index' },
-  { key: 'records', label: '明细', icon: '📋', path: '/pages/records/records' },
+  { key: 'assets', label: '资产', icon: '💎', path: '/pages/accounts/accounts' },
   { key: 'report', label: '报表', icon: '📊', path: '/pages/report/report' },
   { key: 'me', label: '我的', icon: '👤', path: '/pages/me/me' }
 ]
@@ -34,8 +34,8 @@ function goRecord() {
       <view class="tab" :class="{ on: active === 'home' }" @click="switchTo(TABS[0])">
         <text class="ic">🏠</text><text class="t">首页</text>
       </view>
-      <view class="tab" :class="{ on: active === 'records' }" @click="switchTo(TABS[1])">
-        <text class="ic">📋</text><text class="t">明细</text>
+      <view class="tab" :class="{ on: active === 'assets' }" @click="switchTo(TABS[1])">
+        <text class="ic">💎</text><text class="t">资产</text>
       </view>
       <!-- 中间：图标区留白给凸起键，只放「记一笔」标签，与其它标签基线对齐 -->
       <view class="tab center-slot" @click="goRecord">

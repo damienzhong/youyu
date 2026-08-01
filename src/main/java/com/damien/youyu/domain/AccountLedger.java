@@ -40,9 +40,9 @@ public class AccountLedger {
     @Column(name = "visible_to_others", nullable = false)
     private boolean visibleToOthers = true;
 
-    /** 是否对其他成员显示真实余额（默认显示）。 */
+    /** 是否对其他成员显示真实余额（隐私优先，默认不显示；owner 始终可见自己余额）。 */
     @Column(name = "show_balance", nullable = false)
-    private boolean showBalance = true;
+    private boolean showBalance = false;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;

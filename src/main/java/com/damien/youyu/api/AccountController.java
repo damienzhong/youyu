@@ -188,7 +188,7 @@ public class AccountController {
         AccountVisibilityResponse body = accountService.visibilityOf(userId, id, ledgerId)
                 .map(al -> new AccountVisibilityResponse(
                         ledgerId, true, al.isVisibleToOthers(), al.isShowBalance()))
-                .orElseGet(() -> new AccountVisibilityResponse(ledgerId, false, true, true));
+                .orElseGet(() -> new AccountVisibilityResponse(ledgerId, false, true, false));
         return ResponseEntity.ok(body);
     }
 
@@ -199,7 +199,8 @@ public class AccountController {
         Long userId = currentUser.requireUserId();
         Long ledgerId = req.ledgerId() != null ? req.ledgerId() : currentLedger.requireLedgerId();
         boolean visibleToOthers = req.visibleToOthers() == null || req.visibleToOthers();
-        boolean showBalance = req.showBalance() == null || req.showBalance();
+        // 隐私优先：未显式指定时默认不显示余额。
+        boolean showBalance = req.showBalance() != null && req.showBalance();
         accountService.attachToLedger(userId, id, ledgerId, visibleToOthers, showBalance);
         return ResponseEntity.noContent().build();
     }

@@ -125,7 +125,7 @@
     "borderStyle": "black",
     "list": [
       { "pagePath": "pages/index/index", "text": "首页" },
-      { "pagePath": "pages/records/records", "text": "明细" },
+      { "pagePath": "pages/accounts/accounts", "text": "资产" },
       { "pagePath": "pages/report/report", "text": "报表" },
       { "pagePath": "pages/me/me", "text": "我的" }
     ]

@@ -21,7 +21,6 @@ import {
   BANKS,
   bankOf
 } from '../../api/account'
-import { listAllAccounts } from '../../api/aggregate'
 import { listLoans } from '../../api/loan'
 import { listMembers } from '../../api/ledger'
 import { adjustBalance } from '../../api/transaction'
@@ -98,7 +97,8 @@ function toggleGroup(key) {
 async function load() {
   loading.value = true
   try {
-    accounts.value = ledgerStore.isAll ? await listAllAccounts() : await listAccounts()
+    // 资产始终是「你自己的全部账户」，与当前选哪个账本无关（账本不持有资产）。
+    accounts.value = await listAccounts()
     // 账本列表（用于把关联行解析成账本名/类型）与账户→账本关联，失败不阻断主列表。
     try {
       if (!ledgerStore.ledgers.length) await ledgerStore.load()
@@ -252,7 +252,8 @@ function buildPartList(accId) {
       type: g.type,
       participates: !!link,
       visibleToOthers: link ? link.visibleToOthers : true,
-      showBalance: link ? link.showBalance : true
+      // 隐私优先：默认不向成员显示余额
+      showBalance: link ? link.showBalance : false
     }
   })
 }
@@ -531,7 +532,7 @@ function confirmDelete() {
       </view>
     </view>
 
-    <view style="height:140rpx;"></view>
+    <view style="height:210rpx;"></view>
     <view v-if="!anySheetOpen" class="fab" @click="openCreate">＋</view>
 
     <!-- 类型选择器 -->
@@ -740,6 +741,8 @@ function confirmDelete() {
       @update:visible="adjustSheet = $event"
       @confirm="onAdjustConfirm"
     />
+
+    <TabBar active="assets" />
   </view>
 </template>
 
@@ -1054,7 +1057,7 @@ function confirmDelete() {
 .fab {
   position: fixed;
   right: 40rpx;
-  bottom: calc(136rpx + env(safe-area-inset-bottom));
+  bottom: calc(180rpx + env(safe-area-inset-bottom));
   width: 104rpx;
   height: 104rpx;
   border-radius: 50%;

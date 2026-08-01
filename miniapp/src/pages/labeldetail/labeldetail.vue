@@ -91,7 +91,7 @@ function viewInRecords() {
   } catch (e) {
     /* ignore */
   }
-  uni.switchTab({ url: '/pages/records/records' })
+  uni.navigateTo({ url: '/pages/records/records' })
 }
 </script>
 

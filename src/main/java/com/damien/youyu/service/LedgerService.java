@@ -224,7 +224,8 @@ public class LedgerService {
             al.setAccountId(accId);
             al.setLedgerId(ledgerId);
             al.setVisibleToOthers(true);
-            al.setShowBalance(true);
+            // 隐私优先：共享账户默认可用于记账，但不向其他成员显示余额。
+            al.setShowBalance(false);
             al.setCreatedAt(now);
             accountLedgerRepository.save(al);
         }

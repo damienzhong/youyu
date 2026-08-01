@@ -158,7 +158,7 @@ function onRowTap(r) {
   } catch (e) {
     /* ignore */
   }
-  uni.switchTab({ url: '/pages/records/records' })
+  uni.navigateTo({ url: '/pages/records/records' })
 }
 function prevMonth() {
   month.value = shiftMonth(month.value, -1)

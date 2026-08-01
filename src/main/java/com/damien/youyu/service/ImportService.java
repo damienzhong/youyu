@@ -156,7 +156,8 @@ public class ImportService {
             al.setAccountId(account.getId());
             al.setLedgerId(ledgerId);
             al.setVisibleToOthers(true);
-            al.setShowBalance(true);
+            // 隐私优先：默认不向其他成员显示余额。
+            al.setShowBalance(false);
             al.setCreatedAt(now);
             accountLedgerRepository.save(al);
 

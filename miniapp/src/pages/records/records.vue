@@ -622,8 +622,7 @@ async function batchDelete() {
       </view>
     </template>
 
-    <view style="height:180rpx;"></view>
-    <TabBar v-if="!selectMode" active="records" />
+    <view style="height:calc(40rpx + env(safe-area-inset-bottom));"></view>
 
     <!-- ============ 月份选择器 ============ -->
     <view v-if="pickerOpen" class="mask" @click="pickerOpen = false">

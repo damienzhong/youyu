@@ -319,15 +319,15 @@ function goEdit(t) {
   const suffix = t.ledgerId ? `&ledgerId=${t.ledgerId}` : ''
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
 }
-function goAccounts() {
-  // 账户已从底部 tab 移除，改为从首页「资产」入口 push 进入。
-  uni.navigateTo({ url: '/pages/accounts/accounts' })
-}
 function goReport() {
   uni.switchTab({ url: '/pages/report/report' })
 }
+function goRecords() {
+  // 「明细」已从底部 tab 移除，改为普通页 push 进入。
+  uni.navigateTo({ url: '/pages/records/records' })
+}
 function goSearch() {
-  uni.switchTab({ url: '/pages/records/records' })
+  uni.navigateTo({ url: '/pages/records/records' })
 }
 </script>
 
@@ -365,11 +365,9 @@ function goSearch() {
     <!-- 快捷入口 -->
     <view class="quick-wrap">
       <view class="quick">
-        <view class="qa" @click="goAccounts"><text class="qa-ic" style="background:#e6f6ec">💎</text><text class="qa-l">资产</text></view>
         <view class="qa" @click="goReport"><text class="qa-ic" style="background:#eef4ff">📊</text><text class="qa-l">统计</text></view>
         <view class="qa" @click="nav('/pages/budget/budget')"><text class="qa-ic" style="background:#fdf3e2">🧮</text><text class="qa-l">预算</text></view>
-        <view v-if="isCollab" class="qa" @click="nav('/pages/ledgers/ledgers')"><text class="qa-ic" style="background:#e6f6ec">👥</text><text class="qa-l">成员</text></view>
-        <view v-else class="qa" @click="nav('/pages/billimport/billimport')"><text class="qa-ic" style="background:#f3ecff">📥</text><text class="qa-l">导入</text></view>
+        <view class="qa" @click="goRecords"><text class="qa-ic" style="background:#eef4ff">📋</text><text class="qa-l">明细</text></view>
         <view class="qa" @click="showMore = true"><text class="qa-ic" style="background:#eef0f2">⋯</text><text class="qa-l">更多</text></view>
       </view>
     </view>
