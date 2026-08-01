@@ -13,6 +13,7 @@ import {
   transferAccountOwnership,
   accountTypeLabel,
   accountTypeEmoji,
+  accountTypeIcon,
   accountGroupLabel,
   accountGroupOf,
   isCreditType,
@@ -481,7 +482,7 @@ function confirmDelete() {
     <view v-if="reminders.length" class="repay">
       <view class="repay-head"><text class="rp-title">信用卡还款</text></view>
       <view v-for="r in reminders" :key="r.accountId" class="repay-row">
-        <text class="rp-ic">💳</text>
+        <view class="rp-ic"><AppIcon name="card" :size="34" color="#e5563d" /></view>
         <view class="rp-main">
           <text class="rp-name">{{ r.name }}</text>
           <text class="rp-sub">每月 {{ r.repayDay }} 日还款</text>
@@ -495,7 +496,7 @@ function confirmDelete() {
 
     <!-- 账户转账入口（账户间动作，脱离账本） -->
     <view v-if="accounts.length > 1" class="xfer-row" @click="goTransfer">
-      <text class="xfer-ic">🔁</text>
+      <view class="xfer-ic"><AppIcon name="transfer" :size="38" /></view>
       <text class="xfer-t">账户转账</text>
       <text class="xfer-caret">›</text>
     </view>
@@ -513,7 +514,7 @@ function confirmDelete() {
       </view>
       <view v-if="!collapsed[g.key]" class="acc-list">
         <view v-for="a in g.items" :key="a.id" class="acc" @click="openEdit(a)">
-          <text class="acc-ic">{{ accountTypeEmoji(a.type) }}</text>
+          <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="42" /></view>
           <view class="acc-main">
             <text class="acc-name">{{ a.name }}<text v-if="!a.includeInTotal" class="acc-flag"> · 不计入</text></text>
             <text v-if="availableOf(a) != null" class="acc-sub">可用 {{ money(availableOf(a)) }}</text>
@@ -544,7 +545,7 @@ function confirmDelete() {
             <text class="tg-title">{{ g.label }}</text>
             <view class="tg-grid">
               <view v-for="t in g.types" :key="t.value" class="tt" @click="pickTypeForEdit(t)">
-                <text class="tt-ic">{{ t.emoji }}</text>
+                <view class="tt-ic"><AppIcon :name="accountTypeIcon(t.value)" :size="40" /></view>
                 <text class="tt-label">{{ t.label }}</text>
               </view>
             </view>
@@ -580,7 +581,7 @@ function confirmDelete() {
 
         <!-- 顶部图标预览 -->
         <view class="hero">
-          <view class="hero-ic" :style="{ background: iconBg }">{{ accountTypeEmoji(form.type) }}</view>
+          <view class="hero-ic" :style="{ background: iconBg }"><AppIcon :name="accountTypeIcon(form.type)" :size="56" /></view>
         </view>
 
         <!-- 基本信息 -->
@@ -884,9 +885,9 @@ function confirmDelete() {
   height: 64rpx;
   border-radius: 18rpx;
   background: #fdece8;
-  text-align: center;
-  line-height: 64rpx;
-  font-size: 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
 }
 .rp-main {
@@ -931,8 +932,8 @@ function confirmDelete() {
   margin: 0 24rpx 20rpx;
 }
 .xfer-ic {
-  font-size: 34rpx;
   margin-right: 16rpx;
+  flex: 0 0 auto;
 }
 .xfer-t {
   flex: 1;
@@ -1000,10 +1001,10 @@ function confirmDelete() {
   width: 76rpx;
   height: 76rpx;
   border-radius: 22rpx;
-  background: #f4f6f8;
-  text-align: center;
-  line-height: 76rpx;
-  font-size: 38rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
 }
 .acc-main {
@@ -1127,11 +1128,11 @@ function confirmDelete() {
 .tt-ic {
   width: 84rpx;
   height: 84rpx;
-  border-radius: 50%;
-  background: #f4f6f8;
-  text-align: center;
-  line-height: 84rpx;
-  font-size: 40rpx;
+  border-radius: 24rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .tt-label {
   font-size: 22rpx;

@@ -351,7 +351,7 @@ function goSearch() {
           <text v-if="isCollab" class="hl-tag">协作</text>
           <text class="hl-caret">▾</text>
         </view>
-        <text class="hnav-search" @click="goSearch">🔍</text>
+        <view class="hnav-search" @click="goSearch"><AppIcon name="search" :size="40" color="#ffffff" /></view>
       </view>
 
       <view class="hero-main">
@@ -384,7 +384,7 @@ function goSearch() {
     <!-- 信用卡还款提醒（近 7 天内到期） -->
     <view v-if="repayNudge" class="pad">
       <view class="repay-nudge" @click="goAccounts">
-        <text class="rn-ic">💳</text>
+        <view class="rn-ic"><AppIcon name="card" :size="38" color="#e5563d" /></view>
         <view class="rn-main">
           <text class="rn-title">{{ repayNudge.name }} {{ repayNudge.daysUntil === 0 ? '今天还款' : repayNudge.daysUntil + ' 天后还款' }}</text>
           <text class="rn-sub">待还 ¥{{ formatAmount(repayNudge.owed) }}<text v-if="repaySoonCount > 1"> · 另有 {{ repaySoonCount - 1 }} 张临近</text></text>
@@ -685,7 +685,6 @@ function goSearch() {
   border-left: 8rpx solid #f0553d;
 }
 .rn-ic {
-  font-size: 40rpx;
   flex: 0 0 auto;
 }
 .rn-main {

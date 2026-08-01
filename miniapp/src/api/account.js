@@ -154,6 +154,21 @@ export function accountTypeLabel(type) {
 export function accountTypeEmoji(type) {
   return TYPE_MAP[type]?.emoji || '💰'
 }
+
+/** 账户类型 → 统一线性图标 key（与 utils/icons.js 图标集一致）。 */
+const TYPE_ICON = {
+  CASH: 'cash', BANK_CARD: 'card', WECHAT: 'chat', ALIPAY: 'wallet', QQ_WALLET: 'wallet',
+  JD_FINANCE: 'shopping', HOUSING_FUND: 'home', MEDICAL_INSURANCE: 'medical',
+  DIGITAL_RMB: 'yuan', OTHER_FUNDS: 'wallet',
+  CREDIT_CARD: 'card', HUABEI: 'card', JD_BAITIAO: 'card', OTHER_CREDIT: 'card',
+  TRANSIT_CARD: 'transport', MEAL_CARD: 'food', MEMBER_CARD: 'star', DEPOSIT: 'lock', OTHER_PREPAID: 'card',
+  STOCK: 'chart', FUND: 'invest', CRYPTO: 'coin', INVESTMENT: 'invest', OTHER_INVESTMENT: 'coin'
+}
+
+/** 账户类型对应的线性图标 key；未知类型回退 wallet。 */
+export function accountTypeIcon(type) {
+  return TYPE_ICON[type] || 'wallet'
+}
 export function accountGroupLabel(key) {
   return ACCOUNT_GROUPS.find((g) => g.key === key)?.label || key
 }

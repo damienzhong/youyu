@@ -6,6 +6,7 @@ import {
   getDefaultAccount,
   transferBetweenAccounts,
   accountTypeEmoji,
+  accountTypeIcon,
   accountTypeLabel
 } from '../../api/account'
 import { listCategories } from '../../api/category'
@@ -725,7 +726,7 @@ function goBack() {
           <text class="link" @click="uni.switchTab({ url: '/pages/accounts/accounts' })">去创建</text>
         </view>
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
-          <text class="si-ic">{{ accountTypeEmoji(a.type) }}</text>
+          <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
           <view class="si-name">
             <text class="si-nm">{{ a.name }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
             <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
@@ -984,7 +985,7 @@ function goBack() {
 .sheet-title { display: block; text-align: center; font-size: 30rpx; font-weight: 800; margin-bottom: 16rpx; }
 .sitem { display: flex; align-items: center; gap: 20rpx; padding: 24rpx 8rpx; border-top: 1rpx solid #f1f3f5; }
 .sitem:first-of-type { border-top: none; }
-.si-ic { width: 60rpx; height: 60rpx; border-radius: 16rpx; background: #f6f7f9; text-align: center; line-height: 60rpx; font-size: 32rpx; }
+.si-ic { width: 60rpx; height: 60rpx; border-radius: 16rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; font-size: 30rpx; flex: 0 0 auto; }
 .si-name { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
 .si-nm { display: flex; align-items: center; gap: 12rpx; }
 .si-owner { font-size: 20rpx; color: #6b7280; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; font-weight: 500; }

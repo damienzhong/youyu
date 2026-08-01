@@ -46,7 +46,14 @@ const ICON_PATHS = {
   loan: "<path d='M4 11a8 8 0 0 1 14-5l2 2'/><path d='M20 4v4h-4'/><path d='M20 13a8 8 0 0 1-14 5l-2-2'/><path d='M4 20v-4h4'/>",
   book: "<path d='M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3Z'/><path d='M4 5v14M9 8h6'/>",
   folder: "<path d='M4 7a2 2 0 0 1 2-2h3.5l2 2H18a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z'/>",
-  info: "<circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/>"
+  info: "<circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/>",
+  cash: "<rect x='3' y='6' width='18' height='12' rx='2'/><circle cx='12' cy='12' r='2.4'/><path d='M6 9h.01M18 15h.01'/>",
+  card: "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 9h18M7 15h4'/>",
+  chat: "<path d='M5 5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3V7a2 2 0 0 1 0-2Z'/>",
+  wallet: "<path d='M3 7a2 2 0 0 1 2-2h11v3'/><rect x='3' y='7' width='18' height='12' rx='2'/><circle cx='17' cy='13' r='1.4'/>",
+  lock: "<rect x='5' y='10' width='14' height='10' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",
+  coin: "<ellipse cx='12' cy='7' rx='7' ry='3'/><path d='M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7'/><path d='M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3'/>",
+  yuan: "<circle cx='12' cy='12' r='9'/><path d='M9 8l3 3 3-3M12 11v6M9.5 13.5h5'/>"
 }
 
 /** 默认图标色（未选中）。 */

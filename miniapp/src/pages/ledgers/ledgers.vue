@@ -11,7 +11,7 @@ import {
   listMembers,
   removeMember
 } from '../../api/ledger'
-import { listAccounts, accountTypeEmoji } from '../../api/account'
+import { listAccounts, accountTypeIcon } from '../../api/account'
 import { useAuthStore } from '../../stores/auth'
 
 const ledgerStore = useLedgerStore()
@@ -285,7 +285,7 @@ function roleLabel(l) {
         <text class="as-tip">选中的账户将在此账本可用（默认全选，可稍后调整）</text>
         <scroll-view scroll-y class="as-list">
           <view v-for="a in acctSel.accounts" :key="a.id" class="as-item" @click="toggleAcct(a.id)">
-            <text class="as-ic">{{ accountTypeEmoji(a.type) }}</text>
+            <view class="as-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="38" /></view>
             <text class="as-name">{{ a.name }}</text>
             <text class="as-check">{{ acctSel.selected[a.id] ? '✓' : '' }}</text>
           </view>
@@ -465,7 +465,14 @@ function roleLabel(l) {
   border-bottom: 1rpx solid #f0f0f0;
 }
 .as-ic {
-  font-size: 34rpx;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 .as-name {
   flex: 1;
