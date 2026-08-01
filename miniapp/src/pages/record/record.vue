@@ -217,6 +217,12 @@ function memberLabel(m) {
   if (m.userId === selfId.value) return m.displayName ? `${m.displayName}（我）` : '我'
   return m.displayName || '成员'
 }
+// 账户归属人名字：仅他人账户返回（自己的账户不标注归属人）。
+function ownerNameOf(a) {
+  if (a.ownerId == null || a.ownerId === selfId.value) return ''
+  const m = members.value.find((x) => x.userId === a.ownerId)
+  return m ? m.displayName || '成员' : '成员'
+}
 
 // ---------- 项目 ----------
 const projects = ref([])
@@ -438,6 +444,14 @@ async function load() {
     ])
     accounts.value = accs
     tree.value = cats
+    // 协作账本：预加载成员，用于在账户选择器标注他人账户的归属人。
+    if (effectiveLedger.value?.type === 'COLLABORATIVE') {
+      try {
+        members.value = await listMembers(effectiveLedger.value.id)
+      } catch (e) {
+        /* 成员加载失败不影响记账 */
+      }
+    }
     // 默认账户：上一笔在此账本记账用的账户（后端记忆，回退可选集第一）。
     let defId = accs[0]?.id ?? null
     try {
@@ -707,9 +721,11 @@ function goBack() {
         </view>
         <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
           <text class="si-ic">{{ accountTypeEmoji(a.type) }}</text>
-          <view class="si-name"><text>{{ a.name }}</text><text class="si-type">{{ accountTypeLabel(a.type) }}</text></view>
-          <text v-if="a.canSeeBalance === false" class="si-bal masked">余额隐藏</text>
-          <text v-else class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
+          <view class="si-name">
+            <text class="si-nm">{{ a.name }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
+            <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
+          </view>
+          <text v-if="a.canSeeBalance !== false" class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
         </view>
       </view>
     </view>
@@ -964,10 +980,11 @@ function goBack() {
 .sitem:first-of-type { border-top: none; }
 .si-ic { width: 60rpx; height: 60rpx; border-radius: 16rpx; background: #f6f7f9; text-align: center; line-height: 60rpx; font-size: 32rpx; }
 .si-name { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
+.si-nm { display: flex; align-items: center; gap: 12rpx; }
+.si-owner { font-size: 20rpx; color: #6b7280; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; font-weight: 500; }
 .si-type { font-size: 22rpx; color: #9aa2ad; }
 .si-bal { font-size: 30rpx; font-weight: 700; }
 .si-bal.neg { color: #e5484d; }
-.si-bal.masked { font-size: 24rpx; font-weight: 500; color: #9aa2ad; }
 .sempty { padding: 48rpx 24rpx; text-align: center; color: #6b7280; font-size: 28rpx; }
 .radio { width: 36rpx; height: 36rpx; border-radius: 50%; border: 3rpx solid #d1d5db; box-sizing: border-box; }
 .radio.on { border-color: #12a150; background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%); }
