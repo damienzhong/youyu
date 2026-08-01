@@ -35,7 +35,9 @@ class CategorySeedTest {
     @Test
     void seedsWhenEmpty_thenIdempotent() {
         CategoryService svc = service();
-        int expected = CategoryService.DEFAULT_EXPENSE.length + CategoryService.DEFAULT_INCOME.length;
+        int expenseCount = DefaultCategories.totalCount(DefaultCategories.EXPENSE);
+        int incomeCount = DefaultCategories.totalCount(DefaultCategories.INCOME);
+        int expected = expenseCount + incomeCount;
 
         svc.seedDefaultsIfEmpty(LEDGER);
         assertThat(categoryRepository.countByLedgerId(LEDGER)).isEqualTo(expected);
@@ -44,11 +46,16 @@ class CategorySeedTest {
         svc.seedDefaultsIfEmpty(LEDGER);
         assertThat(categoryRepository.countByLedgerId(LEDGER)).isEqualTo(expected);
 
-        // 存在支出与收入两类。
+        // 支出与收入分类各自数量（含父+子）。
         assertThat(categoryRepository.findByLedgerIdAndKind(LEDGER, CategoryKind.EXPENSE))
-                .hasSize(CategoryService.DEFAULT_EXPENSE.length);
+                .hasSize(expenseCount);
         assertThat(categoryRepository.findByLedgerIdAndKind(LEDGER, CategoryKind.INCOME))
-                .hasSize(CategoryService.DEFAULT_INCOME.length);
+                .hasSize(incomeCount);
+
+        // 顶级父分类数量与定义一致（parent_id 为 null）。
+        long expenseParents = categoryRepository.findByLedgerIdAndKind(LEDGER, CategoryKind.EXPENSE)
+                .stream().filter(c -> c.getParentId() == null).count();
+        assertThat(expenseParents).isEqualTo(DefaultCategories.EXPENSE.length);
     }
 
     @Test

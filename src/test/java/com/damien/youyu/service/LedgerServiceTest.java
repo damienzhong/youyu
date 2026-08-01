@@ -82,7 +82,9 @@ class LedgerServiceTest {
     void create_seedsDefaultCategoriesAndOwnerMembership() {
         Ledger l = service().create(ALICE, "旅行", "INDEPENDENT");
 
-        assertThat(categoryRepository.countByLedgerId(l.getId())).isEqualTo(12);
+        int expected = DefaultCategories.totalCount(DefaultCategories.EXPENSE)
+                + DefaultCategories.totalCount(DefaultCategories.INCOME);
+        assertThat(categoryRepository.countByLedgerId(l.getId())).isEqualTo(expected);
         LedgerMember m = memberRepository.findByLedgerIdAndUserId(l.getId(), ALICE).orElseThrow();
         assertThat(m.isOwner()).isTrue();
     }

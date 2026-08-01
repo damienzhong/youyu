@@ -325,28 +325,29 @@ public class LedgerService {
         return saved;
     }
 
-    /** 新账本默认分类（扁平，收支各一组常用项）。 */
-    private static final String[] DEFAULT_EXPENSE_CATEGORIES = {
-            "餐饮", "交通", "购物", "居住", "娱乐", "医疗", "通讯", "人情"
-    };
-    private static final String[] DEFAULT_INCOME_CATEGORIES = {
-            "工资", "兼职", "理财", "红包"
-    };
-
+    /** 新账本默认分类树（两级：父 + 子）——见 {@link DefaultCategories}，与 onboarding 补齐保持一致。 */
     private void seedDefaultCategories(Long userId, Long ledgerId, LocalDateTime now) {
-        for (String name : DEFAULT_EXPENSE_CATEGORIES) {
-            categoryRepository.save(newCategory(userId, ledgerId, CategoryKind.EXPENSE, name, now));
-        }
-        for (String name : DEFAULT_INCOME_CATEGORIES) {
-            categoryRepository.save(newCategory(userId, ledgerId, CategoryKind.INCOME, name, now));
+        seedTree(userId, ledgerId, CategoryKind.EXPENSE, DefaultCategories.EXPENSE, now);
+        seedTree(userId, ledgerId, CategoryKind.INCOME, DefaultCategories.INCOME, now);
+    }
+
+    /** 落库一组父分类及其子分类：先存父拿到 id，再挂子分类。 */
+    private void seedTree(Long userId, Long ledgerId, CategoryKind kind,
+            DefaultCategories.Group[] groups, LocalDateTime now) {
+        for (DefaultCategories.Group g : groups) {
+            Category parent = categoryRepository.save(newCategory(userId, ledgerId, kind, g.name(), null, now));
+            for (String child : g.children()) {
+                categoryRepository.save(newCategory(userId, ledgerId, kind, child, parent.getId(), now));
+            }
         }
     }
 
     private Category newCategory(Long userId, Long ledgerId, CategoryKind kind, String name,
-            LocalDateTime now) {
+            Long parentId, LocalDateTime now) {
         Category c = new Category();
         c.setUserId(userId);
         c.setLedgerId(ledgerId);
+        c.setParentId(parentId);
         c.setKind(kind);
         c.setName(name);
         c.setIcon(CategoryIcons.guess(name, kind));

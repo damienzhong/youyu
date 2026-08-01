@@ -129,12 +129,9 @@ public class CategoryService {
         return categoryRepository.findByLedgerId(ledgerId);
     }
 
-    /** 新账本默认分类（与 LedgerService 保持一致，供 onboarding 给空账本补齐）。 */
-    static final String[] DEFAULT_EXPENSE = {"餐饮", "交通", "购物", "居住", "娱乐", "医疗", "通讯", "人情"};
-    static final String[] DEFAULT_INCOME = {"工资", "兼职", "理财", "红包"};
-
     /**
-     * 若当前账本尚无任何分类，则预置一套默认收支分类；否则原样返回。幂等，供新手引导调用。
+     * 若当前账本尚无任何分类，则预置一套默认收支分类（两级：父 + 子，见 {@link DefaultCategories}）；
+     * 否则原样返回。幂等，供新手引导调用。
      */
     @Transactional
     public List<Category> seedDefaultsIfEmpty(Long ledgerId) {
@@ -143,18 +140,25 @@ public class CategoryService {
             return existing;
         }
         LocalDateTime now = LocalDateTime.now(clock);
-        for (String name : DEFAULT_EXPENSE) {
-            categoryRepository.save(newCategory(ledgerId, CategoryKind.EXPENSE, name, now));
-        }
-        for (String name : DEFAULT_INCOME) {
-            categoryRepository.save(newCategory(ledgerId, CategoryKind.INCOME, name, now));
-        }
+        seedTree(ledgerId, CategoryKind.EXPENSE, DefaultCategories.EXPENSE, now);
+        seedTree(ledgerId, CategoryKind.INCOME, DefaultCategories.INCOME, now);
         return categoryRepository.findByLedgerId(ledgerId);
     }
 
-    private Category newCategory(Long ledgerId, CategoryKind kind, String name, LocalDateTime now) {
+    /** 落库一组父分类及其子分类：先存父拿到 id，再挂子分类。 */
+    private void seedTree(Long ledgerId, CategoryKind kind, DefaultCategories.Group[] groups, LocalDateTime now) {
+        for (DefaultCategories.Group g : groups) {
+            Category parent = categoryRepository.save(newCategory(ledgerId, kind, g.name(), null, now));
+            for (String child : g.children()) {
+                categoryRepository.save(newCategory(ledgerId, kind, child, parent.getId(), now));
+            }
+        }
+    }
+
+    private Category newCategory(Long ledgerId, CategoryKind kind, String name, Long parentId, LocalDateTime now) {
         Category c = new Category();
         c.setLedgerId(ledgerId);
+        c.setParentId(parentId);
         c.setKind(kind);
         c.setName(name);
         c.setIcon(CategoryIcons.guess(name, kind));
