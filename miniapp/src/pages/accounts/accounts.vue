@@ -49,6 +49,22 @@ function availableOf(a) {
   if (!isCreditType(a.type) || a.creditLimit == null) return null
   return Number(a.creditLimit) + Number(a.currentBalance)
 }
+
+// 还款提醒 → 账户行小标签：进入「提前提醒窗口」（剩余天数 ≤ 提前天数）才显示。
+const reminderMap = computed(() => {
+  const m = {}
+  for (const r of reminders.value) m[r.accountId] = r
+  return m
+})
+function repayTag(a) {
+  const r = reminderMap.value[a.id]
+  if (!r || r.daysUntil > (r.remindDays ?? 3)) return ''
+  return r.daysUntil === 0 ? '今天还款' : `${r.daysUntil}天后还款`
+}
+function repaySoon(a) {
+  const r = reminderMap.value[a.id]
+  return !!r && r.daysUntil <= 3
+}
 function money(v) {
   return hideAmounts.value ? '****' : formatAmount(v)
 }
@@ -118,22 +134,6 @@ function openCreate() {
       <text class="loan-caret">›</text>
     </view>
 
-    <!-- 信用卡还款提醒 -->
-    <view v-if="reminders.length" class="repay">
-      <view class="repay-head"><text class="rp-title">信用卡还款</text></view>
-      <view v-for="r in reminders" :key="r.accountId" class="repay-row">
-        <view class="rp-ic"><AppIcon name="card" :size="34" color="#e5563d" /></view>
-        <view class="rp-main">
-          <text class="rp-name">{{ r.name }}</text>
-          <text class="rp-sub">每月 {{ r.repayDay }} 日还款</text>
-        </view>
-        <view class="rp-right">
-          <text class="rp-days" :class="{ soon: r.daysUntil <= 3 }">{{ r.daysUntil === 0 ? '今天' : r.daysUntil + ' 天后' }}</text>
-          <text class="rp-owed">待还 {{ money(r.owed) }}</text>
-        </view>
-      </view>
-    </view>
-
     <view v-if="!accounts.length && !loading" class="empty">还没有账户，点右下角添加</view>
 
     <!-- 分组账户 -->
@@ -149,7 +149,11 @@ function openCreate() {
         <view v-for="a in g.items" :key="a.id" class="acc" @click="openAccount(a)">
           <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="42" /></view>
           <view class="acc-main">
-            <text class="acc-name">{{ accountDisplayName(a) }}<text v-if="!a.includeInTotal" class="acc-flag"> · 不计入</text></text>
+            <view class="acc-titlerow">
+              <text class="acc-name">{{ accountDisplayName(a) }}</text>
+              <text v-if="repayTag(a)" class="acc-tag" :class="{ soon: repaySoon(a) }">{{ repayTag(a) }}</text>
+              <text v-if="!a.includeInTotal" class="acc-flag">不计入</text>
+            </view>
             <text v-if="availableOf(a) != null" class="acc-sub">可用 {{ money(availableOf(a)) }}</text>
           </view>
           <text class="acc-bal" :class="{ neg: Number(a.currentBalance) < 0 }">{{ money(a.currentBalance) }}</text>
@@ -255,8 +259,14 @@ function openCreate() {
   display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
 .acc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+.acc-titlerow { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
 .acc-name { font-size: 30rpx; color: #16181c; font-weight: 600; }
-.acc-flag { font-size: 22rpx; color: #9aa2ad; font-weight: 400; }
+.acc-tag {
+  font-size: 20rpx; font-weight: 700; padding: 2rpx 12rpx; border-radius: 999rpx;
+  background: #eef1f5; color: #5b6470;
+}
+.acc-tag.soon { background: #fdece8; color: #e5563d; }
+.acc-flag { font-size: 20rpx; color: #9aa2ad; font-weight: 400; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
 .acc-sub { font-size: 22rpx; color: #9aa2ad; }
 .acc-bal { font-size: 32rpx; font-weight: 800; color: #16181c; }
 .acc-bal.neg { color: #e5484d; }

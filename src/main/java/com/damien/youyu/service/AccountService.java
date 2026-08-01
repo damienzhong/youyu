@@ -92,7 +92,7 @@ public class AccountService {
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
             Long attachLedgerId) {
         return create(userId, rawName, rawType, rawInitialBalance, sortOrder,
-                includeInTotal, hidden, rawNote, rawCreditLimit, null, null, false, attachLedgerId);
+                includeInTotal, hidden, rawNote, rawCreditLimit, null, null, false, null, attachLedgerId);
     }
 
     /**
@@ -106,6 +106,7 @@ public class AccountService {
             BigDecimal rawInitialBalance, Integer sortOrder,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
             Integer rawBillDay, Integer rawRepayDay, boolean repayReminder,
+            Integer rawRepayRemindDays,
             Long attachLedgerId) {
         String name = validateName(rawName);
         AccountType type = validateType(rawType);
@@ -114,6 +115,7 @@ public class AccountService {
         BigDecimal creditLimit = validateCreditLimit(rawCreditLimit);
         Integer billDay = validateCreditDay(rawBillDay, "billDay");
         Integer repayDay = validateCreditDay(rawRepayDay, "repayDay");
+        Integer remindDays = validateRemindDays(rawRepayRemindDays);
 
         LocalDateTime now = LocalDateTime.now(clock);
         Account account = new Account();
@@ -131,6 +133,7 @@ public class AccountService {
         account.setBillDay(credit ? billDay : null);
         account.setRepayDay(credit ? repayDay : null);
         account.setRepayReminder(credit && repayReminder);
+        account.setRepayRemindDays(credit && repayReminder ? (remindDays == null ? 3 : remindDays) : null);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         Account saved = accountRepository.save(account);
@@ -154,7 +157,7 @@ public class AccountService {
     /** 单条还款提醒视图：下一个还款日、剩余天数、待还金额（当前欠款）。 */
     public record RepayReminderView(
             Long accountId, String name, int repayDay,
-            LocalDate nextRepayDate, int daysUntil, BigDecimal owed) {
+            LocalDate nextRepayDate, int daysUntil, BigDecimal owed, int remindDays) {
     }
 
     /**
@@ -174,7 +177,8 @@ public class AccountService {
             int days = (int) ChronoUnit.DAYS.between(today, next);
             BigDecimal owed = a.getCurrentBalance() != null && a.getCurrentBalance().signum() < 0
                     ? a.getCurrentBalance().negate() : BigDecimal.ZERO;
-            out.add(new RepayReminderView(a.getId(), a.getName(), a.getRepayDay(), next, days, owed));
+            int remindDays = a.getRepayRemindDays() == null ? 3 : a.getRepayRemindDays();
+            out.add(new RepayReminderView(a.getId(), a.getName(), a.getRepayDay(), next, days, owed, remindDays));
         }
         out.sort(Comparator.comparingInt(RepayReminderView::daysUntil));
         return out;
@@ -208,14 +212,14 @@ public class AccountService {
     public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit) {
         return update(userId, id, rawName, rawType, includeInTotal, hidden, rawNote, rawCreditLimit,
-                null, null, false);
+                null, null, false, null);
     }
 
     /** 修改账户（含信用卡账单/还款字段）：非信用卡类型置空账单/还款日并关闭提醒。 */
     @Transactional
     public Account update(Long userId, Long id, String rawName, String rawType,
             boolean includeInTotal, boolean hidden, String rawNote, BigDecimal rawCreditLimit,
-            Integer rawBillDay, Integer rawRepayDay, boolean repayReminder) {
+            Integer rawBillDay, Integer rawRepayDay, boolean repayReminder, Integer rawRepayRemindDays) {
         Account account = requireAccount(userId, id);
 
         AccountType type = validateType(rawType);
@@ -225,10 +229,12 @@ public class AccountService {
         account.setHidden(hidden);
         account.setNote(validateNote(rawNote));
         boolean credit = type.isCredit();
+        Integer remindDays = validateRemindDays(rawRepayRemindDays);
         account.setCreditLimit(credit ? validateCreditLimit(rawCreditLimit) : null);
         account.setBillDay(credit ? validateCreditDay(rawBillDay, "billDay") : null);
         account.setRepayDay(credit ? validateCreditDay(rawRepayDay, "repayDay") : null);
         account.setRepayReminder(credit && repayReminder);
+        account.setRepayRemindDays(credit && repayReminder ? (remindDays == null ? 3 : remindDays) : null);
         account.setUpdatedAt(LocalDateTime.now(clock));
         return accountRepository.save(account);
     }
@@ -474,6 +480,17 @@ public class AccountService {
             throw ApiException.accountFieldInvalid(field, "日期需为 1 到 28");
         }
         return day;
+    }
+
+    /** 校验提前提醒天数：null 放行（用默认）；否则须为 1-28。 */
+    private Integer validateRemindDays(Integer days) {
+        if (days == null) {
+            return null;
+        }
+        if (days < 1 || days > 28) {
+            throw ApiException.accountFieldInvalid("repayRemindDays", "提前提醒天数需为 1 到 28");
+        }
+        return days;
     }
 
     private BigDecimal validateBalance(BigDecimal rawBalance) {

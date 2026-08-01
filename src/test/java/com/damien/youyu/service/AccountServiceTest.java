@@ -227,13 +227,13 @@ class AccountServiceTest {
         // today = 2025-06-01（固定时钟）。
         // 卡A：还款日 20 → 2025-06-20，剩余 19 天，欠款 500。
         service.create(USER, "卡A", "CREDIT_CARD", new BigDecimal("-500.00"), 0,
-                true, false, null, new BigDecimal("10000"), 5, 20, true, null);
+                true, false, null, new BigDecimal("10000"), 5, 20, true, null, null);
         // 卡B：还款日 3 → 2025-06-03，剩余 2 天，余额 0 → 待还 0。
         service.create(USER, "卡B", "CREDIT_CARD", new BigDecimal("0.00"), 0,
-                true, false, null, new BigDecimal("5000"), 1, 3, true, null);
+                true, false, null, new BigDecimal("5000"), 1, 3, true, null, null);
         // 卡C：未开启提醒 → 不计入。
         service.create(USER, "卡C", "CREDIT_CARD", new BigDecimal("-100.00"), 0,
-                true, false, null, new BigDecimal("5000"), null, null, false, null);
+                true, false, null, new BigDecimal("5000"), null, null, false, null, null);
         // 普通账户 → 不计入。
         service.create(USER, "现金", "CASH", new BigDecimal("100.00"), 0);
 

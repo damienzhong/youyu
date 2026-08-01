@@ -24,6 +24,7 @@ public record AccountCreateRequest(
         Integer billDay,
         Integer repayDay,
         Boolean repayReminder,
+        Integer repayRemindDays,
         String issuingBank,
         String cardNo) {
 }

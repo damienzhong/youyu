@@ -38,7 +38,7 @@ const links = ref([])
 function blankForm(type = 'CASH', name = '') {
   return {
     id: null, type, name, initialBalance: '', owed: '', creditLimit: '',
-    billDay: null, repayDay: null, repayReminder: false,
+    billDay: null, repayDay: null, repayReminder: false, repayRemindDays: 3,
     includeInTotal: true, _hidden: false, _note: null, _ownerId: null, _ledgerId: null,
     _issuingBank: '', _cardNo: ''
   }
@@ -51,6 +51,8 @@ const needsBank = computed(() => ['BANK_CARD', 'CREDIT_CARD'].includes(form.valu
 const DAY_LABELS = Array.from({ length: 28 }, (_, i) => `每月 ${i + 1} 日`)
 function onBillDayChange(e) { form.value.billDay = Number(e.detail.value) + 1 }
 function onRepayDayChange(e) { form.value.repayDay = Number(e.detail.value) + 1 }
+const REMIND_DAY_LABELS = Array.from({ length: 15 }, (_, i) => `提前 ${i + 1} 天`)
+function onRemindDaysChange(e) { form.value.repayRemindDays = Number(e.detail.value) + 1 }
 const isEditing = computed(() => form.value.id !== null)
 const formIsCredit = computed(() => isCreditType(form.value.type))
 const currentGroup = computed(() => accountGroupOf(form.value.type))
@@ -116,6 +118,7 @@ function openEdit(a) {
     id: a.id, type: a.type, name: a.name, initialBalance: '', owed: '',
     creditLimit: a.creditLimit != null ? String(a.creditLimit) : '',
     billDay: a.billDay ?? null, repayDay: a.repayDay ?? null, repayReminder: !!a.repayReminder,
+    repayRemindDays: a.repayRemindDays ?? 3,
     includeInTotal: a.includeInTotal, _hidden: a.hidden, _note: a.note,
     _ownerId: a.ownerId, _ledgerId: null,
     _issuingBank: a.issuingBank || '', _cardNo: a.cardNo || ''
@@ -245,7 +248,11 @@ async function submit() {
     // 名称由属性自动拼装：发卡行+类型+（卡号后四位），或直接类型名。
     const name = composeAccountName({ type: form.value.type, issuingBank, cardNo })
     const billing = formIsCredit.value
-      ? { billDay: form.value.billDay, repayDay: form.value.repayDay, repayReminder: form.value.repayReminder }
+      ? {
+          billDay: form.value.billDay, repayDay: form.value.repayDay,
+          repayReminder: form.value.repayReminder,
+          repayRemindDays: form.value.repayReminder ? form.value.repayRemindDays : undefined
+        }
       : {}
     if (isEditing.value) {
       await updateAccount(form.value.id, {
@@ -379,8 +386,14 @@ function goBack() { uni.navigateBack() }
             <text class="fk">还款提醒</text>
             <switch :checked="form.repayReminder" color="#12a150" @change="form.repayReminder = $event.detail.value" />
           </view>
-          <text class="fhint">开启后还款日在记账日历高亮提醒</text>
+          <text class="fhint">开启后还款日临近时在资产页高亮提醒</text>
         </view>
+        <picker v-if="form.repayReminder" mode="selector" :range="REMIND_DAY_LABELS" @change="onRemindDaysChange">
+          <view class="frow">
+            <text class="fk">提前提醒</text>
+            <text class="fv">还款日前 {{ form.repayRemindDays }} 天 ›</text>
+          </view>
+        </picker>
       </view>
 
       <!-- 更多设置 -->

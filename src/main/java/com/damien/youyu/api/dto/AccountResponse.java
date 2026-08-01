@@ -27,6 +27,7 @@ public record AccountResponse(
         Integer billDay,
         Integer repayDay,
         boolean repayReminder,
+        Integer repayRemindDays,
         String issuingBank,
         String cardNo,
         boolean canSeeBalance) {
@@ -57,6 +58,7 @@ public record AccountResponse(
                 account.getBillDay(),
                 account.getRepayDay(),
                 account.isRepayReminder(),
+                account.getRepayRemindDays(),
                 account.getIssuingBank(),
                 account.getCardNo(),
                 canSeeBalance);

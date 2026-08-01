@@ -15,11 +15,12 @@ public record RepayReminderResponse(
         int repayDay,
         String nextRepayDate,
         int daysUntil,
-        BigDecimal owed) {
+        BigDecimal owed,
+        int remindDays) {
 
     public static RepayReminderResponse from(RepayReminderView v) {
         return new RepayReminderResponse(
                 v.accountId(), v.name(), v.repayDay(),
-                v.nextRepayDate().toString(), v.daysUntil(), v.owed());
+                v.nextRepayDate().toString(), v.daysUntil(), v.owed(), v.remindDays());
     }
 }

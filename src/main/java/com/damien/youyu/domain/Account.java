@@ -81,6 +81,10 @@ public class Account {
     @Column(name = "repay_reminder", nullable = false)
     private boolean repayReminder = false;
 
+    /** 提前提醒天数：还款日前多少天开始提醒（1-28，可空，仅信用卡有意义，默认 3）。 */
+    @Column(name = "repay_remind_days")
+    private Integer repayRemindDays;
+
     /** 发卡银行名称（可空，储蓄卡/信用卡有意义），如“招商银行”。 */
     @Column(name = "issuing_bank", length = 40)
     private String issuingBank;
@@ -225,6 +229,14 @@ public class Account {
 
     public void setRepayReminder(boolean repayReminder) {
         this.repayReminder = repayReminder;
+    }
+
+    public Integer getRepayRemindDays() {
+        return repayRemindDays;
+    }
+
+    public void setRepayRemindDays(Integer repayRemindDays) {
+        this.repayRemindDays = repayRemindDays;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -81,6 +81,7 @@ public class AccountController {
                 req.note(),
                 req.creditLimit(),
                 req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder(),
+                req.repayRemindDays(),
                 ledgerId);
         if (req.issuingBank() != null || req.cardNo() != null) {
             account = accountService.saveBankInfo(userId, account.getId(), req.issuingBank(), req.cardNo());
@@ -166,7 +167,8 @@ public class AccountController {
                 req.hidden() != null && req.hidden(),
                 req.note(),
                 req.creditLimit(),
-                req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder());
+                req.billDay(), req.repayDay(), req.repayReminder() != null && req.repayReminder(),
+                req.repayRemindDays());
         if (req.issuingBank() != null || req.cardNo() != null) {
             account = accountService.saveBankInfo(userId, id, req.issuingBank(), req.cardNo());
         }
