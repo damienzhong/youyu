@@ -8,6 +8,8 @@ application-local.yml
 # 部署环境变量（含密码/密钥）；只提交 env.conf.example
 deploy/env.conf
 env.conf
+# 本地连服务器数据库的配置（含服务器 IP / DB 口令）；只提交 .example
+deploy/dev-remote-db.conf
 
 # Java / Maven
 target/

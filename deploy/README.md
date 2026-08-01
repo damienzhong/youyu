@@ -81,6 +81,21 @@ sudo certbot --nginx -d your-domain.com
 
 certbot 会自动改 nginx 配置并续期。微信小程序端要求后端为 HTTPS，正式联调前务必先配好证书。
 
+## 本地直连测试库调试（可选）
+
+想在本地改代码即时调试、又用测试服务器上的真实数据，可让本地后端直连测试库：
+
+```bash
+cp deploy/dev-remote-db.conf.example deploy/dev-remote-db.conf   # 首次，填服务器 IP 与 DB 口令
+bash deploy/dev-remote-db.sh                                     # 本地后端连测试库启动（默认 8080）
+```
+
+前提：测试服务器的 MySQL 3306 已对你的机器放行，且 DB 账号允许从你的来源主机连接（如 `'youyu'@'%'`）。
+前端联调把 `VITE_API_BASE` 指到本地 `http://localhost:8080/api` 即可（H5 dev 已代理 /api 到 8080）。
+
+> ⚠️ 直连的是真实测试库：本地的写入/删除会直接落库；本地若有未上线的迁移脚本，
+> 启动时 Flyway 会直接改这台库的表结构。请确认在测试库上操作。`dev-remote-db.conf` 含口令，已被 gitignore。
+
 ## 六、运维
 
 - 看日志：`journalctl -u youyu -f`

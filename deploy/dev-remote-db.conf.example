@@ -1,0 +1,25 @@
+# 本地后端直连"测试服务器 MySQL"调试的配置。
+# 复制为 deploy/dev-remote-db.conf 后按实际填写（该文件已被 .gitignore 忽略，切勿提交）。
+#
+# 前提：测试服务器的 MySQL 3306 已对你的机器放行，且 DB 账号允许从你的来源主机连接
+#      （形如 'youyu'@'%' 或 'youyu'@'你的公网IP'）。
+# ⚠️ 直连的是测试库：本地写入/删除会直接改到该库；本地若有未上线的迁移脚本，
+#    启动时 Flyway 会直接改这台库的表结构。
+
+# —— 测试服务器 MySQL ——
+DB_HOST=你的测试服务器IP        # 例如 47.120.65.57
+DB_PORT=3306
+DB_NAME=youyu
+DB_USER=youyu
+DB_PASSWORD=测试库 youyu 的密码
+
+# —— 本地后端端口 ——
+PORT=8080
+
+# —— 可选：与服务器一致的密钥（想让本地签发的 token 与线上互通再填）——
+JWT_SECRET=
+# 邮件/微信本地调试一般用不到，留空即走日志降级（验证码打到本地日志）
+MAIL_USERNAME=
+MAIL_PASSWORD=
+WX_APPID=
+WX_SECRET=
