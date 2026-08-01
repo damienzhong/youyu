@@ -108,6 +108,18 @@ function goEdit() {
   uni.navigateTo({ url: `/pages/accountedit/accountedit?id=${accId.value}` })
 }
 function goBack() { uni.navigateBack() }
+// 点击流水弹出账单详情半弹窗（可修改/删除）。
+const detailVisible = ref(false)
+const detailId = ref(null)
+const detailLedgerId = ref(null)
+function goDetail(t) {
+  detailId.value = t.id
+  detailLedgerId.value = t.ledgerId != null ? Number(t.ledgerId) : null
+  detailVisible.value = true
+}
+function onDetailDeleted() {
+  load()
+}
 function goRecord() {
   uni.navigateTo({ url: `/pages/record/record?accountId=${accId.value}` })
 }
@@ -155,7 +167,7 @@ function goTransfer() {
       </view>
 
       <view v-if="expanded[m.key]" class="m-list">
-        <view v-for="t in m.list" :key="t.id" class="tx">
+        <view v-for="t in m.list" :key="t.id" class="tx" @click="goDetail(t)">
           <view class="tx-ic"><AppIcon :name="iconOf(t)" :size="40" /></view>
           <view class="tx-main">
             <text class="tx-name">{{ titleOf(t) }}</text>
@@ -174,6 +186,14 @@ function goTransfer() {
       <view class="ab-sep"></view>
       <view class="ab-btn" @click="goTransfer"><AppIcon name="transfer" :size="38" /><text>转账</text></view>
     </view>
+
+    <!-- 账单详情半弹窗 -->
+    <TransactionDetailSheet
+      v-model:visible="detailVisible"
+      :id="detailId"
+      :ledger-id="detailLedgerId"
+      @deleted="onDetailDeleted"
+    />
   </view>
 </template>
 

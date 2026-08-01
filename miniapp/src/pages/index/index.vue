@@ -314,9 +314,17 @@ function nav(url) {
 function goRecord() {
   uni.navigateTo({ url: '/pages/record/record' })
 }
+// 点击流水弹出账单详情半弹窗（可修改/删除）。
+const detailVisible = ref(false)
+const detailId = ref(null)
+const detailLedgerId = ref(null)
 function goEdit(t) {
-  const suffix = t.ledgerId ? `&ledgerId=${t.ledgerId}` : ''
-  uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
+  detailId.value = t.id
+  detailLedgerId.value = t.ledgerId != null ? Number(t.ledgerId) : null
+  detailVisible.value = true
+}
+function onDetailDeleted() {
+  load()
 }
 function goReport() {
   uni.switchTab({ url: '/pages/report/report' })
@@ -514,6 +522,14 @@ function goSearch() {
     <InputSheet :visible="joinSheet" title="加入协作账本" placeholder="输入邀请码" confirm-text="加入" tip="向账本创建者获取邀请码" @update:visible="joinSheet = $event" @confirm="onJoinLedger" />
 
     <InputSheet :visible="renameSheet.visible" title="重命名账本" placeholder="账本名称" :value="renameSheet.value" @update:visible="renameSheet.visible = $event" @confirm="onRenameLedger" />
+
+    <!-- 账单详情半弹窗 -->
+    <TransactionDetailSheet
+      v-model:visible="detailVisible"
+      :id="detailId"
+      :ledger-id="detailLedgerId"
+      @deleted="onDetailDeleted"
+    />
   </view>
 </template>
 

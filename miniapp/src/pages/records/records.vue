@@ -423,6 +423,18 @@ function goEdit(t) {
   const suffix = t.ledgerId ? `&ledgerId=${t.ledgerId}` : ''
   uni.navigateTo({ url: `/pages/record/record?id=${t.id}${suffix}` })
 }
+// 点击流水弹出账单详情半弹窗（可修改/删除），对齐竞品交互。
+const detailVisible = ref(false)
+const detailId = ref(null)
+const detailLedgerId = ref(null)
+function goDetail(t) {
+  detailId.value = t.id
+  detailLedgerId.value = t.ledgerId != null ? Number(t.ledgerId) : null
+  detailVisible.value = true
+}
+function onDetailDeleted() {
+  load()
+}
 function confirmDelete(t) {
   uni.showModal({
     title: '删除记录',
@@ -453,7 +465,7 @@ function toggleSelect(id) {
   s.has(id) ? s.delete(id) : s.add(id)
   selectedIds.value = s
 }
-function txTap(t) { if (selectMode.value) toggleSelect(t.id); else goEdit(t) }
+function txTap(t) { if (selectMode.value) toggleSelect(t.id); else goDetail(t) }
 function selectAll() { selectedIds.value = new Set(visibleTx.value.map((t) => t.id)) }
 async function batchDelete() {
   const ids = [...selectedIds.value]
@@ -625,7 +637,7 @@ async function batchDelete() {
         </view>
       </template>
 
-      <text v-if="visibleTx.length && !selectMode" class="hint">点击编辑 · 长按多选</text>
+      <text v-if="visibleTx.length && !selectMode" class="hint">点击查看 · 长按多选</text>
 
       <!-- 批量操作底栏 -->
       <view v-if="selectMode" class="batchbar">
@@ -737,7 +749,7 @@ async function batchDelete() {
           <view class="dayhead"><text class="dt">{{ selectedDay.slice(5) }}</text></view>
           <view v-if="!selectedDayTx.length" class="empty" style="padding:60rpx 0"><text>这天没有记录</text></view>
           <view v-else class="card">
-            <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goEdit(t)" @longpress="confirmDelete(t)">
+            <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goDetail(t)" @longpress="confirmDelete(t)">
               <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
@@ -764,7 +776,7 @@ async function batchDelete() {
         <view v-for="g in searchGroups" :key="g.day" class="daygrp">
           <view class="dayhead"><text class="dt">{{ g.label }}</text></view>
           <view class="card">
-            <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)">
+            <view v-for="t in g.items" :key="t.id" class="tx" @click="goDetail(t)">
               <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
@@ -776,6 +788,14 @@ async function batchDelete() {
         </view>
       </scroll-view>
     </view>
+
+    <!-- 账单详情半弹窗 -->
+    <TransactionDetailSheet
+      v-model:visible="detailVisible"
+      :id="detailId"
+      :ledger-id="detailLedgerId"
+      @deleted="onDetailDeleted"
+    />
   </view>
 </template>
 

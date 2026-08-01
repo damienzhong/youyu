@@ -527,6 +527,8 @@ function setType(t) {
 
 const submitting = ref(false)
 async function submit(cont) {
+  // 防重复提交：连点保存/完成时，已有提交在途则忽略后续点击，避免生成多笔。
+  if (submitting.value) return
   const amount = amountValue.value
   if (!amount || amount <= 0) {
     uni.showToast({ title: '请输入正确金额', icon: 'none' })
@@ -733,10 +735,10 @@ function goAddCategory() {
       <text class="key" @click="tapKey('1')">1</text><text class="key" @click="tapKey('2')">2</text><text class="key" @click="tapKey('3')">3</text><text class="key op" @click="tapKey('del')">⌫</text>
       <text class="key" @click="tapKey('4')">4</text><text class="key" @click="tapKey('5')">5</text><text class="key" @click="tapKey('6')">6</text><text class="key op" @click="tapKey('−')">−</text>
       <text class="key" @click="tapKey('7')">7</text><text class="key" @click="tapKey('8')">8</text><text class="key" @click="tapKey('9')">9</text><text class="key op" @click="tapKey('+')">＋</text>
-      <text v-if="!isEditing" class="key mini" @click="submit(true)">保存再记</text>
+      <text v-if="!isEditing" class="key mini" :class="{ busy: submitting }" @click="submit(true)">保存再记</text>
       <text v-else class="key mini"> </text>
       <text class="key" @click="tapKey('0')">0</text><text class="key" @click="tapKey('.')">.</text>
-      <text class="key done" :class="accentClass" @click="submit(false)">{{ isEditing ? '保存' : '完成' }}</text>
+      <text class="key done" :class="[accentClass, { busy: submitting }]" @click="submit(false)">{{ submitting ? '保存中…' : (isEditing ? '保存' : '完成') }}</text>
     </view>
 
     <!-- 账户选择 -->
@@ -1011,6 +1013,7 @@ function goAddCategory() {
 .key.op { color: #5b6470; }
 .key.mini { font-size: 26rpx; color: #5b6470; font-weight: 700; }
 .key.done { background: var(--accent); color: #fff; font-weight: 800; font-size: 32rpx; }
+.key.busy { opacity: 0.6; }
 
 .mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 50; }
 .sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
