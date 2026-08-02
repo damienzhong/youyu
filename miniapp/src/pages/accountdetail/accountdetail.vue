@@ -3,10 +3,14 @@ import { ref, computed } from 'vue'
 import { onShow, onLoad } from '@dcloudio/uni-app'
 import { listAccounts, accountTypeIcon, accountDisplayName, listAccountTransactions } from '../../api/account'
 import { listAccountLoanEntries } from '../../api/loan'
-import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { listAllCategories } from '../../api/aggregate'
+import { useLedgerStore } from '../../stores/ledger'
 import { resolveIcon } from '../../utils/icons'
 import { formatAmount, dayKeyOf, dayLabel, timeLabelOf } from '../../utils/format'
 import { safeBack } from '../../utils/nav'
+
+const ledgerStore = useLedgerStore()
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
@@ -28,12 +32,14 @@ async function load() {
   if (accId.value == null) return
   loading.value = true
   try {
+    // 账户流水跨账本，分类/账本名都需按「全部账本」口径解析，否则他账本的分类会退化成「支出/收入」。
     const [all, list, cats, loanList] = await Promise.all([
       listAccounts(),
       listAccountTransactions(accId.value),
-      listCategories(),
+      listAllCategories(),
       listAccountLoanEntries(accId.value).catch(() => [])
     ])
+    ledgerStore.load().catch(() => {})
     acc.value = all.find((a) => a.id === accId.value) || null
     txs.value = list || []
     loanEntries.value = loanList || []
@@ -142,6 +148,14 @@ function subOf(t) {
   if (t.note) parts.push(t.note)
   return parts.join(' · ')
 }
+// 账本名标签：与账本流水列表一致，标注该笔归属账本（转账/余额调整无账本）。
+const ledgerNameMap = computed(() =>
+  Object.fromEntries((ledgerStore.ledgers || []).map((l) => [l.id, l.name]))
+)
+function ledgerTagOf(t) {
+  if (!t || t.type === 'transfer' || t.ledgerId == null) return ''
+  return ledgerNameMap.value[t.ledgerId] || ''
+}
 
 // 顶部操作：打开全屏编辑弹窗（不再跳转页面）。
 const editVisible = ref(false)
@@ -219,7 +233,10 @@ function goTransfer() {
         <view v-for="it in m.list" :key="it.key" class="tx" @click="openItem(it)">
           <view class="tx-ic"><AppIcon :name="it.tx ? iconOf(it.tx) : loanIcon(it.loan)" :size="40" /></view>
           <view class="tx-main">
-            <text class="tx-name">{{ it.tx ? titleOf(it.tx) : loanTitle(it.loan) }}</text>
+            <view class="tx-titrow">
+              <text class="tx-name">{{ it.tx ? titleOf(it.tx) : loanTitle(it.loan) }}</text>
+              <text v-if="ledgerTagOf(it.tx)" class="tx-ltag">{{ ledgerTagOf(it.tx) }}</text>
+            </view>
             <text class="tx-sub">{{ it.tx ? subOf(it.tx) : loanSub(it.loan) }}</text>
           </view>
           <text class="tx-amt" :class="it.signed >= 0 ? 'inc' : 'exp'">{{ it.signed >= 0 ? '+' : '-' }}{{ formatAmount(Math.abs(it.signed)) }}</text>
@@ -294,11 +311,14 @@ function goTransfer() {
 .tx { display: flex; align-items: center; gap: 20rpx; padding: 22rpx 0; border-top: 1rpx solid #f1f3f5; }
 .tx-ic { width: 68rpx; height: 68rpx; border-radius: 20rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+.tx-titrow { display: flex; align-items: center; gap: 10rpx; }
 .tx-name { font-size: 30rpx; font-weight: 600; color: #16181c; }
+.tx-ltag { font-size: 18rpx; color: #9aa2ad; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
 .tx-sub { font-size: 22rpx; color: #9aa2ad; }
 .tx-amt { font-size: 30rpx; font-weight: 800; }
-.tx-amt.inc { color: #0f8a45; }
-.tx-amt.exp { color: #16181c; }
+/* 金额配色与账本流水一致：收入绿、支出红 */
+.tx-amt.inc { color: #12a150; }
+.tx-amt.exp { color: #f0553d; }
 /* 底部操作栏 */
 .actionbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
