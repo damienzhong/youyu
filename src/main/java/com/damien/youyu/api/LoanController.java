@@ -21,6 +21,7 @@ import com.damien.youyu.api.dto.LoanUpdateRequest;
 import com.damien.youyu.domain.Loan;
 import com.damien.youyu.domain.LoanDirection;
 import com.damien.youyu.security.CurrentLedger;
+import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.LoanService;
 
 /**
@@ -43,10 +44,12 @@ public class LoanController {
 
     private final LoanService loanService;
     private final CurrentLedger currentLedger;
+    private final CurrentUser currentUser;
 
-    public LoanController(LoanService loanService, CurrentLedger currentLedger) {
+    public LoanController(LoanService loanService, CurrentLedger currentLedger, CurrentUser currentUser) {
         this.loanService = loanService;
         this.currentLedger = currentLedger;
+        this.currentUser = currentUser;
     }
 
     /** 列出本人借贷并附待还/待收汇总。 */
@@ -66,10 +69,12 @@ public class LoanController {
     /** 新建借贷：成功返回 201。 */
     @PostMapping
     public ResponseEntity<LoanResponse> create(@RequestBody LoanCreateRequest req) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
         Loan loan = loanService.create(
-                ledgerId, req.direction(), req.counterparty(),
-                req.amount(), req.occurredAt(), req.note());
+                userId, ledgerId, req.direction(), req.counterparty(),
+                req.amount(), req.accountId(), req.occurredAt(), req.dueDate(),
+                req.includeInTotal() == null || req.includeInTotal(), req.note());
         return ResponseEntity.status(HttpStatus.CREATED).body(LoanResponse.from(loan));
     }
 
@@ -77,10 +82,12 @@ public class LoanController {
     @PutMapping("/{id}")
     public ResponseEntity<LoanResponse> update(
             @PathVariable Long id, @RequestBody LoanUpdateRequest req) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
         Loan loan = loanService.update(
-                ledgerId, id, req.direction(), req.counterparty(),
-                req.amount(), req.occurredAt(), req.note());
+                userId, ledgerId, id, req.direction(), req.counterparty(),
+                req.amount(), req.accountId(), req.occurredAt(), req.dueDate(),
+                req.includeInTotal() == null || req.includeInTotal(), req.note());
         return ResponseEntity.ok(LoanResponse.from(loan));
     }
 
@@ -89,16 +96,18 @@ public class LoanController {
     public ResponseEntity<LoanResponse> settle(
             @PathVariable Long id,
             @RequestParam(name = "settled", defaultValue = "true") boolean settled) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
-        Loan loan = loanService.setSettled(ledgerId, id, settled);
+        Loan loan = loanService.setSettled(userId, ledgerId, id, settled);
         return ResponseEntity.ok(LoanResponse.from(loan));
     }
 
     /** 删除借贷：成功返回 204。 */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
+        Long userId = currentUser.requireUserId();
         Long ledgerId = currentLedger.requireLedgerId();
-        loanService.delete(ledgerId, id);
+        loanService.delete(userId, ledgerId, id);
         return ResponseEntity.noContent().build();
     }
 }

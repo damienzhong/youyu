@@ -69,7 +69,8 @@ class LedgerServiceTest {
     private LedgerService serviceAt(Instant instant) {
         Clock clock = Clock.fixed(instant, ZONE);
         AccountService accountService =
-                new AccountService(accountRepository, accountLedgerRepository, transactionRepository, clock);
+                new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
+                        loanRepository, clock);
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 accountLedgerRepository, transactionRepository, budgetRepository, categoryBudgetRepository,
                 loanRepository, memberRepository, inviteRepository, templateRepository, projectRepository,
@@ -233,7 +234,7 @@ class LedgerServiceTest {
         service().ensureDefaultLedger(ALICE); // 保证 >1 个自有账本
         Ledger l = service().create(ALICE, "私账2", "PERSONAL");
         AccountService accSvc = new AccountService(accountRepository, accountLedgerRepository,
-                transactionRepository, Clock.fixed(T0, ZONE));
+                transactionRepository, loanRepository, Clock.fixed(T0, ZONE));
         // 账户纳入待删账本。
         var acc = accSvc.create(ALICE, "现金", "CASH", new java.math.BigDecimal("10.00"), 0,
                 true, false, null, null, l.getId());
@@ -250,7 +251,7 @@ class LedgerServiceTest {
         service().ensureDefaultLedger(ALICE);
         Ledger lc = service().create(ALICE, "合租", "COLLABORATIVE");
         AccountService accSvc = new AccountService(accountRepository, accountLedgerRepository,
-                transactionRepository, Clock.fixed(T0, ZONE));
+                transactionRepository, loanRepository, Clock.fixed(T0, ZONE));
         var acc = accSvc.create(ALICE, "公共钱包", "CASH", new java.math.BigDecimal("0.00"), 0,
                 true, false, null, null, lc.getId());
         assertThat(accountLedgerRepository.findByAccountIdAndLedgerId(acc.getId(), lc.getId())).isPresent();

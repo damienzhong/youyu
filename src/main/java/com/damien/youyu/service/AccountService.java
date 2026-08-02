@@ -20,6 +20,7 @@ import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.TransactionRepository;
 
 /**
@@ -42,16 +43,19 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final AccountLedgerRepository accountLedgerRepository;
     private final TransactionRepository transactionRepository;
+    private final LoanRepository loanRepository;
     private final Clock clock;
 
     public AccountService(
             AccountRepository accountRepository,
             AccountLedgerRepository accountLedgerRepository,
             TransactionRepository transactionRepository,
+            LoanRepository loanRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
         this.accountLedgerRepository = accountLedgerRepository;
         this.transactionRepository = transactionRepository;
+        this.loanRepository = loanRepository;
         this.clock = clock;
     }
 
@@ -377,12 +381,15 @@ public class AccountService {
                 transactionRepository.sumAmountByAccountIdAndType(accountId, TransactionType.EXPENSE));
         BigDecimal transferIn = zeroIfNull(transactionRepository.sumTransferInByAccountId(accountId));
         BigDecimal transferOut = zeroIfNull(transactionRepository.sumTransferOutByAccountId(accountId));
+        // 未结清借贷对该账户余额的净增量（借入 +、借出 −），保证重算与实时增量一致。
+        BigDecimal loanDelta = zeroIfNull(loanRepository.sumActiveDeltaByAccount(accountId));
 
         return account.getInitialBalance()
                 .add(income)
                 .subtract(expense)
                 .add(transferIn)
                 .subtract(transferOut)
+                .add(loanDelta)
                 .setScale(2, RoundingMode.HALF_UP);
     }
 

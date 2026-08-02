@@ -48,9 +48,21 @@ public class Loan {
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 
-    /** 发生时间。 */
+    /** 关联账户（借出账户/存入账户）。可空（历史无账户台账）；非空时借贷会变动该账户余额。 */
+    @Column(name = "account_id")
+    private Long accountId;
+
+    /** 发生时间（借款日期）。 */
     @Column(name = "occurred_at", nullable = false)
     private LocalDateTime occurredAt;
+
+    /** 收款日期(借出)/还款日期(借入)，选填。 */
+    @Column(name = "due_date")
+    private LocalDateTime dueDate;
+
+    /** 未结待收/待还是否计入净资产（默认计入）。 */
+    @Column(name = "include_in_total", nullable = false)
+    private boolean includeInTotal = true;
 
     /** 是否已结清（结清后不计入待还/待收汇总）。列 tinyint(1)，与 Hibernate boolean 默认 BIT 一致。 */
     @Column(name = "settled", nullable = false)
@@ -122,12 +134,36 @@ public class Loan {
         this.amount = amount;
     }
 
+    public Long getAccountId() {
+        return accountId;
+    }
+
+    public void setAccountId(Long accountId) {
+        this.accountId = accountId;
+    }
+
     public LocalDateTime getOccurredAt() {
         return occurredAt;
     }
 
     public void setOccurredAt(LocalDateTime occurredAt) {
         this.occurredAt = occurredAt;
+    }
+
+    public LocalDateTime getDueDate() {
+        return dueDate;
+    }
+
+    public void setDueDate(LocalDateTime dueDate) {
+        this.dueDate = dueDate;
+    }
+
+    public boolean isIncludeInTotal() {
+        return includeInTotal;
+    }
+
+    public void setIncludeInTotal(boolean includeInTotal) {
+        this.includeInTotal = includeInTotal;
     }
 
     public boolean isSettled() {

@@ -30,6 +30,15 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     BigDecimal sumOutstandingByDirection(
             @Param("ledgerId") Long ledgerId, @Param("direction") LoanDirection direction);
 
+    /**
+     * 某账户上未结清借贷对余额的净增量（跨账本汇总）：借入 +amount、借出 -amount，无记录返回 0。
+     * 供账户余额重算（{@code recompute}）纳入借贷影响，保证与实时增量一致。
+     */
+    @Query("SELECT COALESCE(SUM(CASE WHEN l.direction = com.damien.youyu.domain.LoanDirection.BORROW "
+            + "THEN l.amount ELSE -l.amount END), 0) "
+            + "FROM Loan l WHERE l.accountId = :accountId AND l.settled = false")
+    BigDecimal sumActiveDeltaByAccount(@Param("accountId") Long accountId);
+
     /** 删除某账本的全部借贷（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 

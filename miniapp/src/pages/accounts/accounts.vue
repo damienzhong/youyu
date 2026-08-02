@@ -24,8 +24,22 @@ const collapsed = ref({})
 // 借贷汇总（仅具体账本显示；借贷为账本级台账）
 const borrowOutstanding = ref('0.00')
 const lendOutstanding = ref('0.00')
+const loans = ref([])
 const reminders = ref([])
 const showLoans = computed(() => !ledgerStore.isAll)
+
+// 未结待收/待还中「计入净资产」的部分：账户余额已反映借贷现金流出/入，
+// 这里把待收作为资产、待还作为负债补回，保证净资产不因借贷重复计算。
+const receivables = computed(() =>
+  loans.value
+    .filter((l) => l.direction === 'LEND' && !l.settled && l.includeInTotal !== false)
+    .reduce((s, l) => s + Number(l.amount), 0)
+)
+const payables = computed(() =>
+  loans.value
+    .filter((l) => l.direction === 'BORROW' && !l.settled && l.includeInTotal !== false)
+    .reduce((s, l) => s + Number(l.amount), 0)
+)
 
 // 是否计入资产统计：仅由「余额计入总资产」决定。
 // 「隐藏账户」只影响记账时的选账户弹窗（见账户编辑页说明），不改变资产/净资产口径。
@@ -33,12 +47,14 @@ function countsToTotal(a) {
   return a.includeInTotal
 }
 const counted = computed(() => accounts.value.filter(countsToTotal))
-const netWorth = computed(() => counted.value.reduce((s, a) => s + Number(a.currentBalance), 0))
+const netWorth = computed(() =>
+  counted.value.reduce((s, a) => s + Number(a.currentBalance), 0) + receivables.value - payables.value
+)
 const totalAssets = computed(() =>
-  counted.value.reduce((s, a) => s + Math.max(Number(a.currentBalance), 0), 0)
+  counted.value.reduce((s, a) => s + Math.max(Number(a.currentBalance), 0), 0) + receivables.value
 )
 const totalLiab = computed(() =>
-  counted.value.reduce((s, a) => s + Math.min(Number(a.currentBalance), 0), 0)
+  counted.value.reduce((s, a) => s + Math.min(Number(a.currentBalance), 0), 0) - payables.value
 )
 
 // 按分组聚合（仅展示有账户的组），组内保持后端排序。
@@ -91,7 +107,10 @@ async function load() {
         const r = await listLoans()
         borrowOutstanding.value = r.borrowOutstanding
         lendOutstanding.value = r.lendOutstanding
+        loans.value = r.loans || []
       } catch (e) { /* 借贷加载失败不阻断资产页 */ }
+    } else {
+      loans.value = []
     }
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -101,8 +120,8 @@ async function load() {
 }
 onShow(load)
 
-function goLoans() {
-  uni.navigateTo({ url: '/pages/loans/loans' })
+function goLoans(dir) {
+  uni.navigateTo({ url: `/pages/loans/loans?direction=${dir}` })
 }
 function openAccount(a) {
   uni.navigateTo({ url: `/pages/accountdetail/accountdetail?id=${a.id}` })
@@ -154,18 +173,18 @@ function onAccountSaved() {
       </view>
     </view>
 
-    <!-- 借贷往来（借入待还 / 借出待收） -->
-    <view v-if="showLoans" class="loan-row" @click="goLoans">
-      <view class="loan-tile">
-        <text class="lt-k">借入 / 待还</text>
-        <text class="lt-v exp">{{ money(borrowOutstanding) }}</text>
+    <!-- 借贷往来：拆成两张独立卡片，各自进入对应列表 -->
+    <view v-if="showLoans" class="loan-cards">
+      <view class="loan-card" @click="goLoans('BORROW')">
+        <text class="lc-k">借入 / 待还</text>
+        <text class="lc-v exp">{{ money(borrowOutstanding) }}</text>
+        <text class="lc-caret">›</text>
       </view>
-      <view class="loan-sep"></view>
-      <view class="loan-tile">
-        <text class="lt-k">借出 / 待收</text>
-        <text class="lt-v inc">{{ money(lendOutstanding) }}</text>
+      <view class="loan-card" @click="goLoans('LEND')">
+        <text class="lc-k">借出 / 待收</text>
+        <text class="lc-v inc">{{ money(lendOutstanding) }}</text>
+        <text class="lc-caret">›</text>
       </view>
-      <text class="loan-caret">›</text>
     </view>
 
     <view v-if="!accounts.length && !loading" class="empty">还没有账户，点右下角添加</view>
@@ -266,6 +285,19 @@ function onAccountSaved() {
 .nw-value::before { content: '¥'; font-size: 36rpx; opacity: 0.8; margin-right: 6rpx; }
 .nw-value.neg { color: #fecaca; }
 .nw-foot { display: flex; justify-content: space-between; font-size: 24rpx; opacity: 0.9; }
+.loan-cards { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
+.loan-card {
+  flex: 1; position: relative;
+  background: #fff; border-radius: 22rpx; padding: 24rpx 28rpx;
+  display: flex; flex-direction: column; gap: 8rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.lc-k { font-size: 24rpx; color: #9aa2ad; }
+.lc-v { font-size: 38rpx; font-weight: 800; }
+.lc-v::before { content: '¥'; font-size: 22rpx; opacity: 0.7; margin-right: 2rpx; }
+.lc-v.exp { color: #e5563d; }
+.lc-v.inc { color: #0f8a45; }
+.lc-caret { position: absolute; top: 24rpx; right: 24rpx; color: #c0c4cc; font-size: 30rpx; }
 .loan-row {
   display: flex;
   align-items: center;

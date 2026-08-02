@@ -84,9 +84,12 @@ class TransactionPropertyTest {
                 new LedgerAccountResolver(accountRepository, accountLedgerRepository), Clock.fixed(T0, ZONE));
     }
 
+    @Autowired
+    private com.damien.youyu.repository.LoanRepository loanRepository;
+
     private AccountService accountService() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                Clock.fixed(T0, ZONE));
+                loanRepository, Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 智能生成器 ----------------

@@ -45,9 +45,12 @@ class AccountServiceTest {
     @Autowired
     private TransactionRepository transactionRepository;
 
+    @Autowired
+    private com.damien.youyu.repository.LoanRepository loanRepository;
+
     private AccountService service() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                Clock.fixed(T0, ZONE));
+                loanRepository, Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 创建 ----------------

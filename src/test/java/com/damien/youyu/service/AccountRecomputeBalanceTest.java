@@ -50,8 +50,12 @@ class AccountRecomputeBalanceTest {
 
     private final Clock clock = Clock.fixed(T0, ZONE);
 
+    @Autowired
+    private com.damien.youyu.repository.LoanRepository loanRepository;
+
     private AccountService accountService() {
-        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository, clock);
+        return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
+                loanRepository, clock);
     }
 
     private LedgerAccountResolver resolver() {
