@@ -22,6 +22,7 @@ import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
 import { resolveIcon } from '../../utils/icons'
+import { safeBack } from '../../utils/nav'
 
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
@@ -613,7 +614,7 @@ async function run(fn, cont) {
     await fn()
     if (isEditing.value) {
       uni.showToast({ title: '已保存', icon: 'success' })
-      setTimeout(() => uni.navigateBack(), 500)
+      setTimeout(() => safeBack('/pages/index/index'), 500)
     } else if (cont) {
       expr.value = ''
       note.value = ''
@@ -621,7 +622,7 @@ async function run(fn, cont) {
       uni.showToast({ title: '已记 1 笔，继续', icon: 'none' })
     } else {
       uni.showToast({ title: '已记录', icon: 'success' })
-      setTimeout(() => uni.navigateBack(), 500)
+      setTimeout(() => safeBack('/pages/index/index'), 500)
     }
   } catch (e) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
@@ -630,7 +631,7 @@ async function run(fn, cont) {
   }
 }
 function goBack() {
-  uni.navigateBack()
+  safeBack('/pages/index/index')
 }
 // 标题栏右上「＋」：快速进入分类管理新建分类（对齐竞品）。
 function goAddCategory() {

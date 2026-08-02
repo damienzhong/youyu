@@ -12,6 +12,7 @@ import {
 import { listLoans } from '../../api/loan'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
+import { safeBack } from '../../utils/nav'
 
 const ledgerStore = useLedgerStore()
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
@@ -26,7 +27,8 @@ const borrowOutstanding = ref('0.00')
 const lendOutstanding = ref('0.00')
 const loans = ref([])
 const reminders = ref([])
-const showLoans = computed(() => !ledgerStore.isAll)
+// 借贷为用户级（与账户一致，独立于账本），资产页始终展示，不受当前账本/「全部」影响。
+const showLoans = computed(() => true)
 
 // 未结待收/待还中「计入净资产」的部分：账户余额已反映借贷现金流出/入，
 // 这里把待收作为资产、待还作为负债补回，保证净资产不因借贷重复计算。
@@ -131,13 +133,7 @@ const typeSheet = ref(false)
 const editVisible = ref(false)
 const editCreateType = ref(null)
 function goBack() {
-  // 有上一页则返回；若本页处于栈底（冷启动/刷新直接进入、栈被重置等），回退到首页 tab，避免“点返回没反应”。
-  const pages = getCurrentPages()
-  if (pages && pages.length > 1) {
-    uni.navigateBack()
-  } else {
-    uni.switchTab({ url: '/pages/index/index' })
-  }
+  safeBack('/pages/index/index')
 }
 function openCreate() {
   typeSheet.value = true

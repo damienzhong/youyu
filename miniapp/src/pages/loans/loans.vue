@@ -1,14 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import {
-  listLoans,
-  createLoan,
-  updateLoan,
-  settleLoan,
-  deleteLoan
-} from '../../api/loan'
-import { listSelectableAccounts, accountDisplayName, accountTypeIcon } from '../../api/account'
+import { listLoans, createLoan } from '../../api/loan'
+import { listAccounts, accountDisplayName, accountTypeIcon } from '../../api/account'
 import { formatAmount } from '../../utils/format'
 
 // 方向：本页按单一方向（借入 BORROW / 借出 LEND）展示，由资产页两张卡片带入。
@@ -58,7 +52,8 @@ const accounts = ref([])
 const accountById = (id) => accounts.value.find((a) => a.id === id)
 async function loadAccounts() {
   try {
-    accounts.value = await listSelectableAccounts()
+    // 借贷为用户级，账户可选本人全部账户（与账本无关）。
+    accounts.value = await listAccounts()
   } catch (e) {
     accounts.value = []
   }
@@ -74,7 +69,12 @@ const accountName = computed(() => {
   return a ? accountDisplayName(a) : '选择账户'
 })
 
-// ---------- 表单 ----------
+// 点击某笔进入详情（收款/还款、修改、删除都在详情页）。
+function goDetail(l) {
+  uni.navigateTo({ url: `/pages/loandetail/loandetail?id=${l.id}&direction=${direction.value}` })
+}
+
+// ---------- 新建表单 ----------
 const showForm = ref(false)
 const submitting = ref(false)
 function todayStr() {
@@ -83,10 +83,9 @@ function todayStr() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 const form = ref(blankForm())
-const isEditing = computed(() => form.value.id !== null)
 function blankForm() {
   return {
-    id: null, counterparty: '', amount: '', accountId: null,
+    counterparty: '', amount: '', accountId: null,
     occurredDate: todayStr(), dueDate: '', includeInTotal: true, note: ''
   }
 }
@@ -98,23 +97,16 @@ async function openCreate() {
   if (accounts.value.length) form.value.accountId = accounts.value[0].id
   showForm.value = true
 }
-async function openEdit(l) {
-  await loadAccounts()
-  form.value = {
-    id: l.id,
-    counterparty: l.counterparty,
-    amount: String(l.amount),
-    accountId: l.accountId != null ? l.accountId : (accounts.value[0] ? accounts.value[0].id : null),
-    occurredDate: (l.occurredAt || todayStr()).slice(0, 10),
-    dueDate: l.dueDate ? l.dueDate.slice(0, 10) : '',
-    includeInTotal: l.includeInTotal !== false,
-    note: l.note || ''
-  }
-  showForm.value = true
-}
 
-function onOccurredChange(e) { form.value.occurredDate = e.detail.value }
-function onDueChange(e) { form.value.dueDate = e.detail.value }
+// H5 内置日期选择器的日列不随月份收缩（可能选到 2/31），统一按当月最大天数收敛，避免存入非法日期。
+function clampDate(iso) {
+  const [y, m, d] = String(iso).split('-').map(Number)
+  const last = new Date(y, m, 0).getDate()
+  const dd = Math.min(d, last)
+  return `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+}
+function onOccurredChange(e) { form.value.occurredDate = clampDate(e.detail.value) }
+function onDueChange(e) { form.value.dueDate = clampDate(e.detail.value) }
 function clearDue() { form.value.dueDate = '' }
 
 async function submit() {
@@ -144,8 +136,7 @@ async function submit() {
       includeInTotal: form.value.includeInTotal,
       note: form.value.note.trim() || undefined
     }
-    if (isEditing.value) await updateLoan(form.value.id, payload)
-    else await createLoan(payload)
+    await createLoan(payload)
     showForm.value = false
     uni.showToast({ title: '已保存', icon: 'success' })
     await load()
@@ -154,34 +145,6 @@ async function submit() {
   } finally {
     submitting.value = false
   }
-}
-
-async function toggleSettle(l) {
-  try {
-    await settleLoan(l.id, !l.settled)
-    await load()
-  } catch (e) {
-    uni.showToast({ title: e.message || '操作失败', icon: 'none' })
-  }
-}
-
-function confirmDelete() {
-  const id = form.value.id
-  uni.showModal({
-    title: '删除记录',
-    content: '删除后若未结清会同步回补账户余额，确定删除？',
-    confirmColor: '#e5484d',
-    success: async (r) => {
-      if (!r.confirm) return
-      try {
-        await deleteLoan(id)
-        showForm.value = false
-        await load()
-      } catch (e) {
-        uni.showToast({ title: e.message || '删除失败', icon: 'none' })
-      }
-    }
-  })
 }
 </script>
 
@@ -202,20 +165,20 @@ function confirmDelete() {
     </view>
 
     <view class="list" v-if="shown.length">
-      <view v-for="l in shown" :key="l.id" class="item" :class="{ settled: l.settled }" @click="openEdit(l)">
+      <view v-for="l in shown" :key="l.id" class="item" :class="{ settled: l.settled }" @click="goDetail(l)">
         <view class="i-ic" :class="isLend ? 'lend' : 'borrow'">
           <AppIcon :name="isLend ? 'transfer' : 'wallet'" :size="40" color="#fff" />
         </view>
         <view class="i-main">
           <text class="i-name">{{ l.counterparty }}</text>
           <text class="i-sub">
-            {{ dateOf(l.occurredAt) }}<text v-if="l.dueDate"> · {{ L.due }} {{ dateOf(l.dueDate) }}</text>
+            {{ isLend ? '已收' : '已还' }} {{ formatAmount(l.repaidAmount) }}<text v-if="l.dueDate"> · {{ L.due }} {{ dateOf(l.dueDate) }}</text>
           </text>
         </view>
         <view class="i-right">
           <text v-if="!l.includeInTotal" class="i-flag">不计入</text>
-          <text class="i-amt">{{ formatAmount(l.amount) }}</text>
-          <text class="i-act" @click.stop="toggleSettle(l)">{{ l.settled ? '恢复' : (isLend ? '收款' : '还款') }}</text>
+          <text class="i-amt">{{ formatAmount(l.remaining != null ? l.remaining : l.amount) }}</text>
+          <text class="i-caret">›</text>
         </view>
       </view>
     </view>
@@ -232,7 +195,7 @@ function confirmDelete() {
       <view class="sheet" @click.stop>
         <view class="form-head">
           <text class="fh-cancel" @click="showForm = false">取消</text>
-          <text class="fh-title">{{ isEditing ? '编辑' : '添加' }}{{ L.title }}</text>
+          <text class="fh-title">添加{{ L.title }}</text>
           <text class="fh-save" @click="submit">保存</text>
         </view>
         <input v-model="form.counterparty" class="name-input" :placeholder="L.name" maxlength="50" />
@@ -268,7 +231,6 @@ function confirmDelete() {
           </view>
         </view>
         <textarea v-model="form.note" class="note" placeholder="备注" maxlength="200" />
-        <button v-if="isEditing" class="del" @click="confirmDelete">删除记录</button>
       </view>
     </view>
 
@@ -311,7 +273,7 @@ function confirmDelete() {
 .i-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6rpx; }
 .i-flag { font-size: 20rpx; color: #9aa2ad; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
 .i-amt { font-size: 32rpx; font-weight: 800; color: #16181c; }
-.i-act { font-size: 22rpx; color: #576b95; background: #f4f6f8; border-radius: 999rpx; padding: 4rpx 16rpx; }
+.i-caret { font-size: 30rpx; color: #c0c4cc; }
 /* 底部添加 */
 .addbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;

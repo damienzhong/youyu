@@ -102,6 +102,13 @@
       }
     },
     {
+      "path": "pages/loandetail/loandetail",
+      "style": {
+        "navigationBarTitleText": "借贷详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/labels/labels",
       "style": {
         "navigationBarTitleText": "项目 / 商家 / 标签"

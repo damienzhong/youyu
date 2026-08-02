@@ -168,6 +168,7 @@ class AccountLifecyclePropertyTest {
                 mock(BudgetRepository.class),
                 mock(CategoryBudgetRepository.class),
                 mock(LoanRepository.class),
+                mock(com.damien.youyu.repository.LoanRepaymentRepository.class),
                 mock(ProjectRepository.class),
                 mock(MerchantRepository.class),
                 mock(TagRepository.class),

@@ -31,8 +31,8 @@ public class Loan {
     @Column(name = "user_id")
     private Long userId;
 
-    /** 归属账本 id（多账本隔离键）。 */
-    @Column(name = "ledger_id", nullable = false)
+    /** 归属账本 id（历史列；借贷已回归用户级隔离，可空）。 */
+    @Column(name = "ledger_id")
     private Long ledgerId;
 
     /** 借贷方向：BORROW 借入 / LEND 借出。 */
@@ -47,6 +47,10 @@ public class Loan {
     /** 本金，>=0.01。 */
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
+
+    /** 已收(借出)/已还(借入)累计。剩余 = amount - repaidAmount；>=amount 即结清。 */
+    @Column(name = "repaid_amount", nullable = false, precision = 18, scale = 2)
+    private BigDecimal repaidAmount = BigDecimal.ZERO;
 
     /** 关联账户（借出账户/存入账户）。可空（历史无账户台账）；非空时借贷会变动该账户余额。 */
     @Column(name = "account_id")
@@ -132,6 +136,14 @@ public class Loan {
 
     public void setAmount(BigDecimal amount) {
         this.amount = amount;
+    }
+
+    public BigDecimal getRepaidAmount() {
+        return repaidAmount;
+    }
+
+    public void setRepaidAmount(BigDecimal repaidAmount) {
+        this.repaidAmount = repaidAmount;
     }
 
     public Long getAccountId() {

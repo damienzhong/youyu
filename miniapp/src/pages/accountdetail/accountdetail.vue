@@ -2,15 +2,18 @@
 import { ref, computed } from 'vue'
 import { onShow, onLoad } from '@dcloudio/uni-app'
 import { listAccounts, accountTypeIcon, accountDisplayName, listAccountTransactions } from '../../api/account'
+import { listAccountLoanEntries } from '../../api/loan'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { formatAmount, dayKeyOf, dayLabel, timeLabelOf } from '../../utils/format'
+import { safeBack } from '../../utils/nav'
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
 const accId = ref(null)
 const acc = ref(null)
 const txs = ref([])
+const loanEntries = ref([]) // 该账户的借贷流水投影（借出/借入本金 + 收款/还款）
 const catMap = ref({})
 const catIconMap = ref({})
 const loading = ref(false)
@@ -25,13 +28,15 @@ async function load() {
   if (accId.value == null) return
   loading.value = true
   try {
-    const [all, list, cats] = await Promise.all([
+    const [all, list, cats, loanList] = await Promise.all([
       listAccounts(),
       listAccountTransactions(accId.value),
-      listCategories()
+      listCategories(),
+      listAccountLoanEntries(accId.value).catch(() => [])
     ])
     acc.value = all.find((a) => a.id === accId.value) || null
     txs.value = list || []
+    loanEntries.value = loanList || []
     catMap.value = buildCategoryLabelMap(cats)
     catIconMap.value = buildCategoryIconMap(cats)
   } catch (e) {
@@ -51,25 +56,35 @@ function signedAmount(t) {
   }
   return t.type === 'income' ? amt : -amt
 }
+// 账户流水 = 交易 + 借贷投影（借贷为用户级，仅在账户流水出现，不进账本流水）。统一为 { key, occurredAt, signed, ... }。
+const allItems = computed(() => {
+  const items = []
+  for (const t of txs.value) {
+    items.push({ key: 't' + t.id, occurredAt: t.occurredAt, signed: signedAmount(t), tx: t })
+  }
+  loanEntries.value.forEach((le, i) => {
+    items.push({ key: 'l' + i, occurredAt: le.occurredAt, signed: Number(le.amount), loan: le })
+  })
+  return items
+})
 const inflow = computed(() =>
-  txs.value.reduce((s, t) => s + Math.max(signedAmount(t), 0), 0)
+  allItems.value.reduce((s, it) => s + Math.max(it.signed, 0), 0)
 )
 const outflow = computed(() =>
-  txs.value.reduce((s, t) => s + Math.max(-signedAmount(t), 0), 0)
+  allItems.value.reduce((s, it) => s + Math.max(-it.signed, 0), 0)
 )
 
 // 按月分组（倒序），每月含流入/流出/结余与按日流水。
 const months = computed(() => {
   const map = new Map()
-  for (const t of txs.value) {
-    const mk = String(t.occurredAt || '').slice(0, 7)
+  for (const it of allItems.value) {
+    const mk = String(it.occurredAt || '').slice(0, 7)
     if (!mk) continue
     let m = map.get(mk)
     if (!m) { m = { key: mk, inflow: 0, outflow: 0, list: [] }; map.set(mk, m) }
-    const s = signedAmount(t)
-    if (s >= 0) m.inflow += s
-    else m.outflow += -s
-    m.list.push(t)
+    if (it.signed >= 0) m.inflow += it.signed
+    else m.outflow += -it.signed
+    m.list.push(it)
   }
   const arr = [...map.values()].sort((a, b) => (a.key < b.key ? 1 : -1))
   for (const m of arr) {
@@ -83,14 +98,39 @@ const months = computed(() => {
 })
 function toggleMonth(k) { expanded.value[k] = !expanded.value[k] }
 
+// ---------- 借贷投影条目展示 ----------
+function loanTitle(le) {
+  if (le.kind === 'INITIAL') return le.direction === 'LEND' ? '借出' : '借入'
+  return le.direction === 'LEND' ? '收款' : '还款'
+}
+function loanIcon(le) {
+  if (le.kind === 'INITIAL') return le.direction === 'LEND' ? 'transfer' : 'wallet'
+  return 'yuan'
+}
+function loanSub(le) {
+  const parts = []
+  const d = dayLabel(dayKeyOf(le.occurredAt))
+  if (d) parts.push(d)
+  if (le.counterparty) parts.push(le.counterparty)
+  if (le.note) parts.push(le.note)
+  return parts.join(' · ')
+}
+function openItem(it) {
+  if (it.tx) goDetail(it.tx)
+  else if (it.loan) uni.navigateTo({ url: `/pages/loandetail/loandetail?id=${it.loan.loanId}` })
+}
+
 function titleOf(t) {
   if (t.type === 'transfer') {
     return t.sourceAccountId === accId.value ? '转出' : '转入'
   }
+  // 脱离账本的收支为「账户级余额调整」（不计入账本收支）。
+  if (t.ledgerId == null) return '余额调整'
   return catMap.value[t.categoryId] || (t.type === 'income' ? '收入' : '支出')
 }
 function iconOf(t) {
   if (t.type === 'transfer') return 'transfer'
+  if (t.ledgerId == null) return 'yuan' // 余额调整
   return resolveIcon(catIconMap.value[t.categoryId], catMap.value[t.categoryId], t.type)
 }
 function subOf(t) {
@@ -112,9 +152,11 @@ function onAccountSaved() {
   load()
 }
 function onAccountDeleted() {
-  uni.navigateBack()
+  goBack()
 }
-function goBack() { uni.navigateBack() }
+function goBack() {
+  safeBack('/pages/accounts/accounts')
+}
 // 点击流水弹出账单详情半弹窗（可修改/删除）。
 const detailVisible = ref(false)
 const detailId = ref(null)
@@ -154,7 +196,7 @@ function goTransfer() {
       </view>
     </view>
 
-    <view v-if="!txs.length && !loading" class="empty">该账户还没有流水</view>
+    <view v-if="!allItems.length && !loading" class="empty">该账户还没有流水</view>
 
     <!-- 按月流水 -->
     <view v-for="m in months" :key="m.key" class="month">
@@ -174,13 +216,13 @@ function goTransfer() {
       </view>
 
       <view v-if="expanded[m.key]" class="m-list">
-        <view v-for="t in m.list" :key="t.id" class="tx" @click="goDetail(t)">
-          <view class="tx-ic"><AppIcon :name="iconOf(t)" :size="40" /></view>
+        <view v-for="it in m.list" :key="it.key" class="tx" @click="openItem(it)">
+          <view class="tx-ic"><AppIcon :name="it.tx ? iconOf(it.tx) : loanIcon(it.loan)" :size="40" /></view>
           <view class="tx-main">
-            <text class="tx-name">{{ titleOf(t) }}</text>
-            <text class="tx-sub">{{ subOf(t) }}</text>
+            <text class="tx-name">{{ it.tx ? titleOf(it.tx) : loanTitle(it.loan) }}</text>
+            <text class="tx-sub">{{ it.tx ? subOf(it.tx) : loanSub(it.loan) }}</text>
           </view>
-          <text class="tx-amt" :class="signedAmount(t) >= 0 ? 'inc' : 'exp'">{{ signedAmount(t) >= 0 ? '+' : '-' }}{{ formatAmount(Math.abs(signedAmount(t))) }}</text>
+          <text class="tx-amt" :class="it.signed >= 0 ? 'inc' : 'exp'">{{ it.signed >= 0 ? '+' : '-' }}{{ formatAmount(Math.abs(it.signed)) }}</text>
         </view>
       </view>
     </view>

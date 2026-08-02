@@ -86,10 +86,12 @@ class TransactionPropertyTest {
 
     @Autowired
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    @Autowired
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
 
     private AccountService accountService() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                loanRepository, Clock.fixed(T0, ZONE));
+                loanRepository, loanRepaymentRepository, Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 智能生成器 ----------------

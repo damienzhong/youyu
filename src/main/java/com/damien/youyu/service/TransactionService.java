@@ -200,10 +200,31 @@ public class TransactionService {
         }
         TransactionType type = delta.signum() > 0 ? TransactionType.INCOME : TransactionType.EXPENSE;
         CategoryKind kind = type == TransactionType.INCOME ? CategoryKind.INCOME : CategoryKind.EXPENSE;
+        // 需满足 ck_tx_fields：收支必须带分类。仍归入系统「余额调整」分类。
         Long categoryId = ensureAdjustCategory(userId, ledgerId, kind);
-        String note = (rawNote == null || rawNote.isBlank()) ? ADJUST_CATEGORY_NAME : rawNote;
-        return create(userId, ledgerId, type.getCode(), delta.abs(), accountId, categoryId,
-                occurredAt, note);
+        String note = (rawNote == null || rawNote.isBlank()) ? null : rawNote.trim();
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime when = occurredAt == null ? now : occurredAt;
+
+        // 补差直接更新账户余额（账户为用户级资产）。
+        account.setCurrentBalance(account.getCurrentBalance().add(delta));
+        account.setUpdatedAt(now);
+        accountRepository.save(account);
+
+        // 落一笔「账户级」补差流水：脱离账本(ledger_id=null)，不计入任何账本收支/报表，仅在账户流水呈现
+        // （与转账一致的账户级语义）。收支类型 + ledger_id 为空即「余额调整」，前端据此识别与展示。
+        Transaction tx = new Transaction();
+        tx.setLedgerId(null);
+        tx.setCreatedBy(userId);
+        tx.setCreatedAt(now);
+        tx.setType(type);
+        tx.setAmount(delta.abs());
+        tx.setNote(note);
+        tx.setOccurredAt(when);
+        tx.setUpdatedAt(now);
+        tx.setAccountId(accountId);
+        tx.setCategoryId(categoryId);
+        return transactionRepository.save(tx);
     }
 
     private Long ensureAdjustCategory(Long userId, Long ledgerId, CategoryKind kind) {

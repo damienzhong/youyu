@@ -57,6 +57,7 @@ class AccountDeletionServiceTest {
     private com.damien.youyu.repository.BudgetRepository budgetRepository;
     private com.damien.youyu.repository.CategoryBudgetRepository categoryBudgetRepository;
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
     private com.damien.youyu.repository.ProjectRepository projectRepository;
     private com.damien.youyu.repository.MerchantRepository merchantRepository;
     private com.damien.youyu.repository.TagRepository tagRepository;
@@ -80,6 +81,7 @@ class AccountDeletionServiceTest {
         budgetRepository = mock(com.damien.youyu.repository.BudgetRepository.class);
         categoryBudgetRepository = mock(com.damien.youyu.repository.CategoryBudgetRepository.class);
         loanRepository = mock(com.damien.youyu.repository.LoanRepository.class);
+        loanRepaymentRepository = mock(com.damien.youyu.repository.LoanRepaymentRepository.class);
         projectRepository = mock(com.damien.youyu.repository.ProjectRepository.class);
         merchantRepository = mock(com.damien.youyu.repository.MerchantRepository.class);
         tagRepository = mock(com.damien.youyu.repository.TagRepository.class);
@@ -90,8 +92,8 @@ class AccountDeletionServiceTest {
                 ledgerRepository, memberRepository, accountRepository, transactionRepository,
                 userRepository, verificationCodeService, weChatClient,
                 accountLedgerRepository, transactionTagRepository, categoryRepository,
-                budgetRepository, categoryBudgetRepository, loanRepository, projectRepository,
-                merchantRepository, tagRepository, templateRepository, inviteRepository,
+                budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
+                projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
                 verificationCodeRepository);
     }
 

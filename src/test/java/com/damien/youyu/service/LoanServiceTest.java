@@ -16,20 +16,20 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 
 import com.damien.youyu.domain.Account;
-import com.damien.youyu.domain.AccountLedger;
 import com.damien.youyu.domain.AccountType;
 import com.damien.youyu.domain.Loan;
 import com.damien.youyu.domain.LoanDirection;
+import com.damien.youyu.domain.LoanRepayment;
 import com.damien.youyu.error.ApiException;
-import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 
 /**
- * {@link LoanService} 单元测试。使用 H2 + 真实 Repository，不使用桩。
+ * {@link LoanService} 单元测试（借贷为用户级）。H2 + 真实 Repository。
  *
- * <p>覆盖：创建校验、待还/待收汇总（仅未结清）、结清切换清零汇总、越权隔离、字段校验，
- * 以及关联账户时的余额联动（借入入账 +、借出出账 −，结清/删除回补）。</p>
+ * <p>覆盖：创建校验、剩余=本金−已收/已还、部分收/还与结清推导、越权隔离、字段校验，
+ * 以及关联账户时的余额联动（借出出账 −、收款回补 +；借入入账 +、删除回补）。</p>
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -45,20 +45,18 @@ class LoanServiceTest {
     @Autowired
     private LoanRepository loanRepository;
     @Autowired
-    private AccountRepository accountRepository;
+    private LoanRepaymentRepository repaymentRepository;
     @Autowired
-    private AccountLedgerRepository accountLedgerRepository;
+    private AccountRepository accountRepository;
 
     private LoanService service() {
-        LedgerAccountResolver resolver =
-                new LedgerAccountResolver(accountRepository, accountLedgerRepository);
-        return new LoanService(loanRepository, resolver, accountRepository, FIXED);
+        return new LoanService(loanRepository, repaymentRepository, accountRepository, FIXED);
     }
 
-    // 无账户便捷创建：userId=ledgerId=ledger，accountId=null，includeInTotal=true。
-    private Loan create(long ledger, String dir, String cp, String amount,
+    // 无账户便捷创建：accountId=null，includeInTotal=true。
+    private Loan create(long userId, String dir, String cp, String amount,
             LocalDateTime occurred, String note) {
-        return service().create(ledger, ledger, dir, cp, amount == null ? null : new BigDecimal(amount),
+        return service().create(userId, dir, cp, amount == null ? null : new BigDecimal(amount),
                 null, occurred, null, true, note);
     }
 
@@ -67,12 +65,12 @@ class LoanServiceTest {
         Loan loan = create(USER, "BORROW", " 张三 ", "100.00", dt("2025-06-10T09:00:00"), "  房租周转  ");
 
         assertThat(loan.getId()).isNotNull();
+        assertThat(loan.getUserId()).isEqualTo(USER);
         assertThat(loan.getDirection()).isEqualTo(LoanDirection.BORROW);
-        assertThat(loan.getCounterparty()).isEqualTo("张三"); // 去空白
+        assertThat(loan.getCounterparty()).isEqualTo("张三");
         assertThat(loan.getAmount()).isEqualByComparingTo("100.00");
+        assertThat(loan.getRepaidAmount()).isEqualByComparingTo("0.00");
         assertThat(loan.isSettled()).isFalse();
-        assertThat(loan.getSettledAt()).isNull();
-        assertThat(loan.isIncludeInTotal()).isTrue();
         assertThat(loan.getNote()).isEqualTo("房租周转");
     }
 
@@ -99,31 +97,45 @@ class LoanServiceTest {
     }
 
     @Test
-    void settle_removesFromOutstandingAndStampsSettledAt() {
+    void repayment_partialThenFull_updatesRemainingAndSettles() {
         Loan loan = create(USER, "BORROW", "甲", "100.00", dt("2025-06-01T10:00:00"), null);
-        assertThat(service().outstanding(USER, LoanDirection.BORROW)).isEqualByComparingTo("100.00");
 
-        Loan settled = service().setSettled(USER, USER, loan.getId(), true);
+        service().addRepayment(USER, loan.getId(), new BigDecimal("30.00"), null, null, null);
+        assertThat(service().outstanding(USER, LoanDirection.BORROW)).isEqualByComparingTo("70.00");
+        assertThat(service().get(USER, loan.getId()).isSettled()).isFalse();
+
+        LoanRepayment last = service().addRepayment(USER, loan.getId(),
+                new BigDecimal("70.00"), null, null, null);
+        Loan settled = service().get(USER, loan.getId());
         assertThat(settled.isSettled()).isTrue();
         assertThat(settled.getSettledAt()).isEqualTo(LocalDateTime.now(FIXED));
         assertThat(service().outstanding(USER, LoanDirection.BORROW)).isEqualByComparingTo("0.00");
 
-        // 置回未结清：重新计入汇总且清空 settled_at。
-        Loan reopened = service().setSettled(USER, USER, loan.getId(), false);
-        assertThat(reopened.isSettled()).isFalse();
-        assertThat(reopened.getSettledAt()).isNull();
-        assertThat(service().outstanding(USER, LoanDirection.BORROW)).isEqualByComparingTo("100.00");
+        service().deleteRepayment(USER, last.getId());
+        assertThat(service().outstanding(USER, LoanDirection.BORROW)).isEqualByComparingTo("70.00");
+        assertThat(service().get(USER, loan.getId()).isSettled()).isFalse();
+    }
+
+    @Test
+    void repayment_rejectsOverRemaining() {
+        Loan loan = create(USER, "LEND", "甲", "100.00", dt("2025-06-01T10:00:00"), null);
+        ApiException ex = catchThrowableOfType(
+                () -> service().addRepayment(USER, loan.getId(),
+                        new BigDecimal("150.00"), null, null, null),
+                ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("LOAN_FIELD_INVALID");
+        assertThat(ex.getField()).isEqualTo("amount");
     }
 
     @Test
     void list_unsettledFirst() {
         create(USER, "BORROW", "甲", "100.00", dt("2025-06-01T10:00:00"), null);
         Loan b = create(USER, "LEND", "乙", "200.00", dt("2025-06-05T10:00:00"), null);
-        service().setSettled(USER, USER, b.getId(), true);
+        service().addRepayment(USER, b.getId(), new BigDecimal("200.00"), null, null, null);
 
         List<Loan> list = service().list(USER);
         assertThat(list).hasSize(2);
-        assertThat(list.get(0).isSettled()).isFalse(); // 未结清优先
+        assertThat(list.get(0).isSettled()).isFalse();
         assertThat(list.get(1).isSettled()).isTrue();
     }
 
@@ -131,11 +143,10 @@ class LoanServiceTest {
     void crossUser_isIsolated() {
         Loan mine = create(USER, "BORROW", "甲", "100.00", dt("2025-06-01T10:00:00"), null);
 
-        // 他人看不到、改不到、删不到。
         assertThat(service().list(OTHER)).isEmpty();
         assertThat(service().outstanding(OTHER, LoanDirection.BORROW)).isEqualByComparingTo("0.00");
         ApiException ex = catchThrowableOfType(
-                () -> service().delete(OTHER, OTHER, mine.getId()), ApiException.class);
+                () -> service().delete(OTHER, mine.getId()), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
     }
 
@@ -163,41 +174,52 @@ class LoanServiceTest {
         assertThat(ex.getField()).isEqualTo("amount");
     }
 
-    // ---------------- 资金联动（关联账户）----------------
+    // ---------------- 资金联动（关联账户，owner 级）----------------
 
     @Test
-    void lend_withAccount_deductsBalanceAndRestoresOnSettle() {
-        Account acc = attachedAccount("现金", "1000.00");
+    void lend_withAccount_deductsBalanceAndRepaymentRestores() {
+        Account acc = ownedAccount("现金", "1000.00");
 
-        Loan loan = service().create(USER, USER, "LEND", "老王", new BigDecimal("300.00"),
+        Loan loan = service().create(USER, "LEND", "老王", new BigDecimal("300.00"),
                 acc.getId(), dt("2025-06-10T09:00:00"), null, true, null);
-        // 借出出账：余额 1000 - 300 = 700。
         assertThat(reload(acc).getCurrentBalance()).isEqualByComparingTo("700.00");
 
-        // 结清（收回）：余额回补至 1000。
-        service().setSettled(USER, USER, loan.getId(), true);
+        service().addRepayment(USER, loan.getId(), new BigDecimal("300.00"),
+                acc.getId(), dt("2025-06-20T09:00:00"), null);
         assertThat(reload(acc).getCurrentBalance()).isEqualByComparingTo("1000.00");
+        assertThat(service().get(USER, loan.getId()).isSettled()).isTrue();
     }
 
     @Test
     void borrow_withAccount_addsBalanceAndReversesOnDelete() {
-        Account acc = attachedAccount("储蓄卡", "1000.00");
+        Account acc = ownedAccount("储蓄卡", "1000.00");
 
-        Loan loan = service().create(USER, USER, "BORROW", "银行", new BigDecimal("500.00"),
+        Loan loan = service().create(USER, "BORROW", "银行", new BigDecimal("500.00"),
                 acc.getId(), dt("2025-06-10T09:00:00"), null, true, null);
-        // 借入入账：余额 1000 + 500 = 1500。
         assertThat(reload(acc).getCurrentBalance()).isEqualByComparingTo("1500.00");
 
-        // 删除未结记录：回补至 1000。
-        service().delete(USER, USER, loan.getId());
+        service().delete(USER, loan.getId());
         assertThat(reload(acc).getCurrentBalance()).isEqualByComparingTo("1000.00");
     }
 
-    // 建一个归属 USER、并纳入账本 USER 的账户。
-    private Account attachedAccount(String name, String balance) {
+    @Test
+    void account_ownedByOther_isRejected() {
+        Account others = ownedAccountFor(OTHER, "别人卡", "1000.00");
+        ApiException ex = catchThrowableOfType(
+                () -> service().create(USER, "LEND", "甲", new BigDecimal("10.00"),
+                        others.getId(), null, null, true, null),
+                ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+    }
+
+    private Account ownedAccount(String name, String balance) {
+        return ownedAccountFor(USER, name, balance);
+    }
+
+    private Account ownedAccountFor(long userId, String name, String balance) {
         LocalDateTime now = LocalDateTime.now(FIXED);
         Account a = new Account();
-        a.setUserId(USER);
+        a.setUserId(userId);
         a.setName(name);
         a.setType(AccountType.CASH);
         a.setInitialBalance(new BigDecimal(balance));
@@ -207,15 +229,7 @@ class LoanServiceTest {
         a.setHidden(false);
         a.setCreatedAt(now);
         a.setUpdatedAt(now);
-        a = accountRepository.save(a);
-        AccountLedger link = new AccountLedger();
-        link.setAccountId(a.getId());
-        link.setLedgerId(USER);
-        link.setVisibleToOthers(true);
-        link.setShowBalance(true);
-        link.setCreatedAt(now);
-        accountLedgerRepository.save(link);
-        return a;
+        return accountRepository.save(a);
     }
 
     private Account reload(Account a) {

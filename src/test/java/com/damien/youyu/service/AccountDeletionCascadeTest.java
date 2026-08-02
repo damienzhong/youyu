@@ -81,6 +81,7 @@ class AccountDeletionCascadeTest {
     @Autowired private BudgetRepository budgetRepository;
     @Autowired private CategoryBudgetRepository categoryBudgetRepository;
     @Autowired private LoanRepository loanRepository;
+    @Autowired private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private MerchantRepository merchantRepository;
     @Autowired private TagRepository tagRepository;
@@ -93,8 +94,8 @@ class AccountDeletionCascadeTest {
                 ledgerRepository, memberRepository, accountRepository, transactionRepository,
                 userRepository, mock(VerificationCodeService.class), mock(WeChatClient.class),
                 accountLedgerRepository, transactionTagRepository, categoryRepository,
-                budgetRepository, categoryBudgetRepository, loanRepository, projectRepository,
-                merchantRepository, tagRepository, templateRepository, inviteRepository,
+                budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
+                projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
                 verificationCodeRepository);
     }
 

@@ -98,10 +98,12 @@ class ExportPropertyTest {
 
     @Autowired
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    @Autowired
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
 
     private AccountService accountService() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                loanRepository, CLOCK);
+                loanRepository, loanRepaymentRepository, CLOCK);
     }
 
     /** 一个用户数据集的记录数摘要。 */

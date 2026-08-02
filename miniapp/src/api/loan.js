@@ -10,14 +10,29 @@ export function createLoan(payload) {
   return http.post('/loans', payload)
 }
 
+/** 借贷详情（含收款/还款明细）：{ loan, repayments:[...] }。 */
+export function getLoan(id) {
+  return http.get(`/loans/${id}`)
+}
+
+/** 某账户的借贷流水投影（借出/借入本金 + 收款/还款），供账户流水合并展示。 */
+export function listAccountLoanEntries(accountId) {
+  return http.get(`/loans/account-entries?accountId=${accountId}`)
+}
+
 /** 修改借贷。 */
 export function updateLoan(id, payload) {
   return http.put(`/loans/${id}`, payload)
 }
 
-/** 切换结清状态（settled 缺省 true）。 */
-export function settleLoan(id, settled = true) {
-  return http.post(`/loans/${id}/settle?settled=${settled}`)
+/** 新增一笔收款(借出)/还款(借入)。payload：{ amount, accountId?, occurredAt?, note? }。 */
+export function addRepayment(id, payload) {
+  return http.post(`/loans/${id}/repayments`, payload)
+}
+
+/** 删除一笔收款/还款。 */
+export function deleteRepayment(id, repaymentId) {
+  return http.del(`/loans/${id}/repayments/${repaymentId}`)
 }
 
 /** 删除借贷。 */

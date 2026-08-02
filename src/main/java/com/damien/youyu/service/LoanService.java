@@ -12,28 +12,26 @@ import org.springframework.transaction.annotation.Transactional;
 import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.Loan;
 import com.damien.youyu.domain.LoanDirection;
+import com.damien.youyu.domain.LoanRepayment;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 
 /**
- * 借贷往来服务：借入(BORROW)/借出(LEND)款项的增删改、结清切换与未结汇总。
+ * 借贷往来服务：借入(BORROW)/借出(LEND)款项 + 收款/还款子台账（部分还款）。
  *
- * <p>核心约束：</p>
+ * <p><b>用户级隔离</b>：账户是独立于账本的用户级实体，借贷影响账户余额与净资产，故借贷同样按
+ * {@code userId} 隔离（与账本无关）。所有读写按会话用户过滤，越权返回 {@code NOT_FOUND}。</p>
+ *
+ * <p><b>资金联动（{@code accountId} 非空时，均为永久增量，不随结清回滚）</b>：</p>
  * <ul>
- *   <li>创建/修改校验：方向属于 {@link LoanDirection}；对方去空白后 1-50；本金在
- *       [0.01, 9,999,999,999,999,999.99] 且最多两位小数；发生时间必填；备注 <=200。</li>
- *   <li>结清切换：settled=true 时记录 settled_at=now；置回未结清时清空 settled_at。</li>
- *   <li>汇总：借入/待还 = Σ 未结清 BORROW；借出/待收 = Σ 未结清 LEND。</li>
+ *   <li>借出(LEND)：创建 借出账户 −amount；每次收款 收款钱包 +r。</li>
+ *   <li>借入(BORROW)：创建 存入账户 +amount；每次还款 还款账户 −r。</li>
  * </ul>
  *
- * <p><b>资金联动（{@code accountId} 非空时）</b>：借出(LEND)从该账户出账（余额 −amount），
- * 借入(BORROW)入该账户（余额 +amount）；结清或删除未结记录时回补相反增量。未结待收/待还是否
- * 计入净资产由 {@code includeInTotal} 控制（前端在资产页据此调整净资产，避免与账户余额重复计算）。
- * 账户余额重算（{@code AccountService.recompute}）已纳入未结借贷净增量，保证与实时增量一致。</p>
- *
- * <p>所有操作按会话 {@code ledgerId} 隔离：读取/修改/删除他人记录一律返回 {@code NOT_FOUND}。
- * 金额一律 {@link BigDecimal}。</p>
+ * <p>结清由累计收款/还款驱动：{@code repaidAmount >= amount} 即结清。剩余 = amount − repaidAmount。
+ * 账户余额重算已纳入初始增量与还款增量。金额一律 {@link BigDecimal}。</p>
  */
 @Service
 public class LoanService {
@@ -42,43 +40,78 @@ public class LoanService {
     static final int COUNTERPARTY_MAX = 50;
     static final int NOTE_MAX = 200;
 
-    /** 本金允许范围（DECIMAL(18,2)，恒为正）。 */
     static final BigDecimal AMOUNT_MIN = new BigDecimal("0.01");
     static final BigDecimal AMOUNT_MAX = new BigDecimal("9999999999999999.99");
 
     private final LoanRepository loanRepository;
-    private final LedgerAccountResolver accountResolver;
+    private final LoanRepaymentRepository repaymentRepository;
     private final AccountRepository accountRepository;
     private final Clock clock;
 
-    public LoanService(LoanRepository loanRepository, LedgerAccountResolver accountResolver,
+    public LoanService(LoanRepository loanRepository, LoanRepaymentRepository repaymentRepository,
             AccountRepository accountRepository, Clock clock) {
         this.loanRepository = loanRepository;
-        this.accountResolver = accountResolver;
+        this.repaymentRepository = repaymentRepository;
         this.accountRepository = accountRepository;
         this.clock = clock;
     }
 
     /** 列出本人全部借贷（未结清优先，其次发生时间倒序）。 */
     @Transactional(readOnly = true)
-    public List<Loan> list(Long ledgerId) {
-        return loanRepository.findByLedgerIdOrderBySettledAscOccurredAtDescIdDesc(ledgerId);
+    public List<Loan> list(Long userId) {
+        return loanRepository.findByUserIdOrderBySettledAscOccurredAtDescIdDesc(userId);
     }
 
-    /** 某方向未结清金额合计（借入/待还、借出/待收），无记录返回 0.00。 */
+    /** 定位单条借贷（越权 NOT_FOUND）。 */
     @Transactional(readOnly = true)
-    public BigDecimal outstanding(Long ledgerId, LoanDirection direction) {
-        BigDecimal sum = loanRepository.sumOutstandingByDirection(ledgerId, direction);
+    public Loan get(Long userId, Long id) {
+        return loanRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
+    }
+
+    /** 某借贷的收款/还款明细（发生时间倒序）。 */
+    @Transactional(readOnly = true)
+    public List<LoanRepayment> repayments(Long userId, Long loanId) {
+        get(userId, loanId); // 校验归属
+        return repaymentRepository.findByLoanIdOrderByOccurredAtDescIdDesc(loanId);
+    }
+
+    /**
+     * 某账户的借贷流水投影：借贷初始出/入账 + 收款/还款，均以该账户视角的方向增量给出（流入正、流出负）。
+     * 供「账户流水」合并展示（借贷为用户级，不进入账本流水）。
+     */
+    @Transactional(readOnly = true)
+    public List<com.damien.youyu.api.dto.AccountLoanEntryResponse> accountEntries(Long userId, Long accountId) {
+        java.util.List<com.damien.youyu.api.dto.AccountLoanEntryResponse> out = new java.util.ArrayList<>();
+        for (Loan l : loanRepository.findByUserIdAndAccountId(userId, accountId)) {
+            out.add(new com.damien.youyu.api.dto.AccountLoanEntryResponse(
+                    "INITIAL", l.getId(), l.getDirection().name(), l.getCounterparty(),
+                    activeDelta(l.getDirection(), l.getAmount()), l.getOccurredAt(), l.getNote()));
+        }
+        for (LoanRepayment r : repaymentRepository.findByUserIdAndAccountId(userId, accountId)) {
+            Loan l = loanRepository.findById(r.getLoanId()).orElse(null);
+            if (l == null) {
+                continue;
+            }
+            out.add(new com.damien.youyu.api.dto.AccountLoanEntryResponse(
+                    "REPAYMENT", l.getId(), l.getDirection().name(), l.getCounterparty(),
+                    activeDelta(l.getDirection(), r.getAmount()).negate(), r.getOccurredAt(), r.getNote()));
+        }
+        return out;
+    }
+
+    /** 某方向未结清剩余合计（借入/待还、借出/待收），无记录返回 0.00。 */
+    @Transactional(readOnly = true)
+    public BigDecimal outstanding(Long userId, LoanDirection direction) {
+        BigDecimal sum = loanRepository.sumOutstandingByDirection(userId, direction);
         return (sum == null ? BigDecimal.ZERO : sum).setScale(2, RoundingMode.HALF_UP);
     }
 
     /**
-     * 新建一笔借贷（默认未结清）。若关联账户，则按方向即时变动账户余额。
-     *
-     * @throws ApiException LOAN_FIELD_INVALID（字段非法）/ NOT_FOUND（账户不可用）
+     * 新建一笔借贷（默认未结清、未收/还）。若关联账户，则按方向即时变动账户余额。
      */
     @Transactional
-    public Loan create(Long userId, Long ledgerId, String rawDirection, String rawCounterparty,
+    public Loan create(Long userId, String rawDirection, String rawCounterparty,
             BigDecimal rawAmount, Long accountId, LocalDateTime occurredAt, LocalDateTime dueDate,
             boolean includeInTotal, String rawNote) {
         LoanDirection direction = validateDirection(rawDirection);
@@ -89,10 +122,11 @@ public class LoanService {
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime when = occurredAt != null ? occurredAt : now;
         Loan loan = new Loan();
-        loan.setLedgerId(ledgerId);
+        loan.setUserId(userId);
         loan.setDirection(direction);
         loan.setCounterparty(counterparty);
         loan.setAmount(amount);
+        loan.setRepaidAmount(BigDecimal.ZERO);
         loan.setAccountId(accountId);
         loan.setOccurredAt(when);
         loan.setDueDate(dueDate);
@@ -103,34 +137,30 @@ public class LoanService {
         loan.setUpdatedAt(now);
         Loan saved = loanRepository.save(loan);
 
-        // 未结新记录即时变动账户余额。
-        applyToAccount(userId, ledgerId, accountId, activeDelta(direction, amount), now);
+        applyToAccount(userId, accountId, activeDelta(direction, amount), now);
         return saved;
     }
 
     /**
-     * 修改一笔借贷（不改结清状态）：先回补旧的余额影响，再按新值施加（仅未结清时联动余额）。
-     *
-     * @throws ApiException NOT_FOUND / LOAN_FIELD_INVALID
+     * 修改借贷：回补旧初始增量后按新值施加；金额不得小于已收/已还累计。
      */
     @Transactional
-    public Loan update(Long userId, Long ledgerId, Long id, String rawDirection, String rawCounterparty,
+    public Loan update(Long userId, Long id, String rawDirection, String rawCounterparty,
             BigDecimal rawAmount, Long accountId, LocalDateTime occurredAt, LocalDateTime dueDate,
             boolean includeInTotal, String rawNote) {
-        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
-                .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
+        Loan loan = get(userId, id);
 
         LoanDirection newDirection = validateDirection(rawDirection);
         String counterparty = validateCounterparty(rawCounterparty);
         BigDecimal newAmount = validateAmount(rawAmount);
         String note = validateNote(rawNote);
+        if (newAmount.compareTo(loan.getRepaidAmount()) < 0) {
+            throw ApiException.loanFieldInvalid("amount", "金额不能小于已收/已还金额");
+        }
         LocalDateTime now = LocalDateTime.now(clock);
 
-        // 仅未结清记录参与余额联动：先按旧值回补，再按新值施加。
-        if (!loan.isSettled()) {
-            applyToAccount(userId, ledgerId, loan.getAccountId(),
-                    activeDelta(loan.getDirection(), loan.getAmount()).negate(), now);
-        }
+        applyToAccount(userId, loan.getAccountId(),
+                activeDelta(loan.getDirection(), loan.getAmount()).negate(), now);
 
         loan.setDirection(newDirection);
         loan.setCounterparty(counterparty);
@@ -140,73 +170,115 @@ public class LoanService {
         loan.setDueDate(dueDate);
         loan.setIncludeInTotal(includeInTotal);
         loan.setNote(note);
+        refreshSettled(loan, now);
         loan.setUpdatedAt(now);
         Loan saved = loanRepository.save(loan);
 
-        if (!loan.isSettled()) {
-            applyToAccount(userId, ledgerId, accountId, activeDelta(newDirection, newAmount), now);
-        }
+        applyToAccount(userId, accountId, activeDelta(newDirection, newAmount), now);
         return saved;
     }
 
     /**
-     * 切换结清状态：结清记录 settled_at=now 并回补账户余额；置回未结清清空 settled_at 并重新施加。
-     *
-     * @throws ApiException NOT_FOUND
+     * 删除借贷：回补初始增量与全部收款/还款增量，再级联删除子台账。
      */
     @Transactional
-    public Loan setSettled(Long userId, Long ledgerId, Long id, boolean settled) {
-        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
-                .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
+    public void delete(Long userId, Long id) {
+        Loan loan = get(userId, id);
         LocalDateTime now = LocalDateTime.now(clock);
-
-        if (settled && !loan.isSettled()) {
-            // 结清：借出收回 / 借入还清，回补相反增量。
-            applyToAccount(userId, ledgerId, loan.getAccountId(),
-                    activeDelta(loan.getDirection(), loan.getAmount()).negate(), now);
-        } else if (!settled && loan.isSettled()) {
-            // 恢复未结清：重新施加增量。
-            applyToAccount(userId, ledgerId, loan.getAccountId(),
-                    activeDelta(loan.getDirection(), loan.getAmount()), now);
+        applyToAccount(userId, loan.getAccountId(),
+                activeDelta(loan.getDirection(), loan.getAmount()).negate(), now);
+        for (LoanRepayment r : repaymentRepository.findByLoanIdOrderByOccurredAtDescIdDesc(id)) {
+            applyToAccount(userId, r.getAccountId(), activeDelta(loan.getDirection(), r.getAmount()), now);
         }
-
-        loan.setSettled(settled);
-        loan.setSettledAt(settled ? now : null);
-        loan.setUpdatedAt(now);
-        return loanRepository.save(loan);
-    }
-
-    /**
-     * 删除一笔借贷：若为未结清且关联账户，删除前回补账户余额。
-     *
-     * @throws ApiException NOT_FOUND
-     */
-    @Transactional
-    public void delete(Long userId, Long ledgerId, Long id) {
-        Loan loan = loanRepository.findByIdAndLedgerId(id, ledgerId)
-                .orElseThrow(() -> ApiException.notFound("借贷记录不存在"));
-        if (!loan.isSettled()) {
-            applyToAccount(userId, ledgerId, loan.getAccountId(),
-                    activeDelta(loan.getDirection(), loan.getAmount()).negate(),
-                    LocalDateTime.now(clock));
-        }
+        repaymentRepository.deleteByLoanId(id);
         loanRepository.delete(loan);
     }
 
-    // ---------------- 余额联动 ----------------
+    // ---------------- 收款 / 还款 ----------------
 
-    /** 未结借贷对关联账户余额的增量：借入 +amount（入账）、借出 −amount（出账）。 */
+    /**
+     * 新增一笔收款(借出)/还款(借入)。金额不得超过剩余；关联账户即时入账/出账；累计达本金即结清。
+     */
+    @Transactional
+    public LoanRepayment addRepayment(Long userId, Long loanId, BigDecimal rawAmount,
+            Long accountId, LocalDateTime occurredAt, String rawNote) {
+        Loan loan = get(userId, loanId);
+        BigDecimal amount = validateAmount(rawAmount);
+        BigDecimal remaining = loan.getAmount().subtract(loan.getRepaidAmount());
+        if (amount.compareTo(remaining) > 0) {
+            throw ApiException.loanFieldInvalid("amount",
+                    loan.getDirection() == LoanDirection.LEND ? "收款金额超过剩余待收" : "还款金额超过剩余待还");
+        }
+        String note = validateNote(rawNote);
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime when = occurredAt != null ? occurredAt : now;
+
+        applyToAccount(userId, accountId, activeDelta(loan.getDirection(), amount).negate(), now);
+
+        LoanRepayment r = new LoanRepayment();
+        r.setLoanId(loanId);
+        r.setUserId(userId);
+        r.setAmount(amount);
+        r.setAccountId(accountId);
+        r.setOccurredAt(when);
+        r.setNote(note);
+        r.setCreatedAt(now);
+        LoanRepayment saved = repaymentRepository.save(r);
+
+        loan.setRepaidAmount(loan.getRepaidAmount().add(amount));
+        refreshSettled(loan, now);
+        loan.setUpdatedAt(now);
+        loanRepository.save(loan);
+        return saved;
+    }
+
+    /** 删除一笔收款/还款：回补账户增量并回退累计。 */
+    @Transactional
+    public void deleteRepayment(Long userId, Long repaymentId) {
+        LoanRepayment r = repaymentRepository.findByIdAndUserId(repaymentId, userId)
+                .orElseThrow(() -> ApiException.notFound("收款/还款记录不存在"));
+        Loan loan = get(userId, r.getLoanId());
+        LocalDateTime now = LocalDateTime.now(clock);
+
+        applyToAccount(userId, r.getAccountId(), activeDelta(loan.getDirection(), r.getAmount()), now);
+
+        loan.setRepaidAmount(loan.getRepaidAmount().subtract(r.getAmount()));
+        if (loan.getRepaidAmount().signum() < 0) {
+            loan.setRepaidAmount(BigDecimal.ZERO);
+        }
+        refreshSettled(loan, now);
+        loan.setUpdatedAt(now);
+        loanRepository.save(loan);
+        repaymentRepository.delete(r);
+    }
+
+    // ---------------- 内部 ----------------
+
+    /** 结清态由累计收/还是否达本金推导。 */
+    private void refreshSettled(Loan loan, LocalDateTime now) {
+        boolean settled = loan.getRepaidAmount().compareTo(loan.getAmount()) >= 0;
+        loan.setSettled(settled);
+        loan.setSettledAt(settled ? now : null);
+    }
+
+    /** 初始出/入账增量：借入 +amount（入账）、借出 −amount（出账）。 */
     private BigDecimal activeDelta(LoanDirection direction, BigDecimal amount) {
         return direction == LoanDirection.BORROW ? amount : amount.negate();
     }
 
-    /** 对关联账户施加余额增量（accountId 为空或增量为 0 时跳过）。账户须在该账本对本人可用。 */
-    private void applyToAccount(Long userId, Long ledgerId, Long accountId, BigDecimal delta,
-            LocalDateTime now) {
+    /**
+     * 对本人账户施加余额增量并加行级锁（accountId 为空或增量为 0 时跳过）。
+     * 借贷为用户级，账户只需归属本人（不绑定账本）。
+     */
+    private void applyToAccount(Long userId, Long accountId, BigDecimal delta, LocalDateTime now) {
         if (accountId == null || delta.signum() == 0) {
             return;
         }
-        Account account = accountResolver.lockUsableAccount(userId, ledgerId, accountId);
+        Account account = accountRepository.findForUpdateById(accountId)
+                .orElseThrow(() -> ApiException.notFound("账户不存在"));
+        if (!account.getUserId().equals(userId)) {
+            throw ApiException.notFound("账户不存在");
+        }
         account.setCurrentBalance(account.getCurrentBalance().add(delta));
         account.setUpdatedAt(now);
         accountRepository.save(account);

@@ -94,10 +94,12 @@ class ImportServiceRoundTripTest {
 
     @Autowired
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    @Autowired
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
 
     private AccountService accountService() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                loanRepository, CLOCK);
+                loanRepository, loanRepaymentRepository, CLOCK);
     }
 
     @Test

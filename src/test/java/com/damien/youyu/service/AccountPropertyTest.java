@@ -68,10 +68,12 @@ class AccountPropertyTest {
 
     @Autowired
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    @Autowired
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
 
     private AccountService service() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                loanRepository, Clock.fixed(T0, ZONE));
+                loanRepository, loanRepaymentRepository, Clock.fixed(T0, ZONE));
     }
 
     // ---------------- 智能生成器（约束到输入空间的随机输入） ----------------

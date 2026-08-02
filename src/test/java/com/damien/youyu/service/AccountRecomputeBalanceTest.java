@@ -52,10 +52,12 @@ class AccountRecomputeBalanceTest {
 
     @Autowired
     private com.damien.youyu.repository.LoanRepository loanRepository;
+    @Autowired
+    private com.damien.youyu.repository.LoanRepaymentRepository loanRepaymentRepository;
 
     private AccountService accountService() {
         return new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
-                loanRepository, clock);
+                loanRepository, loanRepaymentRepository, clock);
     }
 
     private LedgerAccountResolver resolver() {

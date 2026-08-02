@@ -18,6 +18,7 @@ import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
+import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
@@ -66,6 +67,7 @@ public class AccountDeletionService {
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
     private final LoanRepository loanRepository;
+    private final LoanRepaymentRepository loanRepaymentRepository;
     private final ProjectRepository projectRepository;
     private final MerchantRepository merchantRepository;
     private final TagRepository tagRepository;
@@ -87,6 +89,7 @@ public class AccountDeletionService {
             BudgetRepository budgetRepository,
             CategoryBudgetRepository categoryBudgetRepository,
             LoanRepository loanRepository,
+            LoanRepaymentRepository loanRepaymentRepository,
             ProjectRepository projectRepository,
             MerchantRepository merchantRepository,
             TagRepository tagRepository,
@@ -106,6 +109,7 @@ public class AccountDeletionService {
         this.budgetRepository = budgetRepository;
         this.categoryBudgetRepository = categoryBudgetRepository;
         this.loanRepository = loanRepository;
+        this.loanRepaymentRepository = loanRepaymentRepository;
         this.projectRepository = projectRepository;
         this.merchantRepository = merchantRepository;
         this.tagRepository = tagRepository;
@@ -243,6 +247,7 @@ public class AccountDeletionService {
         // 3) 分类预算 / 月度预算 / 借贷。
         categoryBudgetRepository.deleteByUserId(userId);
         budgetRepository.deleteByUserId(userId);
+        loanRepaymentRepository.deleteByUserId(userId);
         loanRepository.deleteByUserId(userId);
         // 4) 分类（在交易、分类预算之后）。
         categoryRepository.deleteByUserId(userId);

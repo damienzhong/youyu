@@ -20,6 +20,7 @@ import com.damien.youyu.domain.TransactionType;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.TransactionRepository;
 
@@ -44,6 +45,7 @@ public class AccountService {
     private final AccountLedgerRepository accountLedgerRepository;
     private final TransactionRepository transactionRepository;
     private final LoanRepository loanRepository;
+    private final LoanRepaymentRepository loanRepaymentRepository;
     private final Clock clock;
 
     public AccountService(
@@ -51,11 +53,13 @@ public class AccountService {
             AccountLedgerRepository accountLedgerRepository,
             TransactionRepository transactionRepository,
             LoanRepository loanRepository,
+            LoanRepaymentRepository loanRepaymentRepository,
             Clock clock) {
         this.accountRepository = accountRepository;
         this.accountLedgerRepository = accountLedgerRepository;
         this.transactionRepository = transactionRepository;
         this.loanRepository = loanRepository;
+        this.loanRepaymentRepository = loanRepaymentRepository;
         this.clock = clock;
     }
 
@@ -381,8 +385,9 @@ public class AccountService {
                 transactionRepository.sumAmountByAccountIdAndType(accountId, TransactionType.EXPENSE));
         BigDecimal transferIn = zeroIfNull(transactionRepository.sumTransferInByAccountId(accountId));
         BigDecimal transferOut = zeroIfNull(transactionRepository.sumTransferOutByAccountId(accountId));
-        // 未结清借贷对该账户余额的净增量（借入 +、借出 −），保证重算与实时增量一致。
-        BigDecimal loanDelta = zeroIfNull(loanRepository.sumActiveDeltaByAccount(accountId));
+        // 借贷对该账户余额的净增量：初始出/入账（全部借贷）+ 收款/还款子台账。二者均为永久增量。
+        BigDecimal loanDelta = zeroIfNull(loanRepository.sumCreationDeltaByAccount(accountId))
+                .add(zeroIfNull(loanRepaymentRepository.sumDeltaByAccount(accountId)));
 
         return account.getInitialBalance()
                 .add(income)

@@ -27,6 +27,7 @@ import com.damien.youyu.repository.CategoryRepository;
 import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
+import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
@@ -55,6 +56,7 @@ public class LedgerService {
     private final BudgetRepository budgetRepository;
     private final CategoryBudgetRepository categoryBudgetRepository;
     private final LoanRepository loanRepository;
+    private final LoanRepaymentRepository loanRepaymentRepository;
     private final LedgerMemberRepository memberRepository;
     private final LedgerInviteRepository inviteRepository;
     private final TransactionTemplateRepository templateRepository;
@@ -80,6 +82,7 @@ public class LedgerService {
             BudgetRepository budgetRepository,
             CategoryBudgetRepository categoryBudgetRepository,
             LoanRepository loanRepository,
+            LoanRepaymentRepository loanRepaymentRepository,
             LedgerMemberRepository memberRepository,
             LedgerInviteRepository inviteRepository,
             TransactionTemplateRepository templateRepository,
@@ -97,6 +100,7 @@ public class LedgerService {
         this.budgetRepository = budgetRepository;
         this.categoryBudgetRepository = categoryBudgetRepository;
         this.loanRepository = loanRepository;
+        this.loanRepaymentRepository = loanRepaymentRepository;
         this.memberRepository = memberRepository;
         this.inviteRepository = inviteRepository;
         this.templateRepository = templateRepository;
@@ -276,7 +280,7 @@ public class LedgerService {
         transactionRepository.hardDeleteByLedgerId(id);
         categoryBudgetRepository.deleteByLedgerId(id);
         budgetRepository.deleteByLedgerId(id);
-        loanRepository.deleteByLedgerId(id);
+        // 借贷已回归用户级，不随账本删除（其账户余额影响独立于账本）。
         templateRepository.deleteByLedgerId(id);
         projectRepository.deleteByLedgerId(id);
         merchantRepository.deleteByLedgerId(id);
