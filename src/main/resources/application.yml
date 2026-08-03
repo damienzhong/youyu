@@ -18,9 +18,10 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-        # 金额/时间统一按 Asia/Shanghai 处理，避免时区漂移
-        jdbc:
-          time_zone: Asia/Shanghai
+        # 刻意不设 hibernate.jdbc.time_zone：全部时间列都是 LocalDateTime(DATETIME) 的挂钟时刻，
+        # 时区语义由 TimeConfig 的 Clock(Asia/Shanghai) 单点决定。一旦设了它，Hibernate 会按
+        # 「JVM 默认时区 → 该时区」再换算一次挂钟值，而同库的原生 JDBC 写入(如邀请关系)不换算，
+        # 于是 JVM 时区非 Asia/Shanghai 时两条写入路径会差出时区偏移（CI 在 UTC 下差 8 小时）。
     show-sql: false
 
   # 版本化数据库迁移

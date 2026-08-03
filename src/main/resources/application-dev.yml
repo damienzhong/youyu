@@ -20,8 +20,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-        jdbc:
-          time_zone: Asia/Shanghai
+        # 同 application.yml：不设 jdbc.time_zone，挂钟时刻按原值读写
 
   # dev 下由 Hibernate 建表，关闭 Flyway（其迁移脚本为 MySQL 方言）
   flyway:

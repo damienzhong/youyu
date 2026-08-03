@@ -14,8 +14,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-        jdbc:
-          time_zone: Asia/Shanghai
+        # 同 application.yml：不设 jdbc.time_zone。测试进程不走 YouyuApplication.main，
+        # JVM 默认时区随环境而变（本机 Asia/Shanghai、CI 为 UTC），设了它会让 Hibernate 写入
+        # 与原生 JDBC 写入在 CI 上差出 8 小时，属性测试的读库比对随即失败。
 
   # 脚手架阶段暂无迁移脚本，测试环境关闭 Flyway
   flyway:
