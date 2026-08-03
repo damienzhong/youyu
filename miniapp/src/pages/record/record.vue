@@ -85,6 +85,31 @@ function tapKey(k) {
   expr.value += k
 }
 
+// 表达式里出现运算符时，主按钮先变「＝」：点一次把表达式折叠成结果，
+// 按钮随即回到「完成/保存」，用户再点一次才提交。
+const primaryLabel = computed(() => {
+  if (submitting.value) return '保存中…'
+  if (hasOp.value) return '＝'
+  return isEditing.value ? '保存' : '完成'
+})
+function equalize() {
+  const v = amountValue.value
+  if (!(v > 0)) {
+    // 结果非正无法记账，保留表达式让用户接着改。
+    uni.showToast({ title: '计算结果需大于 0', icon: 'none' })
+    return
+  }
+  expr.value = String(v)
+}
+function tapPrimary() {
+  if (submitting.value) return
+  if (hasOp.value) {
+    equalize()
+    return
+  }
+  submit(false)
+}
+
 // ---------- 分类（含子分类展开）----------
 const tree = ref({ expense: [], income: [] })
 const categoryId = ref(null)
@@ -739,7 +764,7 @@ function goAddCategory() {
       <text v-if="!isEditing" class="key mini" :class="{ busy: submitting }" @click="submit(true)">保存再记</text>
       <text v-else class="key mini"> </text>
       <text class="key" @click="tapKey('0')">0</text><text class="key" @click="tapKey('.')">.</text>
-      <text class="key done" :class="[accentClass, { busy: submitting }]" @click="submit(false)">{{ submitting ? '保存中…' : (isEditing ? '保存' : '完成') }}</text>
+      <text class="key done" :class="[accentClass, { busy: submitting, eq: hasOp }]" @click="tapPrimary">{{ primaryLabel }}</text>
     </view>
 
     <!-- 账户选择 -->
@@ -1014,6 +1039,8 @@ function goAddCategory() {
 .key.op { color: #5b6470; }
 .key.mini { font-size: 26rpx; color: #5b6470; font-weight: 700; }
 .key.done { background: var(--accent); color: #fff; font-weight: 800; font-size: 32rpx; }
+/* 「＝」态：符号比文字大一号，区分「算一下」和「提交」两种动作 */
+.key.done.eq { font-size: 44rpx; }
 .key.busy { opacity: 0.6; }
 
 .mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 50; }
