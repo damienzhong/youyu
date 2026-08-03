@@ -39,7 +39,7 @@ class AuthUpdateNicknameTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        service = new AuthService(userRepository, Clock.fixed(T0, ZONE), null, null);
+        service = new AuthService(userRepository, Clock.fixed(T0, ZONE), null, null, null, null);
     }
 
     private User user() {

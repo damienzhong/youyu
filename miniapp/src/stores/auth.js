@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { STORAGE_KEYS } from '../utils/config'
 import { wxLogin as apiWxLogin, emailLogin as apiEmailLogin, fetchMe as apiFetchMe } from '../api/auth'
+import { takePendingInviteCode, clearPendingInviteCode } from '../utils/invite'
 
 /**
  * 登录态：持有 token 与用户摘要，负责微信登录与登出。
@@ -9,7 +10,13 @@ import { wxLogin as apiWxLogin, emailLogin as apiEmailLogin, fetchMe as apiFetch
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: uni.getStorageSync(STORAGE_KEYS.token) || '',
-    user: uni.getStorageSync(STORAGE_KEYS.user) || null
+    user: uni.getStorageSync(STORAGE_KEYS.user) || null,
+    /**
+     * 最近一次登录的邀请绑定结果 { bound, reason }，未登录过时为 null。
+     * 只作后续增长埋点 / 提示的落点，本期 UI 不据此展示任何内容。
+     * 不落地本地存储：语义只覆盖「本次登录」，冷启动后没有意义。
+     */
+    lastInviteBind: null
   }),
 
   getters: {
@@ -19,23 +26,48 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     /**
      * 微信一键登录：wx.login 拿 code -> 后端换 token -> 落地登录态。
-     * 返回用户摘要，失败则抛出后端统一错误体。
+     * 携带待绑定邀请码（'' 表示不携带），返回用户摘要，失败则抛出后端统一错误体。
      */
     async loginWithWeixin() {
       const code = await getWxLoginCode()
-      const res = await apiWxLogin(code)
+      const inviteCode = takePendingInviteCode()
+      const res = await apiWxLogin(code, inviteCode)
       this.setSession(res.token, res.user)
+      this.recordInviteBind(res)
       return res.user
     },
 
     /**
      * 邮箱验证码登录（登录/注册合一）：邮箱 + 验证码 -> 后端换 token -> 落地登录态。
      * 首次登录的邮箱由后端自动建号，返回结构与微信登录一致。
+     * 同样携带待绑定邀请码（'' 表示不携带）。
      */
     async loginWithEmail(email, code) {
-      const res = await apiEmailLogin(email, code)
+      const inviteCode = takePendingInviteCode()
+      const res = await apiEmailLogin(email, code, inviteCode)
       this.setSession(res.token, res.user)
+      this.recordInviteBind(res)
       return res.user
+    },
+
+    /**
+     * 登录成功后记录绑定结果并清除暂存。
+     *
+     * 三条约束（需求 4.8、4.12）：
+     * - 只在**请求返回成功之后**清除：失败 / 网络错误 / 超时时 apiXxxLogin 直接抛出，
+     *   本方法根本不会执行，暂存与写入时刻原样保留供重试继续携带。
+     * - 无论 inviteBound 真假都清：未绑定的原因（已是老用户、码不存在、自邀、已绑定）
+     *   在重试时不会变，留着只会让后续每次登录都白带一个注定失败的码。
+     * - 服务端字段可能缺失（老服务端 / 任务 8.2 未上线）：一律降级为 { bound: false, reason: null }，
+     *   不抛错、不影响登录主路径。
+     */
+    recordInviteBind(res) {
+      const payload = res || {}
+      this.lastInviteBind = {
+        bound: !!payload.inviteBound,
+        reason: payload.inviteUnboundReason || null
+      }
+      clearPendingInviteCode()
     },
 
     setSession(token, user) {

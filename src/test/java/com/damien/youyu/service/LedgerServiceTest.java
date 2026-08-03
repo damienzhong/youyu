@@ -75,7 +75,8 @@ class LedgerServiceTest {
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 accountLedgerRepository, transactionRepository, budgetRepository, categoryBudgetRepository,
                 loanRepository, loanRepaymentRepository, memberRepository, inviteRepository, templateRepository,
-                projectRepository, merchantRepository, tagRepository, transactionTagRepository, accountService, clock);
+                projectRepository, merchantRepository, tagRepository, transactionTagRepository, accountService,
+                new InviteCodeGenerator(), clock);
     }
 
     // ---------------- 创建 / 默认分类 / 成员 ----------------

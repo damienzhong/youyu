@@ -2,6 +2,7 @@ package com.damien.youyu.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -91,7 +92,7 @@ class AccountLifecyclePropertyTest {
         Fixture f = newFixture();
 
         // 1) 邮箱登录/注册合一建号（占用 email）。
-        User user1 = f.authService.emailLogin(email, "123456");
+        User user1 = f.authService.emailLogin(email, "123456", null).user();
         Long id1 = user1.getId();
         assertThat(user1.getEmail()).isEqualTo(email);
 
@@ -108,12 +109,12 @@ class AccountLifecyclePropertyTest {
         assertThat(f.userRepository.findByWxOpenid(openid)).isEmpty();
 
         // 5) email 可被重新注册/登录（生成的是全新账号）。
-        User user2 = f.authService.emailLogin(email, "123456");
+        User user2 = f.authService.emailLogin(email, "123456", null).user();
         assertThat(user2.getEmail()).isEqualTo(email);
         assertThat(user2.getId()).isNotEqualTo(id1);
 
         // 6) openid 可被重新微信登录（同样是全新账号）。
-        User user3 = f.authService.wxLogin(openid);
+        User user3 = f.authService.wxLogin(openid, null).user();
         assertThat(user3.getWxOpenid()).isEqualTo(openid);
         assertThat(user3.getId()).isNotEqualTo(id1);
     }
@@ -150,8 +151,12 @@ class AccountLifecyclePropertyTest {
         when(weChatClient.jscode2session(anyString()))
                 .thenAnswer(inv -> new WxSession(inv.getArgument(0), null));
 
+        InviteBindingService inviteBindingService = mock(InviteBindingService.class);
+        when(inviteBindingService.bindOnRegister(any(), anyBoolean(), any(), any()))
+                .thenReturn(InviteBindResult.ofUnbound(UnboundReason.NO_CODE));
         AuthService authService = new AuthService(
-                userRepository, clock, weChatClient, verificationCodeService);
+                userRepository, clock, weChatClient, verificationCodeService,
+                new InviteCodeGenerator(), inviteBindingService);
 
         // 级联删除涉及的其余仓储：测试替身（List 返回默认空集），注销者名下无其它数据。
         AccountDeletionService deletionService = new AccountDeletionService(
@@ -174,7 +179,9 @@ class AccountLifecyclePropertyTest {
                 mock(TagRepository.class),
                 mock(TransactionTemplateRepository.class),
                 mock(LedgerInviteRepository.class),
-                mock(VerificationCodeRepository.class));
+                mock(VerificationCodeRepository.class),
+                mock(com.damien.youyu.repository.InviteRelationRepository.class),
+                clock);
 
         return new Fixture(userRepository, authService, deletionService);
     }

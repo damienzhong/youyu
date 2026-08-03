@@ -125,6 +125,19 @@
       "style": {
         "navigationBarTitleText": "回收站"
       }
+    },
+    {
+      "path": "pages/invite/invite",
+      "style": {
+        "navigationBarTitleText": "邀请好友"
+      }
+    },
+    {
+      "path": "pages/invitelanding/invitelanding",
+      "style": {
+        "navigationBarTitleText": "有余邀请",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

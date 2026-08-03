@@ -33,6 +33,15 @@ public class User {
     @Column(name = "nickname", length = 64)
     private String nickname;
 
+    /**
+     * 个人邀请码，8 位、全局唯一、终身不变，无修改与重置操作。
+     *
+     * <p>建号时随 {@code users} 的插入一并写入；存量用户迁移后为 NULL，首次请求邀请信息时
+     * 惰性补齐。随 {@code users} 行删除而释放，后续新用户可重新抽到同一取值。</p>
+     */
+    @Column(name = "invite_code", length = 8, unique = true)
+    private String inviteCode;
+
     /** 微信小程序 openid（同一小程序内唯一），微信用户的稳定标识。 */
     @Column(name = "wx_openid", length = 64, unique = true)
     private String wxOpenid;
@@ -91,6 +100,14 @@ public class User {
 
     public void setNickname(String nickname) {
         this.nickname = nickname;
+    }
+
+    public String getInviteCode() {
+        return inviteCode;
+    }
+
+    public void setInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
     }
 
     public String getWxOpenid() {

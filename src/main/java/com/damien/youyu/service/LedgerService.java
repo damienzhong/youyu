@@ -1,6 +1,5 @@
 package com.damien.youyu.service;
 
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -65,13 +64,11 @@ public class LedgerService {
     private final TagRepository tagRepository;
     private final TransactionTagRepository transactionTagRepository;
     private final AccountService accountService;
+    private final InviteCodeGenerator inviteCodeGenerator;
     private final Clock clock;
 
     /** 邀请码有效期（天）。 */
     private static final int INVITE_TTL_DAYS = 7;
-    private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
-    private static final int CODE_LEN = 8;
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     public LedgerService(
             LedgerRepository ledgerRepository,
@@ -91,6 +88,7 @@ public class LedgerService {
             TagRepository tagRepository,
             TransactionTagRepository transactionTagRepository,
             AccountService accountService,
+            InviteCodeGenerator inviteCodeGenerator,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
@@ -109,6 +107,7 @@ public class LedgerService {
         this.tagRepository = tagRepository;
         this.transactionTagRepository = transactionTagRepository;
         this.accountService = accountService;
+        this.inviteCodeGenerator = inviteCodeGenerator;
         this.clock = clock;
     }
 
@@ -442,19 +441,18 @@ public class LedgerService {
         memberRepository.deleteByLedgerIdAndUserId(ledgerId, targetUserId);
     }
 
+    /**
+     * 生成一个未被占用的账本邀请码，委托给 {@link InviteCodeGenerator}（需求 1.6）。
+     *
+     * <p>字母表（32 字符，剔除 {@code I}/{@code O}/{@code 0}/{@code 1}）、长度 8 与「最多 10 次重试」
+     * 策略与用户邀请码完全一致，此前是本类里的一份独立副本，现收敛到唯一定义处。</p>
+     *
+     * <p><b>两套邀请机制仍彼此独立</b>：这里的占用判定查的是 {@code ledger_invites.code}，
+     * 与用户邀请码查的 {@code users.invite_code} 各自成一套码空间，允许取值重合。只共用
+     * 「怎么抽码」，不共用「码归谁」。</p>
+     */
     private String generateUniqueCode() {
-        for (int attempt = 0; attempt < 10; attempt++) {
-            StringBuilder sb = new StringBuilder(CODE_LEN);
-            for (int i = 0; i < CODE_LEN; i++) {
-                sb.append(CODE_ALPHABET[RANDOM.nextInt(CODE_ALPHABET.length)]);
-            }
-            String code = sb.toString();
-            if (inviteRepository.findByCode(code).isEmpty()) {
-                return code;
-            }
-        }
-        throw new ApiException("INVITE_CODE_GEN_FAILED",
-                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "邀请码生成失败，请重试", null);
+        return inviteCodeGenerator.generateUnique(code -> inviteRepository.findByCode(code).isPresent());
     }
 
     private int nextSortOrder(Long userId) {

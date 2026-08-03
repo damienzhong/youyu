@@ -52,6 +52,24 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<User> findByInviteCode(String inviteCode) {
+        return byId.values().stream()
+                .filter(u -> u.getInviteCode() != null && u.getInviteCode().equals(inviteCode))
+                .findFirst();
+    }
+
+    @Override
+    public boolean existsByInviteCode(String inviteCode) {
+        return findByInviteCode(inviteCode).isPresent();
+    }
+
+    /** 内存实现无并发写场景，行级写锁退化为普通按 id 查找（语义等价于「取到最新那一行」）。 */
+    @Override
+    public Optional<User> findForUpdateById(Long id) {
+        return findById(id);
+    }
+
+    @Override
     public <S extends User> S save(S entity) {
         if (entity.getId() == null) {
             entity.setId(sequence.incrementAndGet());

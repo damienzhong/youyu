@@ -10,21 +10,41 @@ export function sendCode(email, purpose = 'LOGIN') {
 }
 
 /**
+ * 待绑定邀请码入参归一：去空白后为空（含 null / undefined）返回 null，
+ * 由调用方据此决定「不携带 inviteCode 字段」。
+ * 后端把「字段缺失 / null / 去空白为空」一律按 NO_CODE 处理，两种写法等价，
+ * 这里选择直接省略字段，让请求体在无邀请码时与改造前逐字节相同。
+ */
+function pickInviteCode(inviteCode) {
+  if (inviteCode === null || inviteCode === undefined) return null
+  const trimmed = String(inviteCode).trim()
+  return trimmed === '' ? null : trimmed
+}
+
+/**
  * 邮箱验证码登录（登录/注册合一），对应后端 POST /api/auth/email-login，
- * 返回 { token, tokenType, user }。首次登录自动建号。
+ * 返回 { token, tokenType, user, inviteBound, inviteUnboundReason }。首次登录自动建号。
+ * inviteCode 为可选的待绑定邀请码，'' / 省略表示不携带。
  * 该接口无需登录态，故 auth: false。
  */
-export function emailLogin(email, code) {
-  return http.post('/auth/email-login', { email, code }, { auth: false })
+export function emailLogin(email, code, inviteCode) {
+  const body = { email, code }
+  const invite = pickInviteCode(inviteCode)
+  if (invite) body.inviteCode = invite
+  return http.post('/auth/email-login', body, { auth: false })
 }
 
 /**
  * 用微信一次性 code 换取本系统令牌。
- * 对应后端 POST /api/auth/wx-login，返回 { token, tokenType, user }。
+ * 对应后端 POST /api/auth/wx-login，返回 { token, tokenType, user, inviteBound, inviteUnboundReason }。
+ * inviteCode 为可选的待绑定邀请码，'' / 省略表示不携带。
  * 该接口无需登录态，故 auth: false。
  */
-export function wxLogin(code) {
-  return http.post('/auth/wx-login', { code }, { auth: false })
+export function wxLogin(code, inviteCode) {
+  const body = { code }
+  const invite = pickInviteCode(inviteCode)
+  if (invite) body.inviteCode = invite
+  return http.post('/auth/wx-login', body, { auth: false })
 }
 
 /**

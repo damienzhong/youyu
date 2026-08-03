@@ -71,6 +71,12 @@ app:
       ip-per-minute: ${YOUYU_EMAIL_CODE_IP_PER_MINUTE:3}
       ip-per-day: ${YOUYU_EMAIL_CODE_IP_PER_DAY:30}
       max-attempts: ${YOUYU_EMAIL_CODE_MAX_ATTEMPTS:5}
+  # 用户邀请系统（需求 3.13）
+  invite:
+    qrcode:
+      # 小程序码图片内存缓存的容量上限（项）：缺省 1000，按写入时刻 FIFO 淘汰，TTL 7 天，不落盘。
+      # 每项约 20–40KB（PNG 原始字节），1000 项约 20–40MB 堆占用；堆偏小的机型可下调。
+      cache-max-entries: ${YOUYU_INVITE_QRCODE_CACHE_MAX_ENTRIES:1000}
   # 微信小程序登录：appid/secret 生产环境务必通过环境变量注入，切勿提交明文
   wechat:
     api-base-url: ${YOUYU_WX_API_BASE:https://api.weixin.qq.com}

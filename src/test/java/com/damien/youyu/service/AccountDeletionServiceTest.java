@@ -64,6 +64,7 @@ class AccountDeletionServiceTest {
     private com.damien.youyu.repository.TransactionTemplateRepository templateRepository;
     private com.damien.youyu.repository.LedgerInviteRepository inviteRepository;
     private com.damien.youyu.repository.VerificationCodeRepository verificationCodeRepository;
+    private com.damien.youyu.repository.InviteRelationRepository inviteRelationRepository;
     private AccountDeletionService service;
 
     @BeforeEach
@@ -88,13 +89,15 @@ class AccountDeletionServiceTest {
         templateRepository = mock(com.damien.youyu.repository.TransactionTemplateRepository.class);
         inviteRepository = mock(com.damien.youyu.repository.LedgerInviteRepository.class);
         verificationCodeRepository = mock(com.damien.youyu.repository.VerificationCodeRepository.class);
+        inviteRelationRepository = mock(com.damien.youyu.repository.InviteRelationRepository.class);
         service = new AccountDeletionService(
                 ledgerRepository, memberRepository, accountRepository, transactionRepository,
                 userRepository, verificationCodeService, weChatClient,
                 accountLedgerRepository, transactionTagRepository, categoryRepository,
                 budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
                 projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
-                verificationCodeRepository);
+                verificationCodeRepository, inviteRelationRepository,
+                java.time.Clock.systemDefaultZone());
     }
 
     private Ledger ledger(Long id) {

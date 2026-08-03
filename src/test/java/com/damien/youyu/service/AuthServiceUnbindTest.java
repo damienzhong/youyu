@@ -44,7 +44,7 @@ class AuthServiceUnbindTest {
     void setUp() {
         userRepository = Mockito.mock(UserRepository.class);
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
-        service = new AuthService(userRepository, Clock.fixed(T0, ZONE), null, null);
+        service = new AuthService(userRepository, Clock.fixed(T0, ZONE), null, null, null, null);
     }
 
     private User userWith(String email, String openid, String unionid) {

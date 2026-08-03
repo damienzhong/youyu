@@ -26,6 +26,8 @@ TRUNCATE TABLE merchants;
 TRUNCATE TABLE ledger_invites;
 TRUNCATE TABLE ledger_members;
 TRUNCATE TABLE ledgers;
+-- 邀请关系表：无外键（注销后保留悬空 id），清空不依赖 FOREIGN_KEY_CHECKS 取值
+TRUNCATE TABLE invite_relations;
 TRUNCATE TABLE users;
 
 SET FOREIGN_KEY_CHECKS = 1;

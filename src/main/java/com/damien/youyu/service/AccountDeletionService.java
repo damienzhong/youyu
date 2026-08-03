@@ -1,5 +1,7 @@
 package com.damien.youyu.service;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.InviteRelationRepository;
 import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
@@ -75,6 +78,11 @@ public class AccountDeletionService {
     private final LedgerInviteRepository inviteRepository;
     private final VerificationCodeRepository verificationCodeRepository;
 
+    // 用户邀请关系（invite_relations）联动所需（任务 8.3，需求 10.2）：注销时把「该用户作为被邀请人」的
+    // 那一行置 INVALID。时钟统一从容器注入（与其它 Service 一致），便于测试固定 updated_at。
+    private final InviteRelationRepository inviteRelationRepository;
+    private final Clock clock;
+
     public AccountDeletionService(
             LedgerRepository ledgerRepository,
             LedgerMemberRepository memberRepository,
@@ -95,7 +103,9 @@ public class AccountDeletionService {
             TagRepository tagRepository,
             TransactionTemplateRepository templateRepository,
             LedgerInviteRepository inviteRepository,
-            VerificationCodeRepository verificationCodeRepository) {
+            VerificationCodeRepository verificationCodeRepository,
+            InviteRelationRepository inviteRelationRepository,
+            Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
         this.accountRepository = accountRepository;
@@ -116,6 +126,8 @@ public class AccountDeletionService {
         this.templateRepository = templateRepository;
         this.inviteRepository = inviteRepository;
         this.verificationCodeRepository = verificationCodeRepository;
+        this.inviteRelationRepository = inviteRelationRepository;
+        this.clock = clock;
     }
 
     /**
@@ -215,9 +227,16 @@ public class AccountDeletionService {
      *   <li>{@code ledger_members}（本人的成员行，先于 ledgers / users）；</li>
      *   <li>{@code ledgers}（按 user_id，先于 users）；</li>
      *   <li>{@code verification_code}（按 email，干净释放邮箱身份）；</li>
+     *   <li>{@code invite_relations}：把「该用户作为被邀请人」的那一行置 {@code INVALID}（不删行），
+     *       必须早于 {@code users} 行的删除（邀请系统需求 10.2、10.3）；</li>
      *   <li>{@code users}（用户行本身，最后）。删除用户行即释放其 {@code email} 与 {@code wx_openid}
-     *       两个唯一键，供后续重新注册复用（需求 8.4）。</li>
+     *       两个唯一键，供后续重新注册复用（需求 8.4），并随行释放 {@code invite_code}
+     *       （邀请系统需求 10.4）。</li>
      * </ol>
+     *
+     * <p><b>用户邀请关系（{@code invite_relations}）只置状态、不删行</b>：以该用户 id 为
+     * {@code inviter_id} 的行一行不动（含 {@code status}），保证「谁带来谁」的历史留痕与统计恒等式
+     * （邀请系统需求 10.1）。详见下方对应步骤的注释。</p>
      *
      * <p>整个方法是单个 {@link Transactional} 单元：任一步失败则整体回滚，绝不产生部分删除
      * （需求 8.3）。全部为硬删除，不写任何软删/归档副本（需求 8.5）。</p>
@@ -278,7 +297,29 @@ public class AccountDeletionService {
         if (email != null && !email.isBlank()) {
             verificationCodeRepository.deleteByEmail(email);
         }
-        // 12) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）。
+        // 12) 用户邀请关系（invite_relations）联动，必须在删除 users 行之前（邀请系统需求 10.2、10.3）：
+        //     把「该用户作为被邀请人」的那一行 status 置 INVALID，只改 status 与 updated_at，
+        //     其余五列（invite_id / inviter_id / invitee_id / register_time / created_at）一律不动。
+        //
+        //     为什么是「先置 INVALID、再删 users 行」：invite_relations 的 invitee_id 刻意不建外键
+        //     （需求 9），所以数据库层不约束顺序；但把更新排在删除之前，语义上与上面 1~11 步「由外向内、
+        //     子表先于父表」的节奏一致，失败时的回滚范围也更直观。两步同处本方法的单个事务内，任一步失败
+        //     整体回滚，users 与 invite_relations 全列还原（需求 10.5）。
+        //     另外，本方法只在 requireDeletable（协作牵连拦截）与 verifySecondFactor（二次验证）都通过后
+        //     才被调用，两者均为只读，因此前置校验失败时 invite_relations 零副作用（需求 10.6）。
+        //
+        //     为什么「该用户作为 inviter_id 的行」一行都不能碰（连 status 也不改，需求 10.1）：
+        //     status 的语义被严格限定为「被邀请人的账号状态」。邀请人注销去改自己名下那些行的 status，
+        //     会立刻破坏统计恒等式「总条数(total) − 已邀请人数(invitedCount) == INVALID 行数」。
+        //     这些行注销后不再能被任何已认证接口读出（该账号已无法登录，且接口数据范围只认令牌用户 id），
+        //     仅供后台统计（需求 10.10）。
+        //     唯一索引 uk_invite_relations_invitee 保证本次更新影响行数 ≤ 1；返回 0 表示该用户不是任何人
+        //     的被邀请人，属正常情况，无需处理。
+        inviteRelationRepository.markInvalidByInviteeId(userId, LocalDateTime.now(clock));
+
+        // 13) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）；
+        //     同时随该行释放 users.invite_code，后续新用户可重新抽到同一个码——邀请关系的归属判定用的是
+        //     inviter_id 而非邀请码取值，历史行不会串到新持有者名下（邀请系统需求 10.4、10.10）。
         userRepository.delete(user);
     }
 }

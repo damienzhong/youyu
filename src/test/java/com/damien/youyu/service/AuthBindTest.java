@@ -55,8 +55,9 @@ class AuthBindTest {
         userRepository = mock(UserRepository.class);
         verificationCodeService = mock(VerificationCodeService.class);
         weChatClient = mock(WeChatClient.class);
+        // bindEmail/bindWechat 不走建号路径，邀请码生成器与绑定服务传 null 即可。
         service = new AuthService(userRepository, Clock.fixed(T0, ZONE), weChatClient,
-                verificationCodeService);
+                verificationCodeService, null, null);
         // save 原样返回被保存对象，模拟 JPA 持久化语义。
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
     }

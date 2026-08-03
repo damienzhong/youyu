@@ -1,9 +1,13 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
+import { fetchInviteInfo } from '../../api/invite'
 
 const auth = useAuthStore()
+
+// 已邀请人数：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 2.6）
+const invitedCount = ref(null)
 
 const nickname = computed(() => auth.user?.nickname || '有余用户')
 const planLabel = computed(() => {
@@ -18,6 +22,15 @@ onShow(() => {
     return
   }
   auth.refreshUser().catch(() => {})
+  // 人数只是锦上添花：失败静默（不弹错误、不影响页面其余部分），入口保持只有标题与箭头
+  fetchInviteInfo()
+    .then((res) => {
+      const n = Number(res?.invitedCount)
+      invitedCount.value = Number.isFinite(n) && n >= 0 ? n : null
+    })
+    .catch(() => {
+      invitedCount.value = null
+    })
 })
 
 // 快捷宫格（管理类高频入口）
@@ -85,6 +98,17 @@ function logout() {
       <view v-for="g in grid" :key="g.key" class="g" @click="go(g.url)">
         <view class="tile"><AppIcon :name="g.icon" :size="44" /></view>
         <text class="g-t">{{ g.label }}</text>
+      </view>
+    </view>
+
+    <!-- 邀请入口：人数是动态的，故不并入静态 groups -->
+    <view class="sect">邀请</view>
+    <view class="card">
+      <view class="row" @click="go('/pages/invite/invite')">
+        <view class="r-ic t-green"><AppIcon name="members" :size="36" /></view>
+        <text class="r-t">邀请好友</text>
+        <text v-if="invitedCount !== null" class="r-v r-v-invite">已邀请 {{ invitedCount }} 人</text>
+        <text class="arrow">›</text>
       </view>
     </view>
 
@@ -241,6 +265,10 @@ function logout() {
 .r-v {
   font-size: 26rpx;
   color: #9aa2ad;
+}
+.r-v-invite {
+  color: #12a150;
+  font-weight: 700;
 }
 .arrow {
   color: #c7ccd2;

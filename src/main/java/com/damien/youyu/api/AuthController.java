@@ -16,6 +16,8 @@ import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.JwtService;
 import com.damien.youyu.service.AuthService;
+import com.damien.youyu.service.InviteBindResult;
+import com.damien.youyu.service.LoginOutcome;
 import com.damien.youyu.service.VerificationCodeService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -61,13 +63,14 @@ public class AuthController {
 
     /**
      * 邮箱验证码登录/注册合一（需求 2）：验证码通过后按 email 查/建账号并签发 JWT，
-     * 返回结构与微信登录一致（token + 用户摘要）。
+     * 返回结构与微信登录一致（token + 用户摘要 + 本次邀请绑定结果）。
+     *
+     * <p>可选的 {@code inviteCode} 原样透传给服务层，控制器不做长度或格式校验（需求 5.1、5.6）。</p>
      */
     @PostMapping("/email-login")
     public ResponseEntity<LoginResponse> emailLogin(@RequestBody EmailLoginRequest req) {
-        User user = authService.emailLogin(req.email(), req.code());
-        String token = jwtService.generateToken(user);
-        return ResponseEntity.ok(LoginResponse.of(token, UserSummaryResponse.from(user)));
+        LoginOutcome outcome = authService.emailLogin(req.email(), req.code(), req.inviteCode());
+        return ResponseEntity.ok(toLoginResponse(outcome));
     }
 
     /**
@@ -76,9 +79,23 @@ public class AuthController {
      */
     @PostMapping("/wx-login")
     public ResponseEntity<LoginResponse> wxLogin(@RequestBody WxLoginRequest req) {
-        User user = authService.wxLogin(req.code());
+        LoginOutcome outcome = authService.wxLogin(req.code(), req.inviteCode());
+        return ResponseEntity.ok(toLoginResponse(outcome));
+    }
+
+    /**
+     * 把登录结果拍成响应：签发令牌，并把 {@link LoginOutcome#inviteBind()} 映射为
+     * {@code inviteBound} 与 {@code inviteUnboundReason}（需求 5.4）。
+     *
+     * <p>未绑定原因直接用枚举名称，客户端按名称判定；已绑定时为 {@code null}
+     * （{@link InviteBindResult} 的构造已保证「已绑定 ⇒ 原因为空」）。</p>
+     */
+    private LoginResponse toLoginResponse(LoginOutcome outcome) {
+        User user = outcome.user();
         String token = jwtService.generateToken(user);
-        return ResponseEntity.ok(LoginResponse.of(token, UserSummaryResponse.from(user)));
+        InviteBindResult bind = outcome.inviteBind();
+        String reason = bind.reason() == null ? null : bind.reason().name();
+        return LoginResponse.of(token, UserSummaryResponse.from(user), bind.bound(), reason);
     }
 
     /**
@@ -108,6 +125,11 @@ public class AuthController {
     /**
      * 解析客户端来源 IP，用于发码限流：优先取 {@code X-Forwarded-For} 的首段（最初的客户端），
      * 缺失时回退到 {@link HttpServletRequest#getRemoteAddr()}。
+     *
+     * <p>注意：这里取<strong>首位</strong>，而邀请系统的 {@link ClientIpResolver#resolveClientIp}
+     * 取<strong>末位</strong>——首位由客户端自填可伪造，末位由 nginx {@code $proxy_add_x_forwarded_for}
+     * 追加、客户端不可控。取末位才是正确取法；发码限流取首位是既有行为，改动它属于另一个 spec 的范围。
+     * <strong>不要顺手把 {@link ClientIpResolver} 统一回首位</strong>，那会废掉邀请码枚举防护。</p>
      */
     private static String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");

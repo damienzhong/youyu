@@ -29,6 +29,16 @@ spring:
     password:
 
 app:
+  # 微信接口域名：测试环境刻意指向不可路由的保留域名（RFC 6761 的 .invalid，DNS 永不解析），
+  # 任何漏掉 mock 的测试都会立刻连接失败，而不会外呼真实 api.weixin.qq.com 消耗凭证额度
+  # 或把 CI 的成败绑到微信可用性上。appid/secret 同时留空，双重保险：
+  # 即使域名被改回去，WeChatClient 也会在网络调用之前因配置缺失失败（需求 3.6）。
+  # 这三项由 WeChatTestProfileIsolationTest 兜底守卫，改动会被测试挡下。
+  wechat:
+    api-base-url: https://wechat.invalid
+    miniapp:
+      appid: ""
+      secret: ""
   jwt:
     secret: test-secret-key-only-for-unit-tests-do-not-use-in-prod
     expiration-ms: 3600000

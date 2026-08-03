@@ -21,9 +21,32 @@ import com.damien.youyu.wechat.WxSession;
  * <p>关联需求：2、3、9.2。系统不存储、不校验任何登录密码，也不保留登录失败计数/锁定字段
  * （需求 4.3）。两种登录方式：</p>
  * <ul>
- *   <li>邮箱验证码（登录/注册合一）：见 {@link #emailLogin(String, String)}。</li>
- *   <li>微信一键登录：见 {@link #wxLogin(String)}。</li>
+ *   <li>邮箱验证码（登录/注册合一）：见 {@link #emailLogin(String, String, String)}。</li>
+ *   <li>微信一键登录：见 {@link #wxLogin(String, String)}。</li>
  * </ul>
+ *
+ * <h2>建号即绑定邀请关系（invite-system 需求 1.2、1.7、5.2、5.8）</h2>
+ *
+ * <p>两个登录方法都接收可选的邀请码入参并返回 {@link LoginOutcome}。三条实现约束：</p>
+ * <ol>
+ *   <li><b>建号路径只读一次时钟。</b>{@code LocalDateTime now = LocalDateTime.now(clock)} 在方法内
+ *       取值一次，同一个 {@code now} 同时用于 {@code user.setCreatedAt(now)} 与邀请关系的
+ *       {@code register_time}，从而使两者严格相等（时间差 0 毫秒，需求 5.8）。<b>不得</b>改用
+ *       {@code NOW()}、数据库列默认值或第二次 {@code LocalDateTime.now(clock)}——那会让两个时刻在
+ *       毫秒级上分叉，需求 5.8 的读库比对断言随即失败。</li>
+ *   <li><b>建号与绑定必须在同一个 {@code @Transactional} 边界内</b>（需求 5.2）。
+ *       {@link InviteBindingService#bindOnRegister} 声明为 {@code MANDATORY}，正是靠本方法的事务
+ *       提供边界：新建用户与其邀请关系要么一起提交、要么一起回滚。</li>
+ *   <li><b>邀请码 10 次全被占用即整体失败。</b>{@code generateUnique} 抛
+ *       {@code INVITE_CODE_GEN_FAILED} 时异常穿出本方法，事务回滚、不签发令牌，
+ *       库里不留 {@code invite_code} 为空的新用户行（需求 1.7）。</li>
+ * </ol>
+ *
+ * <p>未绑定原因的优先级判定（{@code NO_CODE} → {@code NOT_NEW_USER} → …）全部收在
+ * {@link InviteBindingService} 内，故非建号路径同样调用 {@code bindOnRegister}（传
+ * {@code isNewUser = false}），而不是在这里就地返回 {@code NOT_NEW_USER}——否则老用户不带码登录会
+ * 得到 {@code NOT_NEW_USER} 而非需求 5.11 要求的 {@code NO_CODE}。该调用对
+ * {@code invite_relations} 不执行任何语句。</p>
  */
 @Service
 public class AuthService {
@@ -32,16 +55,22 @@ public class AuthService {
     private final Clock clock;
     private final WeChatClient weChatClient;
     private final VerificationCodeService verificationCodeService;
+    private final InviteCodeGenerator inviteCodeGenerator;
+    private final InviteBindingService inviteBindingService;
 
     public AuthService(
             UserRepository userRepository,
             Clock clock,
             WeChatClient weChatClient,
-            VerificationCodeService verificationCodeService) {
+            VerificationCodeService verificationCodeService,
+            InviteCodeGenerator inviteCodeGenerator,
+            InviteBindingService inviteBindingService) {
         this.userRepository = userRepository;
         this.clock = clock;
         this.weChatClient = weChatClient;
         this.verificationCodeService = verificationCodeService;
+        this.inviteCodeGenerator = inviteCodeGenerator;
+        this.inviteBindingService = inviteBindingService;
     }
 
     /**
@@ -56,36 +85,52 @@ public class AuthService {
      * <p>邮箱以去空白后的原值处理，与 {@link VerificationCodeService} 的规整方式保持一致。
      * 返回的用户由调用方签发 JWT，返回结构与微信登录一致。</p>
      *
+     * <p>建号时一并生成全局唯一的 {@code invite_code} 并在同一事务内尝试绑定邀请关系
+     * （见类注释「建号即绑定邀请关系」）。</p>
+     *
+     * @param rawInviteCode 可选的邀请码原始取值，可为 {@code null}
      * @throws ApiException CODE_INVALID(验证码错误/过期/已使用/超次失效)
+     *                      / INVITE_CODE_GEN_FAILED(邀请码 10 次全被占用，事务回滚、不签发令牌)
      */
     @Transactional
-    public User emailLogin(String rawEmail, String code) {
+    public LoginOutcome emailLogin(String rawEmail, String code, String rawInviteCode) {
         String email = rawEmail == null ? "" : rawEmail.trim();
         // 单次消费校验（需求 2.1/2.2）：不通过则零副作用、不签发令牌。
         if (!verificationCodeService.verifyConsume(email, EmailCodePurpose.LOGIN, code)) {
             throw ApiException.codeInvalid();
         }
 
+        // 本次请求的唯一时刻取值：createdAt 与邀请关系 register_time 共用（invite 需求 5.8）。
+        LocalDateTime now = LocalDateTime.now(clock);
+
         // 校验通过：按 email 查账号，有则登录（需求 2.5）。
         User existing = userRepository.findByEmail(email).orElse(null);
         if (existing != null) {
-            return existing;
+            // 非建号路径：仍走 bindOnRegister 以取得正确的未绑定原因（NO_CODE / NOT_NEW_USER），
+            // 该调用对 invite_relations 不执行任何语句（invite 需求 5.3、5.11）。
+            return new LoginOutcome(existing,
+                    inviteBindingService.bindOnRegister(existing, false, rawInviteCode, now), false);
         }
 
         // 无账号：登录/注册合一，创建纯邮箱用户（需求 2.4）。
-        LocalDateTime now = LocalDateTime.now(clock);
         User user = new User();
         user.setEmail(email);
         user.setWxOpenid(null);
         // 昵称缺省取邮箱 @ 前缀（本地部分），仅用于展示。
         user.setNickname(defaultNickname(email));
+        // 个人邀请码：10 次全被占用则抛错，整个登录事务回滚（invite 需求 1.2、1.7）。
+        user.setInviteCode(inviteCodeGenerator.generateUnique(userRepository::existsByInviteCode));
         user.setPlan(Plan.FREE);
         user.setRole(Role.USER);
         user.setPlanStartedAt(now);
         user.setPlanExpiresAt(now.plusDays(365));
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
-        return userRepository.save(user);
+        User created = userRepository.save(user);
+
+        // 同一事务内建立邀请关系；register_time 复用上面那个 now（invite 需求 5.2、5.8）。
+        return new LoginOutcome(created,
+                inviteBindingService.bindOnRegister(created, true, rawInviteCode, now), true);
     }
 
     /** 取邮箱 @ 之前的本地部分作为缺省昵称；无 @ 时回退为原邮箱串。 */
@@ -102,10 +147,12 @@ public class AuthService {
      * 新 unionid 时补写（需求 3.2）。返回的用户由调用方签发 JWT，之后所有业务接口的鉴权与
      * 邮箱用户完全一致。</p>
      *
+     * @param rawInviteCode 可选的邀请码原始取值，可为 {@code null}
      * @throws ApiException WX_CODE_REQUIRED(code 缺失) / WX_LOGIN_FAILED(换取 openid 失败)
+     *                      / INVITE_CODE_GEN_FAILED(邀请码 10 次全被占用，事务回滚、不签发令牌)
      */
     @Transactional
-    public User wxLogin(String rawCode) {
+    public LoginOutcome wxLogin(String rawCode, String rawInviteCode) {
         String code = rawCode == null ? "" : rawCode.trim();
         if (code.isEmpty()) {
             throw ApiException.wxCodeRequired();
@@ -113,29 +160,39 @@ public class AuthService {
 
         WxSession session = weChatClient.jscode2session(code);
         String openid = session.openid();
+        // 本次请求的唯一时刻取值：createdAt 与邀请关系 register_time 共用（invite 需求 5.8）。
         LocalDateTime now = LocalDateTime.now(clock);
 
         User existing = userRepository.findByWxOpenid(openid).orElse(null);
         if (existing != null) {
             // 补写首次未下发、后续才获得的 unionid（需求 3.2）。
+            User user = existing;
             if (existing.getWxUnionid() == null && session.unionid() != null) {
                 existing.setWxUnionid(session.unionid());
                 existing.setUpdatedAt(now);
-                return userRepository.save(existing);
+                user = userRepository.save(existing);
             }
-            return existing;
+            // 非建号路径：见 emailLogin 中同一处注释（invite 需求 5.3、5.11）。
+            return new LoginOutcome(user,
+                    inviteBindingService.bindOnRegister(user, false, rawInviteCode, now), false);
         }
 
         User user = new User();
         user.setWxOpenid(openid);
         user.setWxUnionid(session.unionid());
+        // 个人邀请码：10 次全被占用则抛错，整个登录事务回滚（invite 需求 1.2、1.7）。
+        user.setInviteCode(inviteCodeGenerator.generateUnique(userRepository::existsByInviteCode));
         user.setPlan(Plan.FREE);
         user.setRole(Role.USER);
         user.setPlanStartedAt(now);
         user.setPlanExpiresAt(now.plusDays(365));
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
-        return userRepository.save(user);
+        User created = userRepository.save(user);
+
+        // 同一事务内建立邀请关系；register_time 复用上面那个 now（invite 需求 5.2、5.8）。
+        return new LoginOutcome(created,
+                inviteBindingService.bindOnRegister(created, true, rawInviteCode, now), true);
     }
 
     /**

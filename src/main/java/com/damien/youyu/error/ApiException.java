@@ -357,4 +357,34 @@ public class ApiException extends RuntimeException {
         return new ApiException("ENUM_VALUE_INVALID", HttpStatus.BAD_REQUEST,
                 "字段取值非法", field);
     }
+
+    // ---- 常用工厂方法（Invite 邀请域） ----
+    // 失败一律零副作用：不写库、不改状态；邀请码/二维码故障不传导到登录与注销主路径。
+
+    /** 连续 10 次抽取的候选邀请码均被占用（需求 1.7、1.8）。 */
+    public static ApiException inviteCodeGenFailed() {
+        return new ApiException("INVITE_CODE_GEN_FAILED", HttpStatus.INTERNAL_SERVER_ERROR,
+                "邀请码生成失败，请重试", null);
+    }
+
+    /**
+     * 微信配置缺失、凭证获取失败或小程序码接口失败（需求 3.6、3.7、3.14）。
+     * 微信 {@code errcode} 只进服务端日志，不透传给客户端。
+     */
+    public static ApiException inviteQrCodeFailed(String message) {
+        return new ApiException("INVITE_QRCODE_FAILED", HttpStatus.BAD_GATEWAY,
+                message == null ? "邀请二维码暂时不可用，请稍后重试" : message, null);
+    }
+
+    /** 邀请相关接口触发限流（需求 3.9、8.6）。 */
+    public static ApiException inviteRateLimited() {
+        return new ApiException("INVITE_RATE_LIMITED", HttpStatus.TOO_MANY_REQUESTS,
+                "请求过于频繁，请稍后再试", null);
+    }
+
+    /** 被邀请人列表分页参数非法（需求 7.9）。{@code field} 为 page 或 size。 */
+    public static ApiException invitePageParamInvalid(String field) {
+        return new ApiException("INVITE_PAGE_PARAM_INVALID", HttpStatus.BAD_REQUEST,
+                "分页参数非法：page 取值 0-100000，size 取值 1-50", field);
+    }
 }

@@ -122,19 +122,24 @@ class PlanRolePropertyTest {
         Mockito.when(verificationCodeService.verifyConsume(
                 Mockito.anyString(), Mockito.eq(EmailCodePurpose.LOGIN), Mockito.anyString()))
                 .thenReturn(true);
-        AuthService service = new AuthService(repository, clock, null, verificationCodeService);
+        InviteBindingService inviteBindingService = Mockito.mock(InviteBindingService.class);
+        Mockito.when(inviteBindingService.bindOnRegister(Mockito.any(), Mockito.anyBoolean(),
+                Mockito.any(), Mockito.any()))
+                .thenReturn(InviteBindResult.ofUnbound(UnboundReason.NO_CODE));
+        AuthService service = new AuthService(repository, clock, null, verificationCodeService,
+                new InviteCodeGenerator(), inviteBindingService);
 
         String email1 = username1 + "@example.com";
         String email2 = username2 + "@example.com";
 
         // 用户 1 在 epoch1 首次邮箱登录（建号）
         clock.setInstant(Instant.ofEpochSecond(epoch1));
-        User user1 = service.emailLogin(email1, "123456");
+        User user1 = service.emailLogin(email1, "123456", null).user();
         LocalDateTime expectedStart1 = LocalDateTime.ofInstant(Instant.ofEpochSecond(epoch1), ZONE);
 
         // 用户 2 在 epoch2 首次邮箱登录（可能早于或晚于 epoch1）
         clock.setInstant(Instant.ofEpochSecond(epoch2));
-        User user2 = service.emailLogin(email2, "123456");
+        User user2 = service.emailLogin(email2, "123456", null).user();
         LocalDateTime expectedStart2 = LocalDateTime.ofInstant(Instant.ofEpochSecond(epoch2), ZONE);
 
         // 各自到期 = 各自起始 + 精确 365×24 小时

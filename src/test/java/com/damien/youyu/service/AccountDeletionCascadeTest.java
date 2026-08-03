@@ -88,6 +88,7 @@ class AccountDeletionCascadeTest {
     @Autowired private TransactionTemplateRepository templateRepository;
     @Autowired private LedgerInviteRepository inviteRepository;
     @Autowired private VerificationCodeRepository verificationCodeRepository;
+    @Autowired private com.damien.youyu.repository.InviteRelationRepository inviteRelationRepository;
 
     private AccountDeletionService service() {
         return new AccountDeletionService(
@@ -96,7 +97,8 @@ class AccountDeletionCascadeTest {
                 accountLedgerRepository, transactionTagRepository, categoryRepository,
                 budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
                 projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
-                verificationCodeRepository);
+                verificationCodeRepository, inviteRelationRepository,
+                java.time.Clock.systemDefaultZone());
     }
 
     /** 播种一名用户名下全部相关表数据，返回其 userId。email/openid 唯一，便于验证释放。 */

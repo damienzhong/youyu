@@ -198,8 +198,12 @@ class IdentityPropertyTest {
         when(weChatClient.jscode2session(anyString()))
                 .thenAnswer(inv -> new WxSession(inv.getArgument(0), null));
 
+        InviteBindingService inviteBindingService = Mockito.mock(InviteBindingService.class);
+        when(inviteBindingService.bindOnRegister(any(), Mockito.anyBoolean(), any(), any()))
+                .thenReturn(InviteBindResult.ofUnbound(UnboundReason.NO_CODE));
         AuthService service = new AuthService(
-                repository, Clock.fixed(T0, ZONE), weChatClient, verificationCodeService);
+                repository, Clock.fixed(T0, ZONE), weChatClient, verificationCodeService,
+                new InviteCodeGenerator(), inviteBindingService);
 
         List<User> accounts = new ArrayList<>();
         for (int i = 0; i < ACCOUNTS; i++) {

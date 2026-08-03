@@ -26,7 +26,7 @@ import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.UserRepository;
 
 /**
- * 单元测试：{@link AuthService#emailLogin(String, String)} 的登录/注册合一行为（需求 2）。
+ * 单元测试：{@link AuthService#emailLogin(String, String, String)} 的登录/注册合一行为（需求 2）。
  *
  * <p>使用测试替身（Mockito）隔离验证码校验与持久化：验证码校验结果由
  * {@link VerificationCodeService#verifyConsume} 控制，用户仓储的查/建以 {@link UserRepository}
@@ -50,8 +50,12 @@ class AuthEmailLoginTest {
         userRepository = mock(UserRepository.class);
         verificationCodeService = mock(VerificationCodeService.class);
         // emailLogin 不使用 weChatClient，传 null 即可。
+        InviteBindingService inviteBindingService = mock(InviteBindingService.class);
+        when(inviteBindingService.bindOnRegister(any(), org.mockito.ArgumentMatchers.anyBoolean(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(InviteBindResult.ofUnbound(UnboundReason.NO_CODE));
         service = new AuthService(userRepository, Clock.fixed(T0, ZONE), null,
-                verificationCodeService);
+                verificationCodeService, new InviteCodeGenerator(), inviteBindingService);
         // save 回填 id 并原样返回，模拟 JPA 持久化语义。
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
             User u = inv.getArgument(0);
@@ -69,7 +73,7 @@ class AuthEmailLoginTest {
                 .thenReturn(true);
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
-        User created = service.emailLogin(email, "123456");
+        User created = service.emailLogin(email, "123456", null).user();
 
         assertThat(created.getId()).isNotNull();
         assertThat(created.getEmail()).isEqualTo(email);
@@ -98,7 +102,7 @@ class AuthEmailLoginTest {
                 .thenReturn(true);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(existing));
 
-        User loggedIn = service.emailLogin(email, "654321");
+        User loggedIn = service.emailLogin(email, "654321", null).user();
 
         assertThat(loggedIn).isSameAs(existing);
         assertThat(loggedIn.getId()).isEqualTo(42L);
@@ -113,7 +117,7 @@ class AuthEmailLoginTest {
                 .thenReturn(false);
 
         ApiException ex = catchThrowableOfType(
-                () -> service.emailLogin(email, "000000"), ApiException.class);
+                () -> service.emailLogin(email, "000000", null), ApiException.class);
 
         assertThat(ex).isNotNull();
         assertThat(ex.getCode()).isEqualTo("CODE_INVALID");
@@ -130,7 +134,7 @@ class AuthEmailLoginTest {
                 .thenReturn(true);
         when(userRepository.findByEmail(trimmed)).thenReturn(Optional.empty());
 
-        User created = service.emailLogin(raw, "111111");
+        User created = service.emailLogin(raw, "111111", null).user();
 
         assertThat(created.getEmail()).isEqualTo(trimmed);
         assertThat(created.getNickname()).isEqualTo("dave");
