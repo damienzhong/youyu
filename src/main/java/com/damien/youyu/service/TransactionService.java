@@ -51,18 +51,21 @@ public class TransactionService {
     private final CategoryRepository categoryRepository;
     private final LedgerAccountResolver accountResolver;
     private final Clock clock;
+    private final GrowthSettlementTrigger growthSettlementTrigger;
 
     public TransactionService(
             TransactionRepository transactionRepository,
             AccountRepository accountRepository,
             CategoryRepository categoryRepository,
             LedgerAccountResolver accountResolver,
-            Clock clock) {
+            Clock clock,
+            GrowthSettlementTrigger growthSettlementTrigger) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.categoryRepository = categoryRepository;
         this.accountResolver = accountResolver;
         this.clock = clock;
+        this.growthSettlementTrigger = growthSettlementTrigger;
     }
 
     // ---------------- 收支记账 ----------------
@@ -126,7 +129,16 @@ public class TransactionService {
         tx.setUpdatedAt(now);
         tx.setAccountId(accountId);
         tx.setCategoryId(categoryId);
-        return transactionRepository.save(tx);
+        Transaction saved = transactionRepository.save(tx);
+
+        // 挂结算：这是唯一产生「有效记账交易」（type ∈ {expense,income} 且 ledger_id 非空）的路径，
+        // 故成长结算只需挂在此处（需求 9.1、9.2、9.3、7.1）。
+        // 归属键取 tx.getCreatedBy() 而非 userId：协作代记时记账人（createdByOverride）可能不是会话用户，
+        // 经验应归属真正的记账人。
+        // 「不触发路径天然满足」，无需额外判定：transfer 与 adjustBalance 各自建行且 ledger_id 为 null，
+        // update / delete / restore / purge 不新增行，因此都不构成「新增有效记账交易」。
+        growthSettlementTrigger.requestSettlement(saved.getCreatedBy());
+        return saved;
     }
 
     // ---------------- 转账（脱离账本）----------------

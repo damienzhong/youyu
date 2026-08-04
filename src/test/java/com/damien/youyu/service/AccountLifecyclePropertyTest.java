@@ -181,6 +181,8 @@ class AccountLifecyclePropertyTest {
                 mock(LedgerInviteRepository.class),
                 mock(VerificationCodeRepository.class),
                 mock(com.damien.youyu.repository.InviteRelationRepository.class),
+                mock(com.damien.youyu.repository.GrowthEventRepository.class),
+                mock(com.damien.youyu.repository.UserGrowthRepository.class),
                 clock);
 
         return new Fixture(userRepository, authService, deletionService);

@@ -53,8 +53,10 @@ class TransactionServiceTest {
     private CategoryRepository categoryRepository;
 
     private TransactionService service() {
+        Clock clock = Clock.fixed(T0, ZONE);
         return new TransactionService(transactionRepository, accountRepository, categoryRepository,
-                new LedgerAccountResolver(accountRepository, accountLedgerRepository), Clock.fixed(T0, ZONE));
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository), clock,
+                new GrowthSettlementTrigger(null, clock));
     }
 
     /** 创建账户并纳入 ledgerId=userId 的账本，使其可用于该账本记账。 */

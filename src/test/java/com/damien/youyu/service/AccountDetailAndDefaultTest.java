@@ -58,8 +58,9 @@ class AccountDetailAndDefaultTest {
     }
 
     private TransactionService txService() {
+        Clock clock = Clock.fixed(T0, ZONE);
         return new TransactionService(transactionRepository, accountRepository, categoryRepository,
-                resolver(), Clock.fixed(T0, ZONE));
+                resolver(), clock, new GrowthSettlementTrigger(null, clock));
     }
 
     private Account account(long ownerId, String name, String balance) {

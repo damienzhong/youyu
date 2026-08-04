@@ -80,8 +80,10 @@ class TransactionPropertyTest {
     private CategoryRepository categoryRepository;
 
     private TransactionService txService() {
+        Clock clock = Clock.fixed(T0, ZONE);
         return new TransactionService(transactionRepository, accountRepository, categoryRepository,
-                new LedgerAccountResolver(accountRepository, accountLedgerRepository), Clock.fixed(T0, ZONE));
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository), clock,
+                new GrowthSettlementTrigger(null, clock));
     }
 
     @Autowired

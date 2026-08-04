@@ -70,6 +70,7 @@ public class ImportService {
     private final AccountLedgerRepository accountLedgerRepository;
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
+    private final GrowthSettlementTrigger growthSettlementTrigger;
     private final Clock clock;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -78,11 +79,13 @@ public class ImportService {
             AccountLedgerRepository accountLedgerRepository,
             CategoryRepository categoryRepository,
             TransactionRepository transactionRepository,
+            GrowthSettlementTrigger growthSettlementTrigger,
             Clock clock) {
         this.accountRepository = accountRepository;
         this.accountLedgerRepository = accountLedgerRepository;
         this.categoryRepository = categoryRepository;
         this.transactionRepository = transactionRepository;
+        this.growthSettlementTrigger = growthSettlementTrigger;
         this.clock = clock;
     }
 
@@ -119,6 +122,10 @@ public class ImportService {
 
         // 逐笔交易已在内存中累加余额增量，统一持久化更新后的 current_balance。
         accountRepository.saveAll(accountByRef.values());
+
+        // 整个导入是单个事务，故一次请求恰好触发 1 次结算（afterCommit 阶段执行）。
+        // 本服务直连 transactionRepository.save、不经 TransactionService.create，因此必须单独挂结算。
+        growthSettlementTrigger.requestSettlement(userId);
 
         return new ImportResult(accountByRef.size(), categoryByRef.size(), txCount);
     }

@@ -89,7 +89,7 @@ class ImportServiceRoundTripTest {
 
     private ImportService importService() {
         return new ImportService(accountRepository, accountLedgerRepository, categoryRepository,
-                transactionRepository, CLOCK);
+                transactionRepository, new GrowthSettlementTrigger(null, CLOCK), CLOCK);
     }
 
     @Autowired

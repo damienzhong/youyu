@@ -4,6 +4,8 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.GrowthEventRepository;
 import com.damien.youyu.repository.InviteRelationRepository;
 import com.damien.youyu.repository.LedgerInviteRepository;
 import com.damien.youyu.repository.LedgerMemberRepository;
@@ -29,6 +32,7 @@ import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.TransactionTagRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
+import com.damien.youyu.repository.UserGrowthRepository;
 import com.damien.youyu.repository.UserRepository;
 import com.damien.youyu.repository.VerificationCodeRepository;
 import com.damien.youyu.wechat.WeChatClient;
@@ -54,6 +58,11 @@ import com.damien.youyu.wechat.WxSession;
  */
 @Service
 public class AccountDeletionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AccountDeletionService.class);
+
+    /** 成长数据删除耗时告警阈值（需求 12.9/12.10）：两步硬删合计超过 1000ms 记一条 WARN，但不中止注销事务。 */
+    private static final long GROWTH_DELETE_SLOW_MS = 1000L;
 
     private final LedgerRepository ledgerRepository;
     private final LedgerMemberRepository memberRepository;
@@ -83,6 +92,11 @@ public class AccountDeletionService {
     private final InviteRelationRepository inviteRelationRepository;
     private final Clock clock;
 
+    // 成长数据（growth-level-system 任务 8.3，需求 12）：注销时在删 users 行之前硬删两表中该用户的行。
+    // 两表均无指向 users(id) 的外键（需求 11.9），故由服务层在同一注销事务内显式删除。
+    private final GrowthEventRepository growthEventRepository;
+    private final UserGrowthRepository userGrowthRepository;
+
     public AccountDeletionService(
             LedgerRepository ledgerRepository,
             LedgerMemberRepository memberRepository,
@@ -105,6 +119,8 @@ public class AccountDeletionService {
             LedgerInviteRepository inviteRepository,
             VerificationCodeRepository verificationCodeRepository,
             InviteRelationRepository inviteRelationRepository,
+            GrowthEventRepository growthEventRepository,
+            UserGrowthRepository userGrowthRepository,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
@@ -127,6 +143,8 @@ public class AccountDeletionService {
         this.inviteRepository = inviteRepository;
         this.verificationCodeRepository = verificationCodeRepository;
         this.inviteRelationRepository = inviteRelationRepository;
+        this.growthEventRepository = growthEventRepository;
+        this.userGrowthRepository = userGrowthRepository;
         this.clock = clock;
     }
 
@@ -229,6 +247,9 @@ public class AccountDeletionService {
      *   <li>{@code verification_code}（按 email，干净释放邮箱身份）；</li>
      *   <li>{@code invite_relations}：把「该用户作为被邀请人」的那一行置 {@code INVALID}（不删行），
      *       必须早于 {@code users} 行的删除（邀请系统需求 10.2、10.3）；</li>
+     *   <li>成长数据（第 12.5 步，成长体系需求 12）：先硬删 {@code growth_events} 中 {@code user_id} 等于
+     *       该用户 id 的全部行、再硬删 {@code user_growth} 中该用户的行，置于 {@code invite_relations}
+     *       置 {@code INVALID} 之后、删 {@code users} 行之前；两表均无外键、固定顺序只为可逐语句断言；</li>
      *   <li>{@code users}（用户行本身，最后）。删除用户行即释放其 {@code email} 与 {@code wx_openid}
      *       两个唯一键，供后续重新注册复用（需求 8.4），并随行释放 {@code invite_code}
      *       （邀请系统需求 10.4）。</li>
@@ -316,6 +337,25 @@ public class AccountDeletionService {
         //     唯一索引 uk_invite_relations_invitee 保证本次更新影响行数 ≤ 1；返回 0 表示该用户不是任何人
         //     的被邀请人，属正常情况，无需处理。
         inviteRelationRepository.markInvalidByInviteeId(userId, LocalDateTime.now(clock));
+
+        // 12.5) 成长数据硬删（growth-level-system 需求 12.1/12.2/12.5~12.11）：置于第 12 步（invite_relations
+        //     置 INVALID）之后、第 13 步（删 users 行）之前，且不改变既有各步骤的相对顺序、过滤条件与影响行数
+        //     （需求 12.8）。两表均无指向 users(id) 的外键（需求 11.9），删除顺序在数据库层没有约束；这里固定
+        //     「先 growth_events、再 user_growth」只为使删除步骤可逐语句断言（需求 12.1）。
+        //     两表无行时影响行数 0 即视为成功，删除前不做任何存在性预查询，也不写任何软删除或归档副本
+        //     （需求 12.11、12.2）。整个 deleteAccount 是单个事务：这两步中任一步失败则整体回滚，users 与
+        //     成长数据全列还原（需求 12.4）；且本方法只在 requireDeletable 与 verifySecondFactor（均只读）
+        //     通过后才被调用，故前置校验失败时两表零副作用（需求 12.5）。成长数据无跨用户引用，删除不触及
+        //     其它用户（需求 12.6），也不修改 invite_relations 任何行（需求 12.7，该表联动完全由第 12 步负责）。
+        long growthDeleteStartedMs = clock.millis();
+        growthEventRepository.deleteByUserId(userId);
+        userGrowthRepository.deleteByUserId(userId);
+        long growthDeleteCostMs = clock.millis() - growthDeleteStartedMs;
+        if (growthDeleteCostMs > GROWTH_DELETE_SLOW_MS) {
+            // 耗时超阈值只告警，不中止注销事务、不改变响应字段集与状态码（需求 12.10）。
+            log.warn("[GROWTH_DELETE_SLOW] userId={} cost={}ms 超出 {}ms 预算",
+                    userId, growthDeleteCostMs, GROWTH_DELETE_SLOW_MS);
+        }
 
         // 13) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）；
         //     同时随该行释放 users.invite_code，后续新用户可重新抽到同一个码——邀请关系的归属判定用的是

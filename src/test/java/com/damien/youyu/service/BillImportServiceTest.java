@@ -65,7 +65,8 @@ class BillImportServiceTest {
     private BillImportService service() {
         return new BillImportService(transactionRepository, accountRepository, categoryRepository,
                 projectRepository, tagRepository, transactionTagRepository,
-                new LedgerAccountResolver(accountRepository, accountLedgerRepository), FIXED);
+                new LedgerAccountResolver(accountRepository, accountLedgerRepository),
+                new GrowthSettlementTrigger(null, FIXED), FIXED);
     }
 
     @Test

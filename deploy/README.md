@@ -104,6 +104,18 @@ bash deploy/dev-remote-db.sh                                     # 本地后端�
 - 回滚：`/opt/youyu/backup/` 下有历史 jar，拷回 `app/youyu.jar` 再 `systemctl restart youyu`
 - 备份数据库（建议加 cron）：`mysqldump -u youyu -p youyu > youyu-$(date +%F).sql`
 
+## 数据库连接池（成长结算的连接占用）
+
+成长体系的结算在记账业务事务的**提交后回调**里以独立事务（`REQUIRES_NEW`）执行。此时外层记账事务的连接
+**尚未释放**，结算又要另取一个连接，因此**同一记账请求在结算窗口内会同时占用 2 个数据库连接**。
+
+- 连接池上限（`spring.datasource.hikari.maximum-pool-size`）已在 `application.yml` 显式设为 **20**
+  （HikariCP 默认只有 10），按「并发记账请求数 × 2」预留余量；可用环境变量 `YOUYU_DB_POOL_MAX_SIZE` 覆盖。
+- 记账高峰把连接池打满时，结算会以「**获取连接超时**」失败——这是**预期内的降级**：结算被设计成
+  「失败即吞、下次自愈」，失败只记 WARN 日志，**不会拖垮记账**（记账事务已提交，经验会在该用户下一次
+  结算时自动补齐）。因此看到偶发的结算获取连接超时告警**无需人工干预**。
+- 若调大连接池，务必确认 MySQL 的 `max_connections`（MySQL 8 默认 151）能覆盖「所有实例连接池上限之和」。
+
 ## 注意
 
 - `env.conf` 含密码/密钥，权限 600，**不进仓库**（`.gitignore` 已忽略）。

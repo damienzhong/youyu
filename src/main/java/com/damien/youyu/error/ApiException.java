@@ -387,4 +387,19 @@ public class ApiException extends RuntimeException {
         return new ApiException("INVITE_PAGE_PARAM_INVALID", HttpStatus.BAD_REQUEST,
                 "分页参数非法：page 取值 0-100000，size 取值 1-50", field);
     }
+
+    // ---- 常用工厂方法（Growth 成长域） ----
+    // 成长体系（growth-level-system spec）只新增下面这 1 个错误码，别的失败都不对外暴露错误码：
+    //  - 结算失败：结算在 afterCommit 回调里独立事务执行，异常一律在事务边界外吞掉只记日志，
+    //    记账/导入接口感知不到；成长概览遇到结算失败时降级返回（等级 1 / 经验 0 / 徽章未点亮 +
+    //    真实累计统计），响应字段集与结算成功时相同（需求 9.10、9.11）。
+    //  - 结算节流：概览侧 10 秒窗口内跳过结算并返回当前持久化取值，同样不返回错误（需求 10.14）。
+    // 刻意**不复用** invitePageParamInvalid：跨域复用会让客户端在成长页收到带 INVITE 前缀的
+    // 错误码（INVITE_PAGE_PARAM_INVALID），既误导排查也让前端无法按域分派提示文案。
+
+    /** 经验明细分页参数非法（需求 10.9、10.15）。{@code field} 为 page 或 size。 */
+    public static ApiException growthPageParamInvalid(String field) {
+        return new ApiException("GROWTH_PAGE_PARAM_INVALID", HttpStatus.BAD_REQUEST,
+                "分页参数非法：page 取值 0-100000，size 取值 1-50", field);
+    }
 }

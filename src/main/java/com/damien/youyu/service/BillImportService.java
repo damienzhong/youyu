@@ -59,6 +59,7 @@ public class BillImportService {
     private final TagRepository tagRepository;
     private final TransactionTagRepository transactionTagRepository;
     private final LedgerAccountResolver accountResolver;
+    private final GrowthSettlementTrigger growthSettlementTrigger;
     private final Clock clock;
 
     public BillImportService(
@@ -69,6 +70,7 @@ public class BillImportService {
             TagRepository tagRepository,
             TransactionTagRepository transactionTagRepository,
             LedgerAccountResolver accountResolver,
+            GrowthSettlementTrigger growthSettlementTrigger,
             Clock clock) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
@@ -77,6 +79,7 @@ public class BillImportService {
         this.tagRepository = tagRepository;
         this.transactionTagRepository = transactionTagRepository;
         this.accountResolver = accountResolver;
+        this.growthSettlementTrigger = growthSettlementTrigger;
         this.clock = clock;
     }
 
@@ -186,6 +189,10 @@ public class BillImportService {
                 transactionTagRepository.saveAll(links);
             }
         }
+
+        // 整个导入是单个事务，故一次请求恰好触发 1 次结算（afterCommit 阶段执行）。
+        // 本服务直连 transactionRepository.saveAll、不经 TransactionService.create，因此必须单独挂结算。
+        growthSettlementTrigger.requestSettlement(userId);
 
         return new BillImportResponse(imported, skippedDuplicate, skippedInvalid);
     }

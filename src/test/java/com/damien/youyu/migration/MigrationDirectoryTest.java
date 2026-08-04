@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>三件事：
  * <ol>
- *   <li>invite-system 的新脚本 {@code V31__user_invite.sql} 存在，且版本号严格大于目录内其余全部版本号；</li>
+ *   <li>growth-level-system 的新脚本 {@code V32__user_growth.sql} 存在，且版本号严格大于目录内其余全部版本号；</li>
  *   <li>目录内版本号无重复（Flyway 遇重复版本号会直接启动失败）；</li>
  *   <li>历史迁移文件未被改动 —— 以基线清单
  *       {@code src/test/resources/db/migration-baseline.sha256}（文件名 + sha-256）比对。</li>
@@ -36,13 +36,19 @@ import org.junit.jupiter.api.Test;
  * 只有校验和能抓住。历史迁移一旦执行过就不可再改（Flyway 的 checksum 校验会让已部署环境启动失败），
  * 因此基线清单只应在刻意变更历史脚本时才更新，且这种更新必然出现在 diff 里、逃不过 review。
  *
- * <p>Validates: Requirements 9.10, 9.16
+ * <p>新脚本落地后即随基线一同纳管：本类每次被新 spec 复用时，只需把上一轮的新脚本连同本轮的新脚本
+ * 补进基线清单，并把 {@link #NEW_MIGRATION} 指向本轮的新脚本。
+ *
+ * <p>Validates: Requirements 11.11, 11.12
  */
 class MigrationDirectoryTest {
 
-    /** 本 spec 新增的迁移脚本（设计定为 V31，V30 由 user-feedback-system spec 预占）。 */
-    private static final String NEW_MIGRATION = "V31__user_invite.sql";
-    private static final int NEW_MIGRATION_VERSION = 31;
+    /**
+     * 本 spec 新增的迁移脚本（设计定为 V32；撰写设计时目录内最大为 V31 即 {@code V31__user_invite.sql}，
+     * V30 由 user-feedback-system spec 预占且文件尚未落地）。
+     */
+    private static final String NEW_MIGRATION = "V32__user_growth.sql";
+    private static final int NEW_MIGRATION_VERSION = 32;
 
     private static final String BASELINE_RESOURCE = "/db/migration-baseline.sha256";
     private static final Pattern MIGRATION_NAME = Pattern.compile("^V(\\d+)__[A-Za-z0-9_]+\\.sql$");
@@ -113,7 +119,7 @@ class MigrationDirectoryTest {
         List<String> names = migrationFileNames();
 
         assertThat(names)
-                .as("invite-system 的迁移脚本须存在")
+                .as("growth-level-system 的迁移脚本须存在")
                 .contains(NEW_MIGRATION);
         assertThat(versionOf(NEW_MIGRATION)).isEqualTo(NEW_MIGRATION_VERSION);
 
@@ -144,6 +150,11 @@ class MigrationDirectoryTest {
         Map<String, String> expected = baseline();
         List<String> names = migrationFileNames();
 
+        // 新脚本一并纳入基线：此后任何对它的改动都必须显式更新基线清单、逃不过 review
+        assertThat(expected)
+                .as("本 spec 新增的迁移脚本须纳入基线清单 %s", BASELINE_RESOURCE)
+                .containsKey(NEW_MIGRATION);
+
         // 基线里的文件既不能消失也不能改名
         assertThat(names)
                 .as("历史迁移文件不得被删除或重命名")
@@ -161,7 +172,7 @@ class MigrationDirectoryTest {
                 .as("历史迁移文件内容不得被修改；若确需变更，须同步更新 %s", BASELINE_RESOURCE)
                 .isEmpty();
 
-        // 基线之外的文件只允许是本 spec 新增的脚本，或版本号更大的后续脚本
+        // 基线之外的文件只允许是版本号更大的后续脚本（后续 spec 不得插到已纳管版本之前）
         assertThat(names)
                 .filteredOn(name -> !expected.containsKey(name))
                 .as("新增迁移文件的版本号须大于基线中的全部版本号")

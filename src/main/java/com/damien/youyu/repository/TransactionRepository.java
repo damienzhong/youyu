@@ -23,7 +23,7 @@ import java.math.BigDecimal;
  * 交易仓库。所有查询方法固定携带 {@code ledgerId} 过滤，保证多账本隔离（需求 2.3）。
  */
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+public interface TransactionRepository extends JpaRepository<Transaction, Long>, TransactionRepositoryCustom {
 
     /** 分页列出某账本交易，按时间倒序（需求 2.3）。 */
     Page<Transaction> findByLedgerIdOrderByOccurredAtDescIdDesc(Long ledgerId, Pageable pageable);
@@ -223,4 +223,72 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             WHERE t.sourceAccountId = :accountId
             """)
     BigDecimal sumTransferOutByAccountId(@Param("accountId") Long accountId);
+
+    // ---------------- 成长体系的「有效记账交易」聚合（需求 7.1–7.6、7.12、4.6）----------------
+    //
+    // 「有效记账交易」= created_by 等于该用户 AND deleted_at IS NULL AND type IN ('expense','income')
+    // AND ledger_id IS NOT NULL。以下四个查询全部 nativeQuery：本实体带
+    // @SQLRestriction("deleted_at is null")，走 JPQL 会让四个条件之一变成 Hibernate 注入的隐式条件，
+    // 读代码时看不见口径。代价是必须自己写 deleted_at IS NULL——漏写会把回收站记录算进来。
+    // 按 created_by 过滤复用既有单列索引 idx_tx_created_by，本组查询不需要新增任何列与索引（需求 7.12）。
+
+    /**
+     * 累计记账笔数（需求 7.2）：四个条件在原生 SQL 里逐条可见。
+     *
+     * <p>刻意走原生 SQL：本实体带 {@code @SQLRestriction("deleted_at is null")}，走 JPQL 会让软删过滤
+     * 变成隐式条件，故这里自己写 {@code deleted_at IS NULL}，漏写会把回收站记录算进来。</p>
+     */
+    @Query(value = "SELECT COUNT(*) FROM transactions WHERE created_by = :userId "
+            + "AND deleted_at IS NULL AND type IN ('expense','income') AND ledger_id IS NOT NULL",
+            nativeQuery = true)
+    long countValidRecordsByCreatedBy(@Param("userId") Long userId);
+
+    /**
+     * 累计支出/收入金额（需求 7.3）：一次查询按 type 分组返回至多两行，每行 {@code [type, sum]}。
+     *
+     * <p>刻意走原生 SQL：本实体带 {@code @SQLRestriction("deleted_at is null")}，走 JPQL 会让软删过滤
+     * 变成隐式条件，故这里自己写 {@code deleted_at IS NULL}，漏写会把回收站记录算进来。</p>
+     */
+    @Query(value = "SELECT type, COALESCE(SUM(amount), 0) FROM transactions WHERE created_by = :userId "
+            + "AND deleted_at IS NULL AND type IN ('expense','income') AND ledger_id IS NOT NULL "
+            + "GROUP BY type", nativeQuery = true)
+    List<Object[]> sumValidAmountsByCreatedByGroupByType(@Param("userId") Long userId);
+
+    // 追补起点（需求 4.6 查询 A）见 TransactionRepositoryCustom#findEarliestRecordCreatedAt：
+    // 它要以 getObject(LocalDateTime.class) 逐字回读 MIN(created_at)（零时区换算，需求 4.16），
+    // 故与查询 B 一并走 JdbcTemplate 实现，而非本接口的原生 @Query（后者读成经默认时区换算的 Timestamp）。
+
+    // 追补窗口内的记账日集合（需求 4.6 查询 B）见 TransactionRepositoryCustom#findRecordDatesInWindow：
+    // 它必须以 LocalDate 逐字回读 CAST(created_at AS DATE)（零时区换算，需求 4.16），故走
+    // JdbcTemplate + getObject(LocalDate.class) 实现（本接口继承 TransactionRepositoryCustom）。
+    // 不能用原生 @Query：其标量会被读成经 JVM 默认时区换算的 java.sql.Date，非 Asia/Shanghai 时整日平移。
+
+    // ---------------- 成长体系的「预算达成」月度支出合计（需求 5.11、5.15）----------------
+
+    /**
+     * 一批账本在某自然月的月度有效支出合计，按 {@code ledger_id} 分组，每行 {@code [ledger_id, sum]}
+     * （{@code GrowthBudgetEvaluator} 的预算达成判定用，需求 5.11、5.15）。
+     *
+     * <p>口径与 {@code BudgetService.monthExpenses} 逐条对齐（需求 5.11）：按 {@code ledger_id} 过滤、
+     * 只计 {@code type='expense'}、排除 {@code deleted_at} 非空、按 {@code occurred_at} 落在半开区间
+     * {@code [月首 00:00, 次月首 00:00)} 取值。三点必须点明：</p>
+     * <ol>
+     *   <li>这里按 <b>{@code occurred_at}</b> 聚合，与记账日历按 {@code created_at} 刻意不同——预算衡量
+     *       「这笔钱花在哪个月」，日历衡量「哪天来记账」（需求 5.11 对比需求 4.1）。</li>
+     *   <li>过滤条件<b>不复用</b>累计统计那套（{@code countValidRecordsByCreatedBy} 等按 {@code created_by}
+     *       跨全部账本；本查询按 {@code ledger_id} 限自有账本），需求 5.13 明确要求两处彼此独立。</li>
+     *   <li>用 {@code ledger_id IN (:ledgerIds)} 一次取回全部自有账本、在应用层按账本分组，使预算判定的
+     *       读查询数不随账本数增长（需求 5.15）。</li>
+     * </ol>
+     *
+     * <p>刻意走原生 SQL：本实体带 {@code @SQLRestriction("deleted_at is null")}，走 JPQL 会让软删过滤
+     * 变成隐式条件，故这里自己写 {@code deleted_at IS NULL}，使「有效支出」口径逐条可见。</p>
+     */
+    @Query(value = "SELECT ledger_id, COALESCE(SUM(amount), 0) FROM transactions "
+            + "WHERE ledger_id IN (:ledgerIds) AND type = 'expense' AND deleted_at IS NULL "
+            + "AND occurred_at >= :fromInclusive AND occurred_at < :toExclusive "
+            + "GROUP BY ledger_id", nativeQuery = true)
+    List<Object[]> sumMonthlyExpenseByLedgerIds(@Param("ledgerIds") Collection<Long> ledgerIds,
+                                                @Param("fromInclusive") LocalDateTime fromInclusive,
+                                                @Param("toExclusive") LocalDateTime toExclusive);
 }

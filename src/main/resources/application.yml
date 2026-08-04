@@ -8,6 +8,14 @@ spring:
     username: ${YOUYU_DB_USER:youyu}
     password: ${YOUYU_DB_PASSWORD:youyu}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 连接池上限：成长结算走 REQUIRES_NEW，在业务事务的 afterCommit 阶段执行——此时外层连接
+      # 尚未在 afterCompletion 释放，结算又要拿一个新连接，故「同一记账请求在结算窗口内同时占用
+      # 2 个连接」。容量按「并发记账请求数 × 2」估算：HikariCP 默认仅 10（只够 ~5 个并发记账请求
+      # 同时结算），本项目单实例、MySQL 8 默认 max_connections=151，这里显式抬到 20，留出「并发
+      # 记账请求数 × 2」的余量并给其它读请求腾出连接。池打满时结算会以「获取连接超时」失败，这正是
+      # 它被设计成「失败即吞、下次自愈」的原因（需求 9.13/9.14），不会拖垮记账。可用环境变量覆盖。
+      maximum-pool-size: ${YOUYU_DB_POOL_MAX_SIZE:20}
 
   jpa:
     hibernate:
@@ -18,10 +26,18 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
-        # 刻意不设 hibernate.jdbc.time_zone：全部时间列都是 LocalDateTime(DATETIME) 的挂钟时刻，
-        # 时区语义由 TimeConfig 的 Clock(Asia/Shanghai) 单点决定。一旦设了它，Hibernate 会按
-        # 「JVM 默认时区 → 该时区」再换算一次挂钟值，而同库的原生 JDBC 写入(如邀请关系)不换算，
-        # 于是 JVM 时区非 Asia/Shanghai 时两条写入路径会差出时区偏移（CI 在 UTC 下差 8 小时）。
+        # 让 Hibernate 用 JDBC 4.2 的 setObject/getObject 直接绑定 java.time 类型（LocalDate(Time)），
+        # 挂钟值逐字落库、逐字回读，零时区换算。这样成长体系的记账日归属（CAST(created_at AS DATE)）
+        # 与自然月/报表边界不再依赖 JVM 默认时区——不靠 YouyuApplication.main 的 TimeZone.setDefault
+        # 也恒正确（@SpringBootTest 不走 main，CI 又在 UTC 下运行，正是此前 Property 9 暴露的 bug）。
+        # 这也让 Hibernate 的时间列写入与服务层原生 JDBC 写入（邀请关系、成长事件用 JdbcTemplate 的
+        # setObject）绑定方式一致，消除两条写入路径的时区偏差。默认时区为 Asia/Shanghai 时行为不变。
+        type:
+          java_time_use_direct_jdbc: true
+        # 刻意不设 hibernate.jdbc.time_zone：它只会把「JVM 默认时区 → 目标时区」的换算再叠一层，
+        # 治标不治本（写入侧仍经 java.sql.Timestamp 的默认时区换算，且原生 JDBC 写入不受它影响，
+        # 两条路径照样分叉）。真正的根治是上面的 java_time_use_direct_jdbc——绕开 java.sql.Timestamp/
+        # java.sql.Date 的默认时区换算，让挂钟值逐字进出，不引入任何时区表或会话时区依赖。
     show-sql: false
 
   # 版本化数据库迁移

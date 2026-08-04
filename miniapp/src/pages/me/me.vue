@@ -3,11 +3,15 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { fetchInviteInfo } from '../../api/invite'
+import { fetchGrowthOverview } from '../../api/growth'
 
 const auth = useAuthStore()
 
 // 已邀请人数：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 2.6）
 const invitedCount = ref(null)
+
+// 当前等级：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 13.2）
+const growthLevel = ref(null)
 
 const nickname = computed(() => auth.user?.nickname || '有余用户')
 const planLabel = computed(() => {
@@ -30,6 +34,18 @@ onShow(() => {
     })
     .catch(() => {
       invitedCount.value = null
+    })
+  // 等级文案只是锦上添花：失败静默（不弹错误、不影响页面其余部分），入口保持只有标题与箭头。
+  // 注意：GET /api/growth 是写入型 GET（服务端在本请求内顺带结算），因此每次进入「我的」页都会
+  // 触发一次结算尝试；服务端 10 秒结算节流（需求 10.14）正是为这类调用点准备的，用户在「我的」与
+  // 成长页之间来回切换实际只会结算一次。不要把这次调用挪到比 onShow 更高频的时机（例如每次 tab 切换）。
+  fetchGrowthOverview()
+    .then((res) => {
+      const n = Number(res?.level)
+      growthLevel.value = Number.isFinite(n) && n >= 1 ? n : null
+    })
+    .catch(() => {
+      growthLevel.value = null
     })
 })
 
@@ -108,6 +124,17 @@ function logout() {
         <view class="r-ic t-green"><AppIcon name="members" :size="36" /></view>
         <text class="r-t">邀请好友</text>
         <text v-if="invitedCount !== null" class="r-v r-v-invite">已邀请 {{ invitedCount }} 人</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
+    <!-- 成长入口：等级是动态的，故不并入静态 groups（与邀请入口同构） -->
+    <view class="sect">成长</view>
+    <view class="card">
+      <view class="row" @click="go('/pages/growth/growth')">
+        <view class="r-ic t-green"><AppIcon name="star" :size="36" /></view>
+        <text class="r-t">我的成长</text>
+        <text v-if="growthLevel !== null" class="r-v r-v-invite">Lv {{ growthLevel }}</text>
         <text class="arrow">›</text>
       </view>
     </view>

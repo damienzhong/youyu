@@ -138,6 +138,21 @@
         "navigationBarTitleText": "有余邀请",
         "navigationStyle": "custom"
       }
+    },
+    {
+      // 项目里第一个用下拉刷新的页面：enablePullDownRefresh 必须写在页面级 style 里，
+      // 写进 globalStyle 会给全部页面打开下拉刷新（需求 13.16）。
+      "path": "pages/growth/growth",
+      "style": {
+        "navigationBarTitleText": "我的成长",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/growthlog/growthlog",
+      "style": {
+        "navigationBarTitleText": "经验明细"
+      }
     }
   ],
   "globalStyle": {
