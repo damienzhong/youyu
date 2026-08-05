@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -154,6 +155,18 @@ class AchievementFaultIsolationPropertyTest {
 
     /** 成就总数恒为 16（需求 1.1）。 */
     private static final int TOTAL_ACHIEVEMENTS = 16;
+
+    /**
+     * 业务时区，与 {@code TimeConfig} 的 {@code Clock}（{@code Clock.system(Asia/Shanghai)}）同一时区。
+     *
+     * <p>凡是要与服务端「当前时刻/当日」对齐的直插取值（节流窗口的 {@code last_settled_at} /
+     * {@code last_record_date}、播种交易的 {@code occurred_at}、记账 payload 的 {@code occurredAt}、
+     * 以及自愈断言里比对的 {@code DAILY_RECORD:<日期>}）都必须用本时区的挂钟，
+     * <b>不能</b>用 JVM 默认时区的 {@code LocalDate.now()} / {@code LocalDateTime.now()}——
+     * 后者在 UTC 的 CI 上比服务端早 8 小时，会让 {@code SETTLEMENT_THROTTLED} 的 60 秒窗口失效
+     * （本地东八区下两者重合，故只在 CI 暴露）。</p>
+     */
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     /** 记账接口响应字段集（需求 4.15、12.4：判定失败时与判定成功时逐项相同的那一份）。 */
     private static final Set<String> RECORD_KEYS = Set.of(
@@ -399,7 +412,8 @@ class AchievementFaultIsolationPropertyTest {
                 .as("%s：故障解除后的记账仍是 201", because).isEqualTo(201);
         assertThat(eventKeysOf(ctx.userId()))
                 .as("%s：下一次结算补齐上次未写入的事件（需求 4.16）", because)
-                .contains("DAILY_RECORD:" + LocalDate.now(), "FIRST_RECORD", "BADGE:FIRST_RECORD");
+                .contains("DAILY_RECORD:" + LocalDate.now(BUSINESS_ZONE), "FIRST_RECORD",
+                        "BADGE:FIRST_RECORD");
     }
 
     private List<String> eventKeysOf(long userId) {
@@ -651,7 +665,12 @@ class AchievementFaultIsolationPropertyTest {
      * </ul>
      */
     private void applyFault(FaultPoint fault, Ctx ctx) {
-        LocalDateTime now = LocalDateTime.now().withNano(0);
+        // 预置的 last_settled_at / last_record_date 必须与服务端判定节流用的时钟同一时区。
+        // GrowthSettlementThrottle 一律用注入的 Clock（TimeConfig 固定 Asia/Shanghai）算「现在」，
+        // 而 DATETIME 列存的是东八区挂钟（application.yml 刻意不设 hibernate.jdbc.time_zone）。
+        // 若这里改用 JVM 默认时区的 LocalDateTime.now()，在 UTC 的 CI 上写入的挂钟会比服务端的「现在」
+        // 早 8 小时，60 秒窗口判定不成立，SETTLEMENT_THROTTLED 用例便不再被节流（本地东八区下巧合通过）。
+        LocalDateTime now = LocalDateTime.now(BUSINESS_ZONE).withNano(0);
         switch (fault) {
             case UNKNOWN_BADGE_ROW -> jdbcTemplate.update(
                     "INSERT INTO growth_events (user_id, event_type, event_key, exp_amount, created_at) "
@@ -662,7 +681,7 @@ class AchievementFaultIsolationPropertyTest {
                             + "(user_id, exp, level, total_record_days, current_streak_days, "
                             + "max_streak_days, last_record_date, last_settled_at, created_at, updated_at) "
                             + "VALUES (?, 0, 1, 1, 1, 1, ?, ?, ?, ?)",
-                    ctx.userId(), LocalDate.now(), Timestamp.valueOf(now),
+                    ctx.userId(), LocalDate.now(BUSINESS_ZONE), Timestamp.valueOf(now),
                     Timestamp.valueOf(now), Timestamp.valueOf(now));
             default -> {
                 // 其余四个故障点无需预置数据：由 FaultConfig 的动态代理在被调用时抛异常。
@@ -709,7 +728,7 @@ class AchievementFaultIsolationPropertyTest {
         String token = registerAndLogin(email);
         long userId = userIdOf(email);
         long ledgerId = ledgerService.ensureDefaultLedger(userId).getId();
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
 
         long ref = 900_000_000L + userId;
         for (int i = 0; i < 3; i++) {
@@ -849,7 +868,7 @@ class AchievementFaultIsolationPropertyTest {
         payload.put("amount", "50.00");
         payload.put("accountId", accountId);
         payload.put("categoryId", categoryId);
-        payload.put("occurredAt", LocalDateTime.now().withNano(0).toString());
+        payload.put("occurredAt", LocalDateTime.now(BUSINESS_ZONE).withNano(0).toString());
         payload.put("note", "记一笔");
         return payload;
     }
