@@ -77,10 +77,11 @@ function afterColon(eventKey) {
 }
 
 /**
- * 事件类型 → 中文文案的映射（需求 13.10）。
- * 六个已知类型各有互不相同的中文文案；DAILY_RECORD 带日期、BUDGET_MET 带月份，
+ * 事件类型 → 中文文案的映射（需求 13.10；achievement-system 需求 12.5、12.11）。
+ * 七个已知类型各有互不相同的中文文案；DAILY_RECORD 带日期、BUDGET_MET 与 SAVING_MONTH 带月份，
  * 日期与月份均从 eventKey 冒号后半段取（不再另发请求）。
- * 未知类型 / 空串 / null / 畸形取值一律返回「成长记录」兜底，不显示原始枚举字符串。
+ * 未知类型 / 空串 / null / 畸形取值一律返回「成长记录」兜底，不显示原始枚举字符串
+ * （SAVING_MONTH 与 BADGE 的原始枚举取值与事件键原文都不出现在文案里）。
  */
 export function growthEventLabel(eventType, eventKey) {
   switch (eventType) {
@@ -98,6 +99,11 @@ export function growthEventLabel(eventType, eventKey) {
     }
     case 'FIRST_INVITE':
       return '首次邀请好友'
+    case 'SAVING_MONTH': {
+      // 月份取 event_key（`SAVING_MONTH:YYYY-MM`）冒号后半段，不另发请求；无月份时退回不带月份的文案。
+      const month = afterColon(eventKey)
+      return month ? `储蓄达成 ${month}` : '储蓄达成'
+    }
     case 'BADGE':
       return '点亮徽章'
     default:

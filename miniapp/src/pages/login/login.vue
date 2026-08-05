@@ -3,12 +3,17 @@ import { ref, computed, onUnmounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { sendCode } from '../../api/auth'
 import { listAccounts } from '../../api/account'
+import { takePendingAchievementCode } from '../../utils/achievement'
 
 const auth = useAuthStore()
 const loading = ref(false)
 
 // 登录后路由：无账户且未走过引导的新用户 → 新手引导；否则进首页。
 async function routeAfterLogin() {
+  // 经成就分享卡片进来的未登录用户，其 code 由成就页暂存在这里（需求 8.14）。
+  // 一次性消费：若接着走新手引导就直接丢弃——零成就的新账号没有可高亮的项。
+  const achievementCode = takePendingAchievementCode()
+
   if (!uni.getStorageSync('youyu_onboarded')) {
     try {
       const accs = await listAccounts()
@@ -19,6 +24,20 @@ async function routeAfterLogin() {
     } catch (e) {
       /* 拉账户失败则按老用户处理 */
     }
+  }
+
+  if (achievementCode) {
+    // 先 reLaunch 首页再 navigateTo 成就页：成就页是非 tabBar 页面，
+    // 直接 reLaunch 过去会清空页面栈，用户回不到首页。
+    uni.reLaunch({
+      url: '/pages/index/index',
+      success: () => {
+        uni.navigateTo({
+          url: `/pages/achievement/achievement?code=${encodeURIComponent(achievementCode)}`
+        })
+      }
+    })
+    return
   }
   uni.reLaunch({ url: '/pages/index/index' })
 }

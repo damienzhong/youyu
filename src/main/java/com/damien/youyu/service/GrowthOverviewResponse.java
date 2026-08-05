@@ -29,7 +29,9 @@ import java.util.List;
  * @param totalRecordDays   累计记账天数，≥ 0
  * @param currentStreakDays 当前连续天数，按判定日校正后 ≥ 0
  * @param maxStreakDays     历史最长连续天数，≥ 0 且 ≥ {@code currentStreakDays}
- * @param badges            徽章列表，恒为 9 枚、按 {@link GrowthBadgeCatalog} 顺序（需求 8.5、8.8）
+ * @param badges            徽章列表，恒为 16 枚、按 {@link GrowthBadgeCatalog} 顺序（需求 8.5、8.8；
+ *                          achievement-system 需求 12.2 把清单从 9 枚扩到 16 枚，<b>顶层 15 项与徽章项
+ *                          6 项的字段集一字不改</b>，变的只有列表长度）
  */
 public record GrowthOverviewResponse(int level, long exp, long currentLevelExp, Long nextLevelExp,
                                      long expInCurrentLevel, Long expToNextLevel, int maxLevel,

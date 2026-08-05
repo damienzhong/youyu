@@ -20,6 +20,7 @@ import com.damien.youyu.domain.InviteStatus;
 import com.damien.youyu.domain.UserGrowth;
 import com.damien.youyu.repository.GrowthEventRepository;
 import com.damien.youyu.repository.InviteRelationRepository;
+import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.UserGrowthRepository;
 
@@ -88,6 +89,9 @@ public class GrowthSettlementService {
     /** {@code BUDGET_MET} 事件键前缀（需求 3.7）。 */
     private static final String BUDGET_MET_PREFIX = "BUDGET_MET:";
 
+    /** {@code SAVING_MONTH} 事件键前缀（成就系统需求 4.2），与 {@link GrowthEventType#SAVING_MONTH} 对应。 */
+    private static final String SAVING_MONTH_PREFIX = "SAVING_MONTH:";
+
     /** {@code FIRST_RECORD} / {@code FIRST_INVITE} 事件键（即其类型名）。 */
     private static final String FIRST_RECORD_KEY = "FIRST_RECORD";
     private static final String FIRST_INVITE_KEY = "FIRST_INVITE";
@@ -95,10 +99,12 @@ public class GrowthSettlementService {
     private static final String STREAK_30_KEY = "STREAK_30";
 
     /**
-     * 单次结算写入事件的硬上界（需求 3.10）：≤1000 条 {@code DAILY_RECORD} + 1 {@code FIRST_RECORD}
-     * + 2 {@code STREAK} + 3 {@code BUDGET_MET} + 1 {@code FIRST_INVITE} + 9 {@code BADGE} = 1016。
+     * 单次结算写入事件的硬上界（成就系统需求 4.12 把成长体系需求 3.10 的 1016 扩到 1026）：
+     * ≤1000 条 {@code DAILY_RECORD} + 1 {@code FIRST_RECORD} + 2 {@code STREAK} + 3 {@code BUDGET_MET}
+     * + 1 {@code FIRST_INVITE} + 3 {@code SAVING_MONTH} + 16 {@code BADGE}
+     * = 1000 + 1 + 2 + 3 + 1 + 3 + 16 = 1026。
      */
-    static final int MAX_PENDING_EVENTS = 1016;
+    static final int MAX_PENDING_EVENTS = 1026;
 
     /**
      * 建档语句：并发安全地确保档案行存在（需求 1.10）。
@@ -131,8 +137,10 @@ public class GrowthSettlementService {
     private final GrowthEventRepository growthEventRepository;
     private final TransactionRepository transactionRepository;
     private final InviteRelationRepository inviteRelationRepository;
+    private final LedgerMemberRepository ledgerMemberRepository;
     private final GrowthCalendarService calendarService;
     private final GrowthBudgetEvaluator budgetEvaluator;
+    private final GrowthSavingMonthEvaluator savingMonthEvaluator;
     private final GrowthBadgeCatalog badgeCatalog;
     private final GrowthLevelCurve levelCurve;
     private final GrowthSettlementThrottle throttle;
@@ -143,8 +151,10 @@ public class GrowthSettlementService {
                                    GrowthEventRepository growthEventRepository,
                                    TransactionRepository transactionRepository,
                                    InviteRelationRepository inviteRelationRepository,
+                                   LedgerMemberRepository ledgerMemberRepository,
                                    GrowthCalendarService calendarService,
                                    GrowthBudgetEvaluator budgetEvaluator,
+                                   GrowthSavingMonthEvaluator savingMonthEvaluator,
                                    GrowthBadgeCatalog badgeCatalog,
                                    GrowthLevelCurve levelCurve,
                                    GrowthSettlementThrottle throttle,
@@ -154,8 +164,10 @@ public class GrowthSettlementService {
         this.growthEventRepository = growthEventRepository;
         this.transactionRepository = transactionRepository;
         this.inviteRelationRepository = inviteRelationRepository;
+        this.ledgerMemberRepository = ledgerMemberRepository;
         this.calendarService = calendarService;
         this.budgetEvaluator = budgetEvaluator;
+        this.savingMonthEvaluator = savingMonthEvaluator;
         this.badgeCatalog = badgeCatalog;
         this.levelCurve = levelCurve;
         this.throttle = throttle;
@@ -202,18 +214,45 @@ public class GrowthSettlementService {
         BackfillResult backfill = calendarService.backfillDates(userId, profile.getLastRecordDate(), settleDate);
         List<String> budgetMonths = budgetEvaluator.metMonths(userId, settleDate, existingKeys);
 
+        // achievement-system 需求 4.11 的三条（且仅三条）新增读查询，条数为常量、不随账本数 / 分类数 /
+        // 交易笔数增长：储蓄月的月份 × 类型分组合计 1 条、协作成员数 1 条、旅行记账笔数 1 条。
+        List<String> savingMonths = savingMonthEvaluator.savingMonths(userId, settleDate, existingKeys);
+        long collabMemberCount = ledgerMemberRepository.countEditorsOfOwnedLedgers(userId);
+        long travelRecordCount = transactionRepository.countTravelExpenses(userId);
+
         // 连续里程碑用「已有日历 ∪ 本次补发日期」的 maxStreak 判定（需求 3.6：跨门槛不漏发低门槛）。
         // 已有日历从 existingKeys 里筛 DAILY_RECORD: 前缀解析得出，无需额外查库。
         List<LocalDate> calendarAfterBackfill = unionDailyRecordDates(existingKeys, backfill.dates());
         CalendarScan scanForStreak = GrowthCalendarService.scan(calendarAfterBackfill);
 
-        boolean hasBudgetMetEvent = anyKeyStartsWith(existingKeys, BUDGET_MET_PREFIX) || !budgetMonths.isEmpty();
+        // 两个计数型口径 = 已读回事件键的前缀计数 + 本次新判定的月份数，零新增查询（需求 4.11 后半句）：
+        // findEventKeysByUserId 已把该用户全部事件键一次读完，本次待写的月份还没落库故必须显式加上，
+        // 否则第 3 个储蓄月 / 第 3 个预算达成月与对应成就无法在同一次结算内一起解锁（需求 2.6）。
+        // BUDGET_MET: 与 SAVING_MONTH: 前缀同 BADGE: 互斥，故前缀计数天然把 BADGE 行排除在外（需求 3.6、3.7）。
+        long budgetMetCount = countPrefix(existingKeys, BUDGET_MET_PREFIX) + budgetMonths.size();
+        long savingMonthCount = countPrefix(existingKeys, SAVING_MONTH_PREFIX) + savingMonths.size();
+
         boolean hasFirstInviteEvent = existingKeys.contains(FIRST_INVITE_KEY) || inviteCount >= 1;
-        GrowthFacts facts = new GrowthFacts(recordCount, scanForStreak.maxStreak(),
-                scanForStreak.totalDays(), hasBudgetMetEvent, hasFirstInviteEvent);
+        GrowthFacts facts = new GrowthFacts(recordCount, scanForStreak.maxStreak(), scanForStreak.totalDays(),
+                budgetMetCount, hasFirstInviteEvent, savingMonthCount, collabMemberCount, travelRecordCount);
 
         // ── ④ 固定顺序组装待写事件（便于逐条断言）：
-        //     DAILY_RECORD(升序) → FIRST_RECORD → STREAK_7 → STREAK_30 → BUDGET_MET → FIRST_INVITE → BADGE
+        //     DAILY_RECORD(升序) → FIRST_RECORD → STREAK_7 → STREAK_30 → BUDGET_MET → FIRST_INVITE
+        //       → SAVING_MONTH(≤3, exp 0) → BADGE(≤16, exp 0)
+        //
+        // 这个顺序里有两处不能改（achievement-system 需求 2.6）：
+        //
+        // ① SAVING_MONTH 必须排在 BADGE 之前。SAVING_MONTH 先进 pending，第 ③ 步的 savingMonthCount
+        //    才把「本次新判定的月份数」计入 facts（见上方 countPrefix(...) + savingMonths.size()），
+        //    SAVING_MASTER 才能在同一次结算内与第 3 个储蓄月一起解锁。若把 BADGE 提到前面，本次新判定的
+        //    储蓄月对成就判定就是不可见的，第 3 个储蓄月落库那一次结算不会解锁 SAVING_MASTER，
+        //    要等到下一次结算才补上——这就是需求 2.6 明令禁止的「跨门槛漏发」。
+        //    同理 BUDGET_MET 也排在 BADGE 之前，BUDGET_KEEPER 走的是同一条构造。
+        //
+        // ② BADGE 一批之内按 qualified 的返回顺序写入。qualified 返回 LinkedHashSet 且按清单序号升序
+        //    （GrowthBadgeCatalog 遍历整份清单的自然顺序），批量插入按 pending 的顺序发出，因此同一批
+        //    解锁的 BADGE 事件 id 相对大小与展示序号一致（需求 2.6 后半句）。播报顺序按 id 升序取，
+        //    于是也随之确定——用 HashSet 或另行排序都会让播报顺序变成不可预期的。
         List<Object[]> pending = new ArrayList<>();
         for (LocalDate date : backfill.dates()) {                       // ≤1000 条，日期升序（需求 4.6）
             add(pending, existingKeys, userId, GrowthEventType.DAILY_RECORD, DAILY_RECORD_PREFIX + date, 5, now);
@@ -234,7 +273,10 @@ public class GrowthSettlementService {
         if (inviteCount >= 1) {
             add(pending, existingKeys, userId, GrowthEventType.FIRST_INVITE, FIRST_INVITE_KEY, 80, now);
         }
-        for (String code : badgeCatalog.qualified(facts)) {             // ≤9 条，exp 恒 0（需求 8.3）
+        for (String month : savingMonths) {                             // ≤3 条，exp 恒 0（成就系统需求 4.2、4.18）
+            add(pending, existingKeys, userId, GrowthEventType.SAVING_MONTH, SAVING_MONTH_PREFIX + month, 0, now);
+        }
+        for (String code : badgeCatalog.qualified(facts)) {             // ≤16 条，exp 恒 0（需求 8.3、成就系统 4.19）
             add(pending, existingKeys, userId, GrowthEventType.BADGE, GrowthBadgeCatalog.eventKeyOf(code), 0, now);
         }
         // 有界性断言（需求 3.10）：越界说明追补窗口或组装逻辑有缺陷，宁可炸响也不静默写超量。
@@ -481,13 +523,25 @@ public class GrowthSettlementService {
         }
     }
 
-    /** 供内部工具判断某集合内是否存在带指定前缀的键。 */
-    private static boolean anyKeyStartsWith(Set<String> keys, String prefix) {
+    /**
+     * 前缀计数：事件键集合里以 {@code prefix} 开头的键个数（achievement-system 需求 3.6、3.7）。
+     *
+     * <p>取代了原先的 {@code anyKeyStartsWith}（存在型布尔）：{@code BUDGET_MET} 与 {@code SAVING_MONTH}
+     * 两个口径都从「是否存在」升级成「有几条」，而计数 ≥1 与存在恒等价，故门槛为 1 的成就判定结果逐例不变。
+     * {@code FIRST_INVITE} 侧仍是存在型判定，但它的键是<b>精确键</b>而非前缀，直接用
+     * {@link Set#contains(Object)} 即可，不经本方法。</p>
+     *
+     * <p>{@code BUDGET_MET:} / {@code SAVING_MONTH:} 与 {@code BADGE:} 前缀互斥，因此按前缀计数天然把
+     * {@code BADGE} 行排除在外，无需额外过滤（需求 3.6、3.7 的双向隔离）。与
+     * {@code AchievementSnapshotService.countPrefix} 是同一套算术，两条路径的口径因此逐例相等。</p>
+     */
+    private static long countPrefix(Set<String> keys, String prefix) {
+        long count = 0L;
         for (String key : keys) {
-            if (key.startsWith(prefix)) {
-                return true;
+            if (key != null && key.startsWith(prefix)) {
+                count++;
             }
         }
-        return false;
+        return count;
     }
 }

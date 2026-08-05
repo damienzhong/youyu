@@ -153,6 +153,16 @@
       "style": {
         "navigationBarTitleText": "经验明细"
       }
+    },
+    {
+      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从成长页入口与成就分享卡片进入。
+      // enablePullDownRefresh 同样必须写在页面级 style 里，
+      // 写进 globalStyle 会给全部页面打开下拉刷新（需求 9.11）。
+      "path": "pages/achievement/achievement",
+      "style": {
+        "navigationBarTitleText": "我的成就",
+        "enablePullDownRefresh": true
+      }
     }
   ],
   "globalStyle": {

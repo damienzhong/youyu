@@ -66,7 +66,8 @@ import com.damien.youyu.repository.VerificationCodeRepository;
  *       数据快照不变、{@code invite_relations} 全表七列快照不变（该表联动完全由既有 invite 逻辑负责，
  *       成长删除一行都不碰）。</li>
  *   <li><b>同邮箱重新注册从 Lv1</b>（需求 11.21、12.3）：注销后以同一邮箱重新注册（新 {@code users.id}），
- *       {@code GET /api/growth} 返回等级 1、9 枚徽章均未点亮；两表反查 {@code users.id} 不存在的行数为 0。</li>
+ *       {@code GET /api/growth} 返回等级 1、16 枚徽章均未点亮（achievement-system 需求 12.2 把清单
+ *       从 9 枚扩到 16 枚）；两表反查 {@code users.id} 不存在的行数为 0。</li>
  * </ol>
  *
  * <p>{@code growthEventRepository.deleteByUserId} 抛错只能靠替身制造（真实路径下这条 DELETE 不会失败），
@@ -90,6 +91,19 @@ class GrowthAccountDeletionIntegrationTest {
     private static final String PROFILE_COLUMNS =
             "SELECT user_id, exp, level, total_record_days, current_streak_days, max_streak_days, "
                     + "last_record_date, last_settled_at, created_at, updated_at FROM user_growth";
+
+    /**
+     * 16 枚成就的编码与展示顺序（achievement-system 需求 12.2 表格的独立副本，用于锁住清单不漂移）。
+     *
+     * <p>achievement-system 把徽章清单从 9 枚扩到 16 枚，既有 9 枚的编码一字不改，只是改为按分类连续
+     * 排布，因此这里既断言规模也断言顺序。</p>
+     */
+    private static final List<String> CATALOG_CODES = List.of(
+            "FIRST_RECORD",
+            "STREAK_7", "STREAK_30", "STREAK_100", "STREAK_365",
+            "RECORD_10", "RECORD_100", "RECORD_500", "RECORD_1000", "DAYS_100",
+            "INVITE_1", "COLLAB_1",
+            "BUDGET_MET", "BUDGET_MASTER", "SAVING_MASTER", "TRAVEL_MASTER");
 
     /** invite_relations 七列快照（含 updated_at）：需求 12.7 要求注销时成长删除不碰该表任何行。 */
     private static final String INVITE_SEVEN_COLUMNS =
@@ -252,10 +266,10 @@ class GrowthAccountDeletionIntegrationTest {
         assertThat(orphanUserGrowth()).isZero();
     }
 
-    // ============ 5) 同邮箱重新注册从 Lv1、9 枚未点亮（需求 11.21、12.3）============
+    // ============ 5) 同邮箱重新注册从 Lv1、16 枚未点亮（需求 11.21、12.3）============
 
     @Test
-    void reRegisterWithSameEmail_startsAtLevelOne_withNineBadgesLocked_andNoOrphans() {
+    void reRegisterWithSameEmail_startsAtLevelOne_withSixteenBadgesLocked_andNoOrphans() {
         String email = "gdel_reuse@example.com";
         String token = registerAndLogin(email);
         long oldId = userIdOf(email);
@@ -268,7 +282,7 @@ class GrowthAccountDeletionIntegrationTest {
         long newId = userIdOf(email);
         assertThat(newId).isNotEqualTo(oldId);
 
-        // GET /api/growth：等级 1、9 枚徽章均未点亮（需求 12.3、11.21）。
+        // GET /api/growth：等级 1、16 枚徽章均未点亮（需求 12.3、11.21；achievement-system 需求 12.2）。
         ResponseEntity<Map> overview = get("/api/growth", bearer(newToken));
         assertThat(overview.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map<String, Object> body = body(overview);
@@ -276,7 +290,10 @@ class GrowthAccountDeletionIntegrationTest {
         assertThat(body.get("maxLevelReached")).isEqualTo(Boolean.FALSE);
 
         List<Map<String, Object>> badges = badgesOf(body);
-        assertThat(badges).hasSize(9);
+        assertThat(badges).hasSize(CATALOG_CODES.size());
+        assertThat(badges.stream().map(badge -> badge.get("code")).toList())
+                .as("徽章列表由 16 枚成就派生，顺序即清单序号（achievement-system 需求 12.2）")
+                .isEqualTo(CATALOG_CODES);
         assertThat(badges).allSatisfy(badge -> {
             assertThat(badge.get("unlocked")).isEqualTo(Boolean.FALSE);
             assertThat(badge.get("unlockedAt")).isNull();

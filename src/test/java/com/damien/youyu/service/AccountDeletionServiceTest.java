@@ -67,6 +67,7 @@ class AccountDeletionServiceTest {
     private com.damien.youyu.repository.InviteRelationRepository inviteRelationRepository;
     private com.damien.youyu.repository.GrowthEventRepository growthEventRepository;
     private com.damien.youyu.repository.UserGrowthRepository userGrowthRepository;
+    private com.damien.youyu.repository.AchievementNoticeRepository achievementNoticeRepository;
     private AccountDeletionService service;
 
     @BeforeEach
@@ -94,6 +95,7 @@ class AccountDeletionServiceTest {
         inviteRelationRepository = mock(com.damien.youyu.repository.InviteRelationRepository.class);
         growthEventRepository = mock(com.damien.youyu.repository.GrowthEventRepository.class);
         userGrowthRepository = mock(com.damien.youyu.repository.UserGrowthRepository.class);
+        achievementNoticeRepository = mock(com.damien.youyu.repository.AchievementNoticeRepository.class);
         service = new AccountDeletionService(
                 ledgerRepository, memberRepository, accountRepository, transactionRepository,
                 userRepository, verificationCodeService, weChatClient,
@@ -101,7 +103,7 @@ class AccountDeletionServiceTest {
                 budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
                 projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
                 verificationCodeRepository, inviteRelationRepository,
-                growthEventRepository, userGrowthRepository,
+                growthEventRepository, userGrowthRepository, achievementNoticeRepository,
                 java.time.Clock.systemDefaultZone());
     }
 

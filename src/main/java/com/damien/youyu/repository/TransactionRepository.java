@@ -291,4 +291,87 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<Object[]> sumMonthlyExpenseByLedgerIds(@Param("ledgerIds") Collection<Long> ledgerIds,
                                                 @Param("fromInclusive") LocalDateTime fromInclusive,
                                                 @Param("toExclusive") LocalDateTime toExclusive);
+
+    // ---------------- 成就系统的「旅行记账笔数」聚合（achievement-system 需求 3.9、3.10、3.11）----------------
+
+    /**
+     * 旅行记账笔数 {@code TRAVEL_RECORD_COUNT}：该用户「旅行」分类树下的有效支出笔数
+     * （achievement-system 需求 3.9、3.10、3.11）。跨该用户记账的全部账本合并计算，
+     * 不按会话账本或 {@code X-Ledger-Id} 头过滤。
+     *
+     * <p>四点说明，改动本查询前必须逐条读完：</p>
+     * <ol>
+     *   <li><b>归属只认 {@code t.created_by}</b>，刻意<b>不用 {@code t.user_id}</b>——后者是 {@code V9}
+     *       之后的历史遗留列、可空，用它会漏计协作账本里的交易（需求 3.10）。</li>
+     *   <li>分类名称用 {@code TRIM(name) = '旅行'} <b>逐字符相等</b>判定，<b>绝不用
+     *       {@code LIKE '%旅行%'}</b> 或任何前缀/包含/模糊匹配：「旅行保险」「旅行装备」不该算进旅行达人
+     *       （需求 3.9）。</li>
+     *   <li>{@code kind} 用普通 {@code =} 比较，<b>刻意不加 {@code COLLATE utf8mb4_bin}</b>：
+     *       {@code ck_categories_kind} 的取值集合是 {@code ('EXPENSE','INCOME')}、应用写入路径只写大写，
+     *       因此库里只有大写两种取值，普通 {@code =} 与区分大小写比较结果逐例相同；而加了 COLLATE 会让
+     *       这条查询在 H2（{@code MODE=MySQL}）测试库直接报错，代价远大于收益。
+     *       「旅行」是汉字，无大小写之分。</li>
+     *   <li>与 {@code categories} 是 <b>1:1 join</b>（{@code c.id = t.category_id} 命中至多一行、
+     *       {@code p.id = c.parent_id} 亦然），因此<b>同一交易至多被计 1 次</b>；又因 {@code categories}
+     *       只有一层 {@code parent_id}（层级上界 2），一次 {@code LEFT JOIN} 父分类即同时覆盖
+     *       「父分类自身的交易」与「子分类的交易」两种情形，<b>不需要递归 CTE</b>（需求 3.9）。</li>
+     * </ol>
+     *
+     * <p>不要求分类的 {@code user_id} 等于该用户 id（协作账本内的分类归账本所有者）。
+     * 本查询只读，不新增任何列与索引。</p>
+     *
+     * <p>刻意走原生 SQL：本实体带 {@code @SQLRestriction("deleted_at is null")}，走 JPQL 会让软删过滤
+     * 变成隐式条件，故这里自己写 {@code deleted_at IS NULL}，使「有效支出」口径逐条可见。</p>
+     */
+    @Query(value = "SELECT COUNT(*) FROM transactions t "
+            + "JOIN categories c ON c.id = t.category_id "
+            + "LEFT JOIN categories p ON p.id = c.parent_id "
+            + "WHERE t.created_by = :userId AND t.type = 'expense' AND t.deleted_at IS NULL "
+            + "AND t.ledger_id IS NOT NULL "
+            + "AND ((c.kind = 'EXPENSE' AND TRIM(c.name) = '旅行') "
+            + "  OR (p.kind = 'EXPENSE' AND TRIM(p.name) = '旅行'))", nativeQuery = true)
+    long countTravelExpenses(@Param("userId") Long userId);
+
+    // ---------------- 成就系统的「储蓄月」按月份 × 类型分组金额合计（achievement-system 需求 4.6、4.7、4.11）----------------
+
+    /**
+     * 回看窗口内的月度金额合计，按「年 × 月 × 交易类型」分组，每行
+     * {@code [year, month, type, sum]}（{@code GrowthSavingMonthEvaluator} 的储蓄月判定用，
+     * achievement-system 需求 4.6、4.7、4.11）。跨该用户记账的全部账本合并计算，
+     * 不按会话账本或 {@code X-Ledger-Id} 头过滤。
+     *
+     * <p>三点说明，改动本查询前必须逐条读完：</p>
+     * <ol>
+     *   <li>分组用 {@code YEAR(occurred_at)} / {@code MONTH(occurred_at)}，<b>刻意不用
+     *       {@code DATE_FORMAT}</b>：前者在 MySQL 与 H2（{@code MODE=MySQL}）上行为一致，
+     *       后者在 H2 上的支持随版本漂移，用它会让同一条 SQL 在生产库与测试库上给出不同结果
+     *       （或直接在测试库报错）。</li>
+     *   <li>{@code type IN ('expense','income')} 顺带把 {@code transfer} 排除在两项合计之外
+     *       （需求 4.7 的「有效记账交易」口径：另两条排除是 {@code deleted_at IS NULL} 与
+     *       {@code ledger_id IS NOT NULL}）。</li>
+     *   <li>一条查询覆盖 <b>3 个回看月 × 2 个类型</b>共至多 6 组，<b>不按月循环</b>——这是需求 4.11
+     *       「单次结算内成就侧新增读查询不超过 3 条」的组成部分（另两条是协作成员数与旅行记账笔数）。</li>
+     * </ol>
+     *
+     * <p>月份归属用半开区间 {@code occurred_at ∈ [fromInclusive, toExclusive)}：恰好落在
+     * {@code toExclusive} 的交易归下一月，由调用方把边界取到「月首 00:00:00.000」（需求 4.6）。
+     * 归属只认 {@code occurred_at}，<b>不用 {@code created_at}</b>——后者是记账日历的口径，两者刻意不同。
+     * 归属只认 {@code created_by}，<b>不用 {@code t.user_id}</b>（{@code V9} 之后的历史遗留列、可空）。</p>
+     *
+     * <p>某个月在结果中缺行即表示该月该类型无有效交易，调用方按 {@code 0.00} 计（需求 4.4）。
+     * 本查询只读，不新增任何列与索引。</p>
+     *
+     * <p>刻意走原生 SQL：本实体带 {@code @SQLRestriction("deleted_at is null")}，走 JPQL 会让软删过滤
+     * 变成隐式条件，故这里自己写 {@code deleted_at IS NULL}，使「有效记账交易」口径逐条可见。</p>
+     */
+    @Query(value = "SELECT YEAR(occurred_at), MONTH(occurred_at), type, COALESCE(SUM(amount), 0) "
+            + "FROM transactions WHERE created_by = :userId "
+            + "AND deleted_at IS NULL AND ledger_id IS NOT NULL "
+            + "AND type IN ('expense','income') "
+            + "AND occurred_at >= :fromInclusive AND occurred_at < :toExclusive "
+            + "GROUP BY YEAR(occurred_at), MONTH(occurred_at), type", nativeQuery = true)
+    List<Object[]> sumMonthlyAmountsByCreatedByGroupByMonthAndType(
+            @Param("userId") Long userId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive);
 }

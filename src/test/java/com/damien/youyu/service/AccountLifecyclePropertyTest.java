@@ -183,6 +183,9 @@ class AccountLifecyclePropertyTest {
                 mock(com.damien.youyu.repository.InviteRelationRepository.class),
                 mock(com.damien.youyu.repository.GrowthEventRepository.class),
                 mock(com.damien.youyu.repository.UserGrowthRepository.class),
+                // achievement-system 任务 7.2 起注销序列还要删播报游标行；本属性只关心账号生命周期，
+                // 故与其它无关仓储一样给测试替身（deleteByUserId 默认无副作用）。
+                mock(com.damien.youyu.repository.AchievementNoticeRepository.class),
                 clock);
 
         return new Fixture(userRepository, authService, deletionService);

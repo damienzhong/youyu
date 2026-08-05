@@ -1,8 +1,23 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app'
+import { onLoad, onPullDownRefresh, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import { fetchGrowthOverview } from '../../api/growth'
 import { levelProgress, badgeProgressText, shouldRefresh, GROWTH_TIMEOUT_MS } from '../../utils/growth'
+import {
+  ACHIEVEMENT_TOTAL,
+  ACHIEVEMENT_PAGE_PATH,
+  buildAchievementSharePayload
+} from '../../utils/achievement'
+// AchievementUnlockModal 由 easycom 自动注册，无需显式 import。
+import {
+  broadcastItem,
+  broadcastVisible,
+  closeBroadcastModal,
+  enterAchievementPageFromBroadcast,
+  releaseAchievementBroadcastOnLeave,
+  startAchievementBroadcast
+} from '../../utils/achievementBroadcast'
+import { useAuthStore } from '../../stores/auth'
 import { formatAmount } from '../../utils/format'
 
 /**
@@ -26,7 +41,13 @@ import { formatAmount } from '../../utils/format'
  *
  * 沿用品牌绿 #12a150 作为等级、进度条与已点亮徽章的强调色，复用既有 .sect / .card / .row / .r-ic
  * 与 AppIcon 组件，不新增组件、不引入新主色（需求 13.14）。
+ *
+ * 另承载成就系统的成就页入口（成就系统需求 9.1、9.2、9.14、9.15）：徽章墙上方一行，
+ * 计数由本页已有的概览响应 `badges` 派生（不额外发成就请求），未登录不展示，
+ * 概览失败时展示不含计数的入口且点击行为不变。
  */
+
+const auth = useAuthStore()
 
 const state = ref('loading') // loading | ready | error
 const overview = ref(null)
@@ -67,6 +88,9 @@ async function load(isRefresh = false) {
     if (s !== seq) return
     overview.value = res || {}
     state.value = 'ready'
+    // 播报挂载点 ②（成就系统需求 7.2）：概览数据请求成功后立即触发一次待播报查询与解锁播报，
+    // 远快于 1000ms 上限。同步返回、不 await：本页展示不受播报成败与快慢影响。
+    startAchievementBroadcast()
   } catch (e) {
     if (s !== seq) return
     // 首屏 / 重试失败 → ERROR（不渲染任何数据）；下拉刷新失败 → 保留旧的 READY 值，仅结束动效。
@@ -98,6 +122,42 @@ function goLog() {
   // 进入经验明细页；本页不展示任何经验明细列表项（需求 13.9）。
   uni.navigateTo({ url: '/pages/growthlog/growthlog' })
 }
+
+function goAchievement() {
+  // 成就系统需求 9.2：点击入口打开成就页；概览请求失败与否都是同一个跳转（需求 9.15）。
+  uni.navigateTo({ url: ACHIEVEMENT_PAGE_PATH })
+}
+
+// ---- 解锁播报挂载点 ②（成就系统需求 7.2、7.13、7.16、8.1）----
+// 弹层状态是 utils/achievementBroadcast.js 的模块级 ref，本页只做绑定与事件转发。
+
+// 弹层内「分享给好友」不需要本页处理：转发面板由弹层里 open-type="share" 的 button 唤起、
+// 落到下面的 onShareAppMessage，转发目标直接取 broadcastItem，弹层也照常保持展示（需求 7.13）。
+
+/**
+ * 弹层内「保存卡片」：canvas 绘制只在成就页（离屏画布在那一页上），
+ * 因此本页把它转成「进入成就页并高亮这一枚」——落地后那一项自带
+ * 「保存卡片到相册」入口。同时按需求 7.16 收起弹层、放弃未展示的 Toast 并推进游标。
+ */
+function onBroadcastSave() {
+  uni.showToast({ title: '在成就页保存这张卡片', icon: 'none' })
+  enterAchievementPageFromBroadcast()
+}
+
+onShareAppMessage(() => {
+  // 只在解锁弹层给出转发目标时返回成就分享卡片；页面右上角菜单的普通转发不受影响
+  // （返回 undefined 即用平台默认卡片）。标题与路径的构造全在纯函数里（需求 8.3）。
+  const item = broadcastItem.value
+  if (!item) return
+  const payload = buildAchievementSharePayload(item)
+  return { title: payload.title, path: payload.path }
+})
+
+onUnload(() => {
+  // 弹层若正展示在本页而本页要卸载：放弃本次播报、释放守卫、不推进游标，
+  // 这些成就留在待播报集合内等下次播报（需求 7.11 的至少一次语义）。
+  releaseAchievementBroadcastOnLeave()
+})
 
 // ---- 展示派生值（仅在 state === 'ready' 时使用；overview 恒非空）----
 
@@ -134,6 +194,25 @@ const totalExpenseText = computed(() => formatAmount(overview.value?.totalExpens
 // 徽章墙：按响应顺序渲染，缺失时取空数组（需求 13.7）。
 const badges = computed(() => (Array.isArray(overview.value?.badges) ? overview.value.badges : []))
 
+// ---- 成就页入口（成就系统需求 9.1、9.2、9.14、9.15）----
+// 未登录不展示入口（需求 9.14）。入口本身不发任何成就请求：计数完全取自已有的概览响应，
+// 所以入口的出现不会给成就清单接口带来一次多余调用。
+const showAchievementEntry = computed(() => auth.isLoggedIn === true)
+
+// 已解锁成就数取自概览响应 `badges` 数组里已解锁项的个数，并钳在 [0, 16]（需求 9.1）：
+// 概览的徽章列表与成就清单由服务端同一份快照投影而来，因此这里数 badges 与调成就清单接口等价，
+// 且省掉一次请求。钳制是防字段异常渲染出「17 / 16」这种自相矛盾的计数。
+const achievementUnlockedCount = computed(() => {
+  const n = badges.value.filter((b) => b && b.unlocked === true).length
+  return Math.max(0, Math.min(n, ACHIEVEMENT_TOTAL))
+})
+
+// 概览请求失败或超时（state === 'error'）时返回 ''，入口只剩标题与箭头、点击行为不变（需求 9.15）；
+// 与「我的」页成长入口的 `growthLevel === null` 同一套降级思路。
+const achievementCountText = computed(() =>
+  state.value === 'ready' ? `${achievementUnlockedCount.value} / ${ACHIEVEMENT_TOTAL}` : ''
+)
+
 /** 徽章解锁时刻：LocalDateTime 字符串（如 2025-06-01T12:00:00）→ YYYY-MM-DD HH:mm。 */
 function unlockedLabel(badge) {
   const s = String((badge && badge.unlockedAt) || '')
@@ -159,7 +238,7 @@ function unlockedLabel(badge) {
       <text class="retry" @click="retry">重试</text>
     </view>
 
-    <!-- READY：等级卡 + 经验进度 + 四项统计 + 徽章墙 + 经验明细入口 -->
+    <!-- READY 上半：等级卡 + 经验进度 + 四项统计 -->
     <template v-else>
       <!-- 等级卡：品牌绿强调 -->
       <view class="hero">
@@ -196,8 +275,30 @@ function unlockedLabel(badge) {
           <text class="st-k">累计支出</text>
         </view>
       </view>
+    </template>
 
-      <!-- 徽章墙：9 枚按响应顺序 -->
+    <!--
+      成就页入口（成就系统需求 9.1、9.2、9.14、9.15）：与「我的」页成长入口同构。
+      刻意放在 READY 与 ERROR 两态之外的独立块里，而不是塞进 READY 模板：
+      需求 9.15 要求概览请求失败时仍展示不含计数的入口、点击行为不变，
+      而 ERROR 态本身不渲染任何成长数据（需求 13.8），两条只能靠这种「共用尾块」结构同时满足。
+      位置因此恒为徽章墙上方（READY）或失败卡下方（ERROR）；LOADING 态不展示。
+    -->
+    <template v-if="showAchievementEntry && state !== 'loading'">
+      <view class="sect">成就</view>
+      <view class="card">
+        <view class="row" @click="goAchievement">
+          <view class="r-ic t-green"><AppIcon name="badge" :size="36" /></view>
+          <text class="r-t">我的成就</text>
+          <text v-if="achievementCountText" class="r-v">{{ achievementCountText }}</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+    </template>
+
+    <!-- READY 下半：徽章墙 + 经验明细入口 -->
+    <template v-if="state === 'ready'">
+      <!-- 徽章墙：按响应顺序 -->
       <view class="sect">成长徽章</view>
       <view class="badges">
         <view v-for="b in badges" :key="b.code" class="bg" :class="{ locked: !b.unlocked }">
@@ -223,6 +324,18 @@ function unlockedLabel(badge) {
 
       <view style="height: 60rpx"></view>
     </template>
+
+    <!--
+      解锁弹层（挂载点 ②，成就系统需求 7.4）：可见性与当前项来自 utils/achievementBroadcast.js
+      的模块级状态。放在三态之外——它与本页数据态无关。
+    -->
+    <AchievementUnlockModal
+      :visible="broadcastVisible"
+      :achievement="broadcastItem"
+      @update:visible="closeBroadcastModal"
+      @enter="enterAchievementPageFromBroadcast"
+      @save="onBroadcastSave"
+    />
   </view>
 </template>
 
@@ -427,6 +540,12 @@ function unlockedLabel(badge) {
   flex: 1;
   font-size: 30rpx;
   color: #25292e;
+}
+/* 行尾取值（成就入口的「已解锁数 / 16」）：与 me.vue 的 .r-v-invite 同一套品牌绿观感 */
+.r-v {
+  font-size: 26rpx;
+  color: #12a150;
+  font-weight: 700;
 }
 .arrow {
   color: #c7ccd2;

@@ -16,6 +16,7 @@ import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
+import com.damien.youyu.repository.AchievementNoticeRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
@@ -97,6 +98,10 @@ public class AccountDeletionService {
     private final GrowthEventRepository growthEventRepository;
     private final UserGrowthRepository userGrowthRepository;
 
+    // 成就播报游标（achievement-system 任务 7.2，需求 11）：注销时在删 users 行之前硬删该用户的游标行。
+    // 该表同样没有指向 users(id) 的外键（与 user_growth 同一取舍），故由服务层在同一注销事务内显式删除。
+    private final AchievementNoticeRepository achievementNoticeRepository;
+
     public AccountDeletionService(
             LedgerRepository ledgerRepository,
             LedgerMemberRepository memberRepository,
@@ -121,6 +126,7 @@ public class AccountDeletionService {
             InviteRelationRepository inviteRelationRepository,
             GrowthEventRepository growthEventRepository,
             UserGrowthRepository userGrowthRepository,
+            AchievementNoticeRepository achievementNoticeRepository,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
@@ -145,6 +151,7 @@ public class AccountDeletionService {
         this.inviteRelationRepository = inviteRelationRepository;
         this.growthEventRepository = growthEventRepository;
         this.userGrowthRepository = userGrowthRepository;
+        this.achievementNoticeRepository = achievementNoticeRepository;
         this.clock = clock;
     }
 
@@ -250,6 +257,8 @@ public class AccountDeletionService {
      *   <li>成长数据（第 12.5 步，成长体系需求 12）：先硬删 {@code growth_events} 中 {@code user_id} 等于
      *       该用户 id 的全部行、再硬删 {@code user_growth} 中该用户的行，置于 {@code invite_relations}
      *       置 {@code INVALID} 之后、删 {@code users} 行之前；两表均无外键、固定顺序只为可逐语句断言；</li>
+     *   <li>成就播报游标（第 12.6 步，成就系统需求 11）：硬删 {@code achievement_notices} 中该用户的行，
+     *       置于成长两表硬删之后、删 {@code users} 行之前；该表同样无外键、固定顺序只为可逐语句断言；</li>
      *   <li>{@code users}（用户行本身，最后）。删除用户行即释放其 {@code email} 与 {@code wx_openid}
      *       两个唯一键，供后续重新注册复用（需求 8.4），并随行释放 {@code invite_code}
      *       （邀请系统需求 10.4）。</li>
@@ -356,6 +365,18 @@ public class AccountDeletionService {
             log.warn("[GROWTH_DELETE_SLOW] userId={} cost={}ms 超出 {}ms 预算",
                     userId, growthDeleteCostMs, GROWTH_DELETE_SLOW_MS);
         }
+
+        // 12.6) 播报游标硬删（achievement-system 需求 11.1、11.2、11.4）：置于第 12.5 步（成长两表硬删）
+        //     之后、第 13 步（删 users 行）之前，且不改变既有各步骤的相对顺序、过滤条件与影响行数（需求 11.2）。
+        //     achievement_notices 无指向 users(id) 的外键（与 user_growth 同一取舍），删除顺序在数据库层
+        //     没有约束；固定在这里只为使删除步骤可逐语句断言。以 user_id 等于该用户 id 为唯一过滤条件的
+        //     1 条硬删除语句，影响行数 0 或 1：无行时影响行数 0 即视为成功，不返回错误标识、不中止注销事务
+        //     （需求 11.3）。删除前不做任何存在性预查询，也不写该行的软删除标记、归档副本或更新语句
+        //     （需求 11.4）。整个 deleteAccount 是单个事务：本步失败则整体回滚，users、成长两表与游标表
+        //     全列还原（需求 11.5）；且本方法只在 requireDeletable 与 verifySecondFactor（均只读）通过后
+        //     才被调用，故前置校验失败时游标表零副作用（需求 11.8）。游标行无跨用户引用，删除不触及其它
+        //     用户（需求 11.7）。
+        achievementNoticeRepository.deleteByUserId(userId);
 
         // 13) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）；
         //     同时随该行释放 users.invite_code，后续新用户可重新抽到同一个码——邀请关系的归属判定用的是

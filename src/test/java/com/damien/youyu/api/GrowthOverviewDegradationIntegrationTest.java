@@ -55,7 +55,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * <h2>三条被锁住的性质</h2>
  * <ol>
  *   <li><b>结算失败 + 无档案的降级</b>（需求 9.11）：令结算抛异常且该用户从未建档，概览仍返回
- *       {@code 200}，等级 1 / 经验 0 / 三项天数 0 / 9 枚未点亮，<b>但累计笔数与金额是真实值</b>
+ *       {@code 200}，等级 1 / 经验 0 / 三项天数 0 / 16 枚未点亮，<b>但累计笔数与金额是真实值</b>
  *       （它们来自交易事实源的实时聚合，与档案无关）。同时确认结算失败没有留下任何档案行
  *       （异常穿出使 {@code REQUIRES_NEW} 事务回滚，无部分写入）。</li>
  *   <li><b>结算被节流跳过</b>（需求 10.14）：同一用户 10 秒内的第二次概览请求，其结算返回
@@ -119,7 +119,7 @@ class GrowthOverviewDegradationIntegrationTest {
     // ==================== 1) 结算失败 + 无档案：降级返回真实累计（需求 9.10、9.11） ====================
 
     /**
-     * 结算抛异常且该用户从未建档：概览返回 {@code 200}，等级 1 / 经验 0 / 三项天数 0 / 9 枚未点亮，
+     * 结算抛异常且该用户从未建档：概览返回 {@code 200}，等级 1 / 经验 0 / 三项天数 0 / 16 枚未点亮，
      * 但<b>累计笔数与金额是真实值</b>（需求 9.10、9.11）。
      *
      * <p>预置 5 笔有效记账交易（3 笔支出合计 35.50、2 笔收入合计 150.00），使累计统计的真实值非零；
@@ -155,10 +155,10 @@ class GrowthOverviewDegradationIntegrationTest {
         assertThat(body.get("currentStreakDays").asInt()).isZero();
         assertThat(body.get("maxStreakDays").asInt()).isZero();
 
-        // 9 枚徽章且全部未点亮（需求 9.11）。
+        // 16 枚徽章且全部未点亮（需求 9.11；achievement-system 需求 12.2、12.10）。
         JsonNode badges = body.get("badges");
         assertThat(badges.isArray()).isTrue();
-        assertThat(badges).hasSize(9);
+        assertThat(badges).hasSize(16);
         for (JsonNode badge : badges) {
             assertThat(badge.get("unlocked").asBoolean()).as("徽章 %s 应未点亮", badge.get("code").asText()).isFalse();
             assertThat(badge.get("unlockedAt").isNull()).as("徽章 %s 解锁时刻应为空", badge.get("code").asText()).isTrue();
@@ -326,7 +326,10 @@ class GrowthOverviewDegradationIntegrationTest {
         private volatile RuntimeException toThrow;
 
         CountingSettlementService(GrowthSettlementService delegate) {
-            super(null, null, null, null, null, null, null, null, null, null, null);
+            // 13 个 null：构造参数在 achievement-system 任务 4.1 从 11 个扩到 13 个
+            // （新增 LedgerMemberRepository 与 GrowthSavingMonthEvaluator）。本桩全部方法都转发给
+            // delegate，父类字段一个都不用，因此逐个传 null。
+            super(null, null, null, null, null, null, null, null, null, null, null, null, null);
             this.delegate = delegate;
         }
 

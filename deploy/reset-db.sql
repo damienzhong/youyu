@@ -31,6 +31,8 @@ TRUNCATE TABLE invite_relations;
 -- 成长体系两表：无外键（注销时由应用显式删除），清空不依赖 FOREIGN_KEY_CHECKS 取值
 TRUNCATE TABLE growth_events;
 TRUNCATE TABLE user_growth;
+-- 成就播报游标：同样无外键，清空不依赖 FOREIGN_KEY_CHECKS 取值
+TRUNCATE TABLE achievement_notices;
 TRUNCATE TABLE users;
 
 SET FOREIGN_KEY_CHECKS = 1;

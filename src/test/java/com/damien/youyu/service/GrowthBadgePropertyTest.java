@@ -55,7 +55,7 @@ import net.jqwik.api.lifecycle.BeforeTry;
  *       不计入累计记账天数（{@code total_record_days} 只数 {@code event_type='DAILY_RECORD'} 的行）、
  *       也不构成 {@code BUDGET_MET} 徽章的点亮条件（该条件只看 {@code event_type='BUDGET_MET'} 的行）
  *       与 {@code FIRST_RECORD} / {@code STREAK} 经验事件的判定依据。</li>
- *   <li><b>顺序与规模</b>（需求 8.1、8.5、8.8）：响应恒返回 9 项，编码 / 名称 / 目标值与目录逐行一致，
+ *   <li><b>顺序与规模</b>（需求 8.1、8.5、8.8）：响应恒返回 16 项，编码 / 名称 / 目标值与目录逐行一致，
  *       两次连续请求顺序相同。</li>
  *   <li><b>当前值区间</b>（需求 8.7、8.12）：已点亮 {@code current == target} 且 {@code unlockedAt}
  *       非空并等于该 {@code BADGE} 行的 {@code created_at}（需求 8.6）；未点亮
@@ -63,7 +63,7 @@ import net.jqwik.api.lifecycle.BeforeTry;
  *       恒成立。</li>
  *   <li><b>条件已成立但事件尚未写入</b>（需求 8.13）：返回未点亮 + {@code current == target} +
  *       {@code unlockedAt} 为空，且不报错。</li>
- *   <li><b>徽章不发放经验</b>（需求 8.2、8.3）：一次结算点亮 1–9 枚徽章使经验增加 0；库里全部
+ *   <li><b>徽章不发放经验</b>（需求 8.2、8.3）：一次结算点亮 1–16 枚徽章使经验增加 0；库里全部
  *       {@code BADGE} 行的 {@code exp_amount} 恒为 0。</li>
  * </ul>
  *
@@ -120,14 +120,32 @@ class GrowthBadgePropertyTest {
     /** 同一个 H2 库跨迭代复用，用序号保证 userId / 行 id 全局唯一（清理不靠回滚）。 */
     private static final AtomicLong SEQ = new AtomicLong(910_000_000L);
 
-    /** 9 枚徽章的期望编码 / 名称 / 目标值与展示顺序（需求 8.1 表格的独立副本，用于锁住目录不漂移）。 */
+    /**
+     * 16 枚徽章的期望编码 / 名称 / 目标值与展示顺序（achievement-system 需求 1.1 / 12.2 表格的独立副本，
+     * 用于锁住目录不漂移）。
+     *
+     * <p>achievement-system 把清单从 growth-level-system 时期的 9 枚扩到 16 枚，既有 9 枚的编码 /
+     * 名称 / 门槛一字不改，只是改为<b>按分类连续</b>排布（起步 → 坚持 → 积累 → 协作 → 主题），
+     * 因此这里既断言规模也断言顺序。</p>
+     */
     private static final String[] EXPECTED_CODES = {
-            "FIRST_RECORD", "RECORD_10", "RECORD_100", "RECORD_1000",
-            "STREAK_7", "STREAK_30", "DAYS_100", "BUDGET_MET", "INVITE_1"};
+            "FIRST_RECORD",
+            "STREAK_7", "STREAK_30", "STREAK_100", "STREAK_365",
+            "RECORD_10", "RECORD_100", "RECORD_500", "RECORD_1000", "DAYS_100",
+            "INVITE_1", "COLLAB_1",
+            "BUDGET_MET", "BUDGET_MASTER", "SAVING_MASTER", "TRAVEL_MASTER"};
     private static final String[] EXPECTED_NAMES = {
-            "开张", "小有账目", "百笔有余", "千笔如一",
-            "七日不辍", "卅日成习", "百日记账", "预算达标", "同行有余"};
-    private static final int[] EXPECTED_TARGETS = {1, 10, 100, 1000, 7, 30, 100, 1, 1};
+            "开张",
+            "七日不辍", "卅日成习", "百日不辍", "岁岁有余",
+            "小有账目", "百笔有余", "五百笔在册", "千笔如一", "百日记账",
+            "同行有余", "共账之始",
+            "预算达标", "预算达人", "储蓄达人", "旅行达人"};
+    private static final int[] EXPECTED_TARGETS = {
+            1,
+            7, 30, 100, 365,
+            10, 100, 500, 1000, 100,
+            1, 1,
+            1, 3, 3, 10};
 
     /** 累计笔数取值档（覆盖各门槛的下沿 / 等于 / 上沿）。 */
     private static final int[] RECORD_COUNTS = {0, 1, 9, 10, 99, 100, 999, 1000, 1001};
@@ -181,7 +199,7 @@ class GrowthBadgePropertyTest {
     // ---------------- 生成器 ----------------
 
     /**
-     * 一次场景：累计笔数档 × 连续段长度档 × 累计天数档 × 已写入的 {@code BADGE} 行子集（2^9 的抽样）
+     * 一次场景：累计笔数档 × 连续段长度档 × 累计天数档 × 已写入的 {@code BADGE} 行子集（2^16 的抽样）
      * × 6 个布尔标志（是否播种 {@code BUDGET_MET} / {@code FIRST_INVITE} 经验事件、
      * 是否播种与徽章<b>同名</b>的裸键经验事件 {@code FIRST_RECORD} / {@code STREAK_7} / {@code STREAK_30}、
      * 是否播种三行 {@code BADGE} 诱饵）。
@@ -225,7 +243,7 @@ class GrowthBadgePropertyTest {
      *
      * <p>播种「交易 + 任意事件集合（含同名裸键经验事件、任意 {@code BADGE} 行子集与三行诱饵）」后：
      * ① 只重算物化列（不写事件）并断言 {@code BADGE} 行既不进经验也不进累计记账天数；
-     * ② 让概览请求被 10 秒窗口节流跳过，于是概览读到的正是播种的那份事件集合，逐枚断言 9 项的顺序、
+     * ② 让概览请求被 10 秒窗口节流跳过，于是概览读到的正是播种的那份事件集合，逐枚断言 16 项的顺序、
      * 点亮依据、解锁时刻、当前值区间与「条件已成立但尚未写入」的中间态；
      * ③ 再真实结算一次，断言缺失的徽章被补齐、徽章使经验增加 0、{@code BADGE} 行没有反向污染任何
      * 经验事件的判定（{@code BUDGET_MET} / {@code FIRST_INVITE} / {@code FIRST_RECORD} / {@code STREAK}
@@ -475,10 +493,12 @@ class GrowthBadgePropertyTest {
 
     // ---------------- 断言助手 ----------------
 
-    /** 9 项的规模、编码 / 名称 / 目标值与展示顺序，并断言两次连续请求顺序相同（需求 8.1、8.5、8.8）。 */
+    /** 16 项的规模、编码 / 名称 / 目标值与展示顺序，并断言两次连续请求顺序相同（需求 8.1、8.5、8.8）。 */
     private void assertCatalogOrder(GrowthOverviewResponse first, GrowthOverviewResponse second) {
         List<BadgeView> badges = first.badges();
-        assertThat(badges).as("概览恒返回 9 枚徽章（需求 8.5）").hasSize(EXPECTED_CODES.length);
+        assertThat(badges)
+                .as("概览恒返回 16 枚徽章（需求 8.5；achievement-system 需求 12.2 把清单从 9 枚扩到 16 枚）")
+                .hasSize(EXPECTED_CODES.length);
         for (int i = 0; i < EXPECTED_CODES.length; i++) {
             assertThat(badges.get(i).code())
                     .as("第 %d 枚徽章的编码与展示顺序（需求 8.1、8.8）", i).isEqualTo(EXPECTED_CODES[i]);
@@ -545,14 +565,24 @@ class GrowthBadgePropertyTest {
                          boolean budgetMetEvent, boolean firstInviteEvent) {
     }
 
-    /** 某枚徽章的统计口径当前取值（需求 8.7）。存在型口径映射为 1 / 0。 */
+    /**
+     * 某枚徽章的统计口径当前取值（需求 8.7）。存在型口径映射为 1 / 0。
+     *
+     * <p>achievement-system 新增的三个口径（储蓄月数 / 协作成员数 / 旅行支出笔数）在本测试的播种里
+     * <b>恒为 0</b>：本测试只播种交易、{@code DAILY_RECORD} 日历与若干经验事件，不建账本成员、
+     * 不建「旅行」分类、交易的 {@code occurred_at} 全落结算日（在储蓄月回看窗口之外），
+     * 因此参考实现按 0 建模是准确的而非省略。{@code BUDGET_MASTER} 与 {@code BUDGET_MET} 共用
+     * 「{@code BUDGET_MET} 事件条数」这一个口径，本测试至多播种 1 条，故门槛 3 的那枚恒不成立。</p>
+     */
     private static long statOf(String code, Stats stats) {
         return switch (code) {
-            case "FIRST_RECORD", "RECORD_10", "RECORD_100", "RECORD_1000" -> stats.recordCount();
-            case "STREAK_7", "STREAK_30" -> stats.maxStreak();
+            case "FIRST_RECORD", "RECORD_10", "RECORD_100", "RECORD_500", "RECORD_1000" ->
+                    stats.recordCount();
+            case "STREAK_7", "STREAK_30", "STREAK_100", "STREAK_365" -> stats.maxStreak();
             case "DAYS_100" -> stats.totalDays();
-            case "BUDGET_MET" -> stats.budgetMetEvent() ? 1L : 0L;
+            case "BUDGET_MET", "BUDGET_MASTER" -> stats.budgetMetEvent() ? 1L : 0L;
             case "INVITE_1" -> stats.firstInviteEvent() ? 1L : 0L;
+            case "COLLAB_1", "SAVING_MASTER", "TRAVEL_MASTER" -> 0L;
             default -> throw new IllegalArgumentException("未知徽章编码：" + code);
         };
     }

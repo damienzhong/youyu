@@ -82,7 +82,7 @@ import net.jqwik.api.lifecycle.BeforeTry;
  *       两表本就无行，删除同样成功。</li>
  *   <li><b>同身份重新注册从 Lv1</b>（需求 12.3、11.21）：注销后以同一邮箱 / 同一 openid 重新注册（新
  *       {@code users.id}），{@code GET /api/growth} 等价的 {@link GrowthQueryService#getOverview} 返回
- *       等级 1、未满级、9 枚徽章均未点亮；两表悬空 id 对账数仍为 0。</li>
+ *       等级 1、未满级、16 枚徽章均未点亮；两表悬空 id 对账数仍为 0。</li>
  * </ul>
  *
  * <h2>删除步骤位置（需求 12.8）</h2>
@@ -324,7 +324,7 @@ class GrowthDeregistrationPropertyTest {
         assertThat(jdbcTemplate.queryForList(INVITE_SEVEN_COLUMNS))
                 .as("注销不修改 invite_relations 任何行").isEqualTo(inviteBefore);
 
-        // 需求 12.3、11.21：同身份重新注册后从 Lv1、9 枚未点亮。
+        // 需求 12.3、11.21：同身份重新注册后从 Lv1、16 枚未点亮。
         long newId = scenario.subjectIsWx()
                 ? registerSubject(true, subjectEmail, subjectWx)
                 : registerSubject(false, subjectEmail, subjectWx);
@@ -457,7 +457,10 @@ class GrowthDeregistrationPropertyTest {
         assertThat(userRepository.findById(subjectId)).as("前置校验失败后用户行仍在").isPresent();
     }
 
-    /** 断言一名新用户的成长概览为「全新档案」：Lv1、未满级、9 枚徽章均未点亮（需求 12.3、11.21）。 */
+    /**
+     * 断言一名新用户的成长概览为「全新档案」：Lv1、未满级、16 枚徽章均未点亮（需求 12.3、11.21；
+     * achievement-system 需求 12.2 把徽章清单从 9 枚扩到 16 枚）。
+     */
     private void assertFreshGrowthProfile(long userId) {
         GrowthOverviewResponse overview = queryService.getOverview(userId);
         assertThat(overview.level()).as("重新注册后等级为 1").isEqualTo(1);
@@ -466,7 +469,8 @@ class GrowthDeregistrationPropertyTest {
         assertThat(overview.totalRecordDays()).as("重新注册后累计记账天数为 0").isZero();
         assertThat(overview.currentStreakDays()).as("重新注册后当前连续天数为 0").isZero();
         assertThat(overview.maxStreakDays()).as("重新注册后最长连续天数为 0").isZero();
-        assertThat(overview.badges()).as("恒为 9 枚徽章").hasSize(9);
+        assertThat(overview.badges())
+                .as("恒为 16 枚徽章（achievement-system 需求 12.2）").hasSize(16);
         assertThat(overview.badges()).allSatisfy(badge -> {
             assertThat(badge.unlocked()).as("重新注册后徽章 %s 未点亮", badge.code()).isFalse();
             assertThat(badge.unlockedAt()).as("未点亮徽章无解锁时刻").isNull();

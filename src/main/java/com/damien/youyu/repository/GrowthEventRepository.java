@@ -92,6 +92,68 @@ public interface GrowthEventRepository extends JpaRepository<GrowthEvent, Long> 
     List<GrowthEvent> findBadgeEvents(@Param("userId") Long userId);
 
     /**
+     * 待播报成就：{@code event_type = 'BADGE'} 且 {@code id} 大于播报游标的行，按 {@code id} 升序
+     * （需求 5.2、5.4）。
+     *
+     * <p>调用方传 {@code PageRequest.of(0, 10)} 取 {@code id} 最小的 10 项——先解锁的先播报。
+     * 走既有复合索引 {@code idx_growth_events_user_type (user_id, event_type)}，<b>不新增任何索引</b>：
+     * {@code id} 是主键，二级索引叶子上天然带着它，因此 {@code id > :cursor} 的过滤与 {@code ORDER BY
+     * id ASC} 的排序都能在索引内完成。</p>
+     *
+     * <p>JPQL 里的 {@code 'BADGE'} 字面量必须与 {@link com.damien.youyu.domain.GrowthEventType#BADGE}
+     * 保持一致：JPQL 无法引用 Java 常量，只能写字面量；改动常量取值时这两处必须一起改。</p>
+     *
+     * <p>纯只读：本查询<b>不推进游标</b>（游标推进只走 {@code AchievementQueryService} 的单条 ODKU），
+     * 因此在无新解锁、未确认的间隙里可重复读取并得到相同的项与顺序（需求 5.17）。</p>
+     *
+     * @param cursor 播报游标 {@code last_notified_event_id}；该用户无游标行时按 0 传入（需求 5.3）
+     * @param pageable 只用于传每页条数，其中的 {@code Sort} 会被 JPQL 的 {@code ORDER BY} 覆盖
+     * @return 待播报的徽章事件行，按 {@code id} 升序，至多 {@code pageable} 指定的条数
+     */
+    @Query("SELECT e FROM GrowthEvent e WHERE e.userId = :userId AND e.eventType = 'BADGE' "
+            + "AND e.id > :cursor ORDER BY e.id ASC")
+    List<GrowthEvent> findPendingBadgeEvents(@Param("userId") Long userId,
+                                            @Param("cursor") long cursor, Pageable pageable);
+
+    /**
+     * 待播报总条数：<b>截断前</b>的全部待播报条数（需求 5.5）。
+     *
+     * <p>与 {@link #findPendingBadgeEvents} 的过滤条件逐字相同，但<b>不受分页截断影响</b>——
+     * 待播报多于 10 项时，列表只返回 10 项，而这里给的是全部条数，客户端因此知道还有后续。
+     * 不用 {@code findPendingBadgeEvents(...).size()} 代替：那是截断<b>后</b>的项数，
+     * 会把「还有 30 项待播报」显示成「还有 10 项」。</p>
+     *
+     * <p>走既有索引 {@code idx_growth_events_user_type}，<b>不新增任何索引</b>。JPQL 里的
+     * {@code 'BADGE'} 字面量必须与 {@link com.damien.youyu.domain.GrowthEventType#BADGE} 保持一致
+     * （JPQL 无法引用 Java 常量）。</p>
+     *
+     * @param cursor 播报游标；无游标行时按 0 传入
+     * @return 待播报条数；游标已等于最大 {@code BADGE} 事件 {@code id} 时返回 0
+     */
+    @Query("SELECT COUNT(e) FROM GrowthEvent e WHERE e.userId = :userId "
+            + "AND e.eventType = 'BADGE' AND e.id > :cursor")
+    long countPendingBadgeEvents(@Param("userId") Long userId, @Param("cursor") long cursor);
+
+    /**
+     * 该用户最大 {@code BADGE} 事件 {@code id}，是 {@code lastEventId} <b>上界校验的唯一依据</b>
+     * （需求 5.6、5.13、5.14）。
+     *
+     * <p>{@code COALESCE(MAX(id), 0)} 使该用户没有任何 {@code BADGE} 行时返回 0 而不是 {@code null}：
+     * 上界因此恒为一个可比较的数值，「零成就用户以 {@code lastEventId = 0} 确认」这条（需求 5.13）
+     * 无需在服务层再补空值分支。<b>不得返回包装类型或 {@code null}</b>——空值一旦流到校验处，
+     * 越界判定就会退化成「与 {@code null} 比较恒为假」，任意大的 {@code lastEventId} 都能通过。</p>
+     *
+     * <p>走既有索引 {@code idx_growth_events_user_type}，<b>不新增任何索引</b>。JPQL 里的
+     * {@code 'BADGE'} 字面量必须与 {@link com.damien.youyu.domain.GrowthEventType#BADGE} 保持一致
+     * （JPQL 无法引用 Java 常量）。</p>
+     *
+     * @return 最大徽章事件 {@code id}；无 {@code BADGE} 行时为 0
+     */
+    @Query("SELECT COALESCE(MAX(e.id), 0) FROM GrowthEvent e "
+            + "WHERE e.userId = :userId AND e.eventType = 'BADGE'")
+    long maxBadgeEventId(@Param("userId") Long userId);
+
+    /**
      * 经验明细分页：按 {@code id} <b>倒序</b>翻页（需求 10.3、10.5）。
      *
      * <p>走复合索引 {@code idx_growth_events_user_id (user_id, id)} 的反向扫描——索引列刻意全部升序声明，

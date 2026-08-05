@@ -402,4 +402,26 @@ public class ApiException extends RuntimeException {
         return new ApiException("GROWTH_PAGE_PARAM_INVALID", HttpStatus.BAD_REQUEST,
                 "分页参数非法：page 取值 0-100000，size 取值 1-50", field);
     }
+
+    // ---- 常用工厂方法（Achievement 成就域） ----
+    // 成就系统（achievement-system spec）只新增下面这 1 个错误码，别的失败都不对外暴露错误码
+    //（沿用上面成长域同一先例）：
+    //  - 结算失败：成就清单接口内的结算异常在事务边界外吞掉只记 [GROWTH_SETTLE_FAILED]，
+    //    照常返回已持久化的解锁状态 + 实时聚合的当前值，字段集与结算成功时相同（需求 6.7）。
+    //  - 结算被节流：复用既有 10 秒窗口节流器，跳过结算后同样正常返回，不返回错误。
+    //  - 空待播报列表：待播报为空是正常态，返回空列表 + total 0，不是错误。
+    // 刻意**不复用** growthPageParamInvalid：入参语义（播报游标 vs 分页）与字段名都不同，
+    // 跨域复用会让客户端在成就页收到带 GROWTH 前缀的错误码，既误导排查也让前端无法按域分派文案。
+
+    /**
+     * 播报游标推进入参非法：{@code lastEventId} 缺失、为空白、无法解析为整数、小于 0，
+     * 或大于该用户当前最大 {@code BADGE} 成长事件 id（需求 5.12）。
+     *
+     * <p>拒绝时 {@code achievement_notices} 的行数与全部列取值保持不变。
+     * {@code message} 为中文、≤100 字符，且不含用户 id / 邮箱 / 令牌。</p>
+     */
+    public static ApiException achievementAckParamInvalid() {
+        return new ApiException("ACHIEVEMENT_ACK_PARAM_INVALID", HttpStatus.BAD_REQUEST,
+                "播报游标取值不合法", "lastEventId");
+    }
 }

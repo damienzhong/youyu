@@ -8,6 +8,12 @@ import java.time.LocalDateTime;
  * <p>字段<strong>是且仅是</strong>这六个：编码、展示名称、是否已点亮、解锁时刻、目标值、当前值。
  * 展示名称与门槛数值随响应下发，迁移脚本、数据库与 miniapp 一律不重复定义（需求 8.10）。</p>
  *
+ * <p>achievement-system 需求 12.1、12.2 起，概览的徽章列表由 16 枚成就派生（不再是 9 枚），
+ * 但<strong>本视图的字段集仍恰好是这六项</strong>：描述、成就分类、统计口径与成就事件 id 四项
+ * 一律<strong>不</strong>加进来——它们只随成就清单接口的
+ * {@link AchievementView}（9 项）下发。两者是<b>同一份快照</b>的两种投影，因此六个同名字段
+ * 在第 N 项上逐项相等（需求 12.3），详见 {@code GrowthQueryService.assembleBadges}。</p>
+ *
  * <p>取值口径（由 {@link GrowthBadgeCatalog} 与查询层共同保证）：</p>
  * <ul>
  *   <li>{@code unlocked}：以「该用户存在对应 {@code BADGE} 事件」为唯一判定依据，一经点亮永不熄灭（需求 8.4）。</li>

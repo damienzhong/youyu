@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import {
   listSelectableAccounts,
   getDefaultAccount,
@@ -23,6 +23,16 @@ import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
 import { resolveIcon } from '../../utils/icons'
 import { safeBack } from '../../utils/nav'
+import { buildAchievementSharePayload } from '../../utils/achievement'
+// AchievementUnlockModal 由 easycom 自动注册，无需显式 import。
+import {
+  broadcastItem,
+  broadcastVisible,
+  closeBroadcastModal,
+  enterAchievementPageFromBroadcast,
+  releaseAchievementBroadcastOnLeave,
+  startAchievementBroadcast
+} from '../../utils/achievementBroadcast'
 
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
@@ -637,6 +647,12 @@ async function run(fn, cont) {
   submitting.value = true
   try {
     await fn()
+    // 播报挂载点 ①（成就系统需求 7.1、7.12）：记账请求返回成功后立即触发一次待播报查询，
+    // 远快于 1000ms 上限。startAchievementBroadcast 同步返回、**不是 Promise**，
+    // 因此下面的结果提示、页面返回、列表与余额刷新一律不等它，播报进行中也不改动已展示的取值。
+    // 幂等守卫与编排状态机都在 utils/achievementBroadcast.js 里，「保存再记」连记多笔时
+    // 后续几次触发会被直接丢弃（需求 7.14），不会叠出第 2 个弹层。
+    startAchievementBroadcast()
     if (isEditing.value) {
       uni.showToast({ title: '已保存', icon: 'success' })
       setTimeout(() => safeBack('/pages/index/index'), 500)
@@ -655,6 +671,29 @@ async function run(fn, cont) {
     submitting.value = false
   }
 }
+// ---- 解锁播报挂载点 ①（成就系统需求 7.1、7.13、7.16、8.1）----
+// 弹层状态是 utils/achievementBroadcast.js 的模块级 ref，本页只做绑定与事件转发。
+// 记账成功后本页通常在 500ms 内返回上一页；弹层若在返回前来不及展示或展示中被卸载，
+// 编排会静默放弃且不推进游标，这些成就留在待播报集合内，下次打开成长页 / 成就页照常播报。
+
+/** 弹层内「保存卡片」：canvas 画布在成就页，故转成「进入成就页并高亮这一枚」（同时按需求 7.16 推进游标）。 */
+function onBroadcastSave() {
+  uni.showToast({ title: '在成就页保存这张卡片', icon: 'none' })
+  enterAchievementPageFromBroadcast()
+}
+
+onShareAppMessage(() => {
+  // 只在解锁弹层给出转发目标时返回成就分享卡片，其余情况用平台默认卡片。
+  const item = broadcastItem.value
+  if (!item) return
+  const payload = buildAchievementSharePayload(item)
+  return { title: payload.title, path: payload.path }
+})
+
+onUnload(() => {
+  releaseAchievementBroadcastOnLeave()
+})
+
 function goBack() {
   safeBack('/pages/index/index')
 }
@@ -894,6 +933,15 @@ function goAddCategory() {
     <InputSheet :visible="tplNameSheet" title="模板名称" placeholder="如：早餐、地铁通勤" @update:visible="tplNameSheet = $event" @confirm="onTplNameConfirm" />
     <InputSheet :visible="noteSheet" title="备注" placeholder="添加备注" :value="note" @update:visible="noteSheet = $event" @confirm="onNoteConfirm" />
     <InputSheet :visible="cpSheet" title="对方" placeholder="姓名 / 备注" :value="counterparty" @update:visible="cpSheet = $event" @confirm="onCpConfirm" />
+
+    <!-- 解锁弹层（挂载点 ①，成就系统需求 7.4）：状态来自 utils/achievementBroadcast.js 的模块级 ref -->
+    <AchievementUnlockModal
+      :visible="broadcastVisible"
+      :achievement="broadcastItem"
+      @update:visible="closeBroadcastModal"
+      @enter="enterAchievementPageFromBroadcast"
+      @save="onBroadcastSave"
+    />
   </view>
 </template>
 

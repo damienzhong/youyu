@@ -91,6 +91,7 @@ class AccountDeletionCascadeTest {
     @Autowired private com.damien.youyu.repository.InviteRelationRepository inviteRelationRepository;
     @Autowired private com.damien.youyu.repository.GrowthEventRepository growthEventRepository;
     @Autowired private com.damien.youyu.repository.UserGrowthRepository userGrowthRepository;
+    @Autowired private com.damien.youyu.repository.AchievementNoticeRepository achievementNoticeRepository;
 
     private AccountDeletionService service() {
         return new AccountDeletionService(
@@ -100,7 +101,7 @@ class AccountDeletionCascadeTest {
                 budgetRepository, categoryBudgetRepository, loanRepository, loanRepaymentRepository,
                 projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
                 verificationCodeRepository, inviteRelationRepository,
-                growthEventRepository, userGrowthRepository,
+                growthEventRepository, userGrowthRepository, achievementNoticeRepository,
                 java.time.Clock.systemDefaultZone());
     }
 

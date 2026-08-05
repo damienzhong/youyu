@@ -7,12 +7,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +23,7 @@ import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.GrowthEventRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.UserGrowthRepository;
+import com.damien.youyu.service.AchievementSnapshotService.AchievementSnapshot;
 
 /**
  * 成长概览与经验明细的组装（需求 10）。
@@ -42,10 +39,11 @@ import com.damien.youyu.repository.UserGrowthRepository;
  *   <li>读成长档案（<b>可能为空</b>：新用户或结算失败且从未建档）；</li>
  *   <li>实时聚合三项累计统计（笔数 / 支出 / 收入，需求 7.9 不物化）；</li>
  *   <li>按<b>判定日</b>校正当前连续天数（需求 4.11、4.15，读取侧实时判定、不写库）；</li>
- *   <li>组装 9 枚徽章（需求 8.5、8.6、8.12、8.13）。</li>
+ *   <li>组装徽章列表——<b>委托 {@link AchievementSnapshotService} 的统一快照</b>再投影
+ *       （需求 8.5、8.6、8.12、8.13；achievement-system 需求 12.1、12.2、12.3）。</li>
  * </ol>
  *
- * <p><b>降级</b>（需求 9.11）：结算失败且无档案时返回等级 1 / 经验 0 / 三项天数 0 / 9 枚未点亮，
+ * <p><b>降级</b>（需求 9.11）：结算失败且无档案时返回等级 1 / 经验 0 / 三项天数 0 / 全部徽章未点亮，
  * 但累计笔数与金额仍是<b>真实值</b>（它们来自交易事实源的实时聚合，与档案无关）。结算成败
  * <b>不改变响应字段集</b>（需求 9.10）。</p>
  */
@@ -64,11 +62,8 @@ public class GrowthQueryService {
     private static final String TYPE_EXPENSE = "expense";
     private static final String TYPE_INCOME = "income";
 
-    /** 预算达成经验事件键前缀（需求 3.7）；用于判定 {@code BUDGET_MET} 徽章的点亮条件（需求 8.11）。 */
-    private static final String BUDGET_MET_PREFIX = "BUDGET_MET:";
-
-    /** 首次邀请经验事件键（需求 6.1）；用于判定 {@code INVITE_1} 徽章的点亮条件（需求 8.11）。 */
-    private static final String FIRST_INVITE_KEY = "FIRST_INVITE";
+    // 徽章判定所需的事件键前缀（BUDGET_MET: / SAVING_MONTH: / FIRST_INVITE）刻意不在本类定义：
+    // 它们只属于 AchievementSnapshotService 一处，见 assembleBadges 的 Javadoc（achievement-system 需求 12.3）。
 
     /** 经验明细分页参数的缺省值与取值范围（需求 10.2、10.9）。 */
     private static final int DEFAULT_PAGE = 0;
@@ -82,6 +77,7 @@ public class GrowthQueryService {
     private final UserGrowthRepository userGrowthRepository;
     private final GrowthEventRepository growthEventRepository;
     private final TransactionRepository transactionRepository;
+    private final AchievementSnapshotService snapshotService;
     private final GrowthBadgeCatalog badgeCatalog;
     private final GrowthLevelCurve levelCurve;
     private final Clock clock;
@@ -90,6 +86,7 @@ public class GrowthQueryService {
                               UserGrowthRepository userGrowthRepository,
                               GrowthEventRepository growthEventRepository,
                               TransactionRepository transactionRepository,
+                              AchievementSnapshotService snapshotService,
                               GrowthBadgeCatalog badgeCatalog,
                               GrowthLevelCurve levelCurve,
                               Clock clock) {
@@ -97,6 +94,7 @@ public class GrowthQueryService {
         this.userGrowthRepository = userGrowthRepository;
         this.growthEventRepository = growthEventRepository;
         this.transactionRepository = transactionRepository;
+        this.snapshotService = snapshotService;
         this.badgeCatalog = badgeCatalog;
         this.levelCurve = levelCurve;
         this.clock = clock;
@@ -133,8 +131,8 @@ public class GrowthQueryService {
         LocalDate judgmentDay = LocalDate.now(clock);
         int currentStreakDays = correctedCurrentStreak(profileOpt.orElse(null), judgmentDay);
 
-        // ── ⑤ 组装 9 枚徽章（需求 8.5、8.6、8.12、8.13）──────────────────────────────────
-        List<BadgeView> badges = assembleBadges(userId, profileOpt.orElse(null), stats.recordCount());
+        // ── ⑤ 组装徽章：委托统一快照服务（需求 8.5、8.6、8.12、8.13 + achievement-system 需求 12.3）──
+        List<BadgeView> badges = assembleBadges(userId);
 
         // ── 等级换算的六个派生字段（需求 2.8、2.9、2.10）；无档案降级为 Lv1 / 0 经验（需求 9.11）──
         int level = profileOpt.map(UserGrowth::getLevel).orElse(1);
@@ -242,38 +240,44 @@ public class GrowthQueryService {
     }
 
     /**
-     * 组装 9 枚徽章视图，顺序与 {@link GrowthBadgeCatalog#badges()} 一致（需求 8.5、8.8）。
+     * 组装徽章视图，顺序与 {@link GrowthBadgeCatalog#badges()} 一致（需求 8.5、8.8；achievement-system
+     * 需求 12.2 起清单为 16 枚）。
      *
      * <p>已点亮的唯一依据是存在对应的 {@code BADGE:<编码>} 行（需求 8.4、8.11）：解锁时刻取该行的
      * {@code created_at}（需求 8.6），当前值恒等于目标值（需求 8.12）。未点亮时解锁时刻为空、当前值取
      * 「统计量当前取值」与目标值的较小者，落在 {@code [0, target]}（需求 8.12）。<b>条件已成立但徽章事件
      * 尚未写入</b>（结算被节流或失败留下的间隙）时仍返回未点亮 + 空解锁时刻，而当前值因统计量已达门槛而
      * 等于目标值，且不报错，由下一次成功结算自愈（需求 8.13）。</p>
+     *
+     * <h3>为什么改为委托 {@link AchievementSnapshotService}</h3>
+     *
+     * <p>本方法曾自行读 {@code BADGE} 行、自行前缀判定并自行组装 {@link GrowthFacts}；现在这三件事
+     * 一律交给 {@link AchievementSnapshotService#snapshot(Long)}，本方法只做投影。
+     * 这样做是为了让 achievement-system 需求 12.3「成长概览的徽章列表与成就清单在编码、名称、
+     * 是否已点亮、解锁时刻、门槛与当前值六项上逐项相等」<b>构造性成立</b>：
+     * 两条读取路径（本方法与 {@link AchievementQueryService#getAchievements(Long)}）共用<b>同一份快照</b>
+     * 与<b>同一份 {@link GrowthBadgeCatalog} 清单</b>，两个 DTO（{@link BadgeView} 6 字段 /
+     * {@link AchievementView} 9 字段）只是同一快照的两种投影，
+     * <b>不存在两份独立实现可以漂移</b>——没有第二处过滤条件、第二套钳制规则、第二个取值时刻，
+     * 那条不变式因此不再依赖「两份实现靠测试凑巧对上」。</p>
+     *
+     * <p>{@code recordCount} 亦由快照内部求值（与本方法的实时聚合走<b>同一条</b>
+     * {@code countValidRecordsByCreatedBy} 查询，口径逐例相等），因此徽章进度与概览顶层的累计笔数
+     * 不会给出互相矛盾的取值。</p>
      */
-    private List<BadgeView> assembleBadges(Long userId, UserGrowth profile, long recordCount) {
-        // 已点亮徽章：BADGE 行的 event_key 去掉前缀即编码，created_at 即解锁时刻（需求 8.6）。
-        Map<String, LocalDateTime> unlockedAtByCode = new HashMap<>();
-        for (GrowthEvent badgeEvent : growthEventRepository.findBadgeEvents(userId)) {
-            String code = badgeEvent.getEventKey().substring(GrowthBadgeCatalog.BADGE_KEY_PREFIX.length());
-            unlockedAtByCode.put(code, badgeEvent.getCreatedAt());
-        }
-
-        // 徽章「当前值」所需的统计事实：笔数取实时聚合值；连续/累计天数取档案物化列；
-        // 两个存在型口径看经验事件键（BUDGET_MET: 前缀行、FIRST_INVITE 行），与 BADGE 行双向隔离（需求 8.11）。
-        Set<String> eventKeys = new HashSet<>(growthEventRepository.findEventKeysByUserId(userId));
-        boolean budgetMetEvent = eventKeys.stream().anyMatch(key -> key.startsWith(BUDGET_MET_PREFIX));
-        boolean firstInviteEvent = eventKeys.contains(FIRST_INVITE_KEY);
-        int maxStreakDays = (profile == null) ? 0 : profile.getMaxStreakDays();
-        int totalRecordDays = (profile == null) ? 0 : profile.getTotalRecordDays();
-        GrowthFacts facts = new GrowthFacts(recordCount, maxStreakDays, totalRecordDays,
-                budgetMetEvent, firstInviteEvent);
+    private List<BadgeView> assembleBadges(Long userId) {
+        // 八个统计口径 + 已解锁映射一次求全（需求 3.16）；单个口径查询失败时该口径取 0 并记 WARN，
+        // 其余照常返回、不抛出（需求 3.14），与概览「结算失败也不改变响应字段集」的取舍一致。
+        AchievementSnapshot snapshot = snapshotService.snapshot(userId);
 
         List<BadgeDef> defs = badgeCatalog.badges();
         List<BadgeView> views = new ArrayList<>(defs.size());
         for (BadgeDef def : defs) {
-            boolean unlocked = unlockedAtByCode.containsKey(def.code());
-            LocalDateTime unlockedAt = unlocked ? unlockedAtByCode.get(def.code()) : null;
-            int current = badgeCatalog.currentOf(def, facts, unlocked);
+            boolean unlocked = snapshot.unlocked(def.code());
+            GrowthEvent event = snapshot.eventOf(def.code());
+            // 未点亮时解锁时刻为空值，不以 0 / 空字符串 / 当前时刻替代（需求 8.6）。
+            LocalDateTime unlockedAt = (event == null) ? null : event.getCreatedAt();
+            int current = badgeCatalog.currentOf(def, snapshot.facts(), unlocked);
             views.add(new BadgeView(def.code(), def.name(), unlocked, unlockedAt, def.target(), current));
         }
         return views;
