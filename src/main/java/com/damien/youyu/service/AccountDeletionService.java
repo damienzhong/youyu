@@ -20,6 +20,7 @@ import com.damien.youyu.repository.AchievementNoticeRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
+import com.damien.youyu.repository.CustomReminderRepository;
 import com.damien.youyu.repository.GrowthEventRepository;
 import com.damien.youyu.repository.InviteRelationRepository;
 import com.damien.youyu.repository.LedgerInviteRepository;
@@ -29,6 +30,9 @@ import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
+import com.damien.youyu.repository.ReminderQuotaRepository;
+import com.damien.youyu.repository.ReminderSendLogRepository;
+import com.damien.youyu.repository.StreakSegmentRepository;
 import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.TransactionTagRepository;
@@ -102,6 +106,17 @@ public class AccountDeletionService {
     // 该表同样没有指向 users(id) 的外键（与 user_growth 同一取舍），故由服务层在同一注销事务内显式删除。
     private final AchievementNoticeRepository achievementNoticeRepository;
 
+    // 历史连续区间（streak-system 任务 6.2，需求 8）：注销时在删 users 行之前硬删该用户的段行。
+    // 该表同样没有指向 users(id) 的外键（与 user_growth / achievement_notices 同一取舍），故由服务层在同一注销事务内显式删除。
+    private final StreakSegmentRepository streakSegmentRepository;
+
+    // 自定义提醒三表（custom-reminder 任务 9.1，需求 9.11/11.4）：注销时在删 users 行之前硬删该用户的
+    // 提醒配置、订阅额度与发送记录。三表均无指向 users(id) 的外键（与 user_growth / achievement_notices /
+    // streak_segments 同一取舍），故由服务层在同一注销事务内显式删除。
+    private final ReminderSendLogRepository reminderSendLogRepository;
+    private final CustomReminderRepository customReminderRepository;
+    private final ReminderQuotaRepository reminderQuotaRepository;
+
     public AccountDeletionService(
             LedgerRepository ledgerRepository,
             LedgerMemberRepository memberRepository,
@@ -127,6 +142,10 @@ public class AccountDeletionService {
             GrowthEventRepository growthEventRepository,
             UserGrowthRepository userGrowthRepository,
             AchievementNoticeRepository achievementNoticeRepository,
+            StreakSegmentRepository streakSegmentRepository,
+            ReminderSendLogRepository reminderSendLogRepository,
+            CustomReminderRepository customReminderRepository,
+            ReminderQuotaRepository reminderQuotaRepository,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
@@ -152,6 +171,10 @@ public class AccountDeletionService {
         this.growthEventRepository = growthEventRepository;
         this.userGrowthRepository = userGrowthRepository;
         this.achievementNoticeRepository = achievementNoticeRepository;
+        this.streakSegmentRepository = streakSegmentRepository;
+        this.reminderSendLogRepository = reminderSendLogRepository;
+        this.customReminderRepository = customReminderRepository;
+        this.reminderQuotaRepository = reminderQuotaRepository;
         this.clock = clock;
     }
 
@@ -377,6 +400,30 @@ public class AccountDeletionService {
         //     才被调用，故前置校验失败时游标表零副作用（需求 11.8）。游标行无跨用户引用，删除不触及其它
         //     用户（需求 11.7）。
         achievementNoticeRepository.deleteByUserId(userId);
+
+        // 12.7) 历史连续区间硬删（streak-system 需求 8.8、8.9）：置于第 12.6 步（achievement_notices 硬删）
+        //     之后、第 13 步（删 users 行）之前，且不改变既有各步骤的相对顺序、过滤条件与影响行数（需求 8.9）。
+        //     streak_segments 无指向 users(id) 的外键（与 user_growth / achievement_notices 同一取舍），删除顺序
+        //     在数据库层没有约束；固定在这里只为使删除步骤可逐语句断言。以 user_id 等于该用户 id 为唯一过滤条件的
+        //     硬删除语句：无行时影响行数 0 即视为成功，不返回错误标识、不中止注销事务。删除前不做任何存在性预查询，
+        //     也不写该行的软删除标记或归档副本。整个 deleteAccount 是单个事务：本步失败则整体回滚，users、成长两表、
+        //     游标表与段表全列还原；且本方法只在 requireDeletable 与 verifySecondFactor（均只读）通过后才被调用，
+        //     故前置校验失败时段表零副作用。段行无跨用户引用，删除不触及其它用户。
+        streakSegmentRepository.deleteByUserId(userId);
+
+        // 12.8) 自定义提醒三表硬删（custom-reminder 需求 9.11、11.4）：置于第 12.7 步（streak_segments 硬删）
+        //     之后、第 13 步（删 users 行）之前，且不改变既有各步骤的相对顺序、过滤条件与影响行数。
+        //     custom_reminders / reminder_quota / reminder_send_logs 三表均无指向 users(id) 的外键（与
+        //     user_growth / achievement_notices / streak_segments 同一取舍），删除顺序在数据库层没有约束；
+        //     这里固定「先 reminder_send_logs、再 custom_reminders、最后 reminder_quota」只为使删除步骤可逐语句
+        //     断言。三表均以 user_id 等于该用户 id 为唯一过滤条件的硬删除语句：无行时影响行数 0 即视为成功，
+        //     不返回错误标识、不中止注销事务；删除前不做任何存在性预查询，也不写软删除标记或归档副本。整个
+        //     deleteAccount 是单个事务：这三步中任一步失败则整体回滚，users 与三表全列还原（需求 9.11、9.12），
+        //     注销接口的响应字段集、HTTP 状态码与既有错误码不变（需求 11.4）。三表无跨用户引用，删除不触及
+        //     其它用户，也只读/写这三张新表、不触及既有体系任何表。
+        reminderSendLogRepository.deleteByUserId(userId);
+        customReminderRepository.deleteByUserId(userId);
+        reminderQuotaRepository.deleteByUserId(userId);
 
         // 13) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）；
         //     同时随该行释放 users.invite_code，后续新用户可重新抽到同一个码——邀请关系的归属判定用的是

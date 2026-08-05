@@ -221,6 +221,10 @@ public class GrowthQueryService {
      * 否则返回 0（连续已中断）。物化列只承载连续段长度，「连续是否已中断」一律在读取侧按判定日实时判定，
      * 因此跨日后或结算失败时都不会返回过期的非零连续天数。<b>本方法只读，不写档案。</b></p>
      *
+     * <p>判定改为委托 {@link StreakJudgment#currentStreakDays(LocalDate, int, LocalDate)}，
+     * 是为了让需求 2.3 / 10.5 的「成长概览与连续记账概览两处当前连续天数相等」构造性成立：
+     * 两条读取路径共用同一份判定实现，相等性不再依赖两份实现靠测试凑巧对上。</p>
+     *
      * @param profile     成长档案，可为 {@code null}（无档案时返回 0）
      * @param judgmentDay 判定日（生成响应时刻所在的 {@code Asia/Shanghai} 自然日）
      * @return 校正后的当前连续天数，≥ 0
@@ -229,14 +233,8 @@ public class GrowthQueryService {
         if (profile == null) {
             return 0;
         }
-        LocalDate lastRecordDate = profile.getLastRecordDate();
-        if (lastRecordDate == null) {
-            return 0;
-        }
-        if (lastRecordDate.equals(judgmentDay) || lastRecordDate.equals(judgmentDay.minusDays(1))) {
-            return profile.getCurrentStreakDays();
-        }
-        return 0;
+        return StreakJudgment.currentStreakDays(
+                profile.getLastRecordDate(), profile.getCurrentStreakDays(), judgmentDay);
     }
 
     /**

@@ -48,4 +48,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT u FROM User u WHERE u.id = :id")
     Optional<User> findForUpdateById(@Param("id") Long id);
+
+    /**
+     * 只读投影：读取该用户的微信 {@code openid}（custom-reminder 需求 6.1、6.3、11.2）。
+     *
+     * <p>供自定义提醒发送编排（{@code ReminderDispatchService}）判定收件地址使用。
+     * <b>只取 {@code wx_openid} 标量、不整实体回读、绝不写 {@code users}</b>（需求 11.2）。</p>
+     *
+     * <p>返回空的两种情形对调用方等价、都视同「不可发送」（写 {@code SKIPPED_NO_QUOTA}，需求 6.3）：
+     * 该用户 id 不存在，或存在但 {@code wx_openid} 为 {@code null}（纯邮箱用户）。</p>
+     *
+     * @param userId 用户 id（即主键）
+     * @return 微信 openid；用户不存在或未绑定微信时为空
+     */
+    @Query("SELECT u.wxOpenid FROM User u WHERE u.id = :userId")
+    Optional<String> findWxOpenid(@Param("userId") Long userId);
 }

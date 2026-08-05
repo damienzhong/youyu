@@ -424,4 +424,65 @@ public class ApiException extends RuntimeException {
         return new ApiException("ACHIEVEMENT_ACK_PARAM_INVALID", HttpStatus.BAD_REQUEST,
                 "播报游标取值不合法", "lastEventId");
     }
+
+    // ---- 常用工厂方法（Streak 连续记账域） ----
+    // 连续记账系统（streak-system spec）只新增下面这 1 个错误码，别的失败都不对外暴露错误码
+    //（沿用上面成长域、成就域同一先例）：
+    //  - 结算失败：连续记账概览触发的结算异常在事务边界外吞掉只记 [STREAK_SETTLE_FAILED]，
+    //    照常返回已持久化的段与成长档案取值，字段集与结算成功时相同（需求 6.7）。
+    //  - 结算被节流：复用成长概览侧既有 10 秒窗口节流器，跳过结算后同样正常返回，不返回错误。
+    //  - 未认证：走既有 unauthenticated()，不新增错误码。
+    // 刻意**不复用** growthPageParamInvalid：跨域复用会让客户端在连续记账页收到带 GROWTH 前缀的
+    // 错误码（GROWTH_PAGE_PARAM_INVALID），既误导排查也让前端无法按域分派提示文案。
+
+    /**
+     * 历史连续区间分页参数非法（需求 6.12、6.13）。{@code field} 为 page 或 size。
+     *
+     * <p>拒绝时 {@code streak_segments} 表的行数与全部列取值保持不变。
+     * {@code message} 为中文、≤100 字符，且不含用户 id / 邮箱 / 令牌。</p>
+     */
+    public static ApiException streakPageParamInvalid(String field) {
+        return new ApiException("STREAK_PAGE_PARAM_INVALID", HttpStatus.BAD_REQUEST,
+                "分页参数非法：page 取值 0-100000，size 取值 1-50", field);
+    }
+
+    // ---- 常用工厂方法（Custom Reminder 自定义提醒域） ----
+    // 自定义提醒系统（custom-reminder spec）只新增下面这 5 个错误码，均为 400 BAD_REQUEST，
+    // 复用既有 UNAUTHENTICATED（令牌无效/过期/用户已注销）与 NOT_FOUND（提醒不存在或不属于本人）
+    // 两个错误码，不重命名任何既有码（需求 11.5）。校验优先级由高到低固定为
+    // FREQUENCY > TIME > DUPLICATE > LIMIT（需求 1.9）。
+    // message 均为中文、≤100 字符，且不含用户 id / 邮箱 / 令牌。
+
+    /** 频率非法：{@code frequency} 缺失、为空、或取值（区分大小写）不属于 DAILY/WEEKDAY/WEEKEND（需求 1.3）。 */
+    public static ApiException reminderFrequencyInvalid() {
+        return new ApiException("REMINDER_FREQUENCY_INVALID", HttpStatus.BAD_REQUEST,
+                "提醒频率非法：仅支持每天、工作日或周末", "frequency");
+    }
+
+    /**
+     * 提醒时间非法：{@code remindTime} 缺失、为空、不符合 HH:mm 格式，或小时不在 0-23、
+     * 分钟不在 0-59 之内（需求 1.4）。
+     */
+    public static ApiException reminderTimeInvalid() {
+        return new ApiException("REMINDER_TIME_INVALID", HttpStatus.BAD_REQUEST,
+                "提醒时间非法：需为 HH:mm 格式且在 00:00 到 23:59 之间", "remindTime");
+    }
+
+    /** 同一用户已存在频率与时间两项均相同的提醒，不重复创建（需求 1.5、7.8）。 */
+    public static ApiException reminderDuplicate() {
+        return new ApiException("REMINDER_DUPLICATE", HttpStatus.BAD_REQUEST,
+                "已存在相同频率与时间的提醒，请勿重复添加", "frequency");
+    }
+
+    /** 提醒数量已达上限 10 条，拒绝创建第 11 条（需求 1.6）。 */
+    public static ApiException reminderLimitExceeded() {
+        return new ApiException("REMINDER_LIMIT_EXCEEDED", HttpStatus.BAD_REQUEST,
+                "提醒数量已达上限，最多可创建 10 条", null);
+    }
+
+    /** 上报订阅授权次数非法：{@code grantedCount} 缺失、无法解析为整数、小于 1 或大于 5（需求 5.4）。 */
+    public static ApiException reminderGrantInvalid() {
+        return new ApiException("REMINDER_GRANT_INVALID", HttpStatus.BAD_REQUEST,
+                "授权次数非法：需为 1 到 5 之间的整数", "grantedCount");
+    }
 }

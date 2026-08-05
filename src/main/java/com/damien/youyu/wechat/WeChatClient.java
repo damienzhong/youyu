@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -51,11 +52,24 @@ public class WeChatClient {
 
     private static final String QRCODE_UNLIMITED_PATH = "/wxa/getwxacodeunlimit?access_token={token}";
 
+    /** 一次性订阅消息发送接口（custom-reminder 需求 6.1）。 */
+    private static final String SUBSCRIBE_SEND_PATH = "/cgi-bin/message/subscribe/send?access_token={token}";
+
     /** 凭证接口超时上限（需求 3.5）。 */
     private static final int TOKEN_TIMEOUT_MILLIS = 2000;
 
     /** 小程序码接口超时上限（需求 3.7）。 */
     private static final int QRCODE_TIMEOUT_MILLIS = 3000;
+
+    /** 订阅消息接口超时上限（custom-reminder 需求 6.1）。 */
+    private static final int SUBSCRIBE_TIMEOUT_MILLIS = 3000;
+
+    /**
+     * 订阅消息本地失败的哨兵 errcode（非微信下发）：模板未配置、凭证为空、网络异常或响应无法解析时返回。
+     * 取负值以与任何真实微信 errcode（≥0）区分；调用方（ReminderDispatchService，任务 6.1）按
+     * 「非零即失败」记 {@code FAILED}，安全降级、不消耗额度、不影响任何主路径（需求 6.4）。
+     */
+    static final int ERRCODE_LOCAL_FAILURE = -1;
 
     /** 解析微信「200 但返回 JSON 错误体」的响应；无状态，可静态复用。 */
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -63,17 +77,37 @@ public class WeChatClient {
     private final RestClient restClient;
     private final RestClient tokenRestClient;
     private final RestClient qrCodeRestClient;
+    private final RestClient subscribeRestClient;
     private final String appId;
     private final String appSecret;
+
+    /** 订阅消息模板 id（{@code app.wechat.subscribe.reminder-template-id}）；未配置时发送安全降级为失败。 */
+    private final String subscribeTemplateId;
+
+    /** 订阅消息模板中承载提醒文案的字段名（{@code app.wechat.subscribe.message-field}，如 {@code thing1}）。 */
+    private final String subscribeMessageField;
+
+    /**
+     * 凭证提供者：识别 {@code errcode=40001}（凭证无效）后强制刷新并重试一次（需求 11.3）。
+     * <b>复用全项目唯一的凭证网关，不新建第二套凭证获取</b>。以 {@link Lazy} 注入打破与
+     * {@link WeChatAccessTokenProvider} 的构造期循环依赖（后者构造需要本类）。测试构造器下可为 {@code null}。
+     */
+    private final WeChatAccessTokenProvider accessTokenProvider;
 
     // 类中有两个构造器（另一个是测试用的注入 RestClient.Builder 版本），必须显式标注注入哪一个。
     @Autowired
     public WeChatClient(
             @Value("${app.wechat.miniapp.appid:}") String appId,
             @Value("${app.wechat.miniapp.secret:}") String appSecret,
-            @Value("${app.wechat.api-base-url:https://api.weixin.qq.com}") String apiBaseUrl) {
+            @Value("${app.wechat.api-base-url:https://api.weixin.qq.com}") String apiBaseUrl,
+            @Value("${app.wechat.subscribe.reminder-template-id:}") String subscribeTemplateId,
+            @Value("${app.wechat.subscribe.message-field:thing1}") String subscribeMessageField,
+            @Lazy WeChatAccessTokenProvider accessTokenProvider) {
         this.appId = appId;
         this.appSecret = appSecret;
+        this.subscribeTemplateId = subscribeTemplateId;
+        this.subscribeMessageField = subscribeMessageField;
+        this.accessTokenProvider = accessTokenProvider;
         this.restClient = RestClient.builder().baseUrl(apiBaseUrl).build();
         this.tokenRestClient = RestClient.builder()
                 .baseUrl(apiBaseUrl)
@@ -82,6 +116,10 @@ public class WeChatClient {
         this.qrCodeRestClient = RestClient.builder()
                 .baseUrl(apiBaseUrl)
                 .requestFactory(requestFactory(QRCODE_TIMEOUT_MILLIS))
+                .build();
+        this.subscribeRestClient = RestClient.builder()
+                .baseUrl(apiBaseUrl)
+                .requestFactory(requestFactory(SUBSCRIBE_TIMEOUT_MILLIS))
                 .build();
     }
 
@@ -93,12 +131,27 @@ public class WeChatClient {
      * 超时属于生产构造器的职责，协议层测试用 mock 抛 IO 异常来模拟超时分支。</p>
      */
     WeChatClient(String appId, String appSecret, RestClient.Builder builder) {
+        this(appId, appSecret, builder, null, "thing1", null);
+    }
+
+    /**
+     * 仅供测试：在共享 {@link RestClient.Builder} 的基础上另行注入订阅消息模板配置与凭证提供者，
+     * 使 {@code sendSubscribeMessage} 的协议层与 40001 重试路径可被 {@code MockRestServiceServer} 覆盖
+     * （任务 5.2）。同样不覆盖请求工厂（保留 mock 的那个），因此不带超时配置。
+     */
+    WeChatClient(String appId, String appSecret, RestClient.Builder builder,
+            String subscribeTemplateId, String subscribeMessageField,
+            WeChatAccessTokenProvider accessTokenProvider) {
         this.appId = appId;
         this.appSecret = appSecret;
+        this.subscribeTemplateId = subscribeTemplateId;
+        this.subscribeMessageField = subscribeMessageField;
+        this.accessTokenProvider = accessTokenProvider;
         RestClient shared = builder.build();
         this.restClient = shared;
         this.tokenRestClient = shared;
         this.qrCodeRestClient = shared;
+        this.subscribeRestClient = shared;
     }
 
     private static ClientHttpRequestFactory requestFactory(int timeoutMillis) {
@@ -257,6 +310,93 @@ public class WeChatClient {
 
         // 走到这里：要么明确是 JSON 错误体，要么是「声明 image 但内容是 JSON」的畸形响应。
         throw parseWeChatError(bytes, contentType);
+    }
+
+    /**
+     * 下发一次性订阅消息（{@code cgi-bin/message/subscribe/send}），单次调用超时上限 3000 毫秒。
+     * 返回微信 {@code errcode}（{@code 0} 表示成功）；本地失败（模板未配置 / 凭证为空 / 网络异常 /
+     * 响应无法解析）返回哨兵 {@link #ERRCODE_LOCAL_FAILURE}，由调用方（任务 6.1）统一按「非零即失败」
+     * 记 {@code FAILED}。本方法<b>不抛异常</b>，任何故障都就地吞掉并记告警日志，绝不冒泡到调度或主路径。
+     *
+     * <p>识别 {@code errcode=40001}（凭证无效，通常是同 appid 的 token 被别处刷新踢掉）时，经
+     * {@link WeChatAccessTokenProvider#forceRefresh(String)} 强制刷新凭证后重试一次并返回重试结果——
+     * <b>复用全项目唯一的凭证网关，不新建第二套凭证获取</b>（需求 11.3）。</p>
+     *
+     * <p>模板 id（{@code app.wechat.subscribe.reminder-template-id}）由运营在微信后台申请提醒模板后填入；
+     * 未配置时安全降级为失败（返回哨兵），既不外呼微信、也不影响记账等任何主路径。请求体为
+     * {@code {touser, template_id, data:{<message-field>:{value:<文案>}}}}，文案字段名由
+     * {@code app.wechat.subscribe.message-field} 配置（缺省 {@code thing1}）。</p>
+     *
+     * @param accessToken 由 {@link WeChatAccessTokenProvider} 提供的接口调用凭证
+     * @param openid      收件用户的 {@code wx_openid}
+     * @param message     提醒文案（两条之一，均在模板字段长度限制内）
+     * @return 微信 {@code errcode}（{@code 0} 成功），或本地失败时的 {@link #ERRCODE_LOCAL_FAILURE}
+     */
+    public int sendSubscribeMessage(String accessToken, String openid, String message) {
+        if (subscribeTemplateId == null || subscribeTemplateId.isBlank()) {
+            log.warn("未配置 app.wechat.subscribe.reminder-template-id，订阅消息发送安全降级为失败");
+            return ERRCODE_LOCAL_FAILURE;
+        }
+        if (accessToken == null || accessToken.isBlank()) {
+            log.warn("订阅消息接口凭证为空，发送安全降级为失败");
+            return ERRCODE_LOCAL_FAILURE;
+        }
+
+        int errcode = postSubscribeMessage(accessToken, openid, message);
+        if (errcode == WeChatApiException.ERRCODE_INVALID_CREDENTIAL) {
+            log.warn("微信订阅消息接口返回 errcode=40001 凭证无效，强制刷新凭证后重试一次");
+            String freshToken;
+            try {
+                freshToken = accessTokenProvider.forceRefresh(accessToken);
+            } catch (RuntimeException ex) {
+                log.warn("强制刷新微信凭证失败，订阅消息发送安全降级为失败：{}", ex.toString());
+                return ERRCODE_LOCAL_FAILURE;
+            }
+            errcode = postSubscribeMessage(freshToken, openid, message);
+        }
+        return errcode;
+    }
+
+    /**
+     * 执行一次 {@code subscribeMessage.send} 调用并解析 {@code errcode}。
+     * 网络异常、空响应体一律归一为 {@link #ERRCODE_LOCAL_FAILURE}（记告警日志，不抛异常）。
+     */
+    @SuppressWarnings("unchecked")
+    private int postSubscribeMessage(String accessToken, String openid, String message) {
+        // LinkedHashMap 而非 Map.of：固定字段顺序让抓包与日志比对更直观。
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("value", message);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put(subscribeMessageField, field);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("touser", openid);
+        payload.put("template_id", subscribeTemplateId);
+        payload.put("data", data);
+
+        Map<String, Object> body;
+        try {
+            body = subscribeRestClient.post()
+                    .uri(SUBSCRIBE_SEND_PATH, accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(payload)
+                    .retrieve()
+                    .body(Map.class);
+        } catch (RuntimeException ex) {
+            log.warn("请求微信订阅消息接口失败：{}", ex.toString());
+            return ERRCODE_LOCAL_FAILURE;
+        }
+
+        if (body == null || body.isEmpty()) {
+            log.warn("微信订阅消息接口返回空响应体");
+            return ERRCODE_LOCAL_FAILURE;
+        }
+
+        int errcode = (int) parseLong(body.get("errcode"));
+        if (errcode != 0) {
+            Object errmsg = body.get("errmsg");
+            log.warn("微信订阅消息接口返回错误：errcode={}, errmsg={}", errcode, errmsg);
+        }
+        return errcode;
     }
 
     /** 把微信 200 + JSON 错误体解析为携带 errcode 的异常，并记一条含错误码的 WARN 日志（需求 3.7）。 */

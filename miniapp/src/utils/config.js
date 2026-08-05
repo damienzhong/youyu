@@ -2,6 +2,10 @@
 // 小程序端需在微信公众平台配置 request 合法域名（须 HTTPS）。
 export const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:8090/api'
 
+// 记账提醒的微信一次性订阅消息模板 id：供 wx.requestSubscribeMessage 授权用。
+// 与后端 app.wechat.subscribe.reminder-template-id 对应的同一模板；构建期由 VITE_WX_REMINDER_TMPL_ID 注入。
+export const WX_REMINDER_TEMPLATE_ID = import.meta.env.VITE_WX_REMINDER_TMPL_ID || ''
+
 // 本地存储键，集中管理避免散落魔法字符串。
 export const STORAGE_KEYS = {
   token: 'youyu_token',

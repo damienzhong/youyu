@@ -54,7 +54,7 @@ class GrowthSettlementServiceLockTest {
         // 本测试只驱动 lockProfileWithBudget，它仅依赖 userGrowthRepository 与 clock；
         // 其余协作者与 settle 主路径无关，传 null 即可（不会被本方法触及）。
         service = new GrowthSettlementService(
-                repository, null, null, null, null, null, null, null, null, null, null, null, clock);
+                repository, null, null, null, null, null, null, null, null, null, null, null, null, clock);
     }
 
     /** 首次尝试即取到锁：直接返回档案行，仓储只被调用一次。 */

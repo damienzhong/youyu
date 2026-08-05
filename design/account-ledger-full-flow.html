@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 账户 ⇄ 账本 全链路 UI</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#ffffff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --expense:#f0553d; --income:#12a150; --transfer:#8a94a6;
+    --warn:#f4a72b; --amber-weak:#fdf3e2; --danger:#e5484d;
+    --radius:18px; --pill:999px; --shadow:0 6px 22px rgba(20,24,28,.06);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1320px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:36px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:900px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:52px 0 6px;}
+  .sec-desc{font-size:15px;color:var(--ink-2);margin:0 0 22px;max-width:900px;line-height:1.7;}
+
+  /* 流程图 */
+  .flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;}
+  .step{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;}
+  .step.br{background:var(--brand);color:#fff;border-color:var(--brand);}
+  .arr{color:var(--ink-3);font-size:16px;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:34px 28px;margin-top:8px;}
+  .pw{width:320px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.6;min-height:52px;}
+  .phone{width:320px;height:690px;background:var(--surface);border-radius:40px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);}
+  .screen{width:100%;height:100%;border-radius:30px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;}
+  .nav{display:flex;align-items:center;justify-content:center;position:relative;height:42px;font-weight:800;font-size:16px;}
+  .nav .bk{position:absolute;left:12px;font-size:21px;color:var(--ink-2);}
+  .nav .rt{position:absolute;right:14px;font-size:13px;color:var(--brand-600);font-weight:700;}
+  .body{flex:1;overflow-y:auto;padding:0 14px 14px;}
+  .body::-webkit-scrollbar{width:0;}
+  .pad0{padding:0;}
+
+  .hero-dark{background:linear-gradient(150deg,#2b3a34,#1f2a30 70%);color:#fff;border-radius:16px;padding:16px 18px;margin-top:8px;}
+  .hero-dark .k{font-size:11px;opacity:.85;} .hero-dark .v{font-size:28px;font-weight:800;margin:4px 0 10px;} .hero-dark .f{display:flex;justify-content:space-between;font-size:11px;opacity:.9;}
+  .hero-green{color:#fff;background:linear-gradient(150deg,#1fbf63,#0f8a45 78%);padding:14px 16px 20px;}
+  .hero-green .top{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;}
+  .hero-green .lab{font-size:11px;opacity:.9;margin-top:10px;} .hero-green .big{font-size:26px;font-weight:800;} 
+  .hero-green .row{display:flex;gap:9px;margin-top:12px;} .hero-green .tile{flex:1;background:rgba(255,255,255,.16);border-radius:11px;padding:8px 10px;} .hero-green .kk{font-size:10.5px;opacity:.85;} .hero-green .vv{font-weight:800;font-size:13px;margin-top:2px;}
+
+  .scope{display:flex;gap:9px;align-items:flex-start;background:var(--brand-weak);color:var(--brand-600);border-radius:11px;padding:9px 12px;margin-top:11px;font-size:12px;font-weight:600;line-height:1.5;}
+  .scope.blue{background:#eaf1fb;color:#2f6bd6;}
+  .ghead{display:flex;justify-content:space-between;align-items:center;padding:15px 4px 9px;}
+  .ghead .t{font-size:12.5px;font-weight:800;color:var(--ink-2);} .ghead .a{font-size:12.5px;color:var(--brand-600);font-weight:700;}
+  .list{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;}
+  .item{display:flex;align-items:center;gap:11px;padding:13px 14px;border-top:1px solid var(--line);} .item:first-child{border-top:none;}
+  .ic{width:42px;height:42px;border-radius:12px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto;}
+  .nm{flex:1;min-width:0;} .nm .a{font-size:14.5px;font-weight:700;} .nm .s{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+  .chips{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap;}
+  .chip{font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;} .chip.p{background:#eef1f5;color:#5b6470;} .chip.c{background:var(--brand-weak);color:var(--brand-600);}
+  .bal{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;} .bal.neg{color:var(--danger);} .bal.mut{color:var(--ink-3);font-weight:700;font-size:12px;}
+  .check{width:24px;height:24px;border-radius:50%;border:2px solid var(--brand);flex:0 0 auto;position:relative;}
+  .check.on{background:var(--brand);} .check.on::after{content:"✓";position:absolute;inset:0;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .check.off{border-color:#cfd5db;}
+  .radio{width:20px;height:20px;border-radius:50%;border:2px solid #cfd5db;flex:0 0 auto;} .radio.on{border-color:var(--brand);background:radial-gradient(circle,#12a150 0 5px,#fff 6px);}
+  .row2{display:flex;align-items:center;justify-content:space-between;padding:14px 14px;background:var(--surface);border-bottom:1px solid var(--line);}
+  .card{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:2px 14px;}
+  .frow{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:1px solid var(--line);font-size:14px;} .card .frow:first-child{border-top:none;}
+  .fk{color:var(--ink-2);} .fv{font-weight:700;} .fv.ph{color:var(--ink-3);font-weight:400;}
+  .sw{width:42px;height:25px;border-radius:999px;background:var(--brand);position:relative;} .sw.off{background:#d4d8dd;} .sw::after{content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;} .sw.off::after{left:auto;right:3px;}
+  .bank-badge{width:34px;height:34px;border-radius:50%;color:#fff;font-size:18px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .btn{display:flex;align-items:center;justify-content:center;height:46px;border-radius:999px;font-size:15px;font-weight:700;background:var(--brand);color:#fff;box-shadow:0 12px 26px rgba(18,161,80,.28);margin-top:14px;}
+  .btn.ghost{background:var(--surface-2);color:var(--ink);box-shadow:none;}
+  .hint{font-size:11.5px;color:var(--ink-3);line-height:1.6;padding:8px 4px 0;}
+  .tabbar{height:54px;background:var(--surface);border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;font-size:10.5px;color:var(--ink-3);flex:0 0 auto;}
+  .tb{display:flex;flex-direction:column;align-items:center;gap:3px;} .tb.on{color:var(--brand-600);} .tb .i{font-size:18px;}
+  .seg{display:flex;background:var(--surface-2);border-radius:11px;padding:4px;margin:8px 0;}
+  .seg .s{flex:1;text-align:center;font-size:13px;font-weight:700;color:var(--ink-2);padding:7px 0;border-radius:8px;} .seg .s.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+  .amtbig{text-align:right;font-size:30px;font-weight:800;padding:12px 6px;font-variant-numeric:tabular-nums;}
+  .keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-top:1px solid var(--line);}
+  .key{background:#fff;text-align:center;padding:16px 0;font-size:20px;font-weight:700;} .key.ok{background:var(--brand);color:#fff;}
+  .invite{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:20px;text-align:center;margin-top:12px;}
+  .invite .code{font-size:30px;font-weight:800;letter-spacing:6px;color:var(--brand-600);margin:8px 0;}
+  .catrow{display:flex;gap:8px;overflow:hidden;} .cat{width:52px;text-align:center;} .cat .ci{width:44px;height:44px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:20px;margin:0 auto;} .cat.on .ci{background:var(--brand-weak);} .cat .cl{font-size:11px;color:var(--ink-2);margin-top:5px;display:block;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 账户与账本全链路</span>
+  <h1>账户（全局资产池） ⇄ 账本（记账视图）· 全链路页面</h1>
+  <p class="sub">账户是你的资产、独立于账本、只有一份全局余额；账本是记账的范围，按需引用账户池的一个子集。下面把这条链路涉及的所有页面依次画出：导航 → 全局资产 → 账户详情/新建/转账 → 账本列表/详情 → 管理账本账户 → 记账选账户 → 新建协作账本 / 邀请加入。</p>
+
+  <div class="sec">链路总览</div>
+  <div class="flow">
+    <span class="step br">资产(全局)</span><span class="arr">→</span>
+    <span class="step">账户详情</span><span class="arr">→</span>
+    <span class="step">参与账本 开关</span><span class="arr">↔ 同一关系 ↔</span>
+    <span class="step">账本详情</span><span class="arr">→</span>
+    <span class="step">管理本账本账户</span><span class="arr">→</span>
+    <span class="step">记账选账户(仅本账本子集)</span>
+    <span class="arr">·</span><span class="step">账户转账(脱离账本)</span>
+    <span class="arr">·</span><span class="step">新建协作账本→邀请/加入</span>
+  </div>
+
+  <div class="sec">导航模型</div>
+  <p class="sec-desc">底栏不放「账本」：切换当前账本用首页左上角的「家庭账本 ▾」下拉即可，账本管理（新建/加入/改名/邀请/管理账户）收进该下拉面板或「我的」。底栏把位置让给「资产」，让全局账户成为稳定的一级入口。</p>
+  <div class="screens">
+    <div class="pw">
+      <p class="cap"><span class="n">0</span> 底部导航</p>
+      <p class="note">首页/资产/记账/报表/我的。账本切换在首页左上角下拉，不占一级 tab；资产 = 全局账户，提为一级入口。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body" style="display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:13px;">（任意一级页面内容区）</div>
+        <div class="tabbar">
+          <div class="tb on"><span class="i">🏠</span>首页</div>
+          <div class="tb"><span class="i">💎</span>资产</div>
+          <div class="tb"><span class="i">➕</span>记账</div>
+          <div class="tb"><span class="i">📊</span>报表</div>
+          <div class="tb"><span class="i">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="sec">A · 账本主线（账本 = 记账视图）</div>
+  <div class="screens">
+
+    <div class="pw">
+      <p class="cap"><span class="n">1</span> 首页 · 当前账本概览</p>
+      <p class="note">顶部可切账本；这里是「当前账本」的本月收支与近几笔。它是记账视图，不是账户归属地。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body pad0">
+          <div class="hero-green">
+            <div class="top"><span>家庭账本 ▾</span><span>🔍</span></div>
+            <div class="lab">2026年8月 · 月结余</div>
+            <div class="big">¥-176.00</div>
+            <div class="row"><div class="tile"><div class="kk">收入</div><div class="vv">0.00</div></div><div class="tile"><div class="kk">支出</div><div class="vv">176.00</div></div></div>
+          </div>
+          <div style="padding:0 14px;">
+            <div class="ghead"><span class="t">近几笔</span><span class="a">明细 ›</span></div>
+            <div class="list">
+              <div class="item"><div class="ic">🍜</div><div class="nm"><div class="a">买菜</div><div class="s">支付宝 · 今天</div></div><div class="bal neg">-126.00</div></div>
+              <div class="item"><div class="ic">🚕</div><div class="nm"><div class="a">打车</div><div class="s">现金 · 今天</div></div><div class="bal neg">-50.00</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar"><div class="tb on"><span class="i">🏠</span>首页</div><div class="tb"><span class="i">💎</span>资产</div><div class="tb"><span class="i">➕</span>记账</div><div class="tb"><span class="i">📊</span>报表</div><div class="tb"><span class="i">👤</span>我的</div></div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">2</span> 账本切换面板（从左上角下拉）</p>
+      <p class="note">点首页左上角「家庭账本 ▾」弹出：切换 + 新建 + 加入，每个账本带「管理 ›」进入详情。不占一级 tab。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>选择账本</div>
+        <div class="body">
+          <div class="scope">点击切换当前账本。账本是记账范围，账户在「资产」里统一管理。</div>
+          <div class="list" style="margin-top:12px;">
+            <div class="item"><div class="ic">📕</div><div class="nm"><div class="a">默认账本 <span class="chip p">个人</span></div><div class="s">默认 · 当前</div></div><span class="a" style="margin-right:10px;">管理</span><div class="radio on"></div></div>
+            <div class="item"><div class="ic">👨‍👩‍👧</div><div class="nm"><div class="a">家庭账本 <span class="chip c">协作</span></div><div class="s">创建者 · 2 位成员</div></div><span class="a" style="margin-right:10px;">管理</span><div class="radio"></div></div>
+            <div class="item"><div class="ic">✈️</div><div class="nm"><div class="a">旅行AA <span class="chip c">协作</span></div><div class="s">协作成员</div></div><span class="a" style="margin-right:10px;">管理</span><div class="radio"></div></div>
+          </div>
+          <div class="card" style="margin-top:14px;">
+            <div class="frow"><span class="fk">＋ 新建账本</span><span class="fv">›</span></div>
+            <div class="frow"><span class="fk">🔗 输入邀请码加入</span><span class="fv">›</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">3</span> 账本详情</p>
+      <p class="note">本账本收支概览 +「本账本使用的账户」子集（引用全局账户）；右上「管理」去挑账户；协作可邀请成员。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>家庭账本<span class="rt">邀请</span></div>
+        <div class="body">
+          <div class="hero-dark" style="background:linear-gradient(150deg,#18b85a,#0f8a45 78%);">
+            <div class="k">本月 · 家庭账本</div><div class="v">结余 ¥-176.00</div>
+            <div class="f"><span>收入 ¥0</span><span>支出 ¥176</span><span>成员 2 人</span></div>
+          </div>
+          <div class="scope blue">📕 下面是你为本账本选用的账户——它们仍是你的全局资产，这里只是引用。</div>
+          <div class="ghead"><span class="t">本账本使用的账户</span><span class="a">管理 ›</span></div>
+          <div class="list">
+            <div class="item"><div class="ic">🔵</div><div class="nm"><div class="a">支付宝</div><div class="s">本账本支出 ¥126</div></div><div class="bal mut">¥1,375.50</div></div>
+            <div class="item"><div class="ic">🏦</div><div class="nm"><div class="a">招商储蓄卡</div><div class="s">本账本支出 ¥0</div></div><div class="bal mut">余额隐藏</div></div>
+            <div class="item"><div class="ic">💵</div><div class="nm"><div class="a">现金</div><div class="s">本账本支出 ¥50</div></div><div class="bal mut">¥1,950</div></div>
+          </div>
+          <div class="hint">未纳入的账户（微信/信用卡）在本账本记账时选不到，去「管理」可加入。</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">4</span> 管理：本账本用哪些账户</p>
+      <p class="note">从全局账户池勾选纳入本账本；勾上=可记账、取消=移出（历史保留）。多对多关系的落点。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>选择账户<span class="rt">完成</span></div>
+        <div class="body">
+          <div class="scope">从你的全部账户中，选择「家庭账本」记账可用的账户。</div>
+          <div class="list" style="margin-top:12px;">
+            <div class="item"><div class="ic">🔵</div><div class="nm"><div class="a">支付宝</div><div class="s">协作 · 对成员可见 · 显示余额</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">🏦</div><div class="nm"><div class="a">招商储蓄卡</div><div class="s">协作 · 对成员可见 · 余额隐藏</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">💵</div><div class="nm"><div class="a">现金</div><div class="s">协作 · 对成员可见</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">💬</div><div class="nm"><div class="a">微信钱包</div><div class="s">未纳入</div></div><div class="check off"></div></div>
+            <div class="item"><div class="ic">💳</div><div class="nm"><div class="a">招行信用卡</div><div class="s">未纳入</div></div><div class="check off"></div></div>
+          </div>
+          <div class="hint">协作账本里，勾选后可再单独设「对成员可见 / 显示余额」。</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">5</span> 记一笔 · 账户选择器</p>
+      <p class="note">关键体现：记账时账户选择器只列「当前账本纳入」的子集，不是全部账户。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">✕</span>记一笔 · 家庭账本</div>
+        <div class="seg" style="margin:8px 14px;"><div class="s on">支出</div><div class="s">收入</div><div class="s">转账</div></div>
+        <div class="amtbig" style="padding:6px 20px;">¥126.00</div>
+        <div style="padding:0 14px;">
+          <div class="catrow">
+            <div class="cat on"><div class="ci">🍜</div><span class="cl">餐饮</span></div>
+            <div class="cat"><div class="ci">🚕</div><span class="cl">交通</span></div>
+            <div class="cat"><div class="ci">🛒</div><span class="cl">购物</span></div>
+            <div class="cat"><div class="ci">🏠</div><span class="cl">居家</span></div>
+          </div>
+          <div class="ghead"><span class="t">账户（本账本可选）</span></div>
+          <div class="list">
+            <div class="item"><div class="ic">🔵</div><div class="nm"><div class="a">支付宝</div></div><div class="radio on"></div></div>
+            <div class="item"><div class="ic">🏦</div><div class="nm"><div class="a">招商储蓄卡</div></div><div class="radio"></div></div>
+            <div class="item"><div class="ic">💵</div><div class="nm"><div class="a">现金</div></div><div class="radio"></div></div>
+          </div>
+          <div class="hint">微信/信用卡未纳入本账本，这里不出现——去账本「管理」加入后才可选。</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">6</span> 新建协作账本 · 选账户</p>
+      <p class="note">建账本时即从全局账户里勾选纳入哪些（默认全选），直接建立引用关系。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>新建账本<span class="rt">创建</span></div>
+        <div class="body">
+          <div class="card" style="margin-top:12px;">
+            <div class="frow"><span class="fk">名称</span><span class="fv">家庭账本</span></div>
+            <div class="frow"><span class="fk">类型</span><span class="fv">协作账本 ›</span></div>
+          </div>
+          <div class="ghead"><span class="t">纳入的账户（默认全选）</span></div>
+          <div class="list">
+            <div class="item"><div class="ic">🔵</div><div class="nm"><div class="a">支付宝</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">🏦</div><div class="nm"><div class="a">招商储蓄卡</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">💵</div><div class="nm"><div class="a">现金</div></div><div class="check on"></div></div>
+            <div class="item"><div class="ic">💬</div><div class="nm"><div class="a">微信钱包</div></div><div class="check off"></div></div>
+          </div>
+          <div class="btn">创建账本（已选 3）</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">7</span> 邀请码 / 加入账本</p>
+      <p class="note">协作账本 OWNER 生成邀请码；他人凭码加入为成员。加入后可把自己的账户共享进来。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>邀请成员</div>
+        <div class="body">
+          <div class="invite">
+            <div style="font-size:13px;color:var(--ink-2);">把邀请码发给对方</div>
+            <div class="code">K7QP2M</div>
+            <div style="font-size:12px;color:var(--ink-3);">有效期 7 天</div>
+            <div class="btn ghost" style="margin-top:16px;">复制邀请码</div>
+          </div>
+          <div class="ghead"><span class="t">对方：加入账本</span></div>
+          <div class="card">
+            <div class="frow"><span class="fk">输入邀请码</span><span class="fv ph">K7QP2M</span></div>
+          </div>
+          <div class="btn">加入协作账本</div>
+          <div class="hint">加入后在「资产」把自己的账户「参与」该账本，即可共同记账。</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">B · 资产主线（账户 = 全局资产池）</div>
+  <div class="screens">
+
+    <div class="pw">
+      <p class="cap"><span class="n">8</span> 我的资产（全局）</p>
+      <p class="note">顶层入口，不随账本切换。全部账户 + 净资产；每张卡标注被哪些账本使用；转账/新增在此。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>我的资产<span class="rt">＋ 账户</span></div>
+        <div class="body">
+          <div class="hero-dark"><div class="k">净资产 · 全部账户合计 👁</div><div class="v">¥37,537.50</div><div class="f"><span>总资产 ¥38,737.50</span><span>总负债 ¥1,200</span></div></div>
+          <div class="scope">💡 账户是你的资产，被所有账本共用；余额与在看哪个账本无关。</div>
+          <div class="ghead"><span class="t">资金账户</span><span class="a">🔁 转账</span></div>
+          <div class="list">
+            <div class="item"><div class="ic">🔵</div><div class="nm"><div class="a">支付宝</div><div class="chips"><span class="chip p">默认</span><span class="chip c">家庭</span><span class="chip c">旅行AA</span></div></div><div class="bal">¥1,375.50</div></div>
+            <div class="item"><div class="ic">🏦</div><div class="nm"><div class="a">招商储蓄卡</div><div class="chips"><span class="chip p">默认</span><span class="chip c">家庭</span></div></div><div class="bal">¥35,000</div></div>
+            <div class="item"><div class="ic">💵</div><div class="nm"><div class="a">现金</div><div class="chips"><span class="chip p">默认</span><span class="chip c">家庭</span></div></div><div class="bal">¥1,950</div></div>
+            <div class="item"><div class="ic">💬</div><div class="nm"><div class="a">微信钱包</div><div class="chips"><span class="chip c">旅行AA</span></div></div><div class="bal">¥412</div></div>
+          </div>
+          <div class="ghead"><span class="t">信贷账户</span></div>
+          <div class="list"><div class="item"><div class="ic">💳</div><div class="nm"><div class="a">招行信用卡</div><div class="chips"><span class="chip p">默认</span></div></div><div class="bal neg">−¥1,200</div></div></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">9</span> 账户详情 · 参与账本</p>
+      <p class="note">全局余额 + 发卡银行/卡号 +「参与账本」逐项开关（与账本详情的"管理"是同一关系的两个入口）。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">‹</span>支付宝<span class="rt">保存</span></div>
+        <div class="body">
+          <div class="hero-dark" style="background:linear-gradient(150deg,#18b85a,#0f8a45 78%);"><div class="k">全局余额（跨全部账本）</div><div class="v">¥1,375.50</div><div class="f"><span>资金账户 · 本人持有</span></div></div>
+          <div class="ghead"><span class="t">参与账本</span></div>
+          <div class="card">
+            <div class="frow"><span class="fk">📕 默认账本</span><span class="sw"></span></div>
+            <div class="frow"><span class="fk">👨‍👩‍👧 家庭账本 <span class="chip c">协作</span></span><span class="sw"></span></div>
+            <div class="frow"><span class="fk" style="padding-left:16px;color:var(--ink-3);">· 对成员可见</span><span class="sw"></span></div>
+            <div class="frow"><span class="fk" style="padding-left:16px;color:var(--ink-3);">· 显示余额给成员</span><span class="sw"></span></div>
+            <div class="frow"><span class="fk">✈️ 旅行AA <span class="chip c">协作</span></span><span class="sw"></span></div>
+            <div class="frow"><span class="fk">💼 工作报销</span><span class="sw off"></span></div>
+          </div>
+          <div class="hint">关掉某账本 = 以后在该账本记账不再能选这张卡；历史流水与余额保留。</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">10</span> 新建账户（选类型 → 表单）</p>
+      <p class="note">先选类型（分组九宫格），再填详情；储蓄卡/信用卡在名称后可选发卡银行（带徽标）与卡号。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">取消</span>新建账户<span class="rt">保存</span></div>
+        <div class="body">
+          <div class="card" style="margin-top:12px;">
+            <div class="frow"><span class="fk">类型</span><span class="fv">信用卡 ›</span></div>
+            <div class="frow"><span class="fk">名称</span><span class="fv">招行信用卡</span></div>
+            <div class="frow"><span class="fk">发卡银行</span><span style="display:flex;align-items:center;gap:8px;"><span class="bank-badge" style="background:#c7000b;">招</span><span class="fv">招商银行 ›</span></span></div>
+            <div class="frow"><span class="fk">卡号</span><span class="fv ph">6225</span></div>
+            <div class="frow"><span class="fk">信用额度</span><span class="fv">30,000</span></div>
+            <div class="frow"><span class="fk">当前欠款</span><span class="fv">1,200</span></div>
+          </div>
+          <div class="hint">发卡银行选择器：品牌色徽标 + 简称当图标，工/农/中/建/招…可选。</div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="pw">
+      <p class="cap"><span class="n">11</span> 账户转账（脱离账本）</p>
+      <p class="note">转账是账户间的资金转移，不属于任何账本、不计入收支；入口在「资产」。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="nav"><span class="bk">✕</span>账户转账</div>
+        <div class="amtbig" style="padding:14px 20px;">¥1,000.00</div>
+        <div style="padding:0 14px;">
+          <div class="card">
+            <div class="frow"><span class="fk">转出</span><span class="fv">🏦 招商储蓄卡 ›</span></div>
+            <div class="frow"><span class="fk">转入</span><span class="fv">🔵 支付宝 ›</span></div>
+            <div class="frow"><span class="fk">备注</span><span class="fv ph">选填</span></div>
+          </div>
+          <div class="scope">转账不影响任何账本的收支统计，只改两个账户余额。</div>
+          <div class="btn">确认转账</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

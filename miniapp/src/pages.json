@@ -163,6 +163,23 @@
         "navigationBarTitleText": "我的成就",
         "enablePullDownRefresh": true
       }
+    },
+    {
+      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从成长页入口进入。
+      // enablePullDownRefresh 必须写在页面级 style 里，
+      // 写进 globalStyle 会给全部页面打开下拉刷新（需求 9.12）。
+      "path": "pages/streak/streak",
+      "style": {
+        "navigationBarTitleText": "连续记账",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从「我的」页入口进入。
+      "path": "pages/reminder/reminder",
+      "style": {
+        "navigationBarTitleText": "记账提醒"
+      }
     }
   ],
   "globalStyle": {

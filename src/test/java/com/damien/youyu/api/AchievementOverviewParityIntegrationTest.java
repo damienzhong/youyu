@@ -902,9 +902,10 @@ class AchievementOverviewParityIntegrationTest {
         private volatile RuntimeException toThrow;
 
         ProbeSettlementService(GrowthSettlementService delegate) {
-            // 13 个 null：构造参数在 achievement-system 任务 4.1 从 11 个扩到 13 个。本桩全部方法都
-            // 转发给 delegate，父类字段一个都不用，因此逐个传 null。
-            super(null, null, null, null, null, null, null, null, null, null, null, null, null);
+            // 14 个 null：构造参数在 achievement-system 任务 4.1 从 11 个扩到 13 个，streak-system
+            // 任务 4.2 再加 StreakSegmentMaintainer 扩到 14 个。本桩全部方法都转发给 delegate，
+            // 父类字段一个都不用，因此逐个传 null。
+            super(null, null, null, null, null, null, null, null, null, null, null, null, null, null);
             this.delegate = delegate;
         }
 

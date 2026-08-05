@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { onLoad, onPullDownRefresh, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import { fetchGrowthOverview } from '../../api/growth'
+import { fetchStreakOverview } from '../../api/streak'
 import { levelProgress, badgeProgressText, shouldRefresh, GROWTH_TIMEOUT_MS } from '../../utils/growth'
 import {
   ACHIEVEMENT_TOTAL,
@@ -52,6 +53,15 @@ const auth = useAuthStore()
 const state = ref('loading') // loading | ready | error
 const overview = ref(null)
 
+// 连续记账入口的行尾取值来源（需求 9.1、9.13）。
+//
+// 刻意与成就入口不同：成就入口的「已解锁数 / 16」直接数本页已有的成长概览 badges，零额外请求；
+// 而「今日打卡状态」不在成长概览的 15 项字段里（本 spec 不加第 16 项），只能由连续记账概览提供，
+// 所以成长页为这一行多发一次 fetchStreakOverview()。这次概览是写入型 GET，服务端顺带的结算会被
+// 与成长概览同一个 10 秒节流器合并，不会增加结算次数。请求失败时本 ref 保持 null，入口仍可点击
+// 进入连续记账页，只是行尾两项不展示取值。
+const streakOverview = ref(null)
+
 // 距上次成长概览请求发出的时刻（毫秒），供下拉刷新节流判定（需求 13.16）。
 let lastRequestAt = 0
 // 请求序号：重试 / 刷新时丢弃迟到的旧响应，避免覆盖新结果（沿用邀请页写法）。
@@ -101,8 +111,28 @@ async function load(isRefresh = false) {
   }
 }
 
+/**
+ * 拉取连续记账概览，仅用于成长页「连续记账」入口的行尾两项（今日打卡状态、当前连续天数）。
+ * 未登录不发该请求（与入口一并隐藏）；失败时静默保留 null，入口仍可点击进入连续记账页、
+ * 只是行尾不展示取值（需求 9.13）。与成长概览各自独立：这一行的失败不影响成长数据展示，
+ * 反之亦然。
+ */
+async function loadStreak() {
+  if (auth.isLoggedIn !== true) {
+    streakOverview.value = null
+    return
+  }
+  try {
+    const res = await fetchStreakOverview()
+    streakOverview.value = res || null
+  } catch (e) {
+    streakOverview.value = null
+  }
+}
+
 onLoad(() => {
   load(false)
+  loadStreak()
 })
 
 onPullDownRefresh(() => {
@@ -112,10 +142,12 @@ onPullDownRefresh(() => {
     return
   }
   load(true)
+  loadStreak()
 })
 
 function retry() {
   load(false)
+  loadStreak()
 }
 
 function goLog() {
@@ -126,6 +158,11 @@ function goLog() {
 function goAchievement() {
   // 成就系统需求 9.2：点击入口打开成就页；概览请求失败与否都是同一个跳转（需求 9.15）。
   uni.navigateTo({ url: ACHIEVEMENT_PAGE_PATH })
+}
+
+function goStreak() {
+  // 需求 9.1：点击入口进入连续记账页；连续记账概览请求成功与否都是同一个跳转（需求 9.13）。
+  uni.navigateTo({ url: '/pages/streak/streak' })
 }
 
 // ---- 解锁播报挂载点 ②（成就系统需求 7.2、7.13、7.16、8.1）----
@@ -213,6 +250,22 @@ const achievementCountText = computed(() =>
   state.value === 'ready' ? `${achievementUnlockedCount.value} / ${ACHIEVEMENT_TOTAL}` : ''
 )
 
+// ---- 连续记账入口（需求 9.1、9.13）----
+// 未登录不展示入口、也不发连续记账概览请求（loadStreak 已在登录态外提前返回）。
+// 展示条件与成就入口一致（都只看登录态），二者共用同一处「登录且非 LOADING」的尾块结构。
+const showStreakEntry = computed(() => auth.isLoggedIn === true)
+
+// 行尾两项：今日打卡状态 + 当前连续天数，取自连续记账概览。请求未返回或失败（streakOverview 为 null）
+// 时返回 ''，此时入口只剩标题与箭头、点击仍进入连续记账页（需求 9.13）。
+const streakTailText = computed(() => {
+  const ov = streakOverview.value
+  if (!ov) return ''
+  const done = ov.todayDone === true ? '今日已记' : '今日未记'
+  const n = Number(ov.currentStreakDays)
+  const days = Number.isFinite(n) && n >= 0 ? n : 0
+  return `${done} · 连续 ${days} 天`
+})
+
 /** 徽章解锁时刻：LocalDateTime 字符串（如 2025-06-01T12:00:00）→ YYYY-MM-DD HH:mm。 */
 function unlockedLabel(badge) {
   const s = String((badge && badge.unlockedAt) || '')
@@ -291,6 +344,24 @@ function unlockedLabel(badge) {
           <view class="r-ic t-green"><AppIcon name="badge" :size="36" /></view>
           <text class="r-t">我的成就</text>
           <text v-if="achievementCountText" class="r-v">{{ achievementCountText }}</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+    </template>
+
+    <!--
+      连续记账入口（需求 9.1、9.13）：结构与成就入口同构（.card + .row + .r-ic t-green + AppIcon
+      + .r-v + .arrow）。放在成就入口一行之下，展示条件同为「登录且非 LOADING」。
+      行尾的 streakTailText 取自单独一次连续记账概览请求（loadStreak），与成就入口的「零额外请求」
+      刻意不同——今日打卡状态不在成长概览字段集内，只能由连续记账概览提供。
+    -->
+    <template v-if="showStreakEntry && state !== 'loading'">
+      <view class="sect">连续记账</view>
+      <view class="card">
+        <view class="row" @click="goStreak">
+          <view class="r-ic t-green"><AppIcon name="star" :size="36" /></view>
+          <text class="r-t">连续记账</text>
+          <text v-if="streakTailText" class="r-v">{{ streakTailText }}</text>
           <text class="arrow">›</text>
         </view>
       </view>

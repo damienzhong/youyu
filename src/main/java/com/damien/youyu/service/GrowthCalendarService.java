@@ -16,6 +16,18 @@ import com.damien.youyu.repository.TransactionRepository;
  *
  * <p>{@link #scan} 是无依赖的静态纯函数；{@link #backfillDates} 需要读交易事实源，故本类注入
  * {@link TransactionRepository}。除该只读仓储外本类不持有任何用户态。</p>
+ *
+ * <p>{@link #segments} 与 {@link #scan} 不是两套算法：两者<b>共用同一个</b> {@link #normalize}
+ * （升序去重、含 {@code null} 即抛）与<b>同一条</b> {@code toEpochDay} 相邻判定
+ * （相减恰为 1 即同段）。因此 {@code segments(c)} 的四项聚合投影与 {@code scan(c)} 逐项相等，
+ * 由 Property 2 锁住：
+ * <ul>
+ *   <li>{@code Σ days} == {@code totalDays}；</li>
+ *   <li>{@code max days}（空集时 0）== {@code maxStreak}；</li>
+ *   <li>最后一段的 {@code days}（空集时 0）== {@code currentSegment}；</li>
+ *   <li>最后一段的 {@code endDate}（空集时 {@code null}）== {@code lastDate}。</li>
+ * </ul>
+ * 一旦有人改了其中一个的判定规则，属性测试立刻变红。</p>
  */
 @Component
 public class GrowthCalendarService {
@@ -170,6 +182,44 @@ public class GrowthCalendarService {
         }
         // currentSegment 此刻正是以最后一个日期为终点的那一段的长度；maxStreak 取过它，故 maxStreak >= currentSegment。
         return new CalendarScan(size, currentSegment, maxStreak, dates.get(size - 1));
+    }
+
+    /**
+     * 纯函数：把记账日历切成极大连续自然日区间，按起始日升序返回（需求 4.1、4.2、4.3）。
+     *
+     * <p>与 {@link #scan} 共用同一条相邻判定规则（{@code toEpochDay} 相减恰为 1 即同段）与同一个
+     * {@link #normalize}（升序去重、含 {@code null} 即抛）。两者不是两套算法：
+     * {@code segments(dates)} 的聚合投影与 {@code scan(dates)} 逐项相等，由 Property 2 锁住——
+     * <ul>
+     *   <li>{@code totalDays} == {@code Σ days}；</li>
+     *   <li>{@code maxStreak} == {@code max days}（空集时 0）；</li>
+     *   <li>{@code currentSegment} == 最后一段的 {@code days}（空集时 0）；</li>
+     *   <li>{@code lastDate} == 最后一段的 {@code endDate}（空集时 {@code null}）。</li>
+     * </ul>
+     * 一旦有人改了其中一个的判定规则，属性测试立刻变红。</p>
+     *
+     * @param ascendingDates 记账日历，期望按日期升序且无重复；{@code null} 与空集返回空列表
+     * @return 段序列，按起始日升序；不可变列表
+     * @throws IllegalArgumentException 列表内含 {@code null} 元素（与 {@link #scan} 同一禁令）
+     */
+    public static List<StreakSegmentView> segments(List<LocalDate> ascendingDates) {
+        if (ascendingDates == null || ascendingDates.isEmpty()) {
+            return List.of();
+        }
+        List<LocalDate> dates = normalize(ascendingDates);
+        List<StreakSegmentView> out = new ArrayList<>();
+        LocalDate segStart = dates.get(0);
+        LocalDate prev = segStart;
+        for (int i = 1; i < dates.size(); i++) {
+            LocalDate d = dates.get(i);
+            if (d.toEpochDay() - prev.toEpochDay() != 1L) {   // 断链：收口上一段，另起一段
+                out.add(StreakSegmentView.of(segStart, prev));
+                segStart = d;
+            }
+            prev = d;
+        }
+        out.add(StreakSegmentView.of(segStart, prev));         // 收口最后一段
+        return List.copyOf(out);
     }
 
     /**

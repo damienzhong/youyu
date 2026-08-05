@@ -139,6 +139,16 @@ function logout() {
       </view>
     </view>
 
+    <!-- 记账提醒入口 -->
+    <view class="sect">提醒</view>
+    <view class="card">
+      <view class="row" @click="go('/pages/reminder/reminder')">
+        <view class="r-ic t-green"><AppIcon name="bell" :size="36" /></view>
+        <text class="r-t">记账提醒</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- 分组功能列表 -->
     <template v-for="grp in groups" :key="grp.title">
       <view class="sect">{{ grp.title }}</view>

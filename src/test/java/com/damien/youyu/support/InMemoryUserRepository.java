@@ -51,6 +51,12 @@ public class InMemoryUserRepository implements UserRepository {
                 .findFirst();
     }
 
+    /** 只读投影：按 id 取用户的 {@code wx_openid}（无此用户或其 openid 为空时返回空）。 */
+    @Override
+    public Optional<String> findWxOpenid(Long userId) {
+        return findById(userId).map(User::getWxOpenid);
+    }
+
     @Override
     public Optional<User> findByInviteCode(String inviteCode) {
         return byId.values().stream()

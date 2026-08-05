@@ -56,7 +56,8 @@ const ICON_PATHS = {
   yuan: "<circle cx='12' cy='12' r='9'/><path d='M9 8l3 3 3-3M12 11v6M9.5 13.5h5'/>",
   mail: "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M4 7l8 6 8-6'/>",
   badge: "<circle cx='12' cy='9' r='5'/><path d='M9 13l-2 8 5-3 5 3-2-8'/>",
-  warning: "<path d='M12 4l9 16H3z'/><path d='M12 10v4M12 17h.01'/>"
+  warning: "<path d='M12 4l9 16H3z'/><path d='M12 10v4M12 17h.01'/>",
+  bell: "<path d='M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z'/><path d='M10 20a2 2 0 0 0 4 0'/>"
 }
 
 /** 默认图标色（未选中）。 */

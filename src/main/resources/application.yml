@@ -100,6 +100,13 @@ app:
     miniapp:
       appid: ${YOUYU_WX_APPID:}
       secret: ${YOUYU_WX_SECRET:}
+    # 一次性订阅消息（自定义提醒 custom-reminder）：模板 id 与文案字段名由运营在微信后台申请
+    # 「提醒」订阅模板后填入。模板 id 未配置（占位为空）时，订阅消息发送安全降级为失败——既不外呼
+    # 微信、也不影响记账等任何主路径（需求 6.1、11.3）。message-field 为模板中承载提醒文案的字段名
+    # （随模板而定，如 thing1），文案两条均在字段长度限制内。
+    subscribe:
+      reminder-template-id: ${YOUYU_WX_SUBSCRIBE_TEMPLATE_ID:}
+      message-field: ${YOUYU_WX_SUBSCRIBE_MESSAGE_FIELD:thing1}
 
 # 健康检查端点
 management:

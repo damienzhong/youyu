@@ -68,6 +68,10 @@ class AccountDeletionServiceTest {
     private com.damien.youyu.repository.GrowthEventRepository growthEventRepository;
     private com.damien.youyu.repository.UserGrowthRepository userGrowthRepository;
     private com.damien.youyu.repository.AchievementNoticeRepository achievementNoticeRepository;
+    private com.damien.youyu.repository.StreakSegmentRepository streakSegmentRepository;
+    private com.damien.youyu.repository.ReminderSendLogRepository reminderSendLogRepository;
+    private com.damien.youyu.repository.CustomReminderRepository customReminderRepository;
+    private com.damien.youyu.repository.ReminderQuotaRepository reminderQuotaRepository;
     private AccountDeletionService service;
 
     @BeforeEach
@@ -96,6 +100,10 @@ class AccountDeletionServiceTest {
         growthEventRepository = mock(com.damien.youyu.repository.GrowthEventRepository.class);
         userGrowthRepository = mock(com.damien.youyu.repository.UserGrowthRepository.class);
         achievementNoticeRepository = mock(com.damien.youyu.repository.AchievementNoticeRepository.class);
+        streakSegmentRepository = mock(com.damien.youyu.repository.StreakSegmentRepository.class);
+        reminderSendLogRepository = mock(com.damien.youyu.repository.ReminderSendLogRepository.class);
+        customReminderRepository = mock(com.damien.youyu.repository.CustomReminderRepository.class);
+        reminderQuotaRepository = mock(com.damien.youyu.repository.ReminderQuotaRepository.class);
         service = new AccountDeletionService(
                 ledgerRepository, memberRepository, accountRepository, transactionRepository,
                 userRepository, verificationCodeService, weChatClient,
@@ -104,6 +112,8 @@ class AccountDeletionServiceTest {
                 projectRepository, merchantRepository, tagRepository, templateRepository, inviteRepository,
                 verificationCodeRepository, inviteRelationRepository,
                 growthEventRepository, userGrowthRepository, achievementNoticeRepository,
+                streakSegmentRepository,
+                reminderSendLogRepository, customReminderRepository, reminderQuotaRepository,
                 java.time.Clock.systemDefaultZone());
     }
 

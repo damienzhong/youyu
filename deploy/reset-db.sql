@@ -33,6 +33,12 @@ TRUNCATE TABLE growth_events;
 TRUNCATE TABLE user_growth;
 -- 成就播报游标：同样无外键，清空不依赖 FOREIGN_KEY_CHECKS 取值
 TRUNCATE TABLE achievement_notices;
+-- 连续记账段表：同样无外键（注销时由应用显式删除），清空不依赖 FOREIGN_KEY_CHECKS 取值
+TRUNCATE TABLE streak_segments;
+-- 自定义提醒三表：同样无外键（注销时由应用显式删除），清空不依赖 FOREIGN_KEY_CHECKS 取值
+TRUNCATE TABLE reminder_send_logs;
+TRUNCATE TABLE custom_reminders;
+TRUNCATE TABLE reminder_quota;
 TRUNCATE TABLE users;
 
 SET FOREIGN_KEY_CHECKS = 1;

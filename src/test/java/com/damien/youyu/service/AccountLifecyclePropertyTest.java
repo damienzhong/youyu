@@ -186,6 +186,12 @@ class AccountLifecyclePropertyTest {
                 // achievement-system 任务 7.2 起注销序列还要删播报游标行；本属性只关心账号生命周期，
                 // 故与其它无关仓储一样给测试替身（deleteByUserId 默认无副作用）。
                 mock(com.damien.youyu.repository.AchievementNoticeRepository.class),
+                // streak-system 任务 6.2 起注销序列还要删段行；同样给测试替身（deleteByUserId 默认无副作用）。
+                mock(com.damien.youyu.repository.StreakSegmentRepository.class),
+                // custom-reminder 注销序列还要删三张提醒表行；同样给测试替身（deleteByUserId 默认无副作用）。
+                mock(com.damien.youyu.repository.ReminderSendLogRepository.class),
+                mock(com.damien.youyu.repository.CustomReminderRepository.class),
+                mock(com.damien.youyu.repository.ReminderQuotaRepository.class),
                 clock);
 
         return new Fixture(userRepository, authService, deletionService);

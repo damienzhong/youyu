@@ -144,6 +144,7 @@ public class GrowthSettlementService {
     private final GrowthBadgeCatalog badgeCatalog;
     private final GrowthLevelCurve levelCurve;
     private final GrowthSettlementThrottle throttle;
+    private final StreakSegmentMaintainer segmentMaintainer;
     private final JdbcTemplate jdbcTemplate;
     private final Clock clock;
 
@@ -158,6 +159,7 @@ public class GrowthSettlementService {
                                    GrowthBadgeCatalog badgeCatalog,
                                    GrowthLevelCurve levelCurve,
                                    GrowthSettlementThrottle throttle,
+                                   StreakSegmentMaintainer segmentMaintainer,
                                    JdbcTemplate jdbcTemplate,
                                    Clock clock) {
         this.userGrowthRepository = userGrowthRepository;
@@ -171,6 +173,7 @@ public class GrowthSettlementService {
         this.badgeCatalog = badgeCatalog;
         this.levelCurve = levelCurve;
         this.throttle = throttle;
+        this.segmentMaintainer = segmentMaintainer;
         this.jdbcTemplate = jdbcTemplate;
         this.clock = clock;
     }
@@ -387,6 +390,16 @@ public class GrowthSettlementService {
         profile.setUpdatedAt(now);
         profile.setLastSettledAt(now);
         // user_id 与 created_at 刻意不动（需求 1.11）。
+
+        // ── 段维护：结算全量重算的最末一步（需求 7.1、7.2、4.12、10.8）───────────────────────
+        // 复用本方法开头已从库重读的完整 DAILY_RECORD 日历 calendar 作为入参，零额外日历查询
+        // （满足需求 7.2「以追补之后的记账日历作为输入」）。段维护的写入因此在 user_growth 行锁与
+        // 同一个 REQUIRES_NEW 事务的保护之内，并发串行化与事务边界一并继承，不新增任何同步原语。
+        //
+        // 刻意挂在 recalculateAndWriteBack（而非 settle 方法体末尾）：settle（记账/概览触发）与
+        // recalculateOnly（全量重算）都走这条共享路径，两者的段维护结果因此构造性相同。若挂到
+        // settle 末尾，recalculateOnly 路径就不会维护段——那是必须避免的缺陷位置。
+        segmentMaintainer.maintain(userId, calendar, now);
     }
 
     /**

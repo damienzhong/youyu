@@ -1,5 +1,6 @@
 package com.damien.youyu.repository;
 
+import java.time.LocalDate;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -58,6 +59,23 @@ public interface UserGrowthRepository extends JpaRepository<UserGrowth, Long> {
     @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
     @Query("SELECT g FROM UserGrowth g WHERE g.userId = :userId")
     Optional<UserGrowth> findForUpdateById(@Param("userId") Long userId);
+
+    /**
+     * 只读投影：读取该用户记账日历中的最近记账日（custom-reminder 需求 4.5、4.7）。
+     *
+     * <p>供自定义提醒发送编排（{@code ReminderDispatchService}）在触发当刻判定「今日已记账」使用，
+     * 等价于 {@code StreakJudgment.todayDone(user_growth.last_record_date, 判定日)} 的输入。
+     * <b>只取 {@code last_record_date} 标量、不整实体回读、绝不写 {@code user_growth}</b>
+     * （需求 4.5、6.8、11.1）。</p>
+     *
+     * <p>返回空的两种情形对调用方等价、都折算为「今日未记账」（需求 4.6）：该用户在
+     * {@code user_growth} 无记录，或有记录但 {@code last_record_date} 为 {@code null}（记账日历为空）。</p>
+     *
+     * @param userId 用户 id（即主键）
+     * @return 最近记账日；无档案或日历为空时为空
+     */
+    @Query("SELECT g.lastRecordDate FROM UserGrowth g WHERE g.userId = :userId")
+    Optional<LocalDate> findLastRecordDate(@Param("userId") Long userId);
 
     /**
      * 注销级联：硬删该用户的成长档案行（需求 12.11）。
