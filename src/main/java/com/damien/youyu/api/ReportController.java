@@ -17,6 +17,7 @@ import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.DimensionReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
+import com.damien.youyu.api.dto.MonthlyDigestResponse;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
 import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
@@ -25,6 +26,7 @@ import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.UserRepository;
 import com.damien.youyu.security.CurrentLedger;
+import com.damien.youyu.service.MonthlyDigestService;
 import com.damien.youyu.service.ReportService;
 
 /**
@@ -44,13 +46,15 @@ import com.damien.youyu.service.ReportService;
 public class ReportController {
 
     private final ReportService reportService;
+    private final MonthlyDigestService digestService;
     private final CurrentLedger currentLedger;
     private final UserRepository userRepository;
     private final Clock clock;
 
-    public ReportController(ReportService reportService, CurrentLedger currentLedger,
-            UserRepository userRepository, Clock clock) {
+    public ReportController(ReportService reportService, MonthlyDigestService digestService,
+            CurrentLedger currentLedger, UserRepository userRepository, Clock clock) {
         this.reportService = reportService;
+        this.digestService = digestService;
         this.currentLedger = currentLedger;
         this.userRepository = userRepository;
         this.clock = clock;
@@ -65,6 +69,21 @@ public class ReportController {
                 ? YearMonth.now(clock)
                 : parseMonth(month, "month");
         return ResponseEntity.ok(reportService.monthlyReport(ledgerId, ym));
+    }
+
+    /**
+     * 智能月报（需求 1、9）：month 为 {@code YYYY-MM}，缺省取 {@code Asia/Shanghai} 当前自然月。
+     * 一次返回九个模块数据包（本月收入/支出/结余、消费趋势、分类排行、预算情况、最大单笔消费、
+     * 最省钱的一周及配图所需数据）。纯只读派生，复用既有报表/预算聚合口径，不新增错误码。
+     */
+    @GetMapping("/monthly-digest")
+    public ResponseEntity<MonthlyDigestResponse> monthlyDigest(
+            @RequestParam(name = "month", required = false) String month) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        YearMonth ym = (month == null || month.isBlank())
+                ? YearMonth.now(clock)
+                : parseMonth(month, "month");
+        return ResponseEntity.ok(digestService.digest(ledgerId, ym));
     }
 
     /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）。 */
