@@ -63,7 +63,9 @@ import net.jqwik.api.lifecycle.BeforeTry;
  * <h2>历史分页为何是"≤2"而非恒 2</h2>
  * <p>Spring Data 对"首页且内容不足一页"会省去总条数查询（内容数即为总数），此时只发 1 条；段总数够
  * 填满一页时才发满 2 条（分页列表 + 总条数）。两者都不超过 2、都不随数据量增长，这正是需求 7.11 的
- * <b>上界</b>语义。故本类断言"≤2"，并在"段总数 ≥ size"时进一步断言"恰为 2"。</p>
+ * <b>上界</b>语义。故本类断言"≤2"，并按<b>被请求页实际返回的条数</b>进一步断言恰为 1 或 2：整页填满
+ *（或越界空页）补发总条数查询（2 条），非空但不足一页的部分末页则省去（1 条）——不能仅凭"段总数 ≥
+ * 每页条数"就断言恒 2，那会误判部分末页。</p>
  *
  * <h2>驱动方式与清理</h2>
  * <p>{@code settle} 带 {@code @Transactional(REQUIRES_NEW)} 需真实提交，故本类<b>不用测试级事务包裹</b>；
@@ -231,18 +233,29 @@ class StreakQueryCountPropertyTest {
 
         // —— 历史分页：读 SQL ≤2 条（分页列表 + 总条数），不随数据量增长 ——
         int effectiveSize = (rawSize == null || rawSize.isBlank()) ? 20 : Integer.parseInt(rawSize.trim());
+        int effectivePage = (rawPage == null || rawPage.isBlank()) ? 0 : Integer.parseInt(rawPage.trim());
         statistics.clear();
         streakQueryService.listSegments(userId, rawPage, rawSize);
         long historyReads = statistics.getPrepareStatementCount();
         assertThat(historyReads)
                 .as("%s：单次历史分页读 SQL 不超过 2 条（分页列表 + 总条数，需求 7.11）", scale)
                 .isBetween(1L, HISTORY_READS_UPPER_BOUND);
-        // 段总数够填满一页时，Spring Data 必发满 2 条（分页列表 + 总条数）。
-        if (segmentCount >= effectiveSize) {
-            assertThat(historyReads)
-                    .as("%s：段总数填满一页时读满 2 条（分页列表 + 总条数）", scale)
-                    .isEqualTo(HISTORY_READS_UPPER_BOUND);
-        }
+
+        // Spring Data 的 PageableExecutionUtils 何时省去总条数查询（据此断言恰为 1 或 2 条）：
+        //   · 首页（offset==0）：内容不足一页时省去（1 条），恰好填满一页时补发（2 条）；
+        //   · 非首页（offset>0）：非空但不足一页的「部分末页」省去（1 条）；整页填满、或越界空页则补发（2 条）。
+        // 关键：以「被请求页实际返回的条数」判断，而非「段总数 ≥ 每页条数」——后者会误判部分末页
+        //（如 21 段、每页 20、第 2 页只余 1 条）为「填满一页」，实则被 Spring Data 省去了总条数查询。
+        long offset = (long) effectivePage * effectiveSize;
+        long contentOnPage = Math.max(0L, Math.min((long) segmentCount - offset, effectiveSize));
+        boolean countQueryFires = (offset == 0)
+                ? (contentOnPage == effectiveSize)
+                : (contentOnPage == 0 || contentOnPage == effectiveSize);
+        long expectedHistoryReads = countQueryFires ? HISTORY_READS_UPPER_BOUND : 1L;
+        assertThat(historyReads)
+                .as("%s：单次历史分页读 SQL 恰为 %d 条（%s）", scale, expectedHistoryReads,
+                        countQueryFires ? "整页填满/越界空页，补发总条数查询" : "部分页，省去总条数查询")
+                .isEqualTo(expectedHistoryReads);
     }
 
     // ---------------- 事实源播种 ----------------
