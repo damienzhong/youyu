@@ -21,6 +21,12 @@ import { listTags, createTag } from '../../api/tag'
 import { useLedgerStore } from '../../stores/ledger'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
+import {
+  resolvePrefillAmount,
+  resolvePrefillNote,
+  categoryTreeHasId,
+  accountsHasId
+} from '../../utils/suggestion'
 import { resolveIcon } from '../../utils/icons'
 import { safeBack } from '../../utils/nav'
 import { buildAchievementSharePayload } from '../../utils/achievement'
@@ -467,6 +473,9 @@ async function onTplNameConfirm(name) {
 }
 
 const preAccountId = ref(null)
+// 记账推荐一键预填参数（仅新增态生效）。type/accountId/ledgerId 仍由既有逻辑解析，
+// 这里只额外记录 amount/categoryId/note，待分类/账户就绪后在 load() 末尾应用。
+const suggestPrefill = ref(null)
 onLoad(async (q) => {
   editingId.value = q && q.id ? Number(q.id) : null
   // 从账户明细页带入的预选账户（记一笔=账户，转账=转出账户）。
@@ -475,6 +484,10 @@ onLoad(async (q) => {
   if (q && q.type && ['expense', 'income', 'transfer'].includes(q.type)) {
     type.value = q.type
   }
+  // 记账推荐预填：记录金额/分类/备注，落库仍走既有创建接口（不直接入账）。
+  suggestPrefill.value = q
+    ? { amount: q.amount, categoryId: q.categoryId ? Number(q.categoryId) : null, note: q.note }
+    : null
   // 确保账本列表就绪，用于判断目标账本是否为协作账本（协作代记入口）。
   try {
     if (!ledgerStore.ledgers.length) await ledgerStore.load()
@@ -514,8 +527,8 @@ async function load() {
     } catch (e) {
       /* 无默认时用可选集第一 */
     }
-    // 明细页带入的预选账户优先（若在可选集内）。
-    if (preAccountId.value != null && accs.some((a) => a.id === preAccountId.value)) {
+    // 明细页/推荐带入的预选账户优先（若在可选集内；已删则留空回退默认，需求 4.5）。
+    if (accountsHasId(accs, preAccountId.value)) {
       defId = preAccountId.value
     }
     accountId.value = defId
@@ -526,10 +539,33 @@ async function load() {
     if (isEditing.value) {
       await prefill()
       uni.setNavigationBarTitle({ title: '编辑记录' })
+    } else {
+      // 记账推荐一键预填：分类/账户就绪后应用（仅新增态；账户已由上方 preAccountId 逻辑处理）。
+      applySuggestPrefill()
     }
   } catch (e) {
     uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   }
+}
+
+// 判断某分类 id 是否存在于当前账本的分类树（含子分类）。
+function categoryExists(id) {
+  return categoryTreeHasId(tree.value, id)
+}
+
+// 应用记账推荐预填：金额→expr、备注→note（解码）、分类存在才设 categoryId。
+// 账户在可选集才设由 load() 既有 preAccountId 逻辑处理；金额缺失/非正、分类已删则留空由用户重选。
+function applySuggestPrefill() {
+  const s = suggestPrefill.value
+  if (!s) return
+  // 金额：存在且为正数才预填（缺失或非正 → 留空，需求 4.6）。
+  const amt = resolvePrefillAmount(s.amount)
+  if (amt != null) expr.value = amt
+  // 备注：URL 编码传入，解码后预填。
+  const decodedNote = resolvePrefillNote(s.note)
+  if (decodedNote != null) note.value = decodedNote
+  // 分类：当前账本仍存在才预填（已删 → 留空由用户重选，需求 4.5）。
+  if (categoryExists(s.categoryId)) categoryId.value = s.categoryId
 }
 
 async function prefill() {

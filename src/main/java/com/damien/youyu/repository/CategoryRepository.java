@@ -48,6 +48,13 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     /** 跨多个账本列出分类（「全部账本」聚合只读视图用）。 */
     List<Category> findByLedgerIdIn(java.util.Collection<Long> ledgerIds);
 
+    /**
+     * 按主键集合批量取分类（record-suggestion 展示用，需求 8.1）。
+     * 只读派生查询，仅供记账推荐取候选分类的 name/icon；不做账本过滤，调用方仅以候选代表流水的
+     * {@code categoryId} 集合查询，越权数据不进入候选（候选本身已按当前账本历史派生）。
+     */
+    List<Category> findByIdIn(java.util.Collection<Long> ids);
+
     /** 删除某账本的全部分类（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 

@@ -11,6 +11,13 @@ import { listTags } from '../../api/tag'
 import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { budgetOverview } from '../../api/budget'
 import { createLedger, joinLedger, renameLedger, listMembers } from '../../api/ledger'
+import { fetchSuggestions } from '../../api/suggestion'
+import {
+  SUGGEST_TIMEOUT_MS,
+  shouldFetchSuggestions,
+  pickVisibleSuggestions,
+  buildRecordUrl
+} from '../../utils/suggestion'
 import { formatAmount, categoryEmoji, dayKeyOf, dayLabel, currentMonth } from '../../utils/format'
 
 const auth = useAuthStore()
@@ -26,6 +33,11 @@ const transactions = ref([])
 const budget = ref(null)
 const memberMap = ref({})
 const tagNameById = ref({})
+
+// 记账推荐候选（至多 3 条；<2 条不展示卡）。纯只读派生，点候选仅跳转预填、绝不入账。
+const suggestions = ref([])
+// 请求序号：账本切换/多次 onShow 时丢弃过期响应，避免旧账本候选覆盖新账本。
+let suggestSeq = 0
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const isAll = computed(() => ledgerStore.isAll)
@@ -146,6 +158,71 @@ async function loadBudget() {
   }
 }
 
+// ---------- 记账推荐 ----------
+// 3000ms 超时包裹：超时即 reject，交由调用方静默降级（需求 7.2）。
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject({ code: 'SUGGEST_TIMEOUT' }), ms)
+    promise.then(
+      (v) => {
+        clearTimeout(timer)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(timer)
+        reject(e)
+      }
+    )
+  })
+}
+
+// 拉取当前账本推荐候选。聚合视图/未登录不请求；<2 或失败/超时静默隐藏，重试 0 次（需求 5.3/7.2/7.4/7.5）。
+function loadSuggestions() {
+  if (!shouldFetchSuggestions(auth.isLoggedIn, isAll.value)) {
+    suggestions.value = []
+    return
+  }
+  const seq = ++suggestSeq
+  suggestions.value = [] // 请求期间不占位，等真实候选到达再渲染（需求 1.5）
+  withTimeout(fetchSuggestions(ledgerStore.currentLedgerId), SUGGEST_TIMEOUT_MS)
+    .then((res) => {
+      if (seq !== suggestSeq) return // 过期响应（已切账本/已重发）丢弃
+      suggestions.value = pickVisibleSuggestions(res && res.suggestions)
+    })
+    .catch(() => {
+      if (seq !== suggestSeq) return
+      suggestions.value = [] // 失败/超时静默降级，不弹提示、不重试、不影响首页其余模块
+    })
+}
+
+// 展示辅助：图标（缺省走 AppIcon 名称回退）、标题（分类名，已删则按方向兜底）、方向、带符号金额。
+function suggestIcon(s) {
+  return resolveIcon(s.categoryIcon, s.categoryName, s.type)
+}
+function suggestTitle(s) {
+  // 优先用首页已构建的分类全路径映射（如「交通 / 过路费」），与流水列表口径一致；
+  // 分类已删或映射缺失时回退后端返回的分类名，再回退方向文案。
+  return categoryMap.value[s.categoryId] || s.categoryName || (s.type === 'income' ? '收入' : '支出')
+}
+function suggestDir(s) {
+  return s.type === 'income' ? '收入' : '支出'
+}
+function suggestAmt(s) {
+  const sign = s.type === 'income' ? '+' : '-'
+  return sign + formatAmount(s.amount)
+}
+
+// 点候选：仅 navigateTo 带预填参数进入记账页，绝不调用任何写接口 / 不创建交易（需求 4.2）。
+// 跳转失败则提示并停留原页（需求 4.7）。
+function pickSuggestion(s) {
+  uni.navigateTo({
+    url: buildRecordUrl(s),
+    fail() {
+      uni.showToast({ title: '打开记账页失败', icon: 'none' })
+    }
+  })
+}
+
 function onMonthChange(e) {
   month.value = e.detail.value
   load()
@@ -164,6 +241,9 @@ onShow(async () => {
     /* ignore */
   }
   load()
+  // 推荐独立拉取：与首页其余模块解耦，任何失败都不影响 load()（需求 7.3）。
+  // 账本切换会 reLaunch 首页 → onShow 重跑，据切换后账本重拉（需求 5.2）；记账返回也在此刷新（需求 5.5）。
+  loadSuggestions()
 })
 
 // ---------- 按日分组 ----------
@@ -326,9 +406,6 @@ function goEdit(t) {
 function onDetailDeleted() {
   load()
 }
-function goReport() {
-  uni.switchTab({ url: '/pages/report/report' })
-}
 function goRecords() {
   // 「明细」已从底部 tab 移除，改为普通页 push 进入。
   uni.navigateTo({ url: '/pages/records/records' })
@@ -372,14 +449,14 @@ function goSearch() {
     <!-- 快捷入口 -->
     <view class="quick-wrap">
       <view class="quick">
-        <view class="qa" @click="goReport"><view class="qa-ic"><AppIcon name="chart" :size="42" /></view><text class="qa-l">统计</text></view>
+        <view class="qa" @click="nav('/pages/categories/categories')"><view class="qa-ic"><AppIcon name="tag" :size="42" /></view><text class="qa-l">分类</text></view>
         <view class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
         <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
         <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
       </view>
     </view>
 
-    <!-- 预算进度卡（仅具体账本） -->
+    <!-- 预算进度卡（仅具体账本；置于推荐卡之上） -->
     <view v-if="budgetView" class="pad">
       <view class="card budget" @click="nav('/pages/budget/budget')">
         <template v-if="budgetView.hasBudget">
@@ -402,6 +479,30 @@ function goSearch() {
           <view class="barbg"><view class="bar" style="width:0"></view></view>
           <view class="brow"><text class="bsmall">设置预算，月末不透支</text><text class="bsmall link">去设置 ›</text></view>
         </template>
+      </view>
+    </view>
+
+    <!-- 记账推荐卡（预算卡下方；≥2 条才渲染，点候选去记账页预填不入账） -->
+    <view v-if="suggestions.length >= 2" class="pad">
+      <view class="card sug">
+        <view class="sug-h">
+          <text class="sug-t">✨ 猜你要记</text>
+          <text class="sug-why">按常记 · 点一下去记账</text>
+        </view>
+        <view
+          v-for="(s, i) in suggestions"
+          :key="`${s.type}-${s.categoryId}-${s.accountId}-${s.amount}-${i}`"
+          class="cand"
+          @click="pickSuggestion(s)"
+        >
+          <view class="cand-ic"><AppIcon :name="suggestIcon(s)" :size="42" /></view>
+          <view class="cand-info">
+            <text class="cand-name">{{ suggestTitle(s) }}</text>
+            <text class="cand-meta">{{ suggestDir(s) }}</text>
+          </view>
+          <text class="cand-amt" :class="s.type">{{ suggestAmt(s) }}</text>
+          <view class="cand-go" @click.stop="pickSuggestion(s)">去记账</view>
+        </view>
       </view>
     </view>
 
@@ -751,6 +852,87 @@ function goSearch() {
 }
 .bar.over {
   background: #e5484d;
+}
+
+/* 记账推荐卡 */
+.sug {
+  padding: 20rpx 26rpx 8rpx;
+}
+.sug-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6rpx;
+}
+.sug-t {
+  font-size: 26rpx;
+  font-weight: 800;
+  color: #16181c;
+}
+.sug-why {
+  font-size: 20rpx;
+  color: #9aa2ad;
+}
+.cand {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 18rpx 0;
+  border-top: 1rpx dashed #eceef1;
+}
+.cand:first-of-type {
+  border-top: none;
+}
+.cand:active {
+  background: #f6f7f9;
+}
+.cand-ic {
+  width: 78rpx;
+  height: 78rpx;
+  border-radius: 22rpx;
+  background: #f4f5f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.cand-info {
+  flex: 1;
+  min-width: 0;
+}
+.cand-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #16181c;
+}
+.cand-meta {
+  font-size: 22rpx;
+  color: #9aa2ad;
+  margin-top: 4rpx;
+  display: block;
+}
+.cand-amt {
+  font-size: 32rpx;
+  font-weight: 800;
+}
+.cand-amt.expense {
+  color: #f0553d;
+}
+.cand-amt.income {
+  color: #12a150;
+}
+.cand-go {
+  margin-left: 18rpx;
+  flex: 0 0 auto;
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #0e8a44;
+  background: #e6f6ec;
+  border-radius: 999rpx;
+  padding: 10rpx 22rpx;
+}
+.cand-go:active {
+  background: #d3efdd;
 }
 
 .mcard {

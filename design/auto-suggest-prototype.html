@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 自动推荐原型（方案对比）</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#f0553d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b; --danger:#e5484d;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1560px;margin:0 auto;padding:48px 24px 90px;}
+  .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:940px;line-height:1.7;margin:0 0 20px;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:44px 0 18px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.55;min-height:52px;}
+  .phone{width:340px;height:724px;background:#fff;border-radius:42px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.15),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:140px;height:24px;background:#fff;border-radius:0 0 16px 16px;z-index:30;}
+  .sb{height:36px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;}
+  .sb.onb{color:#fff;}
+  .body{flex:1;overflow-y:auto;position:relative;}
+  .body::-webkit-scrollbar{width:0;}
+  .pad{padding:0 15px;}
+  .hero{background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);color:#fff;padding:5px 17px 20px;border-radius:0 0 24px 24px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-40px;top:-30px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hnav{display:flex;align-items:center;justify-content:space-between;height:38px;position:relative;z-index:2;}
+  .ledger{display:flex;align-items:center;gap:6px;font-weight:800;font-size:15px;}
+  .hicons{display:flex;gap:15px;font-size:16px;opacity:.95;}
+  .balrow{display:flex;align-items:flex-end;justify-content:space-between;position:relative;z-index:2;margin-top:2px;}
+  .bal-k{font-size:11px;opacity:.85;}
+  .bal-v{font-size:34px;font-weight:800;letter-spacing:-.02em;line-height:1.15;}
+  .bal-v small{font-size:18px;opacity:.8;}
+  .io{text-align:right;font-size:11px;opacity:.92;line-height:1.85;}
+  .card{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);}
+  .quick{display:flex;justify-content:space-around;padding:14px 3px;margin-top:-14px;position:relative;z-index:2;}
+  .qa{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .qa .ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;background:#fff;box-shadow:0 6px 16px rgba(20,24,28,.06);}
+  .qa .l{font-size:11px;color:var(--ink-2);}
+
+  /* ---- 推荐卡 ---- */
+  .sug{margin-top:12px;padding:14px 15px 13px;position:relative;overflow:hidden;}
+  .sug-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}
+  .sug-t{font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;}
+  .sug-t .spark{font-size:15px;}
+  .sug-why{font-size:11px;color:var(--ink-3);}
+  .sug-x{font-size:15px;color:var(--ink-3);padding:2px 4px;cursor:pointer;}
+  .rec{display:flex;align-items:center;gap:11px;padding:9px 0;}
+  .cic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .rinfo{flex:1;min-width:0;}
+  .rname{font-size:14px;font-weight:700;}
+  .rmeta{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .ramt{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--exp);}
+  .confirm{margin-left:10px;height:34px;padding:0 15px;border-radius:999px;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;gap:5px;border:none;cursor:pointer;box-shadow:0 8px 18px rgba(18,161,80,.32);}
+  .confirm.mini{height:30px;padding:0 12px;font-size:12px;}
+  .cand{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px dashed var(--line);}
+  .cand:first-of-type{border-top:none;}
+  .done-state{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0 6px;}
+  .done-badge{width:48px;height:48px;border-radius:50%;background:var(--brand-weak);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:26px;}
+  .done-t{font-size:14px;font-weight:800;color:var(--brand-600);}
+  .done-s{font-size:11px;color:var(--ink-3);}
+  .edit-link{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .ghost{opacity:.45;}
+  .empty-sug{padding:16px;text-align:center;color:var(--ink-3);font-size:12px;}
+
+  .dayh{display:flex;justify-content:space-between;padding:15px 5px 7px;font-size:11px;color:var(--ink-3);font-weight:600;}
+  .tx{display:flex;align-items:center;gap:11px;padding:12px 15px;border-top:1px solid var(--line);}
+  .tx:first-child{border-top:none;}
+  .tinfo{flex:1;min-width:0;}
+  .tname{font-size:14px;font-weight:600;}
+  .tacc{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .tamt{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .tamt.exp{color:var(--exp);}.tamt.inc{color:var(--inc);}
+  .tabbar{height:56px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--ink-3);flex:1;}
+  .tab .ic{font-size:18px;}
+  .tab.on{color:var(--brand-600);}
+
+  /* 记账页预填 */
+  .rec-top{background:#fff;padding:14px 16px 8px;}
+  .seg{display:flex;background:var(--surface-2);border-radius:12px;padding:4px;gap:4px;}
+  .seg span{flex:1;text-align:center;font-size:13px;font-weight:700;color:var(--ink-2);padding:7px 0;border-radius:9px;}
+  .seg span.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.06);}
+  .amt-big{font-size:40px;font-weight:800;text-align:right;padding:14px 16px 4px;}
+  .amt-big small{font-size:20px;color:var(--ink-3);}
+  .prefill-tip{margin:0 15px;background:var(--brand-weak);border-radius:12px;padding:9px 12px;font-size:11.5px;color:var(--brand-600);display:flex;align-items:center;gap:7px;}
+  .field{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-top:1px solid var(--line);background:#fff;font-size:14px;}
+  .field .k{color:var(--ink-2);}
+  .field .v{font-weight:700;}
+  .kbd{margin-top:auto;background:var(--surface-2);padding:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .key{background:#fff;border-radius:10px;text-align:center;padding:14px 0;font-size:18px;font-weight:700;}
+  .save{grid-column:3;grid-row:1/5;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;}
+
+  .legend{margin-top:34px;font-size:13px;color:var(--ink-2);line-height:2;max-width:960px;}
+  .legend .tag{display:inline-block;font-size:11px;font-weight:700;background:var(--brand-weak);color:var(--brand-600);border-radius:999px;padding:2px 9px;margin-right:6px;}
+  .legend b{color:var(--ink);}
+  .pick{margin-top:14px;padding:16px 18px;background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);max-width:960px;}
+  .pick h3{margin:0 0 8px;font-size:15px;}
+  .pick ul{margin:6px 0 0;padding-left:18px;}
+  .pick li{margin:5px 0;font-size:13px;color:var(--ink-2);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="h1">有余 · 自动推荐原型（方案对比）</div>
+  <p class="sub">
+    目标：打开应用时，基于历史自动推荐一笔（如「昨天 午餐 35元 餐饮」），一键确认即可入账，减少输入。
+    下面把四组取舍做成可点原型：<b>推荐依据、展示位置、推荐条数、忽略状态</b>。点绿色「确认记账」按钮可看到入账后的效果。
+  </p>
+
+  <div class="sec">A · 展示位置 & 推荐条数</div>
+  <div class="screens">
+
+    <!-- 1 首页单条 -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span> 首页 · 单条一键确认</p>
+      <p class="note">最省事：只推最可能的一笔，放在快捷入口下方。点「确认」直接入账并原地变成「已记账」。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年8月 · 月结余</div><div class="bal-v">¥1,240<small>.00</small></div></div><div class="io"><div>收入 6,800</div><div>支出 5,560</div></div></div>
+          </div>
+          <div class="quick">
+            <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic">📋</div><div class="l">明细</div></div>
+            <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+          </div>
+          <div class="pad">
+            <div class="card sug" id="card1">
+              <div class="sug-h">
+                <div class="sug-t"><span class="spark">✨</span> 猜你要记</div>
+                <div class="sug-why">昨天这时也记了 · 忽略 ✕</div>
+              </div>
+              <div class="rec">
+                <div class="cic" style="background:#f0553d;">餐</div>
+                <div class="rinfo"><div class="rname">午餐</div><div class="rmeta">餐饮 · 现金 · 常记</div></div>
+                <div class="ramt">-35.00</div>
+                <button class="confirm" onclick="confirmCard('card1')">✓ 确认</button>
+              </div>
+            </div>
+          </div>
+          <div class="dayh"><span>今天 8月6日</span><span>支出 128.00</span></div>
+          <div class="card" style="margin:0 15px;">
+            <div class="tx"><div class="cic" style="background:#12a150;width:40px;height:40px;">薪</div><div class="tinfo"><div class="tname">早餐</div><div class="tacc">餐饮 · 微信</div></div><div class="tamt exp">-12.00</div></div>
+            <div class="tx"><div class="cic" style="background:#7c5cff;width:40px;height:40px;">通</div><div class="tinfo"><div class="tname">地铁</div><div class="tacc">交通 · 交通卡</div></div><div class="tamt exp">-6.00</div></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📈</span>报表</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 2 首页多条候选 -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span> 首页 · 2–3 条候选</p>
+      <p class="note">更灵活：给几条常记组合，一键选其一。适合每天记好几笔固定支出的用户。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年8月 · 月结余</div><div class="bal-v">¥1,240<small>.00</small></div></div><div class="io"><div>收入 6,800</div><div>支出 5,560</div></div></div>
+          </div>
+          <div class="quick">
+            <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic">📋</div><div class="l">明细</div></div>
+            <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+          </div>
+          <div class="pad">
+            <div class="card sug" id="card2">
+              <div class="sug-h">
+                <div class="sug-t"><span class="spark">✨</span> 猜你要记</div>
+                <div class="sug-why">按常记 · 忽略全部 ✕</div>
+              </div>
+              <div class="cand">
+                <div class="cic" style="background:#f0553d;">餐</div>
+                <div class="rinfo"><div class="rname">午餐</div><div class="rmeta">餐饮 · 现金</div></div>
+                <div class="ramt">-35.00</div>
+                <button class="confirm mini" onclick="confirmCard('card2')">确认</button>
+              </div>
+              <div class="cand">
+                <div class="cic" style="background:#7c5cff;">通</div>
+                <div class="rinfo"><div class="rname">地铁</div><div class="rmeta">交通 · 交通卡</div></div>
+                <div class="ramt">-6.00</div>
+                <button class="confirm mini" onclick="confirmCard('card2')">确认</button>
+              </div>
+              <div class="cand">
+                <div class="cic" style="background:#12a150;">咖</div>
+                <div class="rinfo"><div class="rname">咖啡</div><div class="rmeta">餐饮 · 微信</div></div>
+                <div class="ramt">-18.00</div>
+                <button class="confirm mini" onclick="confirmCard('card2')">确认</button>
+              </div>
+            </div>
+          </div>
+          <div class="dayh"><span>今天 8月6日</span><span>支出 128.00</span></div>
+          <div class="card" style="margin:0 15px;">
+            <div class="tx"><div class="cic" style="background:#12a150;width:40px;height:40px;">薪</div><div class="tinfo"><div class="tname">早餐</div><div class="tacc">餐饮 · 微信</div></div><div class="tamt exp">-12.00</div></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📈</span>报表</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3 记账页预填 -->
+    <div class="pw">
+      <p class="cap"><span class="n">3</span> 记账页 · 打开即预填</p>
+      <p class="note">进入记账页时表单已按推荐填好（金额/分类/账户/备注），改一下或直接保存。与既有「模板套用」同一交互。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body" style="background:#fff;">
+          <div class="rec-top">
+            <div class="seg"><span class="on">支出</span><span>收入</span><span>转账</span></div>
+          </div>
+          <div class="prefill-tip" style="margin-top:10px;">✨ 已按「昨天 午餐」预填，可直接保存或修改</div>
+          <div class="amt-big"><small>¥</small> 35.00</div>
+          <div class="field"><span class="k">分类</span><span class="v">🍚 餐饮</span></div>
+          <div class="field"><span class="k">账户</span><span class="v">现金</span></div>
+          <div class="field"><span class="k">备注</span><span class="v">午餐</span></div>
+          <div class="field"><span class="k">时间</span><span class="v">今天 12:00</span></div>
+          <div class="kbd">
+            <div class="key">1</div><div class="key">2</div><div class="save">保存</div>
+            <div class="key">4</div><div class="key">5</div>
+            <div class="key">7</div><div class="key">8</div>
+            <div class="key">.</div><div class="key">0</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">B · 一键确认后的反馈 & 忽略/空态</div>
+  <div class="screens">
+
+    <!-- 4 确认后 -->
+    <div class="pw">
+      <p class="cap"><span class="n">4</span> 确认后 · 原地变「已记账」</p>
+      <p class="note">点确认后卡片不消失，就地变成成功态 + 「查看/撤销」，给出正反馈。（方案 1 里点确认也会到这个态）</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年8月 · 月结余</div><div class="bal-v">¥1,205<small>.00</small></div></div><div class="io"><div>收入 6,800</div><div>支出 5,595</div></div></div>
+          </div>
+          <div class="quick">
+            <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic">📋</div><div class="l">明细</div></div>
+            <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+          </div>
+          <div class="pad">
+            <div class="card sug">
+              <div class="done-state">
+                <div class="done-badge">✓</div>
+                <div class="done-t">已记一笔 · 午餐 ¥35.00</div>
+                <div class="done-s">已记入「餐饮」　查看 · 撤销</div>
+              </div>
+            </div>
+          </div>
+          <div class="dayh"><span>今天 8月6日</span><span>支出 163.00</span></div>
+          <div class="card" style="margin:0 15px;">
+            <div class="tx"><div class="cic" style="background:#f0553d;width:40px;height:40px;">餐</div><div class="tinfo"><div class="tname">午餐</div><div class="tacc">餐饮 · 现金 · 刚刚</div></div><div class="tamt exp">-35.00</div></div>
+            <div class="tx"><div class="cic" style="background:#12a150;width:40px;height:40px;">薪</div><div class="tinfo"><div class="tname">早餐</div><div class="tacc">餐饮 · 微信</div></div><div class="tamt exp">-12.00</div></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📈</span>报表</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 5 忽略 -->
+    <div class="pw">
+      <p class="cap"><span class="n">5</span> 忽略后 · 当天不再出现</p>
+      <p class="note">点右上「忽略 ✕」，本条当天收起（存一点忽略状态）。次日或换一笔再出现。也可完全关闭推荐。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年8月 · 月结余</div><div class="bal-v">¥1,240<small>.00</small></div></div><div class="io"><div>收入 6,800</div><div>支出 5,560</div></div></div>
+          </div>
+          <div class="quick">
+            <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic">📋</div><div class="l">明细</div></div>
+            <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+          </div>
+          <div class="dayh"><span>今天 8月6日</span><span>支出 128.00</span></div>
+          <div class="card" style="margin:0 15px;">
+            <div class="tx"><div class="cic" style="background:#12a150;width:40px;height:40px;">薪</div><div class="tinfo"><div class="tname">早餐</div><div class="tacc">餐饮 · 微信</div></div><div class="tamt exp">-12.00</div></div>
+            <div class="tx"><div class="cic" style="background:#7c5cff;width:40px;height:40px;">通</div><div class="tinfo"><div class="tname">地铁</div><div class="tacc">交通 · 交通卡</div></div><div class="tamt exp">-6.00</div></div>
+            <div class="tx"><div class="cic" style="background:#f0553d;width:40px;height:40px;">餐</div><div class="tinfo"><div class="tname">奶茶</div><div class="tacc">餐饮 · 微信</div></div><div class="tamt exp">-16.00</div></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📈</span>报表</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 6 无历史空态 -->
+    <div class="pw">
+      <p class="cap"><span class="n">6</span> 无足够历史 · 不显示</p>
+      <p class="note">新用户或历史太少时，不硬推——推荐卡整块不出现，首页与现在一致，避免乱猜。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb onb"><span>9:41</span><span>5G ▮▮▮</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div class="hicons"><span>🔍</span><span>🔔</span></div></div>
+            <div class="balrow"><div><div class="bal-k">2026年8月 · 月结余</div><div class="bal-v">¥0<small>.00</small></div></div><div class="io"><div>收入 0.00</div><div>支出 0.00</div></div></div>
+          </div>
+          <div class="quick">
+            <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+            <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+            <div class="qa"><div class="ic">📋</div><div class="l">明细</div></div>
+            <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+          </div>
+          <div class="pad">
+            <div class="card" style="margin-top:12px;padding:34px 20px;text-align:center;">
+              <div style="font-size:44px;">🧾</div>
+              <div style="font-size:15px;font-weight:800;margin-top:8px;">还没有可推荐的记录</div>
+              <div style="font-size:12px;color:var(--ink-2);margin-top:6px;line-height:1.7;">多记几笔后，这里会自动帮你推荐常记的那几笔</div>
+            </div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ic">🏠</span>首页</div>
+          <div class="tab"><span class="ic">📈</span>报表</div>
+          <div class="tab"><span class="ic">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="pick">
+    <h3>请对照原型选一下（可直接回复编号/组合）</h3>
+    <ul>
+      <li><b>展示位置</b>：① 首页单条　②首页 2–3 条　③记账页预填　（可组合，如「①+③」）</li>
+      <li><b>推荐依据</b>：最近一笔优先（图 1 的「昨天这时也记了」）／ 高频常记（图 2 的「按常记」）／ 两者融合</li>
+      <li><b>确认反馈</b>：④ 原地变「已记账 + 撤销」（推荐）</li>
+      <li><b>忽略</b>：⑤ 当天忽略（存状态）／ 纯即时不记忆　；无历史时 ⑥ 不显示</li>
+    </ul>
+  </div>
+
+  <div class="legend">
+    <span class="tag">说明</span>点绿色「确认 / ✓」按钮可预览「一键入账 → 变成已记账」的效果。此原型仅为选型讨论，不是最终视觉；配色沿用既有 <b>home-redesign</b> 令牌。
+  </div>
+</div>
+
+<script>
+  function confirmCard(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = '<div class="done-state">'
+      + '<div class="done-badge">✓</div>'
+      + '<div class="done-t">已记一笔 · 午餐 ¥35.00</div>'
+      + '<div class="done-s">已记入「餐饮」　查看 · 撤销</div>'
+      + '</div>';
+  }
+</script>
+</body>
+</html>

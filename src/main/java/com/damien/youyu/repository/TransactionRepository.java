@@ -165,6 +165,43 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<String> findExistingExternalIds(
             @Param("ledgerId") Long ledgerId, @Param("externalIds") Collection<String> externalIds);
 
+    // ---------------- 记账推荐的窗口投影查询（record-suggestion 需求 2.1、2.4、8.1）----------------
+
+    /**
+     * 记账推荐窗口内的只读投影行：某账本、未删除、类型为 {@code expense}/{@code income}、
+     * {@code occurred_at ∈ [from, to]}（闭区间）的历史流水（record-suggestion 需求 2.1、2.4）。
+     *
+     * <p>供 {@code RecordSuggestionService} 拉窗口行、交由 {@code RecordSuggestionRanker} 在内存中
+     * 按形态分组/排序/截断。返回接口投影 {@link SuggestionRow}，仅取七项字段，避免整实体加载。</p>
+     *
+     * <p>三点说明：</p>
+     * <ol>
+     *   <li>软删除行由 {@link Transaction} 的 {@code @SQLRestriction("deleted_at is null")} 自动排除，
+     *       故本 JPQL 无需显式写 {@code deleted_at IS NULL}（需求 2.1）。</li>
+     *   <li>类型过滤用 {@link TransactionType} 枚举常量而非字符串字面量：{@code type} 经
+     *       {@link com.damien.youyu.domain.TransactionTypeConverter} 转换存储，JPQL 中以枚举常量比较可让
+     *       转换器正确生效（对齐既有 {@code sumAmountByAccountIdAndType} 的 {@code t.type = :type} 用法），
+     *       从而排除 {@code transfer}（需求 2.1）。</li>
+     *   <li>{@code BETWEEN} 为闭区间 inclusive-inclusive，与需求 2.4 的
+     *       {@code [当日−29 日 00:00:00.000, 当日 23:59:59.999]} 一致，边界由调用方按 {@code Asia/Shanghai}
+     *       计算并传入。</li>
+     * </ol>
+     *
+     * <p>纯只读，不写任何表（需求 8.1）。</p>
+     */
+    @Query("""
+            SELECT t.type AS type, t.amount AS amount, t.categoryId AS categoryId,
+                   t.accountId AS accountId, t.note AS note, t.occurredAt AS occurredAt, t.id AS id
+            FROM Transaction t
+            WHERE t.ledgerId = :ledgerId
+              AND t.type IN (com.damien.youyu.domain.TransactionType.EXPENSE,
+                             com.damien.youyu.domain.TransactionType.INCOME)
+              AND t.occurredAt BETWEEN :from AND :to
+            """)
+    List<SuggestionRow> findSuggestionWindowRows(@Param("ledgerId") Long ledgerId,
+                                                 @Param("from") LocalDateTime from,
+                                                 @Param("to") LocalDateTime to);
+
     /** 删除某账本的全部交易（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 
