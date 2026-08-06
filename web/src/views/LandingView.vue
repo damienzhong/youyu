@@ -139,6 +139,7 @@ import { RouterLink } from 'vue-router'
         <div class="foot-bottom">
           <span>© 2026 有余记账</span>
           <span>记好每一笔，日子有余</span>
+          <a class="beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">粤ICP备2026093631号-2</a>
         </div>
       </div>
     </footer>
@@ -250,6 +251,8 @@ section { padding: 60px 0; }
 .foot-col a { display: block; padding: 5px 0; }
 .foot-col a:hover { color: var(--green-dark); }
 .foot-bottom { border-top: 1px solid var(--line); padding-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; }
+.foot-bottom .beian { color: inherit; }
+.foot-bottom .beian:hover { color: var(--green-dark); }
 
 @media (min-width: 768px) {
   .nav-links { display: flex; }
