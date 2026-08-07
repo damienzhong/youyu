@@ -174,13 +174,18 @@ public class WeChatClient {
             throw ApiException.wxLoginFailed("服务端未配置微信小程序 appid/secret");
         }
 
+        // 微信 sns/jscode2session 的响应 Content-Type 为 text/plain（并非 application/json），
+        // 用 .body(Map.class) 会因找不到匹配 text/plain 的 JSON 转换器而抛异常。故与小程序码路径
+        // 同策略：先取原始字符串，再用 OBJECT_MAPPER 解析，绕开按 content-type 选转换器的坑。
         Map<String, Object> body;
         try {
-            body = restClient.get()
+            String raw = restClient.get()
                     .uri(JSCODE2SESSION_PATH, appId, appSecret, code)
                     .retrieve()
-                    .body(Map.class);
-        } catch (RuntimeException ex) {
+                    .body(String.class);
+            body = (raw == null || raw.isBlank()) ? null : OBJECT_MAPPER.readValue(raw, Map.class);
+        } catch (Exception ex) {
+            log.warn("请求微信登录接口失败：{}", ex.toString());
             throw ApiException.wxLoginFailed("请求微信服务失败，请稍后重试");
         }
 
@@ -220,14 +225,17 @@ public class WeChatClient {
     public WxAccessToken fetchAccessToken() {
         requireMiniappConfigured();
 
+        // cgi-bin/token 同样返回 text/plain，故与登录路径同策略：取原始字符串后用 OBJECT_MAPPER 解析，
+        // 避免 .body(Map.class) 因 content-type 不是 application/json 而找不到转换器抛异常。
         Map<String, Object> body;
         try {
-            body = tokenRestClient.get()
+            String raw = tokenRestClient.get()
                     .uri(TOKEN_PATH, appId, appSecret)
                     .retrieve()
-                    .body(Map.class);
-        } catch (RuntimeException ex) {
-            // 超时、连接失败、非 2xx 状态一律归一为 INVITE_QRCODE_FAILED（需求 3.14）。
+                    .body(String.class);
+            body = (raw == null || raw.isBlank()) ? null : OBJECT_MAPPER.readValue(raw, Map.class);
+        } catch (Exception ex) {
+            // 超时、连接失败、非 2xx 状态、解析失败一律归一为 INVITE_QRCODE_FAILED（需求 3.14）。
             log.warn("请求微信凭证接口失败：{}", ex.toString());
             throw ApiException.inviteQrCodeFailed("获取微信接口凭证失败，请稍后重试");
         }
