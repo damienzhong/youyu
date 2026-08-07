@@ -20,6 +20,7 @@ import com.damien.youyu.api.dto.MemberReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse.MemberShare;
 import com.damien.youyu.api.dto.MonthlyDigestResponse;
 import com.damien.youyu.api.dto.MonthlyReportResponse;
+import com.damien.youyu.api.dto.PersonalityTagsResponse;
 import com.damien.youyu.api.dto.RangeReportResponse;
 import com.damien.youyu.api.dto.TrendReportResponse;
 import com.damien.youyu.domain.TransactionType;
@@ -29,6 +30,7 @@ import com.damien.youyu.repository.UserRepository;
 import com.damien.youyu.security.CurrentLedger;
 import com.damien.youyu.service.AiInsightService;
 import com.damien.youyu.service.MonthlyDigestService;
+import com.damien.youyu.service.PersonalityTagService;
 import com.damien.youyu.service.ReportService;
 
 /**
@@ -50,16 +52,18 @@ public class ReportController {
     private final ReportService reportService;
     private final MonthlyDigestService digestService;
     private final AiInsightService aiInsightService;
+    private final PersonalityTagService personalityTagService;
     private final CurrentLedger currentLedger;
     private final UserRepository userRepository;
     private final Clock clock;
 
     public ReportController(ReportService reportService, MonthlyDigestService digestService,
-            AiInsightService aiInsightService, CurrentLedger currentLedger,
-            UserRepository userRepository, Clock clock) {
+            AiInsightService aiInsightService, PersonalityTagService personalityTagService,
+            CurrentLedger currentLedger, UserRepository userRepository, Clock clock) {
         this.reportService = reportService;
         this.digestService = digestService;
         this.aiInsightService = aiInsightService;
+        this.personalityTagService = personalityTagService;
         this.currentLedger = currentLedger;
         this.userRepository = userRepository;
         this.clock = clock;
@@ -107,6 +111,25 @@ public class ReportController {
                 ? YearMonth.now(clock)
                 : parseMonth(month, "month");
         return ResponseEntity.ok(aiInsightService.insights(ledgerId, ym));
+    }
+
+    /**
+     * 趣味人格标签（需求 1、8、9、10、11）：month 为 {@code YYYY-MM}，缺省取 {@code Asia/Shanghai} 当前自然月。
+     * 一次返回目标月挑选后不超过 N（默认 4）枚人格标签，或一条鼓励性兜底文案。
+     * 纯只读派生，复用既有报表/预算聚合口径，不新增错误码。
+     *
+     * <p>鉴权/账本/参数三类错误的优先级由既有链路天然保证「鉴权 → 账本 → 参数」：
+     * {@link CurrentLedger#requireLedgerId()} 先触发鉴权与账本校验，{@code parseMonth} 后触发
+     * （需求 11.11、11.12、11.13）。</p>
+     */
+    @GetMapping("/personality-tags")
+    public ResponseEntity<PersonalityTagsResponse> personalityTags(
+            @RequestParam(name = "month", required = false) String month) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        YearMonth ym = (month == null || month.isBlank())
+                ? YearMonth.now(clock)
+                : parseMonth(month, "month");
+        return ResponseEntity.ok(personalityTagService.tags(ledgerId, ym));
     }
 
     /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）。 */

@@ -102,6 +102,53 @@ export function aiInsights(month) {
   return http.get(`/reports/ai-insights?month=${month}`)
 }
 
+/**
+ * 趣味人格标签。month 为 YYYY-MM（缺省时由后端取 Asia/Shanghai 当前自然月）。
+ * 纯只读派生，根据目标月的记账与预算数据贴出一组轻松俏皮的人格标签，
+ * 一次返回目标月挑选后不超过 N（默认 4）枚标签，或一条鼓励性兜底文案。
+ * 沿用 utils/request.js 网络层：自动带 Authorization 与 X-Ledger-Id；
+ * 401 清 token 跳登录；LEDGER_NOT_ACCESSIBLE 自动清本地账本并重试一次。
+ *
+ * 返回：
+ * {
+ *   month,          // 目标月标识 YYYY-MM
+ *   monthStatus,    // 月状态：'partial'（进行中）/ 'final'（已完结）
+ *   isFallback,     // 是否兜底：true=无标签仅返回鼓励文案；false=有 1..N 枚标签
+ *   fallbackText,   // 兜底鼓励文案（isFallback=true 时非空，否则为 null）
+ *   tags: [         // 人格标签列表（isFallback=true 时为空数组），按强度分降序 + 固定优先级决胜
+ *     {
+ *       tagKey,          // 标签键：SAVINGS_MASTER/FINANCE_STAR/BUDGET_MASTER/TAKEOUT_EXPLORER/
+ *                        //         COFFEE_COLLECTOR/LATE_NIGHT_KING/TRAVEL_ENTHUSIAST/SHOPPING_LIFER
+ *       title,           // 标签标题（正向/中性，如「省钱达人」）
+ *       emoji,           // 标签表情符号
+ *       dimension,       // 判定维度：CATEGORY/MERCHANT；非行为类标签为 null
+ *       dimensionId,     // 维度对象 id（分类 id / 商户 id）；非行为类或聚合类标签为 null
+ *       dimensionName,   // 维度名称（删除回退「已删除分类」/「已删除商户」）；非行为类标签为 null
+ *       currentValue,    // 目标月总支出（元，2dp）；SAVINGS_MASTER/FINANCE_STAR 在场，其余为 null
+ *       previousValue,   // 上月总支出（元，2dp）；仅 SAVINGS_MASTER 在场，其余为 null
+ *       income,          // 目标月总收入（元，2dp）；仅 FINANCE_STAR 在场，其余为 null
+ *       savings,         // 节省额 = 上月总支出 − 目标月总支出（元，2dp，可负）；仅 SAVINGS_MASTER 在场
+ *       saveRate,        // 节省率或结余率（%，2dp）；SAVINGS_MASTER=节省率、FINANCE_STAR=结余率；无定义为 null
+ *       budget,          // 本月预算（元，2dp）；仅 BUDGET_MASTER 在场，其余为 null
+ *       used,            // 本月已用支出（元，2dp）；仅 BUDGET_MASTER 在场
+ *       usedRate,        // 预算使用率（%，2dp）；仅 BUDGET_MASTER 在场
+ *       matchCount,      // 行为类标签匹配笔数（整数 ≥0）；仅行为类标签在场，其余为 null
+ *       matchAmount,     // 行为类标签匹配金额（元，2dp ≥0.00）；仅行为类标签在场
+ *       matchPercent,    // 行为类标签匹配占比（%，2dp）；仅行为类标签在场
+ *       lateNightCount,  // 夜宵时段支出笔数（整数 ≥0）；仅 LATE_NIGHT_KING 在场，其余为 null
+ *       lateNightWindow, // 夜宵时段描述（如 "22:00-04:00"）；仅 LATE_NIGHT_KING 在场
+ *       threshold,       // 主判定阈值取值（元/占比/笔数，随标签类型语义不同），用于展示与追溯
+ *       strengthScore,   // 强度分（有限非负，6dp，确定性）；用于排序，前端可忽略
+ *       narrativeText    // 渲染好的中文标签文案（1..60 字符）；生成失败为 null
+ *     }
+ *   ]
+ * }
+ * @param {string} month 目标月 YYYY-MM
+ */
+export function personalityTags(month) {
+  return http.get(`/reports/personality-tags?month=${month}`)
+}
+
 /** 给定 YYYY-MM，返回该自然月的起止日期 { from, to }（YYYY-MM-DD）。 */
 export function monthRange(month) {
   const [y, m] = month.split('-').map(Number)

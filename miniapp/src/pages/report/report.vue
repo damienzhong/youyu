@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { categoryReport, memberReport, dimensionReport, trendReport, monthlyDigest, aiInsights, monthRange, shiftMonth } from '../../api/report'
+import { categoryReport, memberReport, dimensionReport, trendReport, monthlyDigest, aiInsights, personalityTags, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
@@ -21,6 +21,11 @@ import {
   resolveInsightsState,
   insightToDisplay
 } from '../../utils/insights'
+import {
+  PERSONALITY_TAGS_TIMEOUT_MS,
+  resolveTagsState,
+  tagToDisplay
+} from '../../utils/personalityTags'
 
 const ledgerStore = useLedgerStore()
 
@@ -63,6 +68,15 @@ const insights = ref(null)
 const insightsVisible = ref(false)
 // 展示映射（白名单抽取 + 方向色调 + narrativeText 优先）；空/缺字段安全兜底。
 const insightItems = computed(() => (insights.value?.insights || []).map(insightToDisplay))
+
+// 趣味人格标签（fun-personality-tags 需求 1、8、10、12）：与其它报表相互独立的响应式状态。
+// tags 承载后端返回的 { month, monthStatus, isFallback, fallbackText, tags[] }；
+// tagsVisible 控制卡片区块是否展示。仅具体账本 + 已登录时请求；
+// 失败或 5000ms 超时静默隐藏，不弹阻断性错误、不影响分类占比/趋势/智能月报/AI 趣味分析等既有模块。
+const tags = ref(null)
+const tagsVisible = ref(false)
+// 展示映射（白名单抽取 + narrativeText 优先，缺失降级为「标题 + 关键数值」）；空/缺字段安全兜底。
+const tagItems = computed(() => (tags.value?.tags || []).map(tagToDisplay))
 
 // 月报配图（海报，需求 8）：前端 canvas 渲染 → 临时文件 → 保存/分享。
 // posterImage 为出图成功后的临时文件路径；posterVisible 控制预览弹层；
@@ -164,6 +178,28 @@ async function loadInsights() {
   insightsVisible.value = state.insightsVisible
 }
 
+// 趣味人格标签数据加载与静默降级（需求 1.8、1.9、12）。
+// - 未登录（无 token）或全部账本聚合视图：不请求、不展示（需求 1.9、11.9、12.4）。
+// - 5000ms 超时（resolveTagsState 内部 raceWithTimeout）；失败或超时 →
+//   tagsVisible=false 静默隐藏，不弹阻断性错误，不影响其它报表（需求 12.1、12.2、12.5）。
+// - 成功但标签体为空 → 静默隐藏（需求 12.6）。
+// - 与主 load() 的 try/catch 相互独立：本函数自带降级，异常不冒泡。
+// - stale（请求期间切了账本/月份）→ 跳过应用，避免过期数据覆盖新结果；切换后重新触发刷新（需求 12.7）。
+async function loadTags() {
+  const token = uni.getStorageSync(STORAGE_KEYS.token)
+  const targetMonth = month.value
+  const state = await resolveTagsState({
+    isLoggedIn: !!token,
+    isAll: ledgerStore.isAll,
+    fetchTags: () => personalityTags(targetMonth),
+    timeoutMs: PERSONALITY_TAGS_TIMEOUT_MS,
+    isStale: () => month.value !== targetMonth || ledgerStore.isAll
+  })
+  if (state.stale) return
+  tags.value = state.tags
+  tagsVisible.value = state.tagsVisible
+}
+
 // ── 月报配图（海报）生成 / 保存 / 分享（需求 8）──────────────────
 // 入口点击 → 用 canvas 绘制卡片 → canvasToTempFilePath 出图 → 预览弹层。
 // 关键约束：卡片仅取 digest（当前账本九模块）字段；出图失败仅 toast 提示，
@@ -255,9 +291,10 @@ function sharePoster() {
 }
 
 async function load() {
-  // 月报、AI 趣味分析与其它报表相互独立：并行发起、独立降级，不参与下方主 try/catch。
+  // 月报、AI 趣味分析、趣味人格标签与其它报表相互独立：并行发起、独立降级，不参与下方主 try/catch。
   loadDigest()
   loadInsights()
+  loadTags()
   loading.value = true
   try {
     if (ledgerStore.isAll) {
@@ -570,6 +607,48 @@ function nextMonth() {
         >
           <text class="ai-item-icon">{{ it.icon }}</text>
           <text class="ai-item-text">{{ it.text }}</text>
+        </view>
+      </view>
+    </view>
+
+    <!--
+      趣味人格标签卡片区块（fun-personality-tags 任务 15）。
+      渲染条件：v-if="tagsVisible && tags"（仅具体账本 + 已登录且加载成功时展示；
+      失败/超时/未登录/聚合视图/空体由 loadTags 静默降级隐藏）。
+      isFallback=true 渲染鼓励文案；否则以标签墙形式逐枚渲染标签芯片
+      （表情 + 标题 + narrativeText，正向暖色调）。空/缺字段安全兜底、不报错。
+    -->
+    <view v-if="tagsVisible && tags" class="tags">
+      <!-- 头部：目标月标识 YYYY-MM + 月状态徽标（复用月报徽标样式） -->
+      <view class="tags-head">
+        <text class="tags-title">趣味人格标签</text>
+        <view class="tags-head-right">
+          <text class="tags-month">{{ tags.month }}</text>
+          <text
+            class="dg-badge"
+            :class="tags.monthStatus === 'final' ? 'final' : 'partial'"
+          >{{ digestStatusText(tags.monthStatus) }}</text>
+        </view>
+      </view>
+
+      <!-- 兜底态：一条鼓励文案 -->
+      <view v-if="tags.isFallback" class="tags-fallback">
+        <text class="tags-fallback-icon">🏷️</text>
+        <text class="tags-fallback-text">{{ tags.fallbackText || '才刚开始记账，专属标签正在路上啦～' }}</text>
+      </view>
+
+      <!-- 非兜底态：标签墙，逐枚渲染标签芯片 -->
+      <view v-else class="tag-wall">
+        <view
+          v-for="(it, i) in tagItems"
+          :key="i"
+          class="tag-chip"
+        >
+          <text class="tag-chip-emoji">{{ it.emoji }}</text>
+          <view class="tag-chip-body">
+            <text class="tag-chip-title">{{ it.title }}</text>
+            <text class="tag-chip-text">{{ it.text }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -1365,6 +1444,95 @@ function nextMonth() {
   color: #0b6b34;
 }
 .ai-item.reminder .ai-item-text {
+  color: #b45309;
+}
+
+/* ── 趣味人格标签区块（正向暖色调）─────────────────── */
+.tags {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 28rpx 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.tags-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+.tags-title {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #16181c;
+}
+.tags-head-right {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+.tags-month {
+  font-size: 26rpx;
+  color: #6b7280;
+  font-weight: 600;
+}
+/* 兜底鼓励文案：暖色底 */
+.tags-fallback {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 24rpx 20rpx;
+  background: #fff7ed;
+  border-radius: 18rpx;
+}
+.tags-fallback-icon {
+  font-size: 34rpx;
+  flex: 0 0 auto;
+}
+.tags-fallback-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: #b45309;
+  line-height: 1.5;
+}
+/* 标签墙：芯片自动换行 */
+.tag-wall {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.tag-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  padding: 20rpx 22rpx;
+  border-radius: 20rpx;
+  /* 正向暖色调：柔和橘粉渐变 */
+  background: linear-gradient(135deg, #fff1e6, #ffe8d6);
+  box-shadow: 0 6rpx 16rpx rgba(245, 158, 11, 0.12);
+  flex: 1 1 100%;
+}
+.tag-chip-emoji {
+  font-size: 34rpx;
+  flex: 0 0 auto;
+  line-height: 1.4;
+}
+.tag-chip-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.tag-chip-title {
+  font-size: 28rpx;
+  font-weight: 800;
+  color: #9a3412;
+}
+.tag-chip-text {
+  font-size: 24rpx;
+  line-height: 1.5;
   color: #b45309;
 }
 </style>
