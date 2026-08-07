@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import com.damien.youyu.api.dto.AiInsightsResponse;
 import com.damien.youyu.api.dto.CategoryReportResponse;
 import com.damien.youyu.api.dto.DimensionReportResponse;
 import com.damien.youyu.api.dto.MemberReportResponse;
@@ -26,6 +27,7 @@ import com.damien.youyu.domain.User;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.UserRepository;
 import com.damien.youyu.security.CurrentLedger;
+import com.damien.youyu.service.AiInsightService;
 import com.damien.youyu.service.MonthlyDigestService;
 import com.damien.youyu.service.ReportService;
 
@@ -47,14 +49,17 @@ public class ReportController {
 
     private final ReportService reportService;
     private final MonthlyDigestService digestService;
+    private final AiInsightService aiInsightService;
     private final CurrentLedger currentLedger;
     private final UserRepository userRepository;
     private final Clock clock;
 
     public ReportController(ReportService reportService, MonthlyDigestService digestService,
-            CurrentLedger currentLedger, UserRepository userRepository, Clock clock) {
+            AiInsightService aiInsightService, CurrentLedger currentLedger,
+            UserRepository userRepository, Clock clock) {
         this.reportService = reportService;
         this.digestService = digestService;
+        this.aiInsightService = aiInsightService;
         this.currentLedger = currentLedger;
         this.userRepository = userRepository;
         this.clock = clock;
@@ -84,6 +89,24 @@ public class ReportController {
                 ? YearMonth.now(clock)
                 : parseMonth(month, "month");
         return ResponseEntity.ok(digestService.digest(ledgerId, ym));
+    }
+
+    /**
+     * AI 趣味分析（需求 1、8、9、10）：month 为 {@code YYYY-MM}，缺省取 {@code Asia/Shanghai} 当前自然月。
+     * 一次返回目标月挑选后不超过 N（默认 5）条趣味洞察，或一条鼓励性兜底文案。
+     * 纯只读派生，复用既有报表聚合口径，不新增错误码。
+     *
+     * <p>鉴权/账本/参数三类错误的优先级由既有链路天然保证「鉴权 → 账本 → 参数」：
+     * {@link CurrentLedger#requireLedgerId()} 先触发鉴权与账本校验，{@code parseMonth} 后触发（需求 10.8）。</p>
+     */
+    @GetMapping("/ai-insights")
+    public ResponseEntity<AiInsightsResponse> aiInsights(
+            @RequestParam(name = "month", required = false) String month) {
+        Long ledgerId = currentLedger.requireLedgerId();
+        YearMonth ym = (month == null || month.isBlank())
+                ? YearMonth.now(clock)
+                : parseMonth(month, "month");
+        return ResponseEntity.ok(aiInsightService.insights(ledgerId, ym));
     }
 
     /** 分类占比报表：from/to 为 {@code YYYY-MM-DD}，含起止边界；kind 为 expense/income（缺省 expense）。 */

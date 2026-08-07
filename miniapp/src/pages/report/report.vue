@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { categoryReport, memberReport, dimensionReport, trendReport, monthlyDigest, monthRange, shiftMonth } from '../../api/report'
+import { categoryReport, memberReport, dimensionReport, trendReport, monthlyDigest, aiInsights, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
 import { buildCategoryLabelMap } from '../../api/category'
 import { useLedgerStore } from '../../stores/ledger'
@@ -16,6 +16,11 @@ import {
   drawDigestPoster,
   posterMoney
 } from '../../utils/digest'
+import {
+  AI_INSIGHTS_TIMEOUT_MS,
+  resolveInsightsState,
+  insightToDisplay
+} from '../../utils/insights'
 
 const ledgerStore = useLedgerStore()
 
@@ -49,6 +54,15 @@ const loading = ref(false)
 // 仅具体账本 + 已登录时请求；失败或超时静默隐藏，不影响其它报表。
 const digest = ref(null)
 const digestVisible = ref(false)
+
+// AI 趣味分析（ai-fun-analysis 需求 1、8、9、11）：与其它报表相互独立的响应式状态。
+// insights 承载后端返回的 { month, monthStatus, isFallback, fallbackText, insights[] }；
+// insightsVisible 控制卡片区块是否展示。仅具体账本 + 已登录时请求；
+// 失败或 5000ms 超时静默隐藏，不弹阻断性错误、不影响分类占比/趋势/智能月报等既有模块。
+const insights = ref(null)
+const insightsVisible = ref(false)
+// 展示映射（白名单抽取 + 方向色调 + narrativeText 优先）；空/缺字段安全兜底。
+const insightItems = computed(() => (insights.value?.insights || []).map(insightToDisplay))
 
 // 月报配图（海报，需求 8）：前端 canvas 渲染 → 临时文件 → 保存/分享。
 // posterImage 为出图成功后的临时文件路径；posterVisible 控制预览弹层；
@@ -127,6 +141,27 @@ async function loadDigest() {
   if (state.stale) return
   digest.value = state.digest
   digestVisible.value = state.digestVisible
+}
+
+// AI 趣味分析数据加载与静默降级（需求 1.8、1.9、11）。
+// - 未登录（无 token）或全部账本聚合视图：不请求、不展示（需求 1.9、11.4）。
+// - 5000ms 超时（resolveInsightsState 内部 raceWithTimeout）；失败或超时 →
+//   insightsVisible=false 静默隐藏，不弹阻断性错误，不影响其它报表（需求 11.1、11.2、11.5）。
+// - 与主 load() 的 try/catch 相互独立：本函数自带降级，异常不冒泡。
+// - stale（请求期间切了账本/月份）→ 跳过应用，避免过期数据覆盖新结果；切换后重新触发刷新。
+async function loadInsights() {
+  const token = uni.getStorageSync(STORAGE_KEYS.token)
+  const targetMonth = month.value
+  const state = await resolveInsightsState({
+    isLoggedIn: !!token,
+    isAll: ledgerStore.isAll,
+    fetchInsights: () => aiInsights(targetMonth),
+    timeoutMs: AI_INSIGHTS_TIMEOUT_MS,
+    isStale: () => month.value !== targetMonth || ledgerStore.isAll
+  })
+  if (state.stale) return
+  insights.value = state.insights
+  insightsVisible.value = state.insightsVisible
 }
 
 // ── 月报配图（海报）生成 / 保存 / 分享（需求 8）──────────────────
@@ -220,8 +255,9 @@ function sharePoster() {
 }
 
 async function load() {
-  // 月报与其它报表相互独立：并行发起、独立降级，不参与下方主 try/catch。
+  // 月报、AI 趣味分析与其它报表相互独立：并行发起、独立降级，不参与下方主 try/catch。
   loadDigest()
+  loadInsights()
   loading.value = true
   try {
     if (ledgerStore.isAll) {
@@ -495,6 +531,46 @@ function nextMonth() {
       <view class="dg-poster-entry" :class="{ busy: posterBusy }" @click="generatePoster">
         <text class="dg-poster-icon">🖼️</text>
         <text class="dg-poster-text">{{ posterBusy ? '生成中…' : '生成月报配图' }}</text>
+      </view>
+    </view>
+
+    <!--
+      AI 趣味分析卡片区块（ai-fun-analysis 任务 15）。
+      渲染条件：v-if="insightsVisible && insights"（仅具体账本 + 已登录且加载成功时展示；
+      失败/超时/未登录/聚合视图由 loadInsights 静默降级隐藏）。
+      isFallback=true 渲染鼓励文案；否则逐条渲染洞察叙事卡片（优先 narrativeText，
+      方向色调：改善/下降暖绿中性 calm、超支/上升提醒橙 reminder）。空/缺字段安全兜底、不报错。
+    -->
+    <view v-if="insightsVisible && insights" class="ai">
+      <!-- 头部：目标月标识 YYYY-MM + 月状态徽标（复用月报徽标样式） -->
+      <view class="ai-head">
+        <text class="ai-title">AI 趣味分析</text>
+        <view class="ai-head-right">
+          <text class="ai-month">{{ insights.month }}</text>
+          <text
+            class="dg-badge"
+            :class="insights.monthStatus === 'final' ? 'final' : 'partial'"
+          >{{ digestStatusText(insights.monthStatus) }}</text>
+        </view>
+      </view>
+
+      <!-- 兜底态：一条鼓励文案 -->
+      <view v-if="insights.isFallback" class="ai-fallback">
+        <text class="ai-fallback-icon">🌱</text>
+        <text class="ai-fallback-text">{{ insights.fallbackText || '才刚开始记账，下个月就能看到你的变化啦～' }}</text>
+      </view>
+
+      <!-- 非兜底态：逐条洞察叙事卡片 -->
+      <view v-else class="ai-list">
+        <view
+          v-for="(it, i) in insightItems"
+          :key="i"
+          class="ai-item"
+          :class="it.tone"
+        >
+          <text class="ai-item-icon">{{ it.icon }}</text>
+          <text class="ai-item-text">{{ it.text }}</text>
+        </view>
       </view>
     </view>
 
@@ -1202,5 +1278,93 @@ function nextMonth() {
   font-size: 26rpx;
   color: #9aa2ad;
   padding: 8rpx 0;
+}
+
+/* ── AI 趣味分析区块 ─────────────────────────────── */
+.ai {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx 28rpx 20rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+}
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20rpx;
+}
+.ai-title {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #16181c;
+}
+.ai-head-right {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
+.ai-month {
+  font-size: 26rpx;
+  color: #6b7280;
+  font-weight: 600;
+}
+/* 兜底鼓励文案 */
+.ai-fallback {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 24rpx 20rpx;
+  background: #f7f8fa;
+  border-radius: 18rpx;
+}
+.ai-fallback-icon {
+  font-size: 34rpx;
+  flex: 0 0 auto;
+}
+.ai-fallback-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: #4b5563;
+  line-height: 1.5;
+}
+/* 洞察叙事卡片列表 */
+.ai-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.ai-item {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 22rpx 20rpx;
+  border-radius: 18rpx;
+}
+/* 改善/下降：暖绿中性 */
+.ai-item.calm {
+  background: #e9f7ef;
+}
+/* 超支/上升：提醒橙 */
+.ai-item.reminder {
+  background: #fff4e5;
+}
+.ai-item-icon {
+  font-size: 32rpx;
+  flex: 0 0 auto;
+}
+.ai-item-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  line-height: 1.5;
+  color: #1f2937;
+}
+.ai-item.calm .ai-item-text {
+  color: #0b6b34;
+}
+.ai-item.reminder .ai-item-text {
+  color: #b45309;
 }
 </style>

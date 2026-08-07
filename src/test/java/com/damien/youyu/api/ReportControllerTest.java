@@ -67,6 +67,13 @@ class ReportControllerTest {
 
     private static final String DIGEST_PATH = "/api/reports/monthly-digest";
 
+    /** AI 趣味分析只读接口路径（需求 10）。 */
+    private static final String AI_INSIGHTS_PATH = "/api/reports/ai-insights";
+
+    /** 响应绝不应出现的 AI 趣味分析数据键（未认证 / 账本不可访问 / 参数非法时，需求 10.2、10.3、10.4、10.8）。 */
+    private static final List<String> AI_INSIGHT_DATA_KEYS = List.of(
+            "month", "monthStatus", "isFallback", "fallbackText", "insights");
+
     /** 业务时区（UTC+8），与后端注入的 {@code Clock} 一致（{@code TimeConfig}）。 */
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
@@ -161,7 +168,149 @@ class ReportControllerTest {
         }
     }
 
+    // ============ 5) AI 趣味分析：缺省 month 取当前自然月（需求 1.2）============
+
+    @Test
+    void aiInsights_missingMonthParam_defaultsToCurrentMonth() {
+        String token = registerAndLogin("report_ai_default@example.com");
+
+        ResponseEntity<String> response = get(AI_INSIGHTS_PATH, bearer(token));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = parse(response);
+        // 缺省取 Asia/Shanghai 当前自然月（需求 1.2）。
+        assertThat(body).containsEntry("month", YearMonth.now(ZONE).toString());
+        // 当前自然月未完结 → 进行中（需求 1.3）。
+        assertThat(body).containsEntry("monthStatus", "partial");
+    }
+
+    // ============ 6) AI 趣味分析：无 / 坏令牌 → 401 UNAUTHENTICATED，响应不含任何洞察字段（需求 10.2）============
+
+    @Test
+    void aiInsights_missingOrBadToken_returnsUnauthenticated_withoutInsightFields() {
+        assertAiUnauthenticated(get(AI_INSIGHTS_PATH, noAuth()), "缺失令牌");
+        assertAiUnauthenticated(get(AI_INSIGHTS_PATH, bearer(token(1L, FOREIGN_SECRET, Duration.ofHours(1)))),
+                "验签失败");
+        assertAiUnauthenticated(get(AI_INSIGHTS_PATH, bearer(token(1L, jwtSecret, Duration.ofSeconds(-10)))),
+                "已过期");
+        assertAiUnauthenticated(get(AI_INSIGHTS_PATH, blankBearer()), "空 Bearer");
+    }
+
+    // ============ 7) AI 趣味分析：越权 X-Ledger-Id → LEDGER_NOT_ACCESSIBLE（需求 10.3）============
+
+    @Test
+    void aiInsights_inaccessibleLedgerHeader_returnsLedgerNotAccessible_withoutInsightFields() {
+        String token = registerAndLogin("report_ai_ledger@example.com");
+
+        HttpHeaders headers = bearer(token);
+        headers.set("X-Ledger-Id", "987654321");
+        ResponseEntity<String> response = get(AI_INSIGHTS_PATH, headers);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        Map<String, Object> body = parse(response);
+        assertThat(body).containsEntry("code", "LEDGER_NOT_ACCESSIBLE");
+        assertNoAiInsightFields(body, "越权账本");
+    }
+
+    // ============ 8) AI 趣味分析：非法 month → REPORT_PARAM_INVALID（field=month）（需求 10.4）============
+
+    @Test
+    void aiInsights_invalidMonthParam_returnsReportParamInvalid_withoutInsightFields() {
+        String token = registerAndLogin("report_ai_month@example.com");
+
+        for (String badMonth : List.of("2024-13", "abc", "2024/01", "202401")) {
+            ResponseEntity<String> response = get(AI_INSIGHTS_PATH + "?month=" + badMonth, bearer(token));
+
+            assertThat(response.getStatusCode()).as("month=" + badMonth).isEqualTo(HttpStatus.BAD_REQUEST);
+            Map<String, Object> body = parse(response);
+            assertThat(body).as("month=" + badMonth).containsEntry("code", "REPORT_PARAM_INVALID");
+            assertThat(body).as("month=" + badMonth).containsEntry("field", "month");
+            assertNoAiInsightFields(body, "非法 month=" + badMonth);
+        }
+    }
+
+    // ============ 9) AI 趣味分析：缺 X-Ledger-Id → 取默认账本（需求 10.7）============
+
+    @Test
+    void aiInsights_noLedgerHeader_usesDefaultLedger() {
+        String token = registerAndLogin("report_ai_default_ledger@example.com");
+
+        // 有效令牌、不带 X-Ledger-Id 头 → 应回落到默认账本并成功返回（而非账本不可访问）。
+        ResponseEntity<String> response = get(AI_INSIGHTS_PATH, bearer(token));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = parse(response);
+        assertThat(body).as("默认账本请求应返回洞察响应结构").containsKey("isFallback");
+        assertThat(body).doesNotContainKey("code");
+    }
+
+    // ============ 10) AI 趣味分析：多类错误按「鉴权 → 账本 → 参数」优先级（需求 10.8）============
+
+    @Test
+    void aiInsights_multipleErrors_followPriorityAuthThenLedgerThenParam() {
+        // 同时坏令牌 + 越权账本 + 非法参数 → 鉴权最高优先级 → 401 UNAUTHENTICATED。
+        HttpHeaders badAll = bearer(token(1L, FOREIGN_SECRET, Duration.ofHours(1)));
+        badAll.set("X-Ledger-Id", "987654321");
+        ResponseEntity<String> authWins = get(AI_INSIGHTS_PATH + "?month=2024-13", badAll);
+        assertThat(authWins.getStatusCode()).as("鉴权优先").isEqualTo(HttpStatus.UNAUTHORIZED);
+        Map<String, Object> authBody = parse(authWins);
+        assertThat(authBody).containsEntry("code", "UNAUTHENTICATED");
+        assertNoAiInsightFields(authBody, "鉴权+账本+参数同时错误");
+
+        // 有效令牌 + 越权账本 + 非法参数 → 账本优先于参数 → LEDGER_NOT_ACCESSIBLE。
+        String token = registerAndLogin("report_ai_priority@example.com");
+        HttpHeaders badLedgerAndParam = bearer(token);
+        badLedgerAndParam.set("X-Ledger-Id", "987654321");
+        ResponseEntity<String> ledgerWins = get(AI_INSIGHTS_PATH + "?month=2024-13", badLedgerAndParam);
+        assertThat(ledgerWins.getStatusCode()).as("账本优先于参数").isEqualTo(HttpStatus.NOT_FOUND);
+        Map<String, Object> ledgerBody = parse(ledgerWins);
+        assertThat(ledgerBody).containsEntry("code", "LEDGER_NOT_ACCESSIBLE");
+        assertNoAiInsightFields(ledgerBody, "账本+参数同时错误");
+    }
+
+    // ============ 11) AI 趣味分析：返回类型为「≤N 条洞察」或「兜底文案」（需求 10.1）============
+
+    @Test
+    void aiInsights_returnsAtMostNInsightsOrFallback() {
+        String token = registerAndLogin("report_ai_shape@example.com");
+
+        ResponseEntity<String> response = get(AI_INSIGHTS_PATH, bearer(token));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> body = parse(response);
+        assertThat(body).containsKey("isFallback");
+        Object fallback = body.get("isFallback");
+        assertThat(fallback).isInstanceOf(Boolean.class);
+        if (Boolean.TRUE.equals(fallback)) {
+            // 兜底态：一条非空鼓励文案、insights 为空列表。
+            assertThat(body.get("fallbackText")).isInstanceOf(String.class);
+            assertThat((String) body.get("fallbackText")).isNotBlank();
+            assertThat(body.get("insights")).isInstanceOf(List.class);
+            assertThat((List<?>) body.get("insights")).isEmpty();
+        } else {
+            // 非兜底态：insights 为 1..N（默认 5）条。
+            assertThat(body.get("insights")).isInstanceOf(List.class);
+            assertThat((List<?>) body.get("insights")).hasSizeBetween(1, 5);
+        }
+    }
+
     // ---------------------------------- 断言辅助 ----------------------------------
+
+    /** 断言 AI 趣味分析响应为 401、统一错误体 {@code code=UNAUTHENTICATED}，且不含任何洞察数据键（需求 10.2）。 */
+    private void assertAiUnauthenticated(ResponseEntity<String> response, String shape) {
+        assertThat(response.getStatusCode()).as(shape).isEqualTo(HttpStatus.UNAUTHORIZED);
+        Map<String, Object> body = parse(response);
+        assertThat(body).as(shape).containsEntry("code", "UNAUTHENTICATED");
+        assertNoAiInsightFields(body, shape);
+    }
+
+    /** 断言错误体不含任何 AI 趣味分析数据键（需求 10.2、10.3、10.4、10.8）。 */
+    private void assertNoAiInsightFields(Map<String, Object> body, String shape) {
+        for (String dataKey : AI_INSIGHT_DATA_KEYS) {
+            assertThat(body).as(shape + " / 不含洞察数据键 " + dataKey).doesNotContainKey(dataKey);
+        }
+    }
+
 
     /** 断言响应为 401、统一错误体 {@code code=UNAUTHENTICATED}，且不含任何月报数据键（需求 9.2）。 */
     private void assertUnauthenticated(ResponseEntity<String> response, String shape) {
