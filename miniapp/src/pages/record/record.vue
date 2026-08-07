@@ -5,6 +5,7 @@ import {
   listSelectableAccounts,
   getDefaultAccount,
   transferBetweenAccounts,
+  updateTransfer,
   accountTypeEmoji,
   accountTypeIcon,
   accountTypeLabel,
@@ -637,19 +638,24 @@ async function submit(cont) {
   if (projectId.value != null) payload.projectId = projectId.value
   if (merchantId.value != null) payload.merchantId = merchantId.value
   if (tagIds.value.length) payload.tagIds = tagIds.value.slice()
-  // 转账：账户间动作，脱离账本，独立提交（不支持编辑/协作代记）。
+  // 转账：账户间动作，脱离账本（不支持协作代记）。编辑态就地更新，否则新建。
   if (isTransfer.value) {
     if (accountId.value === destId.value) {
       uni.showToast({ title: '转账账户不能相同', icon: 'none' })
       return
     }
-    await run(() => transferBetweenAccounts({
+    const transferPayload = {
       sourceAccountId: accountId.value,
       destinationAccountId: destId.value,
       amount: String(amount),
       occurredAt: occurredAtIso(),
       note: note.value.trim() || undefined
-    }), cont)
+    }
+    if (isEditing.value) {
+      await run(() => updateTransfer(editingId.value, transferPayload), false)
+    } else {
+      await run(() => transferBetweenAccounts(transferPayload), cont)
+    }
     return
   }
 

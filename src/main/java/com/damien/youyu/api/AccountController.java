@@ -225,6 +225,17 @@ public class AccountController {
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx));
     }
 
+    /** 编辑已有转账（脱离账本，源/目标须为本人账户）：就地更新，成功返回 200。 */
+    @PutMapping("/transfer/{id}")
+    public ResponseEntity<TransactionResponse> updateTransfer(
+            @PathVariable Long id, @RequestBody TransferRequest req) {
+        Long userId = currentUser.requireUserId();
+        Transaction tx = transactionService.updateTransfer(
+                userId, id, req.sourceAccountId(), req.destinationAccountId(),
+                req.amount(), req.occurredAt(), req.note());
+        return ResponseEntity.ok(TransactionResponse.from(tx));
+    }
+
     /** 转交账户给另一用户：成功返回 200。 */
     @PostMapping("/{id}/transfer-ownership")
     public ResponseEntity<AccountResponse> transferOwnership(

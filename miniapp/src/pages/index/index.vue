@@ -432,17 +432,24 @@ function goSearch() {
       <view class="hero-main">
         <picker mode="date" fields="month" :value="month" @change="onMonthChange">
           <text class="bal-k">
-            {{ heroDateLabel }} · {{ isAll ? '净收支' : '月结余' }}
+            {{ heroDateLabel }}
             <text v-if="isHistory" class="hist">历史</text> ▾
           </text>
         </picker>
-        <view class="balrow">
-          <text class="bal-v" :class="{ neg: totals.net < 0 }">{{ heroValueText }}</text>
-          <view class="io">
-            <text>收入 {{ formatAmount(totals.income) }}</text>
-            <text>支出 {{ formatAmount(totals.expense) }}</text>
+        <view class="io-main">
+          <view class="io-item">
+            <text class="io-k">收入</text>
+            <text class="io-v">{{ formatAmount(totals.income) }}</text>
+          </view>
+          <view class="io-div"></view>
+          <view class="io-item">
+            <text class="io-k">支出</text>
+            <text class="io-v">{{ formatAmount(totals.expense) }}</text>
           </view>
         </view>
+        <text class="bal-sub" :class="{ neg: totals.net < 0 }">
+          净收支 {{ heroValueText }}
+        </text>
       </view>
     </view>
 
@@ -708,28 +715,42 @@ function goSearch() {
   padding: 2rpx 10rpx;
   margin-left: 4rpx;
 }
-.balrow {
+.io-main {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-top: 6rpx;
+  align-items: stretch;
+  margin-top: 10rpx;
 }
-.bal-v {
-  font-size: 68rpx;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-.bal-v.neg {
-  color: #ffd9d0;
-}
-.io {
-  text-align: right;
-  font-size: 22rpx;
-  opacity: 0.92;
-  line-height: 1.7;
+.io-item {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 2rpx;
+}
+.io-k {
+  font-size: 22rpx;
+  opacity: 0.9;
+}
+.io-v {
+  font-size: 60rpx;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.io-div {
+  width: 1px;
+  align-self: center;
+  height: 56rpx;
+  margin: 0 28rpx;
+  background: rgba(255, 255, 255, 0.28);
+}
+.bal-sub {
+  display: inline-block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.92;
+}
+.bal-sub.neg {
+  color: #ffd9d0;
 }
 
 .quick-wrap {

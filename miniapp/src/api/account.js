@@ -76,6 +76,14 @@ export function transferBetweenAccounts(payload) {
   return http.post('/accounts/transfer', payload)
 }
 
+/**
+ * 编辑已有转账（就地更新，不新增流水）。
+ * payload：{ sourceAccountId, destinationAccountId, amount, occurredAt?, note? }
+ */
+export function updateTransfer(id, payload) {
+  return http.put(`/accounts/transfer/${id}`, payload)
+}
+
 /** 转交账户给另一用户。 */
 export function transferAccountOwnership(id, newOwnerUserId) {
   return http.post(`/accounts/${id}/transfer-ownership`, { newOwnerUserId })

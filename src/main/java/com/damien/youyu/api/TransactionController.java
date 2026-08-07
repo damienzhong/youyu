@@ -220,7 +220,9 @@ public class TransactionController {
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> get(@PathVariable Long id) {
         Long ledgerId = currentLedger.requireLedgerId();
-        Transaction tx = transactionService.get(ledgerId, id);
+        Long userId = currentUser.requireUserId();
+        // 账本内交易按账本归属；转账/余额调整（ledger_id 为空）按记账人归属，二者统一在此读取。
+        Transaction tx = transactionService.getForUser(userId, ledgerId, id);
         return ResponseEntity.ok(TransactionResponse.from(tx, tagService.tagIdsOf(id)));
     }
 

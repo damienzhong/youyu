@@ -187,6 +187,56 @@ public class TransactionService {
         return transactionRepository.save(tx);
     }
 
+    /**
+     * 编辑一笔已有转账（脱离账本）：同一事务内先回滚原转账对两端账户的影响，再应用新（已校验）转账的影响，
+     * 就地更新该行而非新增。源/目标须均为记账人本人账户且不相等（需求 6）。目标不存在、非本人或非转账则
+     * {@code NOT_FOUND}。修复：详情弹层「修改」把转账带入编辑态，旧路径仅有新建转账接口，导致保存后多出一笔。
+     *
+     * @throws ApiException FIELD_REQUIRED / AMOUNT_INVALID / TRANSFER_SAME_ACCOUNT / NOT_FOUND
+     */
+    @Transactional
+    public Transaction updateTransfer(Long userId, Long id, Long sourceAccountId,
+            Long destinationAccountId, BigDecimal rawAmount, LocalDateTime occurredAt, String rawNote) {
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("交易不存在"));
+        // 仅本人的转账可经此路径编辑（转账脱离账本，归属只认记账人 createdBy）。
+        if (tx.getType() != TransactionType.TRANSFER || !userId.equals(tx.getCreatedBy())) {
+            throw ApiException.notFound("交易不存在");
+        }
+        BigDecimal amount = validateAmount(rawAmount);
+        String note = validateNote(rawNote);
+        if (sourceAccountId == null) {
+            throw ApiException.fieldRequired("sourceAccountId");
+        }
+        if (destinationAccountId == null) {
+            throw ApiException.fieldRequired("destinationAccountId");
+        }
+        if (sourceAccountId.equals(destinationAccountId)) {
+            throw ApiException.transferSameAccount();
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime when = occurredAt == null ? now : occurredAt;
+
+        // 净增量 = 回滚原转账（两端取反）+ 应用新转账（源 -amount、目标 +amount），按账户合并后一次落地，
+        // 兼容改动源/目标账户或金额的所有情形（含新旧账户交叉）。转账账户按本人拥有加锁（脱离账本）。
+        Map<Long, BigDecimal> net = new TreeMap<>();
+        rollbackDeltas(tx).forEach((acc, d) -> net.merge(acc, d, BigDecimal::add));
+        net.merge(sourceAccountId, amount.negate(), BigDecimal::add);
+        net.merge(destinationAccountId, amount, BigDecimal::add);
+
+        Map<Long, Account> locked = lockOwnedAccounts(net.keySet(), userId);
+        applyDeltas(locked, net, now);
+
+        tx.setAmount(amount);
+        tx.setNote(note);
+        tx.setOccurredAt(when);
+        tx.setUpdatedAt(now);
+        tx.setSourceAccountId(sourceAccountId);
+        tx.setDestinationAccountId(destinationAccountId);
+        return transactionRepository.save(tx);
+    }
+
     // ---------------- 余额调整 ----------------
 
     /** 系统「余额调整」分类名（补差流水归入该分类，便于报表识别与过滤）。 */
@@ -343,17 +393,26 @@ public class TransactionService {
      */
     @Transactional
     public void delete(Long userId, Long ledgerId, Long id) {
-        Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
-                .orElseThrow(() -> ApiException.notFound("交易不存在"));
+        Transaction tx = requireOwnedTransaction(userId, ledgerId, id);
 
         LocalDateTime now = LocalDateTime.now(clock);
         Map<Long, BigDecimal> rollback = rollbackDeltas(tx);
-        Map<Long, Account> locked = lockUsableAccounts(rollback.keySet(), userId, ledgerId);
+        // 账本内交易：账户须在该账本可用；转账/余额调整（脱离账本）：账户按本人拥有加锁，
+        // 与转账创建时的 lockOwnedAccounts 口径一致（其账户未必挂在当前账本，不能用账本可用性校验）。
+        Map<Long, Account> locked = lockForRollback(tx, rollback.keySet(), userId, ledgerId);
         applyDeltas(locked, rollback, now);
 
         tx.setDeletedAt(now);
         tx.setUpdatedAt(now);
         transactionRepository.save(tx);
+    }
+
+    /** 回滚加锁：账本内交易按账本可用性加锁，账户级记录（脱离账本）按本人拥有加锁。 */
+    private Map<Long, Account> lockForRollback(
+            Transaction tx, Collection<Long> accountIds, Long userId, Long ledgerId) {
+        return tx.getLedgerId() != null
+                ? lockUsableAccounts(accountIds, userId, ledgerId)
+                : lockOwnedAccounts(accountIds, userId);
     }
 
     /** 列出某账本回收站记录（已软删除），按删除时间倒序。 */
@@ -424,6 +483,38 @@ public class TransactionService {
     public Transaction get(Long ledgerId, Long id) {
         return transactionRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
+    }
+
+    /**
+     * 单条读取交易详情（供详情弹层）：
+     * <ul>
+     *   <li>账本内收支交易（{@code ledger_id} 非空）：须归属当前账本，与既有 {@link #get} 一致（多账本隔离）。</li>
+     *   <li>转账 / 余额调整等「账户级」记录（{@code ledger_id} 为空，脱离账本）：按记账人
+     *       （{@code createdBy}）归属校验，仅本人可读。</li>
+     * </ul>
+     * 二者均不匹配则 {@code NOT_FOUND}。修复：转账/余额调整在账户明细可见，但因 {@code ledger_id}
+     * 为空，旧的按账本过滤读取必然 404（表现为「流水存在但详情报交易不存在」）。
+     */
+    @Transactional(readOnly = true)
+    public Transaction getForUser(Long userId, Long ledgerId, Long id) {
+        return requireOwnedTransaction(userId, ledgerId, id);
+    }
+
+    /**
+     * 归属判定并返回目标交易：账本内交易（{@code ledger_id} 非空）须归属当前账本（多账本隔离）；
+     * 转账 / 余额调整等账户级记录（{@code ledger_id} 为空、脱离账本）按记账人 {@code createdBy} 归属，
+     * 仅本人可操作。均不匹配则 {@code NOT_FOUND}。供详情读取与删除等按 id 定位的写操作共用。
+     */
+    private Transaction requireOwnedTransaction(Long userId, Long ledgerId, Long id) {
+        Transaction tx = transactionRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("交易不存在"));
+        boolean owned = tx.getLedgerId() != null
+                ? tx.getLedgerId().equals(ledgerId)
+                : userId.equals(tx.getCreatedBy());
+        if (!owned) {
+            throw ApiException.notFound("交易不存在");
+        }
+        return tx;
     }
 
     /**
