@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "连续记账",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

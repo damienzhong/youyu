@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "分类报表",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon",
+    "tab-bar": "../../components/TabBar/TabBar"
+  }
+}

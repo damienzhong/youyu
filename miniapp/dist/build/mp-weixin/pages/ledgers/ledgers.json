@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "账本管理",
+  "usingComponents": {
+    "input-sheet": "../../components/InputSheet/InputSheet",
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

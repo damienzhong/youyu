@@ -1,0 +1,1 @@
+"use strict";const e=require("../utils/request.js");exports.ackAchievementNotices=function(t){return e.http.post("/achievements/notices/ack",{lastEventId:String(t)},{noLedger:!0})},exports.fetchAchievements=function(){return e.http.get("/achievements",{noLedger:!0})},exports.fetchPendingAchievements=function(){return e.http.get("/achievements/pending",{noLedger:!0})};

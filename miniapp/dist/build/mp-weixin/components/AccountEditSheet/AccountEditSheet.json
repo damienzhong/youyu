@@ -1,0 +1,8 @@
+{
+  "component": true,
+  "usingComponents": {
+    "app-icon": "../AppIcon/AppIcon",
+    "account-type-sheet": "../AccountTypeSheet/AccountTypeSheet",
+    "input-sheet": "../InputSheet/InputSheet"
+  }
+}

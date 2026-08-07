@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "项目 / 商家 / 标签",
+  "usingComponents": {
+    "input-sheet": "../../components/InputSheet/InputSheet"
+  }
+}

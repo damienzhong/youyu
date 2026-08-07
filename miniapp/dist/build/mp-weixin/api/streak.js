@@ -1,0 +1,1 @@
+"use strict";const e=require("../utils/request.js");exports.fetchStreakOverview=function(){return e.http.get("/streak",{noLedger:!0})},exports.fetchStreakSegments=function(t=0,r=20){return e.http.get(`/streak/segments?page=${t}&size=${r}`,{noLedger:!0})};

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "记账提醒",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

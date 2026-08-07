@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");function e(t){return null!=t?{ledgerId:t}:void 0}exports.createTemplate=function(r,s){return t.http.post("/templates",r,e(s))},exports.deleteTemplate=function(r,s){return t.http.del(`/templates/${r}`,e(s))},exports.listTemplates=function(r){return t.http.get("/templates",e(r))};

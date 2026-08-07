@@ -1,0 +1,10 @@
+{
+  "navigationBarTitleText": "有余",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon",
+    "tab-bar": "../../components/TabBar/TabBar",
+    "input-sheet": "../../components/InputSheet/InputSheet",
+    "transaction-detail-sheet": "../../components/TransactionDetailSheet/TransactionDetailSheet"
+  }
+}

@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.listAllAccounts=function(){return t.http.get("/all/accounts")},exports.listAllCategories=function(){return t.http.get("/all/categories")},exports.listAllTransactionsByMonth=function(e){return t.http.get(`/all/transactions?month=${encodeURIComponent(e)}`)};

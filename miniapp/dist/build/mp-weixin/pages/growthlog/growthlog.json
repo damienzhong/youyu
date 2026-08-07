@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "经验明细",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

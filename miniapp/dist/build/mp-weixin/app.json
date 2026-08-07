@@ -1,0 +1,59 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/onboarding/onboarding",
+    "pages/index/index",
+    "pages/record/record",
+    "pages/accounts/accounts",
+    "pages/accountdetail/accountdetail",
+    "pages/records/records",
+    "pages/report/report",
+    "pages/categories/categories",
+    "pages/me/me",
+    "pages/account/account",
+    "pages/budget/budget",
+    "pages/data/data",
+    "pages/billimport/billimport",
+    "pages/ledgers/ledgers",
+    "pages/loans/loans",
+    "pages/loandetail/loandetail",
+    "pages/labels/labels",
+    "pages/labeldetail/labeldetail",
+    "pages/recycle/recycle",
+    "pages/invite/invite",
+    "pages/invitelanding/invitelanding",
+    "pages/growth/growth",
+    "pages/growthlog/growthlog",
+    "pages/achievement/achievement",
+    "pages/streak/streak",
+    "pages/reminder/reminder",
+    "pages/share/share"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "有余",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f5f5"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#12a150",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页"
+      },
+      {
+        "pagePath": "pages/report/report",
+        "text": "报表"
+      },
+      {
+        "pagePath": "pages/me/me",
+        "text": "我的"
+      }
+    ]
+  },
+  "usingComponents": {}
+}

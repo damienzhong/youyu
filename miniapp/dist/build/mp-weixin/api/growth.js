@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.fetchGrowthEvents=function(e=0,r=20){return t.http.get(`/growth/events?page=${e}&size=${r}`,{noLedger:!0})},exports.fetchGrowthOverview=function(){return t.http.get("/growth",{noLedger:!0})};

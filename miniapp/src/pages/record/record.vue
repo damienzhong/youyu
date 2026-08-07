@@ -856,14 +856,16 @@ function goAddCategory() {
           该账本还没有可用账户，
           <text class="link" @click="uni.navigateTo({ url: '/pages/accounts/accounts' })">去创建</text>
         </view>
-        <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
-          <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
-          <view class="si-name">
-            <text class="si-nm">{{ accountDisplayName(a) }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
-            <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
+        <scroll-view v-else scroll-y class="slist" :show-scrollbar="false">
+          <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
+            <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
+            <view class="si-name">
+              <text class="si-nm">{{ accountDisplayName(a) }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
+              <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
+            </view>
+            <text v-if="a.canSeeBalance !== false" class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
           </view>
-          <text v-if="a.canSeeBalance !== false" class="si-bal" :class="{ neg: Number(a.currentBalance) < 0 }">¥{{ formatAmount(a.currentBalance) }}</text>
-        </view>
+        </scroll-view>
       </view>
     </view>
 
@@ -1134,8 +1136,10 @@ function goAddCategory() {
 .key.busy { opacity: 0.6; }
 
 .mask { position: fixed; inset: 0; background: rgba(15,23,42,0.42); display: flex; align-items: flex-end; z-index: 50; }
-.sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.sheet { width: 100%; max-height: 82vh; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .sheet-title { display: block; text-align: center; font-size: 30rpx; font-weight: 800; margin-bottom: 16rpx; }
+/* 账户列表可能超出一屏：限高并内部滚动，避免弹层顶部溢出屏幕外无法触达。 */
+.slist { max-height: 62vh; }
 .sitem { display: flex; align-items: center; gap: 20rpx; padding: 24rpx 8rpx; border-top: 1rpx solid #f1f3f5; }
 .sitem:first-of-type { border-top: none; }
 .si-ic { width: 60rpx; height: 60rpx; border-radius: 16rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; font-size: 30rpx; flex: 0 0 auto; }

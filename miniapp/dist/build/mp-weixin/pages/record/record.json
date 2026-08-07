@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "记一笔",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon",
+    "input-sheet": "../../components/InputSheet/InputSheet",
+    "achievement-unlock-modal": "../../components/AchievementUnlockModal/AchievementUnlockModal"
+  }
+}

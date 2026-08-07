@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "借贷往来",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

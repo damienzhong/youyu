@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "借贷详情",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

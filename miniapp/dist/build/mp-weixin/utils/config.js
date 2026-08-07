@@ -1,0 +1,1 @@
+"use strict";exports.API_BASE="https://youyuji.com/api",exports.STORAGE_KEYS={token:"youyu_token",user:"youyu_user",ledgerId:"youyu_ledger_id",pendingInviteCode:"youyu_pending_invite_code",pendingInviteCodeAt:"youyu_pending_invite_code_at",pendingAchievementCode:"youyu_pending_achievement_code"};
