@@ -75,6 +75,19 @@ public class StreakMilestones {
     }
 
     /**
+     * 里程碑门槛集合（升序、去重、不可变），派生自成就清单 {@link BadgeMetric#MAX_STREAK} 门槛（需求 3.5）。
+     *
+     * <p>只读纯访问器：返回启动期从成就清单派生的不可变列表（可能为空，见类级 Javadoc），不写死任何数值。
+     * 供分享卡片 {@code STREAK_MILESTONE} 计算「已达成里程碑 = 集合中 ≤ 历史最长连续天数的取值」用
+     * （share-card 需求 3.1、3.2），使里程碑数值始终以成就清单为唯一来源、不在 share-card 侧写死。</p>
+     *
+     * @return 升序去重的里程碑门槛，不可变；成就清单无 {@code MAX_STREAK} 门槛时为空列表
+     */
+    public List<Integer> thresholds() {
+        return thresholds;
+    }
+
+    /**
      * 下一里程碑：升序集合中大于当前连续天数的最小取值；不存在时返回 {@code null}（需求 3.6、3.7）。
      *
      * @param currentStreakDays 当前连续天数

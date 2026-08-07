@@ -180,6 +180,14 @@
       "style": {
         "navigationBarTitleText": "记账提醒"
       }
+    },
+    {
+      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：分享卡片渲染页，
+      // 从报表页 / 连续 / 成长 / 成就页以 cardType（+ 可选周期/编码）跳入。
+      "path": "pages/share/share",
+      "style": {
+        "navigationBarTitleText": "分享卡片"
+      }
     }
   ],
   "globalStyle": {
