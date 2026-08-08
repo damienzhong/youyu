@@ -2,14 +2,18 @@
   "pages": [
     "pages/login/login",
     "pages/onboarding/onboarding",
+    "pages/home/home",
     "pages/index/index",
     "pages/record/record",
     "pages/accounts/accounts",
     "pages/accountdetail/accountdetail",
+    "pages/personality/personality",
+    "pages/funanalysis/funanalysis",
     "pages/records/records",
     "pages/report/report",
     "pages/categories/categories",
     "pages/me/me",
+    "pages/theme/theme",
     "pages/account/account",
     "pages/budget/budget",
     "pages/data/data",
@@ -42,16 +46,16 @@
     "borderStyle": "black",
     "list": [
       {
-        "pagePath": "pages/index/index",
+        "pagePath": "pages/home/home",
         "text": "首页"
+      },
+      {
+        "pagePath": "pages/index/index",
+        "text": "账本"
       },
       {
         "pagePath": "pages/accounts/accounts",
         "text": "资产"
-      },
-      {
-        "pagePath": "pages/report/report",
-        "text": "报表"
       },
       {
         "pagePath": "pages/me/me",

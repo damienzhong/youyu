@@ -1,6 +1,7 @@
 {
   "navigationBarTitleText": "分类管理",
   "usingComponents": {
-    "app-icon": "../../components/AppIcon/AppIcon"
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
+    "icon-picker": "../../components/IconPicker/IconPicker"
   }
 }

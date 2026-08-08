@@ -207,7 +207,7 @@ function onAccountSaved() {
       </view>
       <view v-if="!collapsed[g.key]" class="acc-list">
         <view v-for="a in g.items" :key="a.id" class="acc" @click="openAccount(a)">
-          <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="42" /></view>
+          <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="36" /></view>
           <view class="acc-main">
             <view class="acc-titlerow">
               <text class="acc-name">{{ accountDisplayName(a) }}</text>
@@ -354,15 +354,15 @@ function onAccountSaved() {
   overflow: hidden;
   box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
-.acc { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 28rpx; border-top: 1rpx solid #f1f3f5; }
+.acc { display: flex; align-items: center; gap: 20rpx; padding: 22rpx 26rpx; border-top: 1rpx solid #f1f3f5; }
 .acc-list .acc:first-child { border-top: none; }
 .acc-ic {
-  width: 76rpx; height: 76rpx; border-radius: 22rpx; background: #f4f5f7;
+  width: 66rpx; height: 66rpx; border-radius: 20rpx; background: #f4f5f7;
   display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
 }
 .acc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .acc-titlerow { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
-.acc-name { font-size: 30rpx; color: #16181c; font-weight: 600; }
+.acc-name { font-size: 29rpx; color: #16181c; font-weight: 500; }
 .acc-tag {
   font-size: 20rpx; font-weight: 700; padding: 2rpx 12rpx; border-radius: 999rpx;
   background: #eef1f5; color: #5b6470;
@@ -370,7 +370,7 @@ function onAccountSaved() {
 .acc-tag.soon { background: #fdece8; color: #e5563d; }
 .acc-flag { font-size: 20rpx; color: #9aa2ad; font-weight: 400; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
 .acc-sub { font-size: 22rpx; color: #9aa2ad; }
-.acc-bal { font-size: 32rpx; font-weight: 800; color: #16181c; }
+.acc-bal { font-size: 30rpx; font-weight: 600; color: #16181c; font-variant-numeric: tabular-nums; }
 .acc-bal.neg { color: #e5484d; }
 .add-account {
   display: flex;

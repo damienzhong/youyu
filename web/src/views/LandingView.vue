@@ -31,13 +31,13 @@ import { RouterLink } from 'vue-router'
       <div class="wrap hero-inner">
         <div class="hero-copy">
           <span class="eyebrow"><span class="dot"></span>无广告 · 永久免费 · 数据可导出</span>
-          <h1 class="headline">干净记账，<br /><span class="hl">日子有余</span>。</h1>
+          <h1 class="headline">记好每一笔，<br /><span class="hl">日子更有余</span>。</h1>
           <p class="sub">没有广告，没有付费墙。三秒记好一笔，手机电脑一套账，数据随时带走——一个真正干净的记账本。</p>
           <div class="cta-row">
             <a class="btn btn-primary btn-lg" href="/app/">免费开始记账</a>
             <a class="btn btn-ghost btn-lg" href="/app/">已有账号，登录 →</a>
           </div>
-          <p class="trust"><b>记好每一笔，日子有余</b> · 基础功能永久免费</p>
+          <p class="trust"><b>记好每一笔，日子更有余</b> · 基础功能永久免费</p>
         </div>
         <div class="device-wrap">
           <div class="device"><div class="screen">
@@ -130,7 +130,7 @@ import { RouterLink } from 'vue-router'
         <div class="foot-top">
           <div class="foot-brand">
             <div class="logo"><span class="mark small">¥</span>有余</div>
-            <p>记好每一笔，日子有余。一个干净、免费、数据自持的个人记账本。</p>
+            <p>记好每一笔，日子更有余。一个干净、免费、数据自持的个人记账本。</p>
           </div>
           <div class="foot-col"><h4>产品</h4><a href="#features">功能特色</a><a href="#start">如何开始</a></div>
           <div class="foot-col"><h4>账户</h4><a href="/app/">登录</a><a href="/app/">免费记账</a></div>
@@ -138,7 +138,7 @@ import { RouterLink } from 'vue-router'
         </div>
         <div class="foot-bottom">
           <span>© 2026 有余记账</span>
-          <span>记好每一笔，日子有余</span>
+          <span>记好每一笔，日子更有余</span>
           <a class="beian" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">粤ICP备2026093631号-2</a>
         </div>
       </div>

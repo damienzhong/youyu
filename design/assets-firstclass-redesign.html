@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 资产页升级（克制版）原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f4f5f7; --line:#f1f3f5;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#0f8a45; --danger:#e5484d;
+    --radius:22px; --pill:999px; --shadow:0 8px 24px rgba(20,24,28,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1240px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:36px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:900px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:56px 0 6px;}
+  .sec-desc{font-size:15px;color:var(--ink-2);margin:0 0 24px;max-width:900px;line-height:1.7;}
+
+  .audit{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .c2{background:var(--surface);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow);border-left:4px solid var(--brand);}
+  .c2.keep{border-left-color:#c9ced4;}
+  .c2 .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-bottom:10px;}
+  .tag.borrow{background:var(--brand-weak);color:var(--brand-600);}
+  .tag.hold{background:#eef1f5;color:var(--ink-2);}
+  .c2 h4{margin:0 0 8px;font-size:16px;} .c2 p{margin:0;font-size:14px;color:var(--ink-2);line-height:1.65;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:34px 30px;margin-top:8px;}
+  .pw{width:342px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.6;min-height:56px;}
+  .phone{width:342px;height:730px;background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:140px;height:24px;background:#0000;z-index:30;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;flex:0 0 auto;}
+  .body{flex:1;overflow-y:auto;position:relative;padding:0 12px;}
+  .body::-webkit-scrollbar{width:0;}
+
+  /* 顶栏（保持现状：一级页可去掉返回，仅标题） */
+  .topbar{display:flex;align-items:center;justify-content:center;height:44px;font-weight:800;font-size:17px;position:relative;}
+
+  /* ===== 顶部区域：保持现状不变 ===== */
+  .networth{border-radius:var(--radius);padding:18px 20px;color:#fff;background:linear-gradient(150deg,#2b3a34,#1f2a30 70%);box-shadow:0 14px 30px rgba(31,42,48,.22);margin-top:4px;}
+  .nw-k{font-size:12px;opacity:.85;}
+  .nw-v{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 10px;}
+  .nw-v small{font-size:18px;opacity:.8;font-weight:800;}
+  .nw-f{display:flex;justify-content:space-between;font-size:12px;opacity:.9;}
+  .loan-cards{display:flex;gap:8px;margin-top:10px;}
+  .loan-card{flex:1;background:var(--surface);border-radius:14px;padding:11px 13px;box-shadow:var(--shadow);position:relative;}
+  .loan-card .k{font-size:11px;color:var(--ink-3);}
+  .loan-card .v{font-size:18px;font-weight:700;margin-top:6px;color:var(--ink);}
+  .loan-card .v .cur{font-size:12px;font-weight:600;color:var(--ink-3);margin-right:1px;}
+  .loan-card .v .dec{font-size:12px;font-weight:600;color:var(--ink-3);}
+  .loan-card .cr{position:absolute;top:13px;right:14px;color:#c0c4cc;font-size:15px;}
+
+  /* ===== 分组标题（更轻更淡） ===== */
+  .ghead{display:flex;justify-content:space-between;align-items:center;padding:14px 4px 8px;}
+  .ghead .t{font-size:12px;font-weight:600;color:var(--ink-3);}
+  .ghead .r{display:flex;align-items:center;gap:8px;}
+  .ghead .sum{font-size:13px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;}
+  .ghead .ct{font-size:11px;color:#c0c4cc;}
+
+  /* ===== 双列网格（更紧凑：小内边距、小图标、弱化符号与小数） ===== */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .gcard{background:var(--surface);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .gcard .info{min-width:0;}
+  .gcard .nm{font-size:13px;font-weight:500;color:var(--ink-2);line-height:1.15;}
+  .gcard .sub{font-size:10px;color:var(--ink-3);margin-top:2px;}
+  .gcard .bal{font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:5px;line-height:1.1;}
+  .gcard .bal .cur{font-size:11px;font-weight:600;color:var(--ink-3);margin-right:1px;}
+  .gcard .bal .dec{font-size:11px;font-weight:600;color:var(--ink-3);}
+  .gcard .bal.neg{color:var(--danger);}
+  .gcard .bal.neg .cur,.gcard .bal.neg .dec{color:var(--danger);opacity:.7;}
+  .gcard .ic{width:30px;height:30px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:#b0b6bd;flex:0 0 auto;}
+  /* 线性图标（内联 svg，浅灰描边，克制） */
+  .ico{width:17px;height:17px;stroke:#b0b6bd;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+  /* ===== 借鉴点：极简趋势图（单线，无大面积渐变填充） ===== */
+  .trend{background:var(--surface);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px 10px;margin-top:10px;}
+  .trend-head{display:flex;justify-content:space-between;align-items:center;}
+  .trend-head .t{font-size:12px;font-weight:600;color:var(--ink-3);}
+  .seg{display:flex;background:var(--surface-2);border-radius:9px;padding:3px;}
+  .seg .s{font-size:11px;font-weight:700;color:var(--ink-3);padding:4px 11px;border-radius:7px;}
+  .seg .s.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.05);}
+  .chartbox{margin-top:12px;height:84px;position:relative;}
+  .chartbox svg{position:absolute;inset:0;width:100%;height:100%;}
+  .xlabels{display:flex;justify-content:space-between;font-size:9px;color:var(--ink-3);margin-top:8px;padding:0 2px;}
+
+  .tabbar{height:56px;background:#fff;border-top:1px solid #eef0f2;display:flex;align-items:flex-end;justify-content:space-around;padding-bottom:6px;flex:0 0 auto;position:relative;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink-3);flex:1;padding-bottom:2px;}
+  .tico{width:21px;height:21px;stroke:var(--ink-3);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .tab.on{color:var(--brand-600);}
+  .tab.on .tico{stroke:var(--brand-600);}
+  .tab.center{visibility:hidden;}
+  .fab{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:27px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(18,161,80,.45);z-index:5;}
+  .fab-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;font-size:10px;color:var(--brand-600);font-weight:700;z-index:5;white-space:nowrap;}
+
+  .legend{margin-top:40px;font-size:14px;color:var(--ink-2);line-height:2;}
+  .legend b{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 资产页体验升级（克制版）</span>
+  <h1>资产页：保留顶部，克制借鉴</h1>
+  <p class="sub">顶部「净资产卡 + 借贷两卡」<b>维持现状不动</b>。真正借鉴竞品的只有两处：把资产升为一级页、下方账户列表换成<b>双列网格</b>（更紧凑、一屏看更多），并加一个<b>极简资产趋势图</b>。去掉了上一版的四色构成条、切换按钮、彩色 emoji 等花哨元素。</p>
+
+  <div class="sec">01 · 这次只改这几处</div>
+  <div class="audit">
+    <div class="c2"><span class="tag borrow">借鉴</span><h4>资产升为一级 tab</h4><p>纯结构改动、不改视觉：从二级页改为底部一级入口，开 app 少点一次。</p></div>
+    <div class="c2"><span class="tag borrow">借鉴</span><h4>账户列表 → 双列网格</h4><p>单列一屏 4~5 个，双列能到 8 个。仍用现有灰底线性图标、单色金额，保持你们的克制风格。</p></div>
+    <div class="c2"><span class="tag borrow">借鉴</span><h4>极简资产趋势图</h4><p>单根折线、无大色块填充，日/周/月切换。放在列表底部，可后置实现。</p></div>
+    <div class="c2"><span class="tag borrow">改进</span><h4>中间 + 按页面变含义</h4><p>去掉列表底部的「添加账户」按钮。中间圆形 + 随所在页上下文变动：资产页＝添加账户、首页＝记一笔。少一个入口，语义更自然。</p></div>
+    <div class="c2"><span class="tag borrow">改进</span><h4>字体更轻、颜色更淡</h4><p>参考竞品：账户名不加粗（500/柔和灰）、金额用中等字重不再 800 重黑，货币符号「¥」与小数「.00」做小号弱化，账户图标改浅灰单色。整体更简洁透气。</p></div>
+    <div class="c2"><span class="tag borrow">改进</span><h4>去红绿 · 统一线性图标</h4><p>资产页去掉绿色（收/付语义留给流水报表），红色只保留给负债/负值当警示；趋势线收成中性灰。底部菜单也从 emoji 换成统一细线图标，选中态才上品牌绿。</p></div>
+    <div class="c2 keep"><span class="tag hold">不动</span><h4>顶部净资产卡 + 借贷两卡</h4><p>照现状保留：净资产、总资产/总负债、借入待还/借出待收。不加构成条、不加切换。</p></div>
+  </div>
+
+  <div class="sec">02 · 原型稿</div>
+  <p class="sec-desc">左：主方案（顶部原样 + 双列分组网格 + 趋势图）。右：折叠某分组后的样子。</p>
+
+  <div class="screens">
+
+    <!-- 主方案 -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span> 资产一级页 · 主方案</p>
+      <p class="note">顶部与现状完全一致。下方每个资金分组保留「标题 + 小计 + 折叠」，账户改双列卡片，一屏信息更多。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="topbar">资产管理</div>
+
+          <!-- 顶部：保持现状 -->
+          <div class="networth">
+            <div class="nw-k">净资产 👁</div>
+            <div class="nw-v">¥1,081,046<small>.41</small></div>
+            <div class="nw-f"><span>总资产 1,095,984.71</span><span>总负债 14,938.30</span></div>
+          </div>
+          <div class="loan-cards">
+            <div class="loan-card"><div class="cr">›</div><div class="k">借入 / 待还</div><div class="v"><span class="cur">¥</span>0<span class="dec">.00</span></div></div>
+            <div class="loan-card"><div class="cr">›</div><div class="k">借出 / 待收</div><div class="v"><span class="cur">¥</span>15,000<span class="dec">.00</span></div></div>
+          </div>
+
+          <!-- 分组：资金账户（双列网格） -->
+          <div class="ghead"><div class="t">资金账户</div><div class="r"><span class="sum">¥388,880.42</span><span class="ct">▴</span></div></div>
+          <div class="grid">
+            <div class="gcard"><div class="info"><div class="nm">微信</div><div class="bal"><span class="cur">¥</span>3,333<span class="dec">.74</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">支付宝</div><div class="bal"><span class="cur">¥</span>2,479<span class="dec">.83</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 14c5 0 9-3 14 3"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">民生储蓄卡</div><div class="sub">尾号 3590</div><div class="bal"><span class="cur">¥</span>15,466<span class="dec">.14</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">招商储蓄卡</div><div class="sub">尾号 1429</div><div class="bal"><span class="cur">¥</span>2,495<span class="dec">.70</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">公积金</div><div class="bal"><span class="cur">¥</span>53,304<span class="dec">.15</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 10l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">现金</div><div class="bal"><span class="cur">¥</span>1,950<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg></div></div>
+          </div>
+
+          <!-- 分组：投资 -->
+          <div class="ghead"><div class="t">投资理财</div><div class="r"><span class="sum">¥58,900.00</span><span class="ct">▴</span></div></div>
+          <div class="grid">
+            <div class="gcard"><div class="info"><div class="nm">基金定投</div><div class="bal"><span class="cur">¥</span>58,900<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">黄金</div><div class="bal"><span class="cur">¥</span>0<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M6 8h12l-2 10H8z"/></svg></div></div>
+          </div>
+
+          <!-- 极简趋势图 -->
+          <div class="trend">
+            <div class="trend-head"><div class="t">资产趋势 · 近30天</div>
+              <div class="seg"><span class="s">日</span><span class="s on">周</span><span class="s">月</span></div>
+            </div>
+            <div class="chartbox">
+              <svg viewBox="0 0 300 96" preserveAspectRatio="none">
+                <path d="M0,72 L60,66 L120,70 L180,50 L240,54 L300,30" fill="none" stroke="#9aa2ad" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="300" cy="30" r="3" fill="#5b6470"/>
+              </svg>
+            </div>
+            <div class="xlabels"><span>7/12</span><span>7/18</span><span>7/24</span><span>7/30</span><span>今天</span></div>
+          </div>
+
+          <div style="height:20px;"></div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>报表</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div>
+          <div class="fab-hint">添加账户</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 折叠态 -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span> 折叠分组 · 对照</p>
+      <p class="note">点分组标题可折叠/展开（沿用现有交互）。折叠后只留标题 + 小计，长列表也能快速定位。</p>
+      <div class="phone"><div class="notch"></div><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="topbar">资产管理</div>
+          <div class="networth">
+            <div class="nw-k">净资产 👁</div>
+            <div class="nw-v">¥1,081,046<small>.41</small></div>
+            <div class="nw-f"><span>总资产 1,095,984.71</span><span>总负债 14,938.30</span></div>
+          </div>
+          <div class="loan-cards">
+            <div class="loan-card"><div class="cr">›</div><div class="k">借入 / 待还</div><div class="v"><span class="cur">¥</span>0<span class="dec">.00</span></div></div>
+            <div class="loan-card"><div class="cr">›</div><div class="k">借出 / 待收</div><div class="v"><span class="cur">¥</span>15,000<span class="dec">.00</span></div></div>
+          </div>
+
+          <div class="ghead"><div class="t">资金账户</div><div class="r"><span class="sum">¥388,880.42</span><span class="ct">▾</span></div></div>
+
+          <div class="ghead"><div class="t">投资理财</div><div class="r"><span class="sum">¥58,900.00</span><span class="ct">▴</span></div></div>
+          <div class="grid">
+            <div class="gcard"><div class="info"><div class="nm">基金定投</div><div class="bal"><span class="cur">¥</span>58,900<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">黄金</div><div class="bal"><span class="cur">¥</span>0<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M6 8h12l-2 10H8z"/></svg></div></div>
+          </div>
+
+          <div class="ghead"><div class="t">负债</div><div class="r"><span class="sum" style="color:var(--danger)">-¥14,938.30</span><span class="ct">▾</span></div></div>
+
+          <div class="trend">
+            <div class="trend-head"><div class="t">资产趋势 · 近30天</div>
+              <div class="seg"><span class="s">日</span><span class="s">周</span><span class="s on">月</span></div>
+            </div>
+            <div class="chartbox">
+              <svg viewBox="0 0 300 96" preserveAspectRatio="none">
+                <path d="M0,80 L60,70 L120,58 L180,60 L240,42 L300,26" fill="none" stroke="#9aa2ad" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="300" cy="26" r="3" fill="#5b6470"/>
+              </svg>
+            </div>
+            <div class="xlabels"><span>3月</span><span>4月</span><span>5月</span><span>6月</span><span>7月</span></div>
+          </div>
+
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>报表</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div>
+          <div class="fab-hint">添加账户</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">03 · 落地要点</div>
+  <div class="legend">
+    <p><b>① 路由：</b>把 <code>pages/accounts/accounts</code> 从 <code>navigateTo</code> 二级页改为 <code>switchTab</code> 一级 tab；TabBar.vue 的 assets 去掉 <code>push:true</code>，页面末尾挂 <code>&lt;TabBar active="assets"/&gt;</code>。</p>
+    <p><b>② 双列网格：</b>把现有 <code>.acc-list</code> 单列换成两列 grid，卡片沿用现有灰底线性图标（AppIcon）与单色金额，分组标题/小计/折叠逻辑不变。</p>
+    <p><b>③ 趋势图：</b>后置，依赖每日净资产快照数据；先出「近30天」即可，日/周/月后端聚合。</p>
+    <p><b>④ 上下文 +：</b>删掉列表底部「添加账户」。TabBar 中间凸起键的点击行为按当前 tab 判断——资产页触发添加账户（弹类型选择 → 编辑弹窗），首页仍为记一笔。可在 TabBar.vue 里根据 <code>active</code> 分派动作。</p>
+    <p><b>顶部完全不动</b>，改动量集中在列表区，风险低。</p>
+  </div>
+
+</div>
+</body>
+</html>

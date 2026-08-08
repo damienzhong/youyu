@@ -2,6 +2,7 @@
   "navigationBarTitleText": "账户明细",
   "navigationStyle": "custom",
   "usingComponents": {
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
     "app-icon": "../../components/AppIcon/AppIcon",
     "transaction-detail-sheet": "../../components/TransactionDetailSheet/TransactionDetailSheet",
     "account-edit-sheet": "../../components/AccountEditSheet/AccountEditSheet"

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 新首页 Dashboard + 底部导航重排 原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f4f5f7; --line:#f1f3f5;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#0f8a45; --danger:#e5484d; --warn:#f4a72b;
+    --radius:20px; --pill:999px; --shadow:0 8px 24px rgba(20,24,28,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1240px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:36px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:920px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:52px 0 18px;}
+
+  /* 导航前后对比 */
+  .navcmp{display:flex;flex-wrap:wrap;gap:16px;}
+  .navcard{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:16px 18px;min-width:300px;flex:1;}
+  .navcard .lb{font-size:12px;font-weight:800;color:var(--ink-3);letter-spacing:.06em;margin-bottom:12px;}
+  .navcard.old .lb{color:#b9761a;} .navcard.new .lb{color:var(--brand-600);}
+  .navrow{display:flex;align-items:flex-end;justify-content:space-around;background:var(--surface-2);border-radius:12px;padding:10px 4px 8px;}
+  .ni{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:11px;color:var(--ink-3);}
+  .ni.on{color:var(--brand-600);font-weight:700;}
+  .ni .c{width:34px;height:34px;border-radius:50%;background:#e4e7ea;display:flex;align-items:center;justify-content:center;}
+  .ni.plus .c{width:38px;height:38px;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:22px;box-shadow:0 6px 14px rgba(18,161,80,.4);}
+  .ni .tico{width:19px;height:19px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;color:var(--ink-3);}
+  .ni.on .tico{color:var(--brand-600);}
+
+  /* 手机 */
+  .screens{display:flex;flex-wrap:wrap;gap:34px 30px;margin-top:8px;}
+  .pw{width:342px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.6;min-height:54px;}
+  .phone{width:342px;height:730px;background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;flex:0 0 auto;}
+  .sb.light{color:#fff;}
+  .body{flex:1;overflow-y:auto;position:relative;}
+  .body::-webkit-scrollbar{width:0;}
+  .pad{padding:0 14px;}
+
+  /* 首页 hero */
+  .hero{background:linear-gradient(150deg,#2b3a34,#1f2a30 72%);color:#fff;padding:8px 18px 20px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-50px;top:-40px;width:190px;height:190px;border-radius:50%;background:rgba(255,255,255,.06);}
+  .hnav{display:flex;align-items:center;justify-content:space-between;height:34px;position:relative;z-index:2;}
+  .hi{font-size:15px;font-weight:800;}
+  /* 微信原生胶囊占位：真机右上角固定这块，自定义按钮不能放这里 */
+  .capsule{width:87px;height:32px;border-radius:16px;border:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:space-around;font-size:11px;opacity:.55;}
+  .capsule .dot{width:4px;height:4px;border-radius:50%;background:#fff;}
+  .capsule .ln{width:14px;height:1.5px;background:#fff;border-radius:2px;}
+  /* 标签行：左标签 + 右操作按钮（位于胶囊下方，避开胶囊） */
+  .hk-row{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:2;margin-top:8px;}
+  .hicons{display:flex;gap:10px;}
+  .hbtn{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .hk{font-size:12px;opacity:.82;position:relative;z-index:2;}
+  .hv{font-size:34px;font-weight:800;letter-spacing:-.02em;position:relative;z-index:2;line-height:1.2;margin-top:2px;}
+  .hv small{font-size:17px;opacity:.8;}
+  .hsub{display:flex;gap:18px;font-size:12px;opacity:.86;position:relative;z-index:2;margin-top:6px;}
+  .hsub-tip{font-size:13px;opacity:.8;position:relative;z-index:2;}
+  /* 连续记账打卡卡 */
+  .streakcard{padding:15px 16px;}
+  .sc-h{display:flex;justify-content:space-between;align-items:baseline;}
+  .sc-t{font-size:15px;font-weight:800;} .sc-t b{color:var(--brand-600);font-size:18px;}
+  .sc-m{font-size:11px;color:var(--ink-3);}
+  .week{display:flex;justify-content:space-between;margin:14px 2px 12px;}
+  .wd{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10px;color:var(--ink-3);}
+  .wd .dot{width:28px;height:28px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:13px;color:#c8ccd2;}
+  .wd.done .dot{background:var(--brand-weak);color:var(--brand-600);}
+  .wd.today .dot{background:var(--brand);color:#fff;box-shadow:0 4px 10px rgba(18,161,80,.35);}
+  .wd.today{color:var(--brand-600);font-weight:700;}
+  .sc-goal{font-size:12px;color:var(--ink-2);background:var(--surface-2);border-radius:10px;padding:10px 12px;}
+  .sc-goal b{color:var(--brand-600);}
+  /* 欢迎语（图标行下方） */
+  .hgreet{font-size:19px;font-weight:800;position:relative;z-index:2;margin-top:10px;display:flex;align-items:center;gap:8px;}
+  .planchip{font-size:11px;font-weight:700;background:rgba(255,255,255,.18);color:#fff;border-radius:999px;padding:3px 10px;}
+  /* 成长等级 / 最新成就 醒目卡（叠在 hero 底部） */
+  .growth{display:flex;align-items:center;padding:12px 14px;}
+  .gcol{flex:1;display:flex;align-items:center;gap:10px;min-width:0;}
+  .ring{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .ring i{width:37px;height:37px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:var(--brand-600);font-style:normal;}
+  .gdiv{width:1px;height:40px;background:var(--line);margin:0 12px;flex:0 0 auto;}
+  .g-t{font-size:11px;color:var(--ink-3);}
+  .g-v{font-size:15px;font-weight:800;margin-top:1px;}
+  .g-s{font-size:10px;color:var(--ink-3);margin-top:2px;}
+  .xpbar{width:88px;height:5px;background:var(--surface-2);border-radius:4px;overflow:hidden;margin:5px 0 2px;}
+  .xpbar span{display:block;height:100%;background:var(--brand);border-radius:4px;}
+  .badge{width:40px;height:40px;border-radius:12px;background:var(--brand-weak);display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto;}
+
+  .card{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);}
+  /* 快捷入口（首页/账本共用） */
+  .quick{display:flex;justify-content:space-around;padding:14px 4px;margin-top:-16px;position:relative;z-index:3;}
+  .quick.flat{margin-top:14px;}
+  .qa{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1;}
+  .qa .ic{width:42px;height:42px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;}
+  .qa .l{font-size:11px;color:var(--ink-2);}
+  .qico{width:21px;height:21px;stroke:#5b6470;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+  .blk{margin:14px 14px 0;}
+  .blk-h{display:flex;justify-content:space-between;align-items:center;padding:2px 4px 10px;}
+  .blk-h .t{font-size:14px;font-weight:800;}
+  .blk-h .m{font-size:12px;color:var(--ink-3);}
+
+  /* 本月收支卡 */
+  .io{display:flex;padding:16px;}
+  .io .it{flex:1;}
+  .io .k{font-size:11px;color:var(--ink-3);}
+  .io .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;}
+  .io .v .cur{font-size:12px;color:var(--ink-3);}
+  .io .div{width:1px;background:var(--line);margin:4px 14px;}
+  .barbg{height:8px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin:0 16px 8px;}
+  .bar{height:100%;border-radius:6px;background:var(--brand);}
+  .bar.warn{background:var(--warn);}
+  .budget-f{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);padding:0 16px 14px;}
+
+  /* 双列小卡（资产 / 连续） */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .mini{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:14px 15px;}
+  .mini .k{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:6px;}
+  .mini .v{font-size:20px;font-weight:700;margin-top:8px;font-variant-numeric:tabular-nums;}
+  .mini .v .cur{font-size:11px;color:var(--ink-3);}
+  .mini .s{font-size:11px;color:var(--ink-3);margin-top:4px;}
+  .mini .miico{width:16px;height:16px;stroke:#9aa2ad;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+  /* 推荐/入口条 */
+  .rowcard{display:flex;align-items:center;gap:12px;padding:14px 15px;}
+  .rowcard .ic{width:38px;height:38px;border-radius:11px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .rowcard .m{flex:1;min-width:0;}
+  .rowcard .tt{font-size:14px;font-weight:600;}
+  .rowcard .ss{font-size:11px;color:var(--ink-3);margin-top:3px;}
+  .rowcard .go{font-size:12px;color:var(--brand-600);font-weight:700;}
+  .rowcard+.rowcard{border-top:1px solid var(--line);}
+  .emoji{font-size:19px;}
+
+  /* 账本页流水 */
+  .agg-note{text-align:center;font-size:11px;color:var(--ink-3);padding:12px 14px 0;}
+  .dayh{display:flex;justify-content:space-between;padding:14px 6px 7px;font-size:11px;color:var(--ink-3);font-weight:600;}
+  .tx{display:flex;align-items:center;gap:11px;padding:12px 15px;border-top:1px solid var(--line);}
+  .tx:first-child{border-top:none;}
+  .tx .cic{width:38px;height:38px;border-radius:11px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .tx .info{flex:1;min-width:0;}
+  .tx .nm{font-size:14px;font-weight:600;}
+  .tx .tag{font-size:10px;color:var(--ink-3);background:#eef1f5;border-radius:999px;padding:1px 8px;margin-left:6px;}
+  .tx .ac{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .tx .amt{font-size:15px;font-weight:700;color:var(--exp);font-variant-numeric:tabular-nums;}
+
+  /* 底部导航（新顺序 首页/账本/+/资产/我的） */
+  .tabbar{height:56px;background:#fff;border-top:1px solid #eef0f2;display:flex;align-items:flex-end;justify-content:space-around;padding-bottom:6px;flex:0 0 auto;position:relative;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink-3);flex:1;padding-bottom:2px;}
+  .tico{width:21px;height:21px;stroke:var(--ink-3);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .tab.on{color:var(--brand-600);} .tab.on .tico{stroke:var(--brand-600);}
+  .tab.center{visibility:hidden;}
+  .fab{position:absolute;left:50%;transform:translateX(-50%);bottom:22px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:27px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(18,161,80,.45);z-index:5;}
+
+  .rec{margin-top:26px;background:var(--brand-weak);border-radius:16px;padding:18px 20px;font-size:14px;line-height:1.75;color:var(--ink-2);}
+  .rec b{color:var(--brand-600);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 首页 Dashboard + 导航重排</span>
+  <h1>新增真正的首页，账本独立成 tab</h1>
+  <p class="sub">现「首页」实为账本页。方案：新增总览型<b>首页</b>；把现有内容正名为<b>账本</b> tab；<b>报表</b>从底部降到账本页顶部快捷入口。底部顺序：首页 / 账本 / ＋ / 资产 / 我的。四个 tab 各司其职，首页只做纵览与入口、不复制明细。</p>
+
+  <div class="sec">01 · 底部导航 · 前后对比</div>
+  <div class="navcmp">
+    <div class="navcard old">
+      <div class="lb">现在</div>
+      <div class="navrow">
+        <div class="ni on"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg></span>首页</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg></span>资产</div>
+        <div class="ni plus"><span class="c">＋</span>记一笔</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg></span>报表</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg></span>我的</div>
+      </div>
+    </div>
+    <div class="navcard new">
+      <div class="lb">改版后</div>
+      <div class="navrow">
+        <div class="ni on"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg></span>首页</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M5 4h13a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 4v16"/></svg></span>账本</div>
+        <div class="ni plus"><span class="c">＋</span>记一笔</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg></span>资产</div>
+        <div class="ni"><span class="c"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg></span>我的</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">02 · 原型</div>
+  <div class="screens">
+
+    <!-- 首页 Dashboard -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span> 首页 · 总览 Dashboard（新）</p>
+      <p class="note">🔔/⚙️ 移到左上角（避开右上微信胶囊）。成长等级/最新成就重设计为醒目卡，叠在 hero 底部紧贴欢迎语（等级环+经验条 / 徽章）。其余：连续记账打卡 → 猜你要记 → 本月发现。资产趋势图移回资产页。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb light"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="hnav">
+              <!-- 通知/设置移到左上角（左上是安全区，微信胶囊只占右上） -->
+              <div class="hicons"><span class="hbtn">🔔</span><span class="hbtn">⚙️</span></div>
+              <div class="capsule"><span class="dot"></span><span class="ln"></span><span class="dot"></span></div>
+            </div>
+            <div class="hgreet">👋 下午好，Damien <span class="planchip">免费版 ›</span></div>
+            <div class="hsub-tip">记好每一笔，日子更有余 ✍️</div>
+          </div>
+
+          <!-- 成长等级 / 最新成就（重设计：醒目卡叠在 hero 底部，紧贴欢迎语） -->
+          <div class="pad" style="margin-top:-18px;position:relative;z-index:3;"><div class="card growth">
+            <div class="gcol">
+              <div class="ring" style="background:conic-gradient(var(--brand) 70%, #e9edf0 0);"><i>Lv.5</i></div>
+              <div><div class="g-t">成长等级</div><div class="xpbar"><span style="width:70%"></span></div><div class="g-s">距下一级 120 经验</div></div>
+            </div>
+            <div class="gdiv"></div>
+            <div class="gcol">
+              <div class="badge">🏅</div>
+              <div><div class="g-t">最新成就</div><div class="g-v">记账新星</div><div class="g-s">已解锁 8 枚 ›</div></div>
+            </div>
+          </div></div>
+
+          <!-- 连续记账打卡（首屏第一块：进来先给即时正反馈与成就感） -->
+          <div class="blk" style="margin-top:16px;"><div class="card streakcard">
+            <div class="sc-h"><div class="sc-t">🔥 已连续记账 <b>12</b> 天</div><div class="sc-m">超过 85% 的记账人</div></div>
+            <div class="week">
+              <div class="wd done"><span class="dot">✓</span>一</div>
+              <div class="wd done"><span class="dot">✓</span>二</div>
+              <div class="wd done"><span class="dot">✓</span>三</div>
+              <div class="wd done"><span class="dot">✓</span>四</div>
+              <div class="wd done"><span class="dot">✓</span>五</div>
+              <div class="wd today"><span class="dot">✓</span>今</div>
+              <div class="wd"><span class="dot">·</span>日</div>
+            </div>
+            <div class="sc-goal">再坚持 <b>3 天</b>，解锁「半月不断更」成就 🏅</div>
+          </div></div>
+
+          <!-- 猜你要记（打卡之后，紧接着给一键记账入口） -->
+          <div class="blk"><div class="blk-h"><div class="t">✨ 猜你要记</div><div class="m">点一下去记账</div></div>
+            <div class="card">
+              <div class="rowcard"><span class="ic emoji">🍜</span><div class="m"><div class="tt">餐饮 / 午餐</div><div class="ss">支出 · 常记</div></div><span class="go">去记账</span></div>
+              <div class="rowcard"><span class="ic emoji">🚇</span><div class="m"><div class="tt">交通 / 地铁</div><div class="ss">支出 · 常记</div></div><span class="go">去记账</span></div>
+            </div>
+          </div>
+
+          <!-- 趣味洞察：月报 / 人格 / 趣味分析（情绪价值 + 可分享） -->
+          <div class="blk"><div class="blk-h"><div class="t">✨ 本月发现</div></div><div class="card">
+            <div class="rowcard"><span class="ic emoji">📊</span><div class="m"><div class="tt">7 月智能月报已生成</div><div class="ss">一张卡看懂这个月</div></div><span class="go">查看 ›</span></div>
+            <div class="rowcard"><span class="ic emoji">🏷️</span><div class="m"><div class="tt">你的消费人格：品质控</div><div class="ss">生成专属标签卡去分享</div></div><span class="go">去看 ›</span></div>
+            <div class="rowcard"><span class="ic emoji">🧋</span><div class="m"><div class="tt">本月你为「奶茶自由」花了 ¥320</div><div class="ss">趣味分析 · 别慌，快乐无价</div></div><span class="go">看看 ›</span></div>
+          </div></div>
+          <div style="height:20px;"></div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 4h13a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 4v16"/></svg>账本</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 账本页 -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span> 账本（原首页内容 + 报表入口）</p>
+      <p class="note">现有首页正名为账本 tab：账本切换 + 月度收支 + 流水明细。顶部快捷入口新增「报表」，与分类/预算/明细/更多同排。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb light"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="hero" style="background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);">
+            <div class="hnav">
+              <div class="hi">全部账本 ▾</div>
+              <div class="capsule"><span class="dot"></span><span class="ln"></span><span class="dot"></span></div>
+            </div>
+            <div class="hk-row">
+              <span class="hk">2026年8月 ▾</span>
+              <div class="hicons"><span class="hbtn">🔍</span></div>
+            </div>
+            <div class="io" style="padding:8px 0 0;color:#fff;">
+              <div class="it"><div class="k" style="color:rgba(255,255,255,.85)">收入</div><div class="v" style="color:#fff;"><span class="cur" style="color:rgba(255,255,255,.8)">¥</span>3,546.01</div></div>
+              <div class="div" style="background:rgba(255,255,255,.28)"></div>
+              <div class="it"><div class="k" style="color:rgba(255,255,255,.85)">支出</div><div class="v" style="color:#fff;"><span class="cur" style="color:rgba(255,255,255,.8)">¥</span>15,230.42</div></div>
+            </div>
+          </div>
+
+          <div class="pad"><div class="card quick">
+            <div class="qa"><span class="ic"><svg class="qico" viewBox="0 0 24 24"><path d="M7 7l10 10M8 5h11v11"/></svg></span><span class="l">分类</span></div>
+            <div class="qa"><span class="ic"><svg class="qico" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h5"/></svg></span><span class="l">预算</span></div>
+            <div class="qa"><span class="ic"><svg class="qico" viewBox="0 0 24 24"><path d="M3 7h18M3 12h18M3 17h12"/></svg></span><span class="l">明细</span></div>
+            <div class="qa"><span class="ic"><svg class="qico" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span><span class="l">报表</span></div>
+            <div class="qa"><span class="ic"><svg class="qico" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/></svg></span><span class="l">更多</span></div>
+          </div></div>
+
+          <div class="agg-note">聚合视图只读 · 记账将记入「默认账本」</div>
+
+          <div class="pad">
+            <div class="dayh"><span>8月8日 周六</span><span>收 0.00 · 支 1,249.50</span></div>
+            <div class="card">
+              <div class="tx"><span class="cic emoji">🍜</span><div class="info"><div class="nm">餐饮 / 买菜<span class="tag">家庭账本</span></div><div class="ac">蚂蚁花呗</div></div><span class="amt">-29.00</span></div>
+              <div class="tx"><span class="cic emoji">🎮</span><div class="info"><div class="nm">娱乐<span class="tag">个人账本</span></div><div class="ac">微信</div></div><span class="amt">-1,200.00</span></div>
+              <div class="tx"><span class="cic emoji">🚇</span><div class="info"><div class="nm">交通 / 停车费<span class="tag">个人账本</span></div><div class="ac">微信</div></div><span class="amt">-11.00</span></div>
+            </div>
+            <div class="dayh"><span>8月7日 周五</span><span>收 3,546.01 · 支 758.21</span></div>
+            <div class="card">
+              <div class="tx"><span class="cic emoji">🍜</span><div class="info"><div class="nm">餐饮 / 下馆子<span class="tag">个人账本</span></div><div class="ac">招商储蓄卡</div></div><span class="amt">-39.90</span></div>
+            </div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M5 4h13a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 4v16"/></svg>账本</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="rec">
+    <b>四个 tab 分工：</b><b>首页</b>＝情绪价值与习惯激励（打卡、成长/成就、猜你要记、趣味洞察，让人愿意每天回来），<b>账本</b>＝账本切换+流水明细+账本级快捷入口，<b>资产</b>＝净值/账户+资产趋势图，<b>我的</b>＝设置。<br/>
+    <b>首页可复用的现有能力：</b>连续记账(streak)、成长/等级(growth)、成就(achievement)、猜你要记(suggestion)、智能月报(smart-monthly-report)、消费人格(fun-personality-tags)、趣味分析(ai-fun-analysis)、分享卡片(share-card)——大多是你 specs 里已有/在做的，首页正好当它们的聚合门面。<br/>
+    <b>落地：</b>新建 <code>pages/home</code>，现 <code>pages/index</code> 正名为账本 tab；调 TabBar 顺序与 pages.json；报表改 push；资产趋势图放到资产页（需每日净资产快照数据）。
+  </div>
+
+</div>
+</body>
+</html>

@@ -593,7 +593,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -636,7 +636,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -760,7 +760,7 @@ async function batchDelete() {
           <view v-if="!selectedDayTx.length" class="empty" style="padding:60rpx 0"><text>这天没有记录</text></view>
           <view v-else class="card">
             <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goDetail(t)" @longpress="confirmDelete(t)">
-              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -787,7 +787,7 @@ async function batchDelete() {
           <view class="dayhead"><text class="dt">{{ g.label }}</text></view>
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="goDetail(t)">
-              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -877,13 +877,13 @@ async function batchDelete() {
 .card .tx:first-child { border-top: none; }
 .tico { width: 76rpx; height: 76rpx; border-radius: 22rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
-.tname { font-size: 30rpx; font-weight: 600; color: #16181c; }
+.tname { font-size: 29rpx; font-weight: 500; color: #16181c; }
 .tsub { font-size: 22rpx; color: #9aa2ad; }
 .tags { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 4rpx; }
 .tag { font-size: 20rpx; color: #0e8a44; background: #e6f6ec; border-radius: 6rpx; padding: 2rpx 12rpx; }
 .tright { text-align: right; }
-.tamt { font-size: 32rpx; font-weight: 800; }
-.tamt.expense { color: #f0553d; }
+.tamt { font-size: 30rpx; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tamt.expense { color: #e5544b; }
 .tamt.income { color: #12a150; }
 .tamt.transfer { color: #8a94a6; }
 .pctbar { height: 10rpx; background: #f0f0f0; border-radius: 6rpx; margin-top: 12rpx; overflow: hidden; width: 320rpx; max-width: 60vw; }

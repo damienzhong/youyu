@@ -35,7 +35,7 @@ async function routeAfterLogin() {
     // 先 reLaunch 首页再 navigateTo 成就页：成就页是非 tabBar 页面，
     // 直接 reLaunch 过去会清空页面栈，用户回不到首页。
     uni.reLaunch({
-      url: '/pages/index/index',
+      url: '/pages/home/home',
       success: () => {
         uni.navigateTo({
           url: `/pages/achievement/achievement?code=${encodeURIComponent(achievementCode)}`
@@ -44,7 +44,7 @@ async function routeAfterLogin() {
     })
     return
   }
-  uni.reLaunch({ url: '/pages/index/index' })
+  uni.reLaunch({ url: '/pages/home/home' })
 }
 
 async function handleWxLogin() {
@@ -164,7 +164,7 @@ async function handleEmailLogin() {
     <view class="brand">
       <view class="brand-mk">¥</view>
       <text class="title">有余</text>
-      <text class="slogan">记好每一笔，日子有余</text>
+      <text class="slogan">记好每一笔，日子更有余</text>
     </view>
 
     <button class="wx-btn" :loading="loading" @click="handleWxLogin">微信一键登录</button>

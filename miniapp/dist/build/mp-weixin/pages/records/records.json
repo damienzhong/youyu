@@ -1,7 +1,7 @@
 {
   "navigationBarTitleText": "本月明细",
   "usingComponents": {
-    "app-icon": "../../components/AppIcon/AppIcon",
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
     "transaction-detail-sheet": "../../components/TransactionDetailSheet/TransactionDetailSheet"
   }
 }

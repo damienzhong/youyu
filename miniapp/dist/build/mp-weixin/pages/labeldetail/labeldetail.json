@@ -1,6 +1,6 @@
 {
   "navigationBarTitleText": "明细",
   "usingComponents": {
-    "app-icon": "../../components/AppIcon/AppIcon"
+    "category-icon": "../../components/CategoryIcon/CategoryIcon"
   }
 }

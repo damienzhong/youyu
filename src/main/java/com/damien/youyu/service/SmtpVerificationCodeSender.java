@@ -110,7 +110,7 @@ public class SmtpVerificationCodeSender implements VerificationCodeSender {
             // 页脚
             + "<tr><td style=\"padding:18px 32px;border-top:1px solid #f0f1f3;"
             + "font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:12px;color:#b6bcc4;\">"
-            + "有余 · 记好每一笔，日子有余</td></tr>"
+            + "有余 · 记好每一笔，日子更有余</td></tr>"
             + "</table></td></tr></table></body></html>";
     }
 

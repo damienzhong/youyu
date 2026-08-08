@@ -1,8 +1,9 @@
 {
-  "navigationBarTitleText": "有余",
+  "navigationBarTitleText": "账本",
   "navigationStyle": "custom",
   "usingComponents": {
     "app-icon": "../../components/AppIcon/AppIcon",
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
     "tab-bar": "../../components/TabBar/TabBar",
     "input-sheet": "../../components/InputSheet/InputSheet",
     "transaction-detail-sheet": "../../components/TransactionDetailSheet/TransactionDetailSheet"

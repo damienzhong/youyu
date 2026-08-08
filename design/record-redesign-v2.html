@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 记账页重设计原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f4f5f7; --line:#f1f3f5;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#0f8a45;
+    --radius:20px; --pill:999px; --shadow:0 8px 24px rgba(20,24,28,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1080px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:820px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:48px 0 16px;}
+  .audit{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:8px;}
+  .c2{background:var(--surface);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);border-left:4px solid var(--brand);}
+  .c2 h4{margin:0 0 8px;font-size:15px;} .c2 p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:40px;}
+  .pw{width:360px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 10px;}
+  .phone{width:360px;height:760px;background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;flex:0 0 auto;}
+  .body{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+  .body::-webkit-scrollbar{width:0;}
+
+  /* 导航：右侧留空给胶囊，＋ 已移走 */
+  .nav{display:flex;align-items:center;height:46px;padding:0 12px;position:relative;flex:0 0 auto;}
+  .nav .bk{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ink-2);}
+  .nav .title{position:absolute;left:0;right:0;text-align:center;font-size:16px;font-weight:800;pointer-events:none;}
+  .nav .title small{font-size:12px;color:var(--ink-3);font-weight:600;}
+  .cap-hint{margin-left:auto;width:74px;height:30px;border-radius:16px;border:1px dashed #d7dbe0;color:#c0c4cc;font-size:10px;display:flex;align-items:center;justify-content:center;}
+
+  /* 类型分段：pill，选中品牌绿 */
+  .seg{display:flex;background:var(--surface-2);border-radius:12px;padding:4px;margin:6px 16px 0;}
+  .seg .s{flex:1;text-align:center;font-size:15px;font-weight:700;color:var(--ink-2);padding:9px 0;border-radius:9px;}
+  .seg .s.on{background:#fff;color:var(--brand-600);box-shadow:0 2px 8px rgba(0,0,0,.06);}
+
+  /* 金额卡 */
+  .amt{background:var(--surface);border-radius:16px;margin:12px 16px 0;padding:20px 22px;box-shadow:var(--shadow);display:flex;align-items:baseline;gap:6px;}
+  .amt .cur{font-size:22px;color:var(--ink-3);font-weight:700;}
+  .amt .val{font-size:44px;font-weight:800;letter-spacing:-.02em;}
+  .amt .caret{width:2px;height:34px;background:var(--brand);margin-left:2px;animation:blink 1s steps(1) infinite;}
+  @keyframes blink{50%{opacity:0}}
+
+  /* 分类网格 */
+  .cats{background:var(--surface);border-radius:16px;margin:12px 16px 0;padding:16px 8px 8px;box-shadow:var(--shadow);}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px 0;}
+  .cat{display:flex;flex-direction:column;align-items:center;gap:7px;padding:8px 0 12px;position:relative;}
+  .cat .ic{width:48px;height:48px;border-radius:16px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;}
+  .cat.on .ic{background:var(--brand-weak);}
+  .cat.on .ic .cico{stroke:var(--brand-600);}
+  .cat .l{font-size:12px;color:var(--ink-2);}
+  .cat.on .l{color:var(--brand-600);font-weight:700;}
+  .cico{width:24px;height:24px;stroke:#8a94a6;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  /* ＋添加分类：网格末尾磁贴（原顶栏右上的 + 迁到这里） */
+  .cat.add .ic{background:#fff;border:1.5px dashed #cfd5db;}
+  .cat.add .l{color:var(--ink-3);}
+  .plus{width:24px;height:24px;stroke:#9aa2ad;stroke-width:2;fill:none;stroke-linecap:round;}
+
+  /* 元信息 chips */
+  .meta{margin:12px 16px 0;display:flex;flex-wrap:wrap;gap:10px;}
+  .chip{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:var(--pill);padding:9px 15px;font-size:13px;color:var(--ink-2);box-shadow:var(--shadow);}
+  .chip.strong{color:var(--ink);font-weight:600;}
+  .chip .d{width:16px;height:16px;stroke:#8a94a6;stroke-width:1.7;fill:none;}
+
+  .spacer{flex:1;min-height:12px;}
+
+  /* 键盘 */
+  .pad{background:var(--surface);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e9ecef;flex:0 0 auto;}
+  .key{background:#fff;height:60px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:var(--ink);}
+  .key.op{color:var(--ink-3);font-size:22px;}
+  .key.mini{font-size:14px;font-weight:700;color:var(--ink-2);}
+  .key.zero{}
+  .key.done{background:var(--brand);color:#fff;font-size:18px;font-weight:800;grid-row:span 2;display:flex;align-items:center;justify-content:center;}
+  .key.dot{}
+
+  .legend{margin-top:36px;font-size:14px;color:var(--ink-2);line-height:1.9;}
+  .legend b{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 记账页重设计</span>
+  <h1>记账页：对齐整体风格 + 挪走顶栏 ＋</h1>
+  <p class="sub">现状是大白板 + 橙红主色，和 App 其它页（浅底 <code>#eef0f2</code> + 圆角卡片 + 品牌绿 + 线性图标）不搭；右上「＋新建分类」在小程序自定义导航下会被微信胶囊挡住。重设计统一到设计系统，并把「＋」从导航栏移到分类网格末尾。</p>
+
+  <div class="sec">改了什么</div>
+  <div class="audit">
+    <div class="c2"><h4>顶栏 ＋ → 分类网格末尾</h4><p>「＋新建分类」从右上角（被胶囊挡）移到分类网格最后一格「＋添加分类」，就近、可发现，导航右侧完全让给胶囊。</p></div>
+    <div class="c2"><h4>浅底卡片化</h4><p>整页改 <code>#eef0f2</code> 浅底，金额/分类/键盘分块为圆角卡片 + 柔和阴影，和首页/资产/账本一致。</p></div>
+    <div class="c2"><h4>主色统一品牌绿</h4><p>类型选中、光标、完成键统一品牌绿；金额用深色中性（收支语义交给列表页），去掉突兀的橙红。</p></div>
+    <div class="c2"><h4>类型改 pill 分段</h4><p>支出/收入/转账 改成分段控件（选中白底绿字），比下划线更清晰、更贴合整体分段风格。</p></div>
+  </div>
+
+  <div class="sec">原型</div>
+  <div class="screens">
+    <div class="pw">
+      <p class="cap">记账页 · 支出</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="nav">
+            <div class="bk">‹</div>
+            <div class="title">个人账本 <small>▾</small></div>
+            <div class="cap-hint">··· ○</div>
+          </div>
+
+          <div class="seg">
+            <div class="s on">支出</div>
+            <div class="s">收入</div>
+            <div class="s">转账</div>
+          </div>
+
+          <div class="amt"><span class="cur">¥</span><span class="val">0.00</span><span class="caret"></span></div>
+
+          <div class="cats">
+            <div class="grid">
+              <div class="cat on"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><path d="M4 3v7a3 3 0 0 0 3 3v8M7 3v6M10 3v6M17 3c-1.5 1.5-2 4-2 6s.5 3 2 3v9'/></svg></span><span class="l">餐饮</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 12h14M9 20l-1.5 2M15 20l1.5 2"/></svg></span><span class="l">交通</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><span class="l">购物</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg></span><span class="l">居住</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="5"/><circle cx="15.5" cy="11.5" r="1"/><circle cx="17.5" cy="13.3" r="1"/></svg></span><span class="l">娱乐</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="3"/><path d="M9 7V5h6v2M12 11v4M10 13h4"/></svg></span><span class="l">医疗</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="3"/><path d="M11 18h2"/></svg></span><span class="l">通讯</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M5 4c2.5 3.5 11.5 3.5 14 0"/><circle cx="12" cy="12" r="2"/></svg></span><span class="l">人情</span></div>
+              <div class="cat"><span class="ic"><svg class="cico" viewBox="0 0 24 24"><path d="M2 12l19-8-8 19-2.6-7.6L2 12Z"/></svg></span><span class="l">差旅</span></div>
+              <!-- ＋添加分类：原顶栏右上的 + 迁到此处 -->
+              <div class="cat add"><span class="ic"><svg class="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="l">添加</span></div>
+            </div>
+          </div>
+
+          <div class="meta">
+            <div class="chip strong"><svg class="d" viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M5 9h14"/></svg>微信</div>
+            <div class="chip strong"><svg class="d" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg>今天</div>
+            <div class="chip">备注</div>
+            <div class="chip">项目</div>
+            <div class="chip">商家</div>
+            <div class="chip">标签</div>
+          </div>
+
+          <div class="spacer"></div>
+
+          <div class="pad">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">⌫</div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">＋</div>
+            <div class="key mini">保存再记</div><div class="key">0</div><div class="key dot">.</div><div class="key done">完成</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <p><b>落地要点：</b>删除导航栏 <code>.nb.add</code>（＋），把 <code>goAddCategory</code> 挂到分类网格末尾的「＋添加分类」磁贴；页面根底色改 <code>#eef0f2</code>，金额/分类/键盘分块加圆角卡片与阴影；类型改 pill 分段、主色统一品牌绿（选中/光标/完成键）。键盘与 chips 交互逻辑不变，仅换皮。</p>
+  </div>
+</div>
+</body>
+</html>

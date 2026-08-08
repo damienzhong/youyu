@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 资产中段：分类聚合 vs 账户直显 对比</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f4f5f7; --line:#f1f3f5;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --danger:#e5484d;
+    --radius:22px; --pill:999px; --shadow:0 8px 24px rgba(20,24,28,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1240px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:36px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:920px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:52px 0 18px;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:34px 30px;margin-top:8px;}
+  .pw{width:342px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .cap.a .n{background:#3aa0d0;} .cap.b .n{background:var(--brand);}
+  .note{font-size:13px;color:var(--ink-2);margin:0 0 12px;line-height:1.6;min-height:56px;}
+  .phone{width:342px;height:730px;background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;flex:0 0 auto;}
+  .body{flex:1;overflow-y:auto;position:relative;padding:0 12px;}
+  .body::-webkit-scrollbar{width:0;}
+  .topbar{display:flex;align-items:center;justify-content:center;height:44px;font-weight:800;font-size:17px;position:relative;}
+  .topbar .bk{position:absolute;left:10px;font-size:22px;color:var(--ink-2);font-weight:400;}
+
+  /* 顶部（保持现状） */
+  .networth{border-radius:var(--radius);padding:18px 20px;color:#fff;background:linear-gradient(150deg,#2b3a34,#1f2a30 70%);box-shadow:0 14px 30px rgba(31,42,48,.22);margin-top:4px;}
+  .nw-k{font-size:12px;opacity:.85;}
+  .nw-v{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 10px;}
+  .nw-v small{font-size:18px;opacity:.8;font-weight:800;}
+  .nw-f{display:flex;justify-content:space-between;font-size:12px;opacity:.9;}
+
+  /* 分组标题 */
+  .ghead{display:flex;justify-content:space-between;align-items:center;padding:14px 4px 8px;}
+  .ghead .t{font-size:12px;font-weight:600;color:var(--ink-3);}
+  .ghead .r{display:flex;align-items:center;gap:8px;}
+  .ghead .sum{font-size:13px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;}
+  .ghead .ct{font-size:11px;color:#c0c4cc;}
+  .ghead .a{font-size:11px;color:var(--ink-3);}
+
+  /* 双列网格（更紧凑：小内边距、小图标、弱化符号/小数） */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .gcard{background:var(--surface);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .gcard .info{min-width:0;}
+  .gcard .nm{font-size:13px;font-weight:500;color:var(--ink-2);line-height:1.15;}
+  .gcard .sub{font-size:10px;color:var(--ink-3);margin-top:2px;}
+  .gcard .bal{font-size:17px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:5px;line-height:1.1;}
+  .gcard .bal .cur,.gcard .bal .dec{font-size:11px;font-weight:600;color:var(--ink-3);}
+  .gcard .bal.neg{color:var(--danger);}
+  .gcard .bal.neg .cur,.gcard .bal.neg .dec{color:var(--danger);opacity:.7;}
+  .gcard .ic{width:30px;height:30px;border-radius:50%;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;position:relative;}
+  .gcard .cnt{position:absolute;bottom:-2px;right:-2px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:#c9ced4;color:#fff;font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  .ico{width:17px;height:17px;stroke:#b0b6bd;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+  /* 单列账户列表（更紧凑） */
+  .list{background:var(--surface);border-radius:13px;box-shadow:var(--shadow);overflow:hidden;}
+  .item{display:flex;align-items:center;gap:11px;padding:11px 13px;border-top:1px solid var(--line);}
+  .item:first-child{border-top:none;}
+  .item .ic{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .item .m{flex:1;min-width:0;}
+  .item .nm{font-size:14px;font-weight:500;color:var(--ink);}
+  .item .sub{font-size:10.5px;color:var(--ink-3);margin-top:2px;}
+  .item .bal{font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .item .bal .cur,.item .bal .dec{font-size:10.5px;font-weight:600;color:var(--ink-3);}
+  .item .bal.neg{color:var(--danger);}
+  .item .cr{color:#c8ccd2;font-size:15px;margin-left:2px;}
+
+  /* 分类详情页头部汇总 */
+  .catsum{background:var(--surface);border-radius:13px;box-shadow:var(--shadow);padding:14px 16px;margin-top:4px;}
+  .catsum .k{font-size:11px;color:var(--ink-3);}
+  .catsum .v{font-size:24px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums;}
+  .catsum .v .cur,.catsum .v .dec{font-size:13px;font-weight:600;color:var(--ink-3);}
+
+  .tabbar{height:56px;background:#fff;border-top:1px solid #eef0f2;display:flex;align-items:flex-end;justify-content:space-around;padding-bottom:6px;flex:0 0 auto;position:relative;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink-3);flex:1;padding-bottom:2px;}
+  .tico{width:21px;height:21px;stroke:var(--ink-3);stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .tab.on{color:var(--brand-600);} .tab.on .tico{stroke:var(--brand-600);}
+  .tab.center{visibility:hidden;}
+  .fab{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;font-size:27px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(18,161,80,.45);z-index:5;}
+  .fab-hint{position:absolute;left:50%;transform:translateX(-50%);bottom:8px;font-size:10px;color:var(--brand-600);font-weight:700;z-index:5;white-space:nowrap;}
+
+  /* 对比表 */
+  .cmp{width:100%;border-collapse:separate;border-spacing:0;margin-top:8px;background:var(--surface);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);}
+  .cmp th,.cmp td{text-align:left;padding:14px 18px;font-size:14px;border-top:1px solid var(--line);vertical-align:top;}
+  .cmp thead th{border-top:none;font-size:12px;letter-spacing:.06em;color:var(--ink-3);text-transform:uppercase;font-weight:800;background:var(--surface-2);}
+  .cmp td:first-child{font-weight:700;color:var(--ink-2);width:150px;}
+  .cmp .good{color:var(--brand-600);font-weight:600;}
+  .cmp .bad{color:#b9761a;font-weight:600;}
+  .rec{margin-top:26px;background:var(--brand-weak);border-radius:16px;padding:20px 22px;font-size:15px;line-height:1.75;color:var(--ink-2);}
+  .rec b{color:var(--brand-600);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 资产中段信息架构 A/B</span>
+  <h1>分类聚合 vs 账户直显</h1>
+  <p class="sub">资产页顶部（净资产 + 借贷）两方案一致。区别只在中段列表：<b>方案 A</b> 学竞品——网格是「资产分类」，点进去再看具体账户；<b>方案 B</b> 是我们原思路——直接把账户平铺出来，点账户直达流水。左侧两屏演示 A 的一级+下钻，右侧一屏是 B。</p>
+
+  <div class="sec">方案 A · 对齐竞品（分类聚合 → 下钻）</div>
+  <div class="screens">
+
+    <!-- A-1 分类网格 -->
+    <div class="pw">
+      <p class="cap a"><span class="n">A1</span> 资产分类网格</p>
+      <p class="note">网格里每格 = 一个资产分类（银行卡/信用卡/微信…），显示该类合计与账户数（右下小角标）。同类多个账户合成一格，页面稳定、结构感强。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="topbar">资产管理</div>
+          <div class="networth"><div class="nw-k">净资产 👁</div><div class="nw-v">¥1,081,046<small>.41</small></div><div class="nw-f"><span>总资产 1,095,984.71</span><span>总负债 14,938.30</span></div></div>
+
+          <div class="ghead"><div class="t">资产分类</div><div class="a">排序 ⇅</div></div>
+          <div class="grid">
+            <div class="gcard"><div class="info"><div class="nm">银行卡</div><div class="bal"><span class="cur">¥</span>17,961<span class="dec">.84</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg><span class="cnt">2</span></div></div>
+            <div class="gcard"><div class="info"><div class="nm">信用卡</div><div class="bal neg">-<span class="cur">¥</span>14,938<span class="dec">.30</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg><span class="cnt">1</span></div></div>
+            <div class="gcard"><div class="info"><div class="nm">微信</div><div class="bal"><span class="cur">¥</span>3,333<span class="dec">.74</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">支付宝</div><div class="bal"><span class="cur">¥</span>2,479<span class="dec">.83</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 14c5 0 9-3 14 3"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">公积金</div><div class="bal"><span class="cur">¥</span>53,304<span class="dec">.15</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 10l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg></div></div>
+            <div class="gcard"><div class="info"><div class="nm">基金</div><div class="bal"><span class="cur">¥</span>58,900<span class="dec">.00</span></div></div><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/></svg><span class="cnt">2</span></div></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>报表</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div><div class="fab-hint">添加账户</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- A-2 下钻 -->
+    <div class="pw">
+      <p class="cap a"><span class="n">A2</span> 点「银行卡」→ 分类详情</p>
+      <p class="note">进入该分类才看到具体账户（民生、招商…）。多一层跳转；若某类只有 1 个账户，这一层会显得多余。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="topbar"><span class="bk">‹</span>银行卡</div>
+          <div class="catsum"><div class="k">银行卡合计 · 2 个账户</div><div class="v"><span class="cur">¥</span>17,961<span class="dec">.84</span></div></div>
+          <div class="ghead"><div class="t">账户</div></div>
+          <div class="list">
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div><div class="m"><div class="nm">民生银行储蓄卡</div><div class="sub">尾号 3590</div></div><div class="bal"><span class="cur">¥</span>15,466<span class="dec">.14</span></div><span class="cr">›</span></div>
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div><div class="m"><div class="nm">招商银行储蓄卡</div><div class="sub">尾号 1429</div></div><div class="bal"><span class="cur">¥</span>2,495<span class="dec">.70</span></div><span class="cr">›</span></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>报表</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div><div class="fab-hint">添加账户</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- B 账户直显 -->
+    <div class="pw">
+      <p class="cap b"><span class="n">B</span> 账户直显（我们原思路）</p>
+      <p class="note">按资金/投资/负债分组，直接平铺具体账户，点账户直达流水。少一层，账户余额一眼全见；账户很多时列表会偏长。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="topbar">资产管理</div>
+          <div class="networth"><div class="nw-k">净资产 👁</div><div class="nw-v">¥1,081,046<small>.41</small></div><div class="nw-f"><span>总资产 1,095,984.71</span><span>总负债 14,938.30</span></div></div>
+
+          <div class="ghead"><div class="t">资金账户</div><div class="r"><span class="sum">¥23,775.41</span><span class="ct">▴</span></div></div>
+          <div class="list">
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 9h16"/></svg></div><div class="m"><div class="nm">微信</div></div><div class="bal"><span class="cur">¥</span>3,333<span class="dec">.74</span></div><span class="cr">›</span></div>
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 14c5 0 9-3 14 3"/></svg></div><div class="m"><div class="nm">支付宝</div></div><div class="bal"><span class="cur">¥</span>2,479<span class="dec">.83</span></div><span class="cr">›</span></div>
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div><div class="m"><div class="nm">民生储蓄卡</div><div class="sub">尾号 3590</div></div><div class="bal"><span class="cur">¥</span>15,466<span class="dec">.14</span></div><span class="cr">›</span></div>
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div><div class="m"><div class="nm">招商储蓄卡</div><div class="sub">尾号 1429</div></div><div class="bal"><span class="cur">¥</span>2,495<span class="dec">.70</span></div><span class="cr">›</span></div>
+          </div>
+
+          <div class="ghead"><div class="t">投资理财</div><div class="r"><span class="sum">¥58,900.00</span><span class="ct">▴</span></div></div>
+          <div class="list">
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><path d="M4 16l5-5 4 4 7-8"/></svg></div><div class="m"><div class="nm">基金定投</div></div><div class="bal"><span class="cur">¥</span>58,900<span class="dec">.00</span></div><span class="cr">›</span></div>
+          </div>
+
+          <div class="ghead"><div class="t">负债</div><div class="r"><span class="sum" style="color:var(--danger)">-¥14,938.30</span><span class="ct">▴</span></div></div>
+          <div class="list">
+            <div class="item"><div class="ic"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/></svg></div><div class="m"><div class="nm">招商信用卡</div><div class="sub">账单日 5 日</div></div><div class="bal neg">-<span class="cur">¥</span>14,938<span class="dec">.30</span></div><span class="cr">›</span></div>
+          </div>
+          <div style="height:20px;"></div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tab on"><svg class="tico" viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>资产</div>
+          <div class="tab center"></div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>报表</div>
+          <div class="tab"><svg class="tico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></svg>我的</div>
+          <div class="fab">＋</div><div class="fab-hint">添加账户</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="sec">对比与取舍</div>
+  <table class="cmp">
+    <thead><tr><th>维度</th><th>方案 A · 分类聚合</th><th>方案 B · 账户直显</th></tr></thead>
+    <tbody>
+      <tr><td>看到账户余额</td><td class="bad">需多点一层</td><td class="good">一屏直达</td></tr>
+      <tr><td>账户少（&lt;8）</td><td class="bad">下钻常常只 1 个账户，略显多余</td><td class="good">刚好，无冗余</td></tr>
+      <tr><td>账户多（同类多张卡）</td><td class="good">首屏清爽、结构感强</td><td class="bad">列表偏长，需折叠分组</td></tr>
+      <tr><td>结构一目了然</td><td class="good">强：按类型天然归拢</td><td>中：靠分组标题区分</td></tr>
+      <tr><td>与现有信息架构</td><td class="bad">需新增「分类维度 + 详情页」</td><td class="good">复用现有分组与账户详情</td></tr>
+      <tr><td>点击直达流水</td><td class="bad">账户→分类→账户→流水</td><td class="good">账户→流水</td></tr>
+      <tr><td>实现成本</td><td class="bad">较高（多一层页面/聚合）</td><td class="good">低（现状小改）</td></tr>
+    </tbody>
+  </table>
+
+  <div class="rec">
+    <b>我的建议：以 B 为主，借 A 的“分组小计 + 折叠”。</b> 记账类 App 的个人账户通常 5～12 个，账户直显能少一次跳转、余额一眼全见，是更高频的诉求；而竞品的分类聚合主要解决“同类账户特别多”的场景。B 已经用「资金/投资/负债」分组 + 小计 + 可折叠拿到了 A 大部分的“结构感”，且不额外做一层详情页。<br/>
+    只有当你判断用户普遍会开很多同类账户（例如好几张银行卡、多个基金）时，再考虑切到 A，或做成“同类 ≥3 个才聚合成一格、否则平铺”的<b>自适应折中</b>。
+  </div>
+
+</div>
+</body>
+</html>

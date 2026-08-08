@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 /**
  * 「有余」个人记账后端应用入口。
  *
- * <p>Slogan：记好每一笔，日子有余。</p>
+ * <p>Slogan：记好每一笔，日子更有余。</p>
  */
 @SpringBootApplication
 public class YouyuApplication {
