@@ -8,6 +8,8 @@
  * - 图标用统一线性图标集（AppIcon，SVG data-URI，H5/小程序通用），选中态品牌绿。
  * 依赖 easycom 自动注册（components/TabBar/TabBar.vue → <TabBar/>）。
  */
+import { computed } from 'vue'
+
 const props = defineProps({
   active: { type: String, default: 'home' } // home | assets | report | me
 })
@@ -17,8 +19,8 @@ const INACTIVE = '#9aa2ad'
 
 const TABS = [
   { key: 'home', label: '首页', icon: 'home', path: '/pages/index/index' },
-  // 资产为二级页（自身不显示底部导航），用 navigateTo 进入。
-  { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts', push: true },
+  // 资产升为一级 tab（已加入 pages.json tabBar.list），用 switchTab 切换。
+  { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts' },
   { key: 'report', label: '报表', icon: 'chart', path: '/pages/report/report' },
   { key: 'me', label: '我的', icon: 'user', path: '/pages/me/me' }
 ]
@@ -31,8 +33,15 @@ function switchTo(t) {
     uni.switchTab({ url: t.path })
   }
 }
-function goRecord() {
-  uni.navigateTo({ url: '/pages/record/record' })
+// 中间凸起键：含义随所在页上下文变化。
+// 资产页 → 添加账户（广播事件，由资产页监听打开账户类型选择）；其余页 → 记一笔。
+const centerLabel = computed(() => (props.active === 'assets' ? '添加账户' : '记一笔'))
+function onCenter() {
+  if (props.active === 'assets') {
+    uni.$emit('assets:addAccount')
+  } else {
+    uni.navigateTo({ url: '/pages/record/record' })
+  }
 }
 </script>
 
@@ -45,10 +54,10 @@ function goRecord() {
       <view class="tab" :class="{ on: active === 'assets' }" @click="switchTo(TABS[1])">
         <AppIcon class="ic" name="diamond" :size="42" :color="active === 'assets' ? ACTIVE : INACTIVE" /><text class="t">资产</text>
       </view>
-      <!-- 中间：图标区留白给凸起键，只放「记一笔」标签，与其它标签基线对齐 -->
-      <view class="tab center-slot" @click="goRecord">
+      <!-- 中间：图标区留白给凸起键，标签随页面上下文变化，与其它标签基线对齐 -->
+      <view class="tab center-slot" @click="onCenter">
         <view class="ic-space"></view>
-        <text class="t hl">记一笔</text>
+        <text class="t hl">{{ centerLabel }}</text>
       </view>
       <view class="tab" :class="{ on: active === 'report' }" @click="switchTo(TABS[2])">
         <AppIcon class="ic" name="chart" :size="42" :color="active === 'report' ? ACTIVE : INACTIVE" /><text class="t">报表</text>
@@ -58,9 +67,9 @@ function goRecord() {
       </view>
     </view>
 
-    <!-- 中间凸起「记一笔」：白色护城河 + 实心圆 -->
+    <!-- 中间凸起键：白色护城河 + 实心圆（含义随页面上下文） -->
     <view class="moat"></view>
-    <view class="center" @click="goRecord"><text class="plus">＋</text></view>
+    <view class="center" @click="onCenter"><text class="plus">＋</text></view>
   </view>
 </template>
 

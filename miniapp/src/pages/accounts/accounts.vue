@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onLoad, onUnload } from '@dcloudio/uni-app'
 import {
   listAccounts,
   listRepayReminders,
@@ -12,7 +12,6 @@ import {
 import { listLoans } from '../../api/loan'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount } from '../../utils/format'
-import { safeBack } from '../../utils/nav'
 
 const ledgerStore = useLedgerStore()
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
@@ -120,7 +119,22 @@ async function load() {
     loading.value = false
   }
 }
-onShow(load)
+onShow(() => {
+  // 资产已升为一级 tab：隐藏原生 tabBar，仅显示自定义 <TabBar>（与首页/报表/我的一致）。
+  uni.hideTabBar({ animation: false, fail() {} })
+  load()
+})
+
+// 中间凸起键在资产页触发「添加账户」（TabBar.onCenter 广播），打开账户类型选择。
+function onFabAddAccount() {
+  openCreate()
+}
+onLoad(() => {
+  uni.$on('assets:addAccount', onFabAddAccount)
+})
+onUnload(() => {
+  uni.$off('assets:addAccount', onFabAddAccount)
+})
 
 function goLoans(dir) {
   uni.navigateTo({ url: `/pages/loans/loans?direction=${dir}` })
@@ -132,9 +146,6 @@ function openAccount(a) {
 const typeSheet = ref(false)
 const editVisible = ref(false)
 const editCreateType = ref(null)
-function goBack() {
-  safeBack('/pages/index/index')
-}
 function openCreate() {
   typeSheet.value = true
 }
@@ -150,11 +161,9 @@ function onAccountSaved() {
 
 <template>
   <view class="page">
-    <!-- 页面标题（自定义导航，二级页含返回）-->
+    <!-- 页面标题（一级 tab：无返回，仅标题）-->
     <view class="topbar" :style="{ paddingTop: statusBarHeight }">
-      <text class="topbar-back" @click="goBack">‹</text>
       <text class="topbar-title">资产管理</text>
-      <text class="topbar-back placeholder"></text>
     </view>
 
     <!-- 净资产卡 -->
@@ -210,13 +219,8 @@ function onAccountSaved() {
       </view>
     </view>
 
-    <!-- 添加账户（列表底部，替代悬浮按钮，避免与底部「记一笔」重复） -->
-    <view class="add-account" @click="openCreate">
-      <text class="aa-plus">＋</text>
-      <text class="aa-t">添加账户</text>
-    </view>
-
-    <view style="height:calc(40rpx + env(safe-area-inset-bottom));"></view>
+    <!-- 底部留白：让出自定义 TabBar 高度 + 安全区 -->
+    <view style="height:calc(160rpx + env(safe-area-inset-bottom));"></view>
 
     <!-- 账户类型选择（本页弹出，选完再打开编辑弹窗） -->
     <AccountTypeSheet v-model:visible="typeSheet" @pick="onPickType" />
@@ -227,6 +231,8 @@ function onAccountSaved() {
       :create-type="editCreateType"
       @saved="onAccountSaved"
     />
+
+    <TabBar active="assets" />
 
   </view>
 </template>

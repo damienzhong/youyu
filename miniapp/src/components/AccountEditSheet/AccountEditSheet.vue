@@ -40,9 +40,8 @@ const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const navPadTop = computed(() =>
   props.coverStatusBar ? `calc(${statusBarHeight} + 16rpx)` : '22rpx'
 )
-// 标题栏内容高度（内容行 + 下内边距 + 分隔线）约 96rpx；scroll-view 需要确定高度才能内部滚动，
-// 否则手势会穿透到背后页面。这里显式算出可滚动区域高度。
-const bodyHeight = computed(() => `calc(100vh - ${navPadTop.value} - 96rpx)`)
+// 滚动区改为 flex 自适应高度（父容器 100vh，nav/footer 固定，body flex:1），
+// 无需再显式计算高度；底部「保存/删除」固定在 footer 里不随内容滚动。
 
 const acc = ref(null)
 const links = ref([])
@@ -340,10 +339,10 @@ function confirmDelete() {
       <view class="nav" :style="{ paddingTop: navPadTop }">
         <text class="nav-cancel" @click="close">取消</text>
         <text class="nav-title">{{ isEditing ? '编辑账户' : '新建账户' }}</text>
-        <text class="nav-save" @click="submit">保存</text>
+        <text class="nav-spacer"></text>
       </view>
 
-      <scroll-view scroll-y class="body" v-if="showForm" :style="{ height: bodyHeight }">
+      <scroll-view scroll-y class="body" v-if="showForm">
         <!-- 基本信息 -->
         <view class="form-body">
           <view class="frow" @click="reopenTypePicker">
@@ -485,10 +484,14 @@ function confirmDelete() {
           </view>
         </view>
 
+        <view style="height:16rpx;"></view>
+      </scroll-view>
+
+      <!-- 固定底部操作区（不随内容滚动）-->
+      <view v-if="showForm" class="footer">
         <button class="big-save" @click="submit">保存</button>
         <button v-if="isEditing" class="del" @click="confirmDelete">删除账户</button>
-        <view style="height:calc(48rpx + env(safe-area-inset-bottom));"></view>
-      </scroll-view>
+      </view>
 
       <!-- 类型选择器（编辑改类型 / 新建未指定类型的兜底） -->
       <AccountTypeSheet v-model:visible="typePickerOpen" @pick="pickTypeForEdit" />
@@ -542,11 +545,8 @@ function confirmDelete() {
 }
 .nav-cancel { flex: 0 0 auto; min-width: 120rpx; font-size: 30rpx; color: #8a94a6; }
 .nav-title { flex: 1; text-align: center; font-size: 34rpx; font-weight: 800; color: #16181c; }
-.nav-save {
-  flex: 0 0 auto; min-width: 120rpx; text-align: right;
-  font-size: 28rpx; font-weight: 700; color: #12a150;
-}
-.body { padding: 24rpx 24rpx 0; box-sizing: border-box; }
+.nav-spacer { flex: 0 0 auto; min-width: 120rpx; }
+.body { flex: 1 1 auto; min-height: 0; padding: 24rpx 24rpx 0; box-sizing: border-box; }
 .form-body { background: #fff; border-radius: 18rpx; padding: 0 24rpx; margin-top: 16rpx; }
 .form-body:first-child { margin-top: 0; }
 .frow { display: flex; align-items: center; justify-content: space-between; padding: 28rpx 0; border-top: 1rpx solid #eceef1; }
@@ -567,12 +567,19 @@ function confirmDelete() {
 .frow.col { flex-direction: column; align-items: stretch; gap: 8rpx; }
 .frow-top { display: flex; align-items: center; justify-content: space-between; }
 .fhint { font-size: 22rpx; color: #9aa2ad; }
+/* 固定底部操作区 */
+.footer {
+  flex: 0 0 auto;
+  background: #fff;
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid #f0f1f3;
+}
 .big-save {
-  margin-top: 24rpx; background: linear-gradient(135deg, #18b85a, #0e8a44);
+  margin-top: 0; background: linear-gradient(135deg, #18b85a, #0e8a44);
   color: #fff; border-radius: 44rpx; font-size: 30rpx; font-weight: 700;
   box-shadow: 0 12rpx 24rpx rgba(18, 161, 80, 0.35);
 }
-.del { margin-top: 20rpx; background: #fff; color: #e5484d; border-radius: 44rpx; font-size: 30rpx; border: 1rpx solid #f1d4d4; }
+.del { margin-top: 16rpx; background: #fff; color: #e5484d; border-radius: 44rpx; font-size: 30rpx; border: 1rpx solid #f1d4d4; }
 .mask { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.42); display: flex; align-items: flex-end; z-index: 910; }
 .mask-top { z-index: 920; }
 .sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
