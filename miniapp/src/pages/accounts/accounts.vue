@@ -180,16 +180,15 @@ function onAccountSaved() {
       </view>
     </view>
 
-    <!-- 借贷往来：对齐竞品的轻量窄行（小字、并排、不抢眼），各半区进入对应列表 -->
-    <view v-if="showLoans" class="loan-strip">
-      <view class="ls-item" @click="goLoans('BORROW')">
-        <text class="ls-k">借入/待还</text>
-        <text class="ls-v exp">{{ money(borrowOutstanding) }}</text>
+    <!-- 借贷往来：对齐竞品，两张独立卡片并排；每张卡片简洁单行（标签左 + 金额右） -->
+    <view v-if="showLoans" class="loan-cards">
+      <view class="loan-card" @click="goLoans('BORROW')">
+        <text class="lc-k">借入/待还</text>
+        <text class="lc-v">{{ money(borrowOutstanding) }}</text>
       </view>
-      <view class="ls-sep"></view>
-      <view class="ls-item" @click="goLoans('LEND')">
-        <text class="ls-k">借出/待收</text>
-        <text class="ls-v inc">{{ money(lendOutstanding) }}</text>
+      <view class="loan-card" @click="goLoans('LEND')">
+        <text class="lc-k">借出/待收</text>
+        <text class="lc-v">{{ money(lendOutstanding) }}</text>
       </view>
     </view>
 
@@ -288,30 +287,24 @@ function onAccountSaved() {
 .nw-value::before { content: '¥'; font-size: 36rpx; opacity: 0.8; margin-right: 6rpx; }
 .nw-value.neg { color: #fecaca; }
 .nw-foot { display: flex; justify-content: space-between; font-size: 24rpx; opacity: 0.9; }
-/* 借贷窄行：对齐竞品，单行轻量、小字、两半区并排，标签左 + 金额右 */
-.loan-strip {
-  display: flex;
-  align-items: center;
+/* 借贷卡片：对齐竞品，两张独立卡片并排；每张卡片简洁单行（标签左 + 金额右，小字不抢眼） */
+.loan-cards { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
+.loan-card {
+  flex: 1;
   background: #fff;
   border-radius: 18rpx;
-  padding: 22rpx 24rpx;
-  margin-bottom: 24rpx;
-  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
-}
-.ls-item {
-  flex: 1;
+  padding: 24rpx 24rpx;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12rpx;
   min-width: 0;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
-.ls-k { font-size: 24rpx; color: #9aa2ad; }
-.ls-v { font-size: 30rpx; font-weight: 700; }
-.ls-v::before { content: '¥'; font-size: 20rpx; opacity: 0.7; margin-right: 2rpx; }
-.ls-v.exp { color: #e5563d; }
-.ls-v.inc { color: #0f8a45; }
-.ls-sep { width: 1rpx; height: 34rpx; background: #eceef1; margin: 0 24rpx; flex: 0 0 auto; }
+.lc-k { font-size: 24rpx; color: #9aa2ad; }
+/* 金额统一用中性深色、常规字重，不再区分红/绿，也不加粗（对齐竞品） */
+.lc-v { font-size: 30rpx; font-weight: 400; color: #16181c; }
+.lc-v::before { content: '¥'; font-size: 20rpx; opacity: 0.7; margin-right: 2rpx; }
 .repay {
   background: #fff;
   border-radius: 22rpx;
