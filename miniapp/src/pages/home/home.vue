@@ -324,12 +324,25 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
       </view>
     </view>
 
-    <!-- 本月发现：一行三入口 -->
+    <!-- 本月发现 -->
     <view class="wrap">
-      <view class="disc">
-        <view class="di" @click="goReport"><text class="de">📊</text><text class="dl">报表</text></view>
-        <view class="di" @click="goPersonality"><text class="de">🏷️</text><text class="dl">人格</text></view>
-        <view class="di" @click="goFun"><text class="de">🧋</text><text class="dl">趣味</text></view>
+      <view class="blk-h"><text class="blk-t">✨ 本月发现</text></view>
+      <view class="card disc-card">
+        <view class="cand" @click="goReport">
+          <view class="cand-ic emoji">📊</view>
+          <view class="cand-info"><text class="cand-name">本月报表</text><text class="cand-meta">看看这个月钱都去哪了</text></view>
+          <text class="disc-go">查看 ›</text>
+        </view>
+        <view class="cand" @click="goPersonality">
+          <view class="cand-ic emoji">🏷️</view>
+          <view class="cand-info"><text class="cand-name">消费人格</text><text class="cand-meta">看看你是哪种记账人格</text></view>
+          <text class="disc-go">去看 ›</text>
+        </view>
+        <view class="cand" @click="goFun">
+          <view class="cand-ic emoji">🧋</view>
+          <view class="cand-info"><text class="cand-name">趣味分析</text><text class="cand-meta">你的消费小趣事</text></view>
+          <text class="disc-go">去看 ›</text>
+        </view>
       </view>
     </view>
 
@@ -454,10 +467,14 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
 .wd.today .dot { background: var(--c-brand, #12a150); color: #fff; box-shadow: 0 6rpx 14rpx rgba(20, 24, 28, 0.22); }
 .wd.today { color: var(--c-brand-ink, #0e8a44); font-weight: 700; }
 
-/* 本月发现：一行三入口 */
-.disc { display: flex; background: #fff; border-radius: 20rpx; margin-top: 16rpx; box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05); overflow: hidden; }
-.di { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10rpx; padding: 24rpx 4rpx; }
-.di + .di { border-left: 1rpx solid #f1f3f5; }
-.di .de { font-size: 30rpx; }
-.di .dl { font-size: 24rpx; color: #5b6470; font-weight: 600; }
+/* 本月发现：完整三行列表（图标 + 标题 + 说明 + 箭头） */
+.disc-card { overflow: hidden; }
+.cand { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 24rpx; border-top: 1rpx solid #f1f3f5; }
+.disc-card .cand:first-child { border-top: none; }
+.cand-ic { width: 78rpx; height: 78rpx; border-radius: 22rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.cand-ic.emoji { font-size: 38rpx; }
+.cand-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.cand-name { font-size: 30rpx; font-weight: 600; color: #16181c; }
+.cand-meta { font-size: 22rpx; color: #9aa2ad; }
+.disc-go { flex: 0 0 auto; font-size: 24rpx; font-weight: 700; color: var(--c-brand-ink, #0e8a44); }
 </style>
