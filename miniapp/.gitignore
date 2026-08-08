@@ -1,5 +1,10 @@
 node_modules/
-dist/
+# 构建产物默认不入库，但保留可直接上传的微信小程序生产包
+# （供另一台机器 git pull 后用微信开发者工具打开直接上传发布）。
+dist/*
+!dist/build/
+dist/build/*
+!dist/build/mp-weixin/
 unpackage/
 .env
 .env.local

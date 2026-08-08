@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "有余",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
+    "tab-bar": "../../components/TabBar/TabBar"
+  }
+}
