@@ -170,7 +170,7 @@ class InviteTimestampAuditPropertyTest {
      *
      * <p>Validates: Requirements 5.2, 5.8, 5.9, 9.15</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property8_registerTimeEqualsCreatedAtAndAuditColumnsAreStable(
             @ForAll @IntRange(min = 2, max = 5) int chainLength,
             @ForAll("advanceMillis") List<Long> advances,

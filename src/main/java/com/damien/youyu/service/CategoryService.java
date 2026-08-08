@@ -67,16 +67,34 @@ public class CategoryService {
      */
     @Transactional
     public Category create(Long ledgerId, String rawKind, String rawName, Long parentId) {
-        return create(ledgerId, rawKind, rawName, parentId, null);
+        return create(ledgerId, rawKind, rawName, parentId, null, null);
     }
 
     /**
-     * 创建父/子分类，并指定图标 key（为空时按名称启发式推断）。
+     * 创建父/子分类，并指定图标 key（为空/非白名单时按名称启发式推断）。
      *
-     * @param rawIcon 图标 key（内置图标集）；null/空时按名称推断
+     * @param rawIcon 图标 key（内置图标集）；null/空/非白名单时按名称推断
      */
     @Transactional
     public Category create(Long ledgerId, String rawKind, String rawName, Long parentId, String rawIcon) {
+        return create(ledgerId, rawKind, rawName, parentId, rawIcon, null);
+    }
+
+    /**
+     * 创建父/子分类，并指定图标 key 与背景色。
+     *
+     * <p>图标与配色均纯增量、净化落库、绝不报错（需求 5.1-5.4）：</p>
+     * <ul>
+     *   <li>{@code rawIcon}：不在 {@link CategoryIcons#KEYS} 白名单内视为未提供，由名称推断兜底（需求 5.2、2.4 guess）。</li>
+     *   <li>{@code rawIconColor}：不匹配 {@code ^#[0-9a-fA-F]{6}$} 视为未提供（置 null = 默认色，需求 5.3）。</li>
+     * </ul>
+     *
+     * @param rawIcon      图标 key（内置图标集）；null/空/非白名单时按名称推断
+     * @param rawIconColor 背景色 hex {@code #RRGGBB}；null/非法时置 null（默认色兜底）
+     */
+    @Transactional
+    public Category create(Long ledgerId, String rawKind, String rawName, Long parentId,
+            String rawIcon, String rawIconColor) {
         String name = validateName(rawName);
 
         CategoryKind kind;
@@ -110,17 +128,28 @@ public class CategoryService {
         category.setKind(kind);
         category.setName(name);
         category.setIcon(normalizeIcon(rawIcon, name, kind));
+        category.setIconColor(CategoryIcons.sanitizeColor(trimToNull(rawIconColor)));
         category.setCreatedAt(now);
         category.setUpdatedAt(now);
         return categoryRepository.save(category);
     }
 
-    /** 图标 key 规范化：非空取其修剪值，空时按名称启发式推断。 */
+    /** 图标 key 规范化：净化后（非白名单置 null）取其值，为空时按名称启发式推断。 */
     private String normalizeIcon(String rawIcon, String name, CategoryKind kind) {
-        if (rawIcon != null && !rawIcon.isBlank()) {
-            return rawIcon.trim();
+        String sanitized = CategoryIcons.sanitizeIcon(trimToNull(rawIcon));
+        if (sanitized != null) {
+            return sanitized;
         }
         return CategoryIcons.guess(name, kind);
+    }
+
+    /** 修剪并把空白/空串归一为 null，便于净化判断。 */
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     /** 列出本人全部分类（供按 kind 分组与层级构建，需求 5.6）。 */
@@ -176,16 +205,30 @@ public class CategoryService {
      */
     @Transactional
     public Category rename(Long ledgerId, Long id, String rawName) {
-        return update(ledgerId, id, rawName, null);
+        return update(ledgerId, id, rawName, null, null);
     }
 
     /**
      * 更新分类名称与图标：kind、parentId 与交易关联保持不变（需求 5.4）。
      *
-     * @param rawIcon 新图标 key；null 表示不改动图标
+     * @param rawIcon 新图标 key；null/空表示不改动图标
      */
     @Transactional
     public Category update(Long ledgerId, Long id, String rawName, String rawIcon) {
+        return update(ledgerId, id, rawName, rawIcon, null);
+    }
+
+    /**
+     * 更新分类名称、图标与背景色：kind、parentId 与交易关联保持不变（需求 5.4）。
+     *
+     * <p>图标与配色均纯增量、净化落库、绝不报错（需求 5.1-5.4）：仅当提供（非空白）时才改动对应列，
+     * 非白名单图标 / 非法配色净化为 null（视为未提供，分别由名称推断、默认色兜底，需求 5.2、5.3）。</p>
+     *
+     * @param rawIcon      新图标 key；null/空表示不改动图标
+     * @param rawIconColor 新背景色 hex {@code #RRGGBB}；null/空表示不改动配色，非法则净化为 null
+     */
+    @Transactional
+    public Category update(Long ledgerId, Long id, String rawName, String rawIcon, String rawIconColor) {
         Category category = categoryRepository.findByIdAndLedgerId(id, ledgerId)
                 .orElseThrow(() -> ApiException.notFound("分类不存在"));
 
@@ -204,8 +247,14 @@ public class CategoryService {
         }
 
         category.setName(name);
-        if (rawIcon != null && !rawIcon.isBlank()) {
-            category.setIcon(rawIcon.trim());
+        // 仅当提供（非空白）时才改动图标/配色；提供的非法值净化为 null（需求 5.2、5.3）。
+        String icon = trimToNull(rawIcon);
+        if (icon != null) {
+            category.setIcon(CategoryIcons.sanitizeIcon(icon));
+        }
+        String iconColor = trimToNull(rawIconColor);
+        if (iconColor != null) {
+            category.setIconColor(CategoryIcons.sanitizeColor(iconColor));
         }
         category.setUpdatedAt(LocalDateTime.now(clock));
         return categoryRepository.save(category);

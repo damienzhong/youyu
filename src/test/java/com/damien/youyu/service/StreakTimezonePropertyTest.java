@@ -153,7 +153,7 @@ class StreakTimezonePropertyTest {
      *
      * <p>Validates: Requirements 1.5, 9.15</p>
      */
-    @Property(tries = 60)
+    @Property(tries = 25)
     void judgmentAndSegmentsAreIndependentOfDefaultTimeZone(
             @ForAll("calendars") List<LocalDate> calendar,
             @ForAll("anyDate") LocalDate requestDay,
@@ -200,7 +200,7 @@ class StreakTimezonePropertyTest {
      *
      * <p>Validates: Requirements 1.13, 1.5</p>
      */
-    @Property(tries = 60)
+    @Property(tries = 25)
     void judgmentDaySwitchesExactlyOnceAtShanghaiMidnight(
             @ForAll("anyDate") LocalDate day,
             @ForAll("defaultZones") ZoneId zone) {

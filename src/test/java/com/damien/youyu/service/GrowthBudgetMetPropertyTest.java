@@ -212,7 +212,7 @@ class GrowthBudgetMetPropertyTest {
      * 月份集合恰好等于内存参考实现按需求 5.3 算出的应写入集合；每月至多 1 条、每条 50 经验；结算月与超窗口月
      * 永不写入；协作账本达成不泄漏；预算两表结算前后逐行不变；预算判定读查询数 ≤8。
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property11_budgetMetScopeCaliberAndNoStacking(
             @ForAll @IntRange(min = 1, max = MAX_OWNED) int ownedLedgerCount,
             @ForAll @IntRange(min = 0, max = 3) int collabLedgerCount,

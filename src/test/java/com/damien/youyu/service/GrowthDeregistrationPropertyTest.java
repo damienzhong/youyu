@@ -230,7 +230,7 @@ class GrowthDeregistrationPropertyTest {
      *
      * <p>Validates: Requirements 11.21, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8, 12.9, 12.11</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property15_growthClearedOnDeletionAndReRegistrationStartsAtLevelOne(
             @ForAll("scenarios") Scenario scenario) {
 

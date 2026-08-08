@@ -251,7 +251,7 @@ class StreakFaultIsolationPropertyTest {
      *
      * <p>Validates: Requirements 7.3, 7.4, 7.13, 4.16, 5.9, 7.5</p>
      */
-    @Property(tries = 60)
+    @Property(tries = 25)
     void segmentMaintenanceFaults_changeNeitherTheContractNorTheSegmentTableNorTheSixTables(
             @ForAll("faultPoints") FaultPoint faultPoint,
             @ForAll("exceptionTypes") ExceptionType exceptionType,

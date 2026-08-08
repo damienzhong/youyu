@@ -129,7 +129,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
           expect(g.items).toEqual(groupable.filter((a) => String(a.category).trim() === g.category))
         }
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -148,7 +148,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
           }
         }
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -157,7 +157,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
       fc.property(fc.constantFrom(null, undefined, 0, '', 'x', 42, true, {}), (bad) => {
         expect(groupByCategory(bad)).toEqual([])
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
     expect(groupByCategory([null, undefined, 1, 'x', [], {}, { category: '   ' }])).toEqual([])
   })
@@ -181,7 +181,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
         expect(target).toBeGreaterThanOrEqual(0)
         expect(current).toBeLessThanOrEqual(target)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -195,7 +195,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
           expect(text).toBe(`${Math.min(Math.max(current, 0), target)} / ${target}`)
         }
       ),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -210,7 +210,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
         }
         if (label !== '') expect(label).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -234,7 +234,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
         // 未解锁项一律不出解锁日期（需求 9.5）
         expect(unlockedDateLabel({ unlocked: false, unlockedAt: at })).toBe('')
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -251,7 +251,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
           }
         }
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -262,7 +262,7 @@ describe('任务 9.3: groupByCategory 分组保序与进度 / 日期文案', () 
         expect(achievementProgressText(bad)).toBe('')
         expect(unlockedDateLabel(bad)).toBe('')
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })

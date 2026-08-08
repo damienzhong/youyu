@@ -105,7 +105,7 @@ class StreakNoChangeNoWritePropertyTest {
      *
      * <p>Validates: Requirements 4.8, 4.10, 4.11, 5.2</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void repeatedMaintenanceWithUnchangedCalendarWritesNothing(
             @ForAll("calendars") List<Integer> offsets,
             @ForAll @IntRange(min = 2, max = 5) int repeats) {

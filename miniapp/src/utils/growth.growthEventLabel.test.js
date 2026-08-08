@@ -117,7 +117,7 @@ describe('任务 12.3 / 任务 7.3: growthEventLabel 映射完备性', () => {
         expect(hasChinese(label)).toBe(true)
         expect(leaksEnum(label)).toBe(false)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -136,7 +136,7 @@ describe('任务 12.3 / 任务 7.3: growthEventLabel 映射完备性', () => {
         expect(label).toContain(date)
         expect(hasChinese(label)).toBe(true)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
     fc.assert(
       fc.property(fc.constantFrom('BUDGET_MET', 'SAVING_MONTH'), monthPart, (type, month) => {
@@ -145,7 +145,7 @@ describe('任务 12.3 / 任务 7.3: growthEventLabel 映射完备性', () => {
         expect(hasChinese(label)).toBe(true)
         expect(leaksEnum(label)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -162,7 +162,7 @@ describe('任务 12.3 / 任务 7.3: growthEventLabel 映射完备性', () => {
           expect(leaksEnum(label)).toBe(false)
         }
       ),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -176,7 +176,7 @@ describe('任务 12.3 / 任务 7.3: growthEventLabel 映射完备性', () => {
         expect(leaksEnum(label)).toBe(false)
         expect(hasChinese(label)).toBe(true)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 })

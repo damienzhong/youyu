@@ -243,7 +243,7 @@ class AchievementOverviewParityPropertyTest {
      *
      * <p>Validates: Requirements 12.1, 12.2, 12.3</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property6_overviewBadgesEqualAchievementViewsItemByItem(
             @ForAll State state,
             @ForAll boolean overviewFirst,

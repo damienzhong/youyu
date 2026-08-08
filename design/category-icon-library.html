@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 分类图标库 + 自定义配色 原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f4f5f7; --line:#f1f3f5;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --radius:20px; --pill:999px; --shadow:0 8px 24px rgba(20,24,28,.05);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1180px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:var(--pill);}
+  h1{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:16px 0 10px;}
+  .sub{font-size:16px;color:var(--ink-2);max-width:860px;line-height:1.7;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.14em;color:var(--ink-3);text-transform:uppercase;margin:48px 0 16px;}
+  .sec-desc{font-size:14px;color:var(--ink-2);margin:-8px 0 20px;}
+
+  /* 图标库总览 */
+  .lib{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:8px 20px 24px;}
+  .grp{margin-top:22px;}
+  .grp-h{font-size:14px;font-weight:800;color:var(--ink);margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .grp-h .cnt{font-size:11px;color:var(--ink-3);font-weight:600;background:var(--surface-2);border-radius:999px;padding:2px 9px;}
+  .cells{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:14px 8px;}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .tile{width:52px;height:52px;border-radius:16px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;}
+  .tile svg{width:26px;height:26px;stroke:#5b6470;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .cell .k{font-size:11px;color:var(--ink-3);text-align:center;}
+
+  /* 手机原型 */
+  .screens{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;}
+  .pw{width:360px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 10px;}
+  .phone{width:360px;height:760px;background:var(--surface);border-radius:42px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;}
+  .sheet-nav{display:flex;align-items:center;justify-content:space-between;padding:16px 20px 12px;background:#fff;border-bottom:1px solid var(--line);}
+  .sheet-nav .c{font-size:14px;color:var(--ink-3);} .sheet-nav .t{font-size:16px;font-weight:800;} .sheet-nav .s{font-size:14px;font-weight:700;color:var(--brand-600);}
+  .sbody{flex:1;overflow-y:auto;padding:18px 18px 24px;}
+  .sbody::-webkit-scrollbar{width:0;}
+
+  /* 预览 + 名称 */
+  .preview-row{display:flex;align-items:center;gap:16px;background:#fff;border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);}
+  .preview{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;transition:background .15s;}
+  .preview svg{width:34px;height:34px;stroke:#fff;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .name-input{flex:1;font-size:16px;color:var(--ink);border:none;outline:none;background:transparent;}
+  .name-input::placeholder{color:var(--ink-3);}
+
+  .lbl{font-size:13px;font-weight:700;color:var(--ink-2);margin:20px 2px 10px;}
+
+  /* 配色行 */
+  .colors{display:flex;gap:12px;flex-wrap:wrap;}
+  .sw{width:34px;height:34px;border-radius:50%;position:relative;cursor:pointer;}
+  .sw.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px currentColor;}
+
+  /* 场景分组 tabs */
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 0 8px;}
+  .tabs::-webkit-scrollbar{height:0;}
+  .gtab{flex:0 0 auto;font-size:13px;font-weight:700;color:var(--ink-2);background:#fff;border-radius:999px;padding:7px 14px;box-shadow:var(--shadow);}
+  .gtab.on{background:var(--brand);color:#fff;}
+
+  /* 选择器网格 */
+  .pgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px 0;margin-top:6px;}
+  .pcell{display:flex;justify-content:center;padding:6px 0;}
+  .ptile{width:52px;height:52px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);}
+  .ptile svg{width:26px;height:26px;stroke:#8a94a6;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .pcell.on .ptile{background:currentColor;}
+  .pcell.on .ptile svg{stroke:#fff;}
+
+  .legend{margin-top:36px;font-size:14px;color:var(--ink-2);line-height:1.9;}
+  .legend b{color:var(--ink);}
+  code{background:var(--surface-2);border-radius:6px;padding:1px 6px;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 分类图标库</span>
+  <h1>完整分类图标库 + 自定义背景色</h1>
+  <p class="sub">现有图标偏少偏简单。这里给出一套<b>按场景分组</b>的统一线性图标库（24×24、单色描边，与现有 <code>icons.js</code> 同风格，可直接扩充进去），并对齐竞品支持<b>用户自定义图标背景色</b>：选图标 + 选颜色，磁贴用实色背景 + 白色图标。下方先是全部图标总览，再是选择器交互原型。</p>
+
+  <div class="sec">01 · 图标库总览（按场景分组）</div>
+  <div class="sec-desc" id="lib-count"></div>
+  <div class="lib" id="lib"></div>
+
+  <div class="sec">02 · 选择器原型（图标 + 背景色）</div>
+  <div class="screens">
+    <div class="pw">
+      <p class="cap">编辑分类 · 选图标与配色</p>
+      <div class="phone"><div class="screen">
+        <div class="sheet-nav"><span class="c">取消</span><span class="t">编辑分类</span><span class="s">保存</span></div>
+        <div class="sbody">
+          <div class="preview-row">
+            <div class="preview" id="preview"></div>
+            <input class="name-input" value="餐饮" />
+          </div>
+
+          <div class="lbl">背景颜色</div>
+          <div class="colors" id="colors"></div>
+
+          <div class="lbl">选择图标</div>
+          <div class="tabs" id="tabs"></div>
+          <div class="pgrid" id="pgrid"></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="legend" style="flex:1;min-width:320px;margin-top:38px;">
+      <p><b>交互：</b>顶部实时预览「当前颜色 + 当前图标」；中部一排可选背景色；下部按场景分组切换，网格选图标。选中图标磁贴用所选实色背景 + 白色图标。</p>
+      <p><b>数据模型（落地）：</b>分类表加 <code>icon</code>（图标 key，已有）与 <code>icon_color</code>（背景色 hex，新增，缺省品牌绿 <code>#12a150</code>）。渲染处（记账页/分类管理/流水/首页猜你要记等）统一：实色圆角磁贴 + 白色描边图标。</p>
+      <p><b>图标资产：</b>本页所有图标即最终 SVG path，可整理进 <code>utils/icons.js</code> 的 <code>ICON_PATHS</code>，并按分组补充 <code>ICON_GROUPS</code>（供选择器分组展示）。<code>iconDataUri</code> 增加一个「实色背景 + 白色描边」变体用于彩色磁贴。</p>
+      <p><b>兼容：</b>旧数据无 <code>icon_color</code> → 用默认色；旧 <code>guessIcon</code> 关键字映射保留，新增图标按 key 命中优先。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ 图标库数据（分场景，24x24 path；与 icons.js 同风格） ============
+const ICONS = {
+  "餐饮美食": {
+    food:"M4 3v7a3 3 0 0 0 3 3v8M7 3v6M10 3v6M17 3c-1.5 1.5-2 4-2 6s.5 3 2 3v9",
+    breakfast:"M4 8h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z M17 9h2a2 2 0 0 1 0 4h-2 M4 20h13",
+    coffee:"M5 8h11v4a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z M16 9h2a2 2 0 0 1 0 4h-2 M5 20h11",
+    milktea:"M8 8h8l-1 12H9L8 8Z M8 8l1-3h6l1 3 M10 12v4M14 12v4",
+    fruit:"M12 8c3 0 5 2 5 6s-2 6-5 6-5-2-5-6 2-6 5-6Z M12 8c0-2 1-4 3-4 M12 8V5",
+    wine:"M7 3h10l-1 6a4 4 0 0 1-8 0L7 3Z M12 15v5M8 21h8",
+    snack:"M6 9h12l-1 10H7L6 9Z M9 9V6a3 3 0 0 1 6 0v3 M9.5 13h5",
+    dessert:"M5 20h14l-2-7H7l-2 7Z M12 13V9M9 9a3 3 0 0 1 6 0",
+    hotpot:"M4 10h16v3a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6v-3Z M8 6c0 1-1 1-1 2M12 5c0 1-1 1-1 2M16 6c0 1-1 1-1 2",
+    veg:"M12 9c4 0 6 3 6 6s-2 5-6 5-6-2-6-5 2-6 6-6Z M12 9c-1-3 1-5 4-5 M12 9c0-2-1-3-3-4",
+    bbq:"M4 6l16 4 M7 20l5-7 5 7 M9 15h6",
+    noodle:"M5 9h14a7 7 0 0 1-14 0Z M8 9V5M11 9V4M14 9V5 M4 20h13"
+  },
+  "交通出行": {
+    transport:"M5 5h14v9H5z M5 14l-1 4M19 14l1 4M8 18h8 M8 9h8",
+    subway:"M6 4h12v11H6z M6 15l-2 4M18 15l2 4M9 19h6 M6 9h12",
+    taxi:"M4 11l2-5h12l2 5 M4 11h16v6H4z M7 17v2M17 17v2 M8 14h.01M16 14h.01",
+    fuel:"M5 20V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v14 M5 12h9 M14 8l3 3v6a2 2 0 0 0 2-2V9l-3-3",
+    parking:"M5 4h14v16H5z M9 16V8h4a3 3 0 0 1 0 6H9",
+    train:"M7 3h10a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2Z M5 20l2-3M19 20l-2-3 M5 10h14M9 14h.01M15 14h.01",
+    plane:"M2 12l19-8-8 19-2.6-7.6L2 12Z",
+    bike:"M6 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z M6 15l4-7h4l2 4 M9 8h4",
+    ship:"M4 14h16l-2 5H6l-2-5Z M12 4v10M7 9h10",
+    charge:"M9 3h6l-1 7h3l-7 11 1-8H8l1-10Z"
+  },
+  "购物消费": {
+    shopping:"M6 8h12l-1 12H7L6 8Z M9 8V6a3 3 0 0 1 6 0v2",
+    clothes:"M9 4l3 2 3-2 4 3-2 3-2-1v10H9V9L7 10 5 7l4-3Z",
+    shoe:"M3 15h12l4 2v2H3v-4Z M3 15V9l4-1 2 3 6 1",
+    digital:"M6 3h12v18H6z M9 6h6M10 18h4",
+    beauty:"M9 3h6v5a3 3 0 0 1-6 0V3Z M10 11h4v10h-4z",
+    daily:"M5 8h14l-1 12H6L5 8Z M5 8l2-4h10l2 4",
+    homeapp:"M4 5h16v11H4z M4 20h16M9 16v4M15 16v4",
+    gift:"M4 8h16v12H4z M4 12h16M12 8v12 M12 8c-1.5-3-5-3-5-1s3.5 1 5 1Zm0 0c1.5-3 5-3 5-1s-3.5 1-5 1Z",
+    bag:"M6 9h12l-1 11H7L6 9Z M9 9a3 3 0 0 1 6 0 M4 9h16",
+    baby:"M12 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M6 20c0-4 3-8 6-8s6 4 6 8 M9 14l-3-2M15 14l3-2",
+    supermarket:"M5 8h14l-1 9H6L5 8Z M5 8L4 4H2 M8 8V6a4 4 0 0 1 8 0v2 M9 21a1 1 0 1 0 0-2M15 21a1 1 0 1 0 0-2"
+  },
+  "居家生活": {
+    home:"M4 11l8-6 8 6 M6 10v9h12v-9 M10 19v-5h4v5",
+    water:"M12 3c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11Z",
+    electric:"M13 2L5 13h6l-1 9 8-11h-6l1-8Z",
+    gas:"M12 3c2 3 4 5 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-3 .5 1 1.5 1 2 0Z",
+    property:"M5 20V9l7-5 7 5v11 M9 20v-6h6v6",
+    furniture:"M5 11a3 3 0 0 1 6 0v3H5z M13 11a3 3 0 0 1 6 0v3h-6z M5 14v4M19 14v4 M5 14h14",
+    repair:"M14 6a3 3 0 0 1-4 4l-6 6 2 2 6-6a3 3 0 0 1 4-4l-2-2 2-2 2 2-2 2Z",
+    wifi:"M4 9a13 13 0 0 1 16 0 M7 12.5a8 8 0 0 1 10 0 M10 16a3 3 0 0 1 4 0 M12 19h.01",
+    clean:"M14 3l3 3-7 7-3-3 7-7Z M7 10l-3 8 8-3 M5 17l2 2",
+    plant:"M12 21v-8 M12 13c-3 0-5-2-5-5 3 0 5 2 5 5Z M12 13c3 0 5-2 5-6-3 0-5 2-5 6Z"
+  },
+  "休闲娱乐": {
+    entertainment:"M3 7h18v10H3z M8 7v10M16 7v10 M5 10h1M5 14h1M18 10h1M18 14h1",
+    movie:"M4 5h16v14H4z M4 9h16M8 5v4M14 5v4M8 15h.01M14 15h.01",
+    game:"M7 8h10a4 4 0 0 1 0 8c-2 0-3-2-5-2s-3 2-5 2a4 4 0 0 1 0-8Z M7 12h3M8.5 10.5v3M15.5 11h.01M17 12.5h.01",
+    ktv:"M12 3v10 M12 13a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M12 6c3 0 5 1 5 3",
+    travel:"M2 12l19-8-8 19-2.6-7.6L2 12Z",
+    sport:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M4 8c4 2 12 2 16 0M4 16c4-2 12-2 16 0M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18",
+    book:"M6 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3Z M4 5v14M9 8h6",
+    music:"M9 18V6l10-2v12 M9 18a2 2 0 1 1-4 0 2 2 0 0 1 4 0ZM19 16a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z",
+    photo:"M4 7h4l2-2h4l2 2h4v12H4z M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z",
+    pet:"M7 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM17 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 15a2 2 0 1 0 0-4M19 15a2 2 0 1 0 0-4 M8 18c0-2 1.8-4 4-4s4 2 4 4-1.8 3-4 3-4-1-4-3Z",
+    show:"M4 6h16v10H4z M4 16l3 4M20 16l-3 4 M9 6v10M15 6v10"
+  },
+  "医疗健康": {
+    medical:"M4 7h16v12H4z M9 7V5h6v2 M12 11v4M10 13h4",
+    medicine:"M7 8a4 4 0 0 1 8 0v8a4 4 0 0 1-8 0V8Z M7 12h8",
+    checkup:"M6 3h9l3 3v15H6z M9 12l2 2 4-4",
+    heart:"M12 21s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.5-7 10-7 10Z",
+    tooth:"M12 3c2 0 4 1 5 3 1 3-1 4-1 8-.5 4-1 6-2 6s-1-4-2-4-1 4-2 4-1.5-2-2-6c0-4-2-5-1-8 1-2 3-3 5-3Z",
+    fitness:"M4 9v6M20 9v6M6 7v10M18 7v10 M6 12h12"
+  },
+  "教育学习": {
+    education:"M12 4L2 9l10 5 10-5-10-5Z M6 11v5c0 1 3 2 6 2s6-1 6-2v-5M20 9v5",
+    stationery:"M14 4l6 6-10 10-6 1 1-6 9-11Z M13 5l6 6",
+    tuition:"M4 7h16v12H4z M4 11h16M8 15h4",
+    training:"M12 4L2 9l10 5 10-5-10-5Z M12 14v5",
+    instrument:"M14 3l7 7-4 1-3 3a4 4 0 1 1-4-4l3-3 1-4Z M8 16a2 2 0 1 0 0-4",
+    read:"M4 5c3-1 6-1 8 1 2-2 5-2 8-1v13c-3-1-6-1-8 1-2-2-5-2-8-1V5Z M12 6v13"
+  },
+  "人情往来": {
+    redpacket:"M5 4h14v16H5z M5 4c2.5 3.5 11.5 3.5 14 0 M12 11a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z",
+    treat:"M4 20h16 M6 20v-4a6 6 0 0 1 12 0v4 M12 6V3M9 4l3 2 3-2",
+    ceremony:"M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z",
+    donate:"M12 21s-7-4.5-7-10a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 5.5-7 10-7 10Z M9 12h6",
+    family:"M8 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM16 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z M4 20c0-3 2-5 4-5s4 2 4 5M12 20c0-3 2-5 4-5s4 2 4 5"
+  },
+  "通讯数码": {
+    communication:"M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z M10 18h4",
+    broadband:"M4 9a13 13 0 0 1 16 0 M7 12.5a8 8 0 0 1 10 0 M12 16v3",
+    phonebill:"M6 4h6l1 4-2 2a10 10 0 0 0 5 5l2-2 4 1v4a2 2 0 0 1-2 2C11 20 4 13 4 6a2 2 0 0 1 2-2Z",
+    mail:"M4 6h16v12H4z M4 8l8 5 8-5",
+    express:"M4 8h12v9H4z M16 11h3l2 2v4h-5 M7 21a2 2 0 1 0 0-4M18 21a2 2 0 1 0 0-4",
+    cloud:"M7 18a4 4 0 0 1 .5-8 5 5 0 0 1 9.5 1 3.5 3.5 0 0 1-1 7H7Z"
+  },
+  "金融理财": {
+    invest:"M4 4v16h16 M8 15l3-3 2 2 4-5",
+    insurance:"M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3Z M9 12l2 2 4-4",
+    repay:"M4 11a8 8 0 0 1 14-5l2 2 M20 4v4h-4 M20 13a8 8 0 0 1-14 5l-2-2 M4 20v-4h4",
+    interest:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M9 9l3 3 3-3M12 12v4M9.6 13h4.8",
+    fee:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M8 12h8M10 9l-2 3 2 3M14 9l2 3-2 3",
+    tax:"M6 3h9l3 3v15H6z M9 9h6M9 13h6M9 17h3"
+  },
+  "收入来源": {
+    salary:"M3 6h18v13H3z M3 10h18M16 14h2",
+    bonus:"M12 2l2.5 5 5.5.8-4 3.9.9 5.5L12 15l-4.9 2.2.9-5.5-4-3.9 5.5-.8z",
+    parttime:"M6 8h12v11H6z M9 8V6a3 3 0 0 1 6 0v2 M12 12v3",
+    refund:"M9 7L4 12l5 5 M4 12h11a5 5 0 0 1 5 5",
+    earning:"M4 18l5-5 4 3 7-8 M4 20h16",
+    reimburse:"M6 3h12v18l-3-2-3 2-3-2-3 2V3Z M9 8h6M9 12h6"
+  },
+  "运动户外": {
+    basketball:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M3 12h18M12 3v18M6 6c3 2 3 10 0 12M18 6c-3 2-3 10 0 12",
+    soccer:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M12 8l3.5 2.5-1.3 4h-4.4l-1.3-4L12 8Z",
+    swim:"M4 15c2-1.5 3-1.5 5 0s3 1.5 5 0 3-1.5 5 0 M4 19c2-1.5 3-1.5 5 0s3 1.5 5 0 3-1.5 5 0 M15 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M8 12l3-2 5 3",
+    dumbbell:"M3 10v4M6 8v8M18 8v8M21 10v4 M6 12h12",
+    badminton:"M14 3l7 7-3 1-3.5 3.5-3.5-3.5 3.5-3.5 3-3.5Z M8.5 14.5a3 3 0 1 0 .01 0Z",
+    hiking:"M13 4a1.5 1.5 0 1 0 0-.01Z M11 8l-2 5 3 2 1 6 M9 13l-3 7 M14 10l3 2 3-1"
+  },
+  "汽车养车": {
+    car:"M5 11l2-5h10l2 5 M4 11h16v6H4z M7 17v2M17 17v2M7 14h.01M17 14h.01",
+    carwash:"M5 12l2-4h10l2 4 M4 12h16v5H4z M7 17v2M17 17v2M6 4c0 1.5-1 1.5-1 3M12 3c0 1.5-1 1.5-1 3M18 4c0 1.5-1 1.5-1 3",
+    maintain:"M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1l2.1-2.1M17 7l2.1-2.1",
+    toll:"M6 21V7l6-3 6 3v14 M6 12h12M9 21v-5h6v5",
+    tire:"M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M12 3v3M12 18v3M3 12h3M18 12h3",
+    carinsure:"M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3Z M9 12l2 2 4-4"
+  },
+  "旅行度假": {
+    hotel:"M4 20V6h9a4 4 0 0 1 4 4v10 M4 12h13M20 20V10M7 9h3",
+    ticket:"M4 8h16v3a2 2 0 0 0 0 2v3H4v-3a2 2 0 0 0 0-2V8Z M14 8v8",
+    luggage:"M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2 M5 8h14v12H5z M9 20v1M15 20v1M12 11v6",
+    visa:"M6 3h9l3 3v15H6z M9 9h6M9 13h4M14.5 16.5l1.5 1.5 3-3.5",
+    beach:"M12 4c4 0 6 3 6 6H6c0-3 2-6 6-6Z M12 4v16M8 20h8",
+    map:"M9 4L4 6v14l5-2 6 2 5-2V4l-5 2-6-2Z M9 4v14M15 6v14"
+  },
+  "生活服务": {
+    haircut:"M6 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z M8 8l12 8M8 16l12-8",
+    laundry:"M5 3h14v18H5z M12 9a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z M8 6h.01M11 6h.01",
+    housekeep:"M3 21h18 M6 21V10l6-5 6 5v11 M9 14h6",
+    moving:"M2 8h11v9H2z M13 11h4l3 3v3h-3 M7 20a2 2 0 1 0 0-4M18 20a2 2 0 1 0 0-4",
+    member:"M4 8l4 3 4-6 4 6 4-3-1.5 10H5.5L4 8Z",
+    locksmith:"M7 11V8a5 5 0 0 1 10 0v3 M6 11h12v9H6z M12 15v2"
+  },
+  "数码办公": {
+    laptop:"M5 5h14v10H5z M3 19h18l-2-4H5l-2 4Z",
+    mobile:"M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z M11 18h2",
+    camera:"M4 7h4l2-2h4l2 2h4v12H4z M12 16a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z",
+    headphone:"M5 13a7 7 0 0 1 14 0 M4 13h3v6H5a1 1 0 0 1-1-1v-5ZM20 13h-3v6h2a1 1 0 0 0 1-1v-5Z",
+    printer:"M7 8V4h10v4 M5 8h14v8H5z M8 16h8v4H8z M17 11h.01",
+    software:"M4 5h16v14H4z M4 9h16M7 13l2 2-2 2M12 17h4"
+  },
+  "母婴亲子": {
+    formula:"M9 3h6v3l1 2v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V8l1-2V3Z M8 12h8",
+    diaper:"M4 6h16v4a8 8 0 0 1-16 0V6Z M4 8c4 2 12 2 16 0",
+    toy:"M9 9a4 4 0 1 1 6 0 M12 13v5M9 21h6M10 18h4",
+    kidcloth:"M9 4l3 2 3-2 3 2-1.5 2.5L15 8v9H9V8l-1.5.5L6 6l3-2Z",
+    kidedu:"M12 4L3 8l9 4 9-4-9-4Z M7 11v4c0 1 2.5 2 5 2s5-1 5-2v-4",
+    vaccine:"M14 4l6 6 M17 7l-9 9-3 1 1-3 9-9 M12 9l3 3"
+  },
+  "节日纪念": {
+    cake:"M5 20h14v-6a3 3 0 0 0-3-3H8a3 3 0 0 0-3 3v6Z M5 15h14 M9 11V8M12 11V7M15 11V8 M9 5a1 1 0 1 0 2 0M13 5a1 1 0 1 0 2 0",
+    lantern:"M12 3v2 M8 5h8 M7 8a5 5 0 0 1 10 0v6a5 5 0 0 1-10 0V8Z M12 19v2",
+    rings:"M8 14a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM16 18a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M8 6l2-2 2 2M16 10l-2-2",
+    tree:"M12 3l5 6h-3l3 4h-3l2 3H8l2-3H7l3-4H7l5-6Z M12 16v4M9 22h6",
+    firework:"M12 12v.01 M12 4v3M12 17v3M4 12h3M17 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2",
+    anniversary:"M4 6h16v14H4z M4 10h16M8 3v4M16 3v4 M12 17s-2.5-1.6-2.5-3.4A1.5 1.5 0 0 1 12 12a1.5 1.5 0 0 1 2.5 1.6C14.5 15.4 12 17 12 17Z"
+  },
+  "美容个护": {
+    makeup:"M9 3h6v5a3 3 0 0 1-6 0V3Z M10 11h4v10h-4z",
+    skincare:"M9 3h6v3l1 2v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V8l1-2V3Z M9 12h6",
+    perfume:"M10 3h4v3h-4z M8 9a4 4 0 0 1 8 0v9a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V9Z M11 13h2",
+    nail:"M9 3h6v10a3 3 0 0 1-6 0V3Z M9 8h6",
+    spa:"M12 4c3 3 3 6 0 9-3-3-3-6 0-9Z M5 13c3 0 5 2 5 5-3 0-5-2-5-5ZM19 13c-3 0-5 2-5 5 3 0 5-2 5-5Z",
+    razor:"M4 4h9v5H4z M8.5 9v4a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2 M12 15v5"
+  },
+  "其他常用": {
+    receipt:"M6 3h12v18l-3-2-3 2-3-2-3 2V3Z M9 8h6M9 12h6",
+    transfer:"M4 9h13l-3-3M20 15H7l3 3",
+    cash:"M3 6h18v12H3z M12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM12 12v.01",
+    card:"M3 5h18v14H3z M3 9h18M7 15h4",
+    wallet:"M3 7a2 2 0 0 1 2-2h11v3 M3 7h18v12H3z M17 13a1.4 1.4 0 1 0 0-2",
+    coin:"M12 3c4 0 7 1.3 7 3s-3 3-7 3-7-1.3-7-3 3-3 7-3Z M5 6v6c0 1.7 3 3 7 3s7-1.3 7-3V6 M5 12c0 1.7 3 3 7 3s7-1.3 7-3",
+    pig:"M4 12a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6c0 2-1 3-1 4l1 3h-3l-1-2H8l-1 2H4l1-3c0-1-1-2-1-4Z M9 10h.01M20 11l2-1",
+    star:"M12 4l2.2 4.8L19 9.5l-3.6 3.4.9 5.1L12 15.6 7.7 18l.9-5.1L5 9.5l4.8-.7z",
+    flag:"M6 3v18 M6 4h12l-2 4 2 4H6",
+    more:"M6 12h.01M12 12h.01M18 12h.01",
+    calendar:"M4 5h16v15H4z M4 9h16M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01",
+    lock:"M6 11V8a6 6 0 0 1 12 0v3 M5 11h14v9H5z M12 15v2"
+  }
+};
+
+const LABELS = {
+  food:"餐饮",breakfast:"早餐",coffee:"咖啡",milktea:"奶茶",fruit:"水果",wine:"酒水",snack:"零食",dessert:"甜点",hotpot:"火锅",veg:"蔬菜",
+  transport:"公交",subway:"地铁",taxi:"打车",fuel:"加油",parking:"停车",train:"火车",plane:"机票",bike:"单车",ship:"轮船",charge:"充电",
+  shopping:"购物",clothes:"服饰",shoe:"鞋靴",digital:"数码",beauty:"美妆",daily:"日用",homeapp:"家电",gift:"礼物",bag:"箱包",baby:"母婴",
+  home:"房租",water:"水费",electric:"电费",gas:"燃气",property:"物业",furniture:"家具",repair:"维修",wifi:"网络",clean:"清洁",plant:"绿植",
+  entertainment:"娱乐",movie:"电影",game:"游戏",ktv:"唱歌",travel:"旅游",sport:"运动",book:"书籍",music:"音乐",photo:"摄影",pet:"宠物",
+  medical:"医疗",medicine:"药品",checkup:"体检",heart:"健康",tooth:"牙科",fitness:"健身",
+  education:"教育",stationery:"文具",tuition:"学费",training:"培训",instrument:"乐器",read:"阅读",
+  redpacket:"红包",treat:"请客",ceremony:"礼金",donate:"捐赠",family:"家人",
+  communication:"话费",broadband:"宽带",phonebill:"通讯",mail:"邮件",express:"快递",cloud:"云服务",
+  invest:"理财",insurance:"保险",repay:"还款",interest:"利息",fee:"手续费",tax:"税费",
+  salary:"工资",bonus:"奖金",parttime:"兼职",refund:"退款",earning:"收益",reimburse:"报销",
+  receipt:"其他",transfer:"转账",cash:"现金",card:"银行卡",wallet:"钱包",coin:"存钱",pig:"储蓄",star:"收藏",flag:"目标",more:"更多",calendar:"日历",lock:"密码",
+  bbq:"烧烤",noodle:"面食",supermarket:"超市",show:"演出",
+  basketball:"篮球",soccer:"足球",swim:"游泳",dumbbell:"健身",badminton:"羽球",hiking:"徒步",
+  car:"汽车",carwash:"洗车",maintain:"保养",toll:"过路费",tire:"轮胎",carinsure:"车险",
+  hotel:"酒店",ticket:"门票",luggage:"行李",visa:"签证",beach:"度假",map:"地图",
+  haircut:"理发",laundry:"洗衣",housekeep:"家政",moving:"搬家",member:"会员",locksmith:"开锁",
+  laptop:"电脑",mobile:"手机",camera:"相机",headphone:"耳机",printer:"打印",software:"软件",
+  formula:"奶粉",diaper:"尿布",toy:"玩具",kidcloth:"童装",kidedu:"早教",vaccine:"疫苗",
+  cake:"生日",lantern:"春节",rings:"婚礼",tree:"圣诞",firework:"烟花",anniversary:"纪念日",
+  makeup:"化妆",skincare:"护肤",perfume:"香水",nail:"美甲",spa:"按摩",razor:"剃须"
+};
+
+const COLORS = ["#12a150","#2eb8a6","#3aa0d0","#5b8def","#8b78e0","#e0609a","#e5563d","#f0a13b","#e8b93b","#8a94a6"];
+
+function svg(path, cls){ return `<svg viewBox="0 0 24 24" class="${cls||''}">${path.split(' M').map((seg,i)=>`<path d="${i===0?seg:'M'+seg}"/>`).join('')}</svg>`; }
+
+// ---- 总览 ----
+let total=0;
+const lib = document.getElementById('lib');
+for(const [grp, items] of Object.entries(ICONS)){
+  const keys = Object.keys(items); total += keys.length;
+  const cells = keys.map(k=>`<div class="cell"><div class="tile">${svg(items[k])}</div><span class="k">${LABELS[k]||k}</span></div>`).join('');
+  lib.insertAdjacentHTML('beforeend', `<div class="grp"><div class="grp-h">${grp}<span class="cnt">${keys.length}</span></div><div class="cells">${cells}</div></div>`);
+}
+document.getElementById('lib-count').textContent = `共 ${total} 枚图标，${Object.keys(ICONS).length} 个场景分组（v1，可继续扩充）。`;
+
+// ---- 选择器原型 ----
+let curColor = COLORS[0];
+let curKey = 'food';
+const preview = document.getElementById('preview');
+function renderPreview(){
+  const path = findPath(curKey);
+  preview.style.background = curColor;
+  preview.innerHTML = svg(path);
+}
+function findPath(key){ for(const items of Object.values(ICONS)) if(items[key]) return items[key]; return ICONS['其他常用'].receipt; }
+
+// colors
+document.getElementById('colors').innerHTML = COLORS.map((c,i)=>`<span class="sw ${i===0?'on':''}" style="background:${c};color:${c}" data-c="${c}"></span>`).join('');
+document.querySelectorAll('.sw').forEach(el=>el.addEventListener('click',()=>{
+  document.querySelectorAll('.sw').forEach(s=>s.classList.remove('on'));
+  el.classList.add('on'); curColor = el.dataset.c; renderPreview(); paintGrid();
+}));
+
+// tabs + grid
+const groups = Object.keys(ICONS);
+let curGroup = groups[0];
+const tabs = document.getElementById('tabs');
+tabs.innerHTML = groups.map((g,i)=>`<span class="gtab ${i===0?'on':''}" data-g="${g}">${g}</span>`).join('');
+function renderGrid(){
+  const items = ICONS[curGroup];
+  document.getElementById('pgrid').innerHTML = Object.keys(items).map(k=>
+    `<div class="pcell ${k===curKey?'on':''}" style="color:${curColor}" data-k="${k}"><div class="ptile">${svg(items[k])}</div></div>`
+  ).join('');
+  document.querySelectorAll('.pcell').forEach(el=>el.addEventListener('click',()=>{
+    curKey = el.dataset.k; renderGrid(); renderPreview();
+  }));
+}
+function paintGrid(){ document.querySelectorAll('.pcell').forEach(el=>el.style.color=curColor); }
+tabs.querySelectorAll('.gtab').forEach(el=>el.addEventListener('click',()=>{
+  tabs.querySelectorAll('.gtab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on'); curGroup = el.dataset.g; renderGrid();
+}));
+
+renderPreview(); renderGrid();
+</script>
+</body>
+</html>

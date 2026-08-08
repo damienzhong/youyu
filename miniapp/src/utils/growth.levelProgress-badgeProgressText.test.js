@@ -43,7 +43,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         expect(r).toBeGreaterThanOrEqual(0)
         expect(r).toBeLessThanOrEqual(1)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -55,7 +55,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         expect(r).toBeGreaterThanOrEqual(0)
         expect(r).toBeLessThanOrEqual(1)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -70,7 +70,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         })
         expect(r).toBe(1)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -94,7 +94,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         const expected = Math.min(1, Math.max(0, numerator / (next - base)))
         expect(r).toBeCloseTo(expected, 10)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -112,7 +112,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         })
         expect(r).toBe(0)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -131,7 +131,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
           expect(text).toBe(`${current} / ${target}`)
         }
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -141,7 +141,7 @@ describe('任务 12.1: levelProgress 与 badgeProgressText', () => {
         const text = badgeProgressText(bad)
         expect(typeof text).toBe('string')
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })

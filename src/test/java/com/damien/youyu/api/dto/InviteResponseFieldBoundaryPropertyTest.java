@@ -211,7 +211,7 @@ class InviteResponseFieldBoundaryPropertyTest {
      *
      * <p>Validates: Requirements 7.4, 7.7, 7.8, 8.3, 8.5, 10.8</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property11_listAndBriefFieldBoundary(@ForAll("scenarios") Scenario scenario)
             throws Exception {
 

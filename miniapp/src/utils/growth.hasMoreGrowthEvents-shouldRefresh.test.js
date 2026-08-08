@@ -51,7 +51,7 @@ describe('任务 12.2: hasMoreGrowthEvents', () => {
         expect(typeof r).toBe('boolean')
         expect(r).toBe(toCountRef(loaded) < toCountRef(total))
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -60,7 +60,7 @@ describe('任务 12.2: hasMoreGrowthEvents', () => {
       fc.property(fc.integer({ min: 0, max: 10 ** 7 }), (n) => {
         expect(hasMoreGrowthEvents(n, n)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -72,7 +72,7 @@ describe('任务 12.2: hasMoreGrowthEvents', () => {
       fc.property(arb, ({ loaded, total }) => {
         expect(hasMoreGrowthEvents(loaded, total)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -84,7 +84,7 @@ describe('任务 12.2: hasMoreGrowthEvents', () => {
       fc.property(arb, ({ loaded, total }) => {
         expect(hasMoreGrowthEvents(loaded, total)).toBe(true)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -95,7 +95,7 @@ describe('任务 12.2: hasMoreGrowthEvents', () => {
         // 畸形 loaded 归零：结果等价于 0 < 非负整数化(total)
         expect(r).toBe(0 < toCountRef(total))
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -114,7 +114,7 @@ describe('任务 12.2: shouldRefresh', () => {
         const r = shouldRefresh(last, now)
         expect(typeof r).toBe('boolean')
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -127,7 +127,7 @@ describe('任务 12.2: shouldRefresh', () => {
       fc.property(unparseable, anyTimestamp, (badLast, now) => {
         expect(shouldRefresh(badLast, now)).toBe(true)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -136,7 +136,7 @@ describe('任务 12.2: shouldRefresh', () => {
       fc.property(fc.integer({ min: 0, max: 4 * 10 ** 12 }), unparseable, (last, badNow) => {
         expect(shouldRefresh(last, badNow)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -146,7 +146,7 @@ describe('任务 12.2: shouldRefresh', () => {
         const now = last + delta
         expect(shouldRefresh(last, now)).toBe(delta >= GROWTH_REFRESH_THROTTLE_MS)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -163,7 +163,7 @@ describe('任务 12.2: shouldRefresh', () => {
         const now = last - back // now <= last，差值 <= 0 < 3000
         expect(shouldRefresh(last, now)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 

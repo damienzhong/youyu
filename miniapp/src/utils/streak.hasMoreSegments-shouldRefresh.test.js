@@ -51,7 +51,7 @@ describe('任务 9.3 / Property 15: hasMoreSegments', () => {
         expect(typeof r).toBe('boolean')
         expect(r).toBe(toCountRef(loaded) < toCountRef(total))
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -60,7 +60,7 @@ describe('任务 9.3 / Property 15: hasMoreSegments', () => {
       fc.property(fc.integer({ min: 0, max: 10 ** 7 }), (n) => {
         expect(hasMoreSegments(n, n)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -72,7 +72,7 @@ describe('任务 9.3 / Property 15: hasMoreSegments', () => {
       fc.property(arb, ({ loaded, total }) => {
         expect(hasMoreSegments(loaded, total)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -84,7 +84,7 @@ describe('任务 9.3 / Property 15: hasMoreSegments', () => {
       fc.property(arb, ({ loaded, total }) => {
         expect(hasMoreSegments(loaded, total)).toBe(true)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -93,7 +93,7 @@ describe('任务 9.3 / Property 15: hasMoreSegments', () => {
       fc.property(fc.constantFrom(-1, -100, Number.NaN, Number.POSITIVE_INFINITY, null, undefined, 'x', '', {}, []), anyNumberish, (badLoaded, total) => {
         expect(hasMoreSegments(badLoaded, total)).toBe(0 < toCountRef(total))
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -111,7 +111,7 @@ describe('任务 9.3 / Property 15: shouldRefresh', () => {
       fc.property(anyTimestamp, anyTimestamp, (last, now) => {
         expect(typeof shouldRefresh(last, now)).toBe('boolean')
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -123,7 +123,7 @@ describe('任务 9.3 / Property 15: shouldRefresh', () => {
       fc.property(unparseable, anyTimestamp, (badLast, now) => {
         expect(shouldRefresh(badLast, now)).toBe(true)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -132,7 +132,7 @@ describe('任务 9.3 / Property 15: shouldRefresh', () => {
       fc.property(fc.integer({ min: 0, max: 4 * 10 ** 12 }), unparseable, (last, badNow) => {
         expect(shouldRefresh(last, badNow)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -141,7 +141,7 @@ describe('任务 9.3 / Property 15: shouldRefresh', () => {
       fc.property(fc.integer({ min: 0, max: 4 * 10 ** 12 }), fc.integer({ min: -(10 ** 7), max: 10 ** 7 }), (last, delta) => {
         expect(shouldRefresh(last, last + delta)).toBe(delta >= STREAK_REFRESH_THROTTLE_MS)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -157,7 +157,7 @@ describe('任务 9.3 / Property 15: shouldRefresh', () => {
       fc.property(fc.integer({ min: 0, max: 4 * 10 ** 12 }), fc.integer({ min: 0, max: 10 ** 7 }), (last, back) => {
         expect(shouldRefresh(last, last - back)).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 

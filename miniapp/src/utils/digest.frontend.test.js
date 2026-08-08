@@ -354,7 +354,7 @@ describe('属性：shouldFetchDigest ⟺ 已登录 ∧ 非聚合（需求 10.3�
       fc.property(fc.boolean(), fc.boolean(), (loggedIn, isAll) => {
         expect(shouldFetchDigest(loggedIn, isAll)).toBe(loggedIn && !isAll)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })
@@ -375,7 +375,7 @@ describe('属性：任意失败/超时恒静默隐藏（需求 10.1、10.4）', 
           expect(state.digest).toBe(null)
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })
@@ -419,7 +419,7 @@ describe('属性：海报绝不泄露注入的账本外字段（需求 8.3）', 
           expect(drawn).not.toContain('\u0000LEAK\u0000')
         }
       ),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })

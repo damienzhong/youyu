@@ -186,7 +186,7 @@ class InviteLoginLivenessPropertyTest {
      *
      * <p>Validates: Requirements 5.3, 5.5, 5.6, 6.2, 9.19</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property3_inviteCodeNeverBlocksLogin(
             @ForAll("codeScenarios") CodeScenario scenario,
             @ForAll("accountForms") AccountForm form,

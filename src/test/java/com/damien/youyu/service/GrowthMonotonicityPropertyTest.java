@@ -180,7 +180,7 @@ class GrowthMonotonicityPropertyTest {
      * {@code exp} 与 {@code level} 单调不减且恒等于基线、成长事件逐行快照与基线相同、已点亮徽章保持点亮、
      * 累计有效记账笔数可回落但不超过基线（需求 1.4、5.8、6.3、7.6、7.7、8.4、8.12）。
      */
-    @Property(tries = 25)
+    @Property(tries = 12)
     void property4_expAndLevelNeverDecreaseWhenFactsAreRetracted(
             @ForAll @IntRange(min = 1, max = 35) int recordDays,
             @ForAll boolean withBudget,

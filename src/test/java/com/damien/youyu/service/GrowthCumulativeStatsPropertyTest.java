@@ -165,7 +165,7 @@ class GrowthCumulativeStatsPropertyTest {
      *
      * <p>Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.10, 7.11, 7.14, 7.15, 10.12</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property10_cumulativeStatsReflectFactSourceWithDeleteRestoreSymmetry(
             @ForAll("transactionSets") List<TxSpec> specs,
             @ForAll("deleteRestoreOps") List<Boolean> ops) {

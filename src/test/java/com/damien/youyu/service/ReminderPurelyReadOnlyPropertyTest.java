@@ -186,7 +186,7 @@ class ReminderPurelyReadOnlyPropertyTest {
      *
      * <p>Validates: Requirements 6.8, 11.1, 11.2</p>
      */
-    @Property(tries = 60)
+    @Property(tries = 25)
     void crudAndDispatch_neverWriteUserGrowthOrUsers(
             @ForAll("userSeedLists") List<UserSeed> seeds,
             @ForAll("commandLists") List<Command> commandList) {

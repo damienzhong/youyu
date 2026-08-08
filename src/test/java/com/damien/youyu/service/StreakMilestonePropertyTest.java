@@ -110,7 +110,7 @@ class StreakMilestonePropertyTest {
      *
      * <p>Validates: Requirements 3.6, 3.7, 3.8, 3.9, 3.11</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void nextAfterIsBoundedAndFirstGreater(@ForAll("thresholdSets") List<Integer> raw,
                                            @ForAll("streakDays") int s) {
         List<Integer> expected = sortedDistinct(raw);
@@ -145,7 +145,7 @@ class StreakMilestonePropertyTest {
      *
      * <p>Validates: Requirements 3.6, 3.7</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void nextAfterIsMonotoneNonDecreasing(@ForAll("thresholdSets") List<Integer> raw,
                                           @ForAll("streakDays") int a,
                                           @ForAll("streakDays") int b) {

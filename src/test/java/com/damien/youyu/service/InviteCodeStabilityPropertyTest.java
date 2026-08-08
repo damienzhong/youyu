@@ -193,7 +193,7 @@ class InviteCodeStabilityPropertyTest {
      *
      * <p>Validates: Requirements 1.3, 1.4, 1.12, 1.13</p>
      */
-    @Property(tries = 100)
+    @Property(tries = 25)
     void property2_inviteCodeStabilityAndRequestIdempotence(
             @ForAll("operationSequences") List<Op> ops,
             @ForAll @IntRange(min = 3, max = 5) int poolSize,

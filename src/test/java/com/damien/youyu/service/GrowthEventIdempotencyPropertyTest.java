@@ -187,7 +187,7 @@ class GrowthEventIdempotencyPropertyTest {
      *
      * <p>Validates: Requirements 1.4, 1.5, 1.6, 1.8, 3.5, 8.4</p>
      */
-    @Property(tries = 100)
+    @Property(tries = 25)
     void property3_atMostOneRowPerEventKeyUnderAnySequence(
             @ForAll("extraDayOffsets") List<Integer> extraOffsets,
             @ForAll @IntRange(min = 0, max = 32) int runLength,

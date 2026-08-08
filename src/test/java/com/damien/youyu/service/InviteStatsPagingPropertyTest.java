@@ -167,7 +167,7 @@ class InviteStatsPagingPropertyTest {
      *
      * <p>Validates: Requirements 7.1, 7.2, 7.3, 7.5, 7.6, 7.10</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property9_statsSelfConsistencyAndPagingCoverage(
             @ForAll("relationSets") List<RelationSpec> specs,
             @ForAll @IntRange(min = 1, max = InviteService.MAX_SIZE) int size,

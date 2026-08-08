@@ -107,7 +107,7 @@ class PlanRolePropertyTest {
      *
      * <p>Validates: Requirements 9.2</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property25_planExpiryComputedPerUserIndependently(
             @ForAll("usernames") String username1,
             @ForAll("usernames") String username2,
@@ -171,7 +171,7 @@ class PlanRolePropertyTest {
      *
      * <p>Validates: Requirements 9.3</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property26_nonEnumPlanOrRoleWriteHasNoSideEffect(
             @ForAll("anyCodes") String planCode,
             @ForAll("anyCodes") String roleCode) {

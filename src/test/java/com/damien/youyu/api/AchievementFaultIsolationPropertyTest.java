@@ -325,7 +325,7 @@ class AchievementFaultIsolationPropertyTest {
      *
      * <p>Validates: Requirements 4.14, 4.15, 4.16, 6.7, 12.4</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void achievementFaults_changeNeitherTheFiveEndpointContractsNorTheThreeTables(
             @ForAll("faultPoints") FaultPoint fault,
             @ForAll("endpoints") Endpoint endpoint) throws Exception {

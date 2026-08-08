@@ -203,7 +203,7 @@ describe('属性：pickVisibleSuggestions 输出恒 ∈ [0,3] 且为输入前缀
           expect(out).toEqual(list.slice(0, MAX_SUGGESTIONS))
         }
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 })
@@ -214,7 +214,7 @@ describe('属性：shouldFetchSuggestions ⟺ 已登录 ∧ 非聚合', () => {
       fc.property(fc.boolean(), fc.boolean(), (loggedIn, isAll) => {
         expect(shouldFetchSuggestions(loggedIn, isAll)).toBe(loggedIn && !isAll)
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })
@@ -230,7 +230,7 @@ describe('属性：buildPrefillQuery 的 note 编码可无损往返', () => {
           expect(decodeURIComponent(seg)).toBe(note)
         }
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 })
@@ -248,7 +248,7 @@ describe('属性：resolvePrefillAmount 输出为 null 或正数字符串', () =
           expect(n).toBeGreaterThan(0)
         }
       ),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 })

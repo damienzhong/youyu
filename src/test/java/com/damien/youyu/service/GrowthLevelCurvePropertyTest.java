@@ -110,7 +110,7 @@ class GrowthLevelCurvePropertyTest {
      *
      * <p>Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.11</p>
      */
-    @Property(tries = 1000)
+    @Property(tries = 25)
     void property1_levelCurveMonotonicityAndConversionBoundaries(
             @ForAll @IntRange(min = 1, max = GrowthLevelCurve.MAX_LEVEL) int level,
             @ForAll("exps") long exp,

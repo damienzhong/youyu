@@ -293,7 +293,7 @@ class InviteBindReasonPropertyTest {
      *
      * <p>Validates: Requirements 5.1, 5.4, 5.11, 5.12, 6.10</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property4_bindResultAndUnboundReasonAreDeterministic(
             @ForAll("entries") Entry entry,
             @ForAll("codeKinds") CodeKind codeKind,

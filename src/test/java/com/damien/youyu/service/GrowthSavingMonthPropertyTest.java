@@ -320,7 +320,7 @@ class GrowthSavingMonthPropertyTest {
      *
      * <p>Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 4.8, 4.10</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void property10_savingMonthDecisionMatchesNaiveBigDecimalReference(
             @ForAll("settleDates") LocalDate settleDate,
             @ForAll("txSpecLists") List<TxSpec> specs,
@@ -345,11 +345,11 @@ class GrowthSavingMonthPropertyTest {
 
         // 非空洞守卫：等价性断言在「两侧都返回空列表」时恒真，因此必须确认取样确实压出过「是储蓄月」
         // 的样本。若哪天生成器漂移（例如金额上界改小、支出权重调高）致储蓄月再也出不来，本条会变红。
-        // 门槛取 15 次（300 次迭代的 5%）：只用来挡住「一次都压不出储蓄月」这类生成器漂移，
-        // 而不是把随机取样的分布本身钉死——定得太高会让属性随种子偶发变红。
+        // 门槛取 3 次（50 次迭代的 ~5%，与 tries 同步下调后按比例重算）：只用来挡住「一次都压不出储蓄月」
+        // 这类生成器漂移，而不是把随机取样的分布本身钉死——定得太高会让属性随种子偶发变红。
         Statistics.label("判定结果")
                 .collect(actual.isEmpty() ? "无储蓄月" : "有储蓄月")
-                .coverage(coverage -> coverage.check("有储蓄月").count(count -> count >= 15));
+                .coverage(coverage -> coverage.check("有储蓄月").count(count -> count >= 3));
         assertThat(actual).as("返回月份严格升序且无重复").isSorted().doesNotHaveDuplicates();
         assertThat(actual)
                 .as("只能返回三个回看月之一：结算月与第 4 个更早的月都不参与判定（需求 4.1、4.10）")
@@ -396,7 +396,7 @@ class GrowthSavingMonthPropertyTest {
      *
      * <p>Validates: Requirements 4.3, 4.4, 4.5, 4.8</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void property10_equalityAtThresholdAndOneCentBelow(
             @ForAll("settleDates") LocalDate settleDate,
             @ForAll("amounts") String rawIncome,

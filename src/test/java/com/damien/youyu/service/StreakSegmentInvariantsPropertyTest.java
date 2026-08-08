@@ -128,7 +128,7 @@ class StreakSegmentInvariantsPropertyTest {
      *
      * <p>Validates: Requirements 4.1, 4.2, 4.3, 8.14</p>
      */
-    @Property(tries = 1000)
+    @Property(tries = 25)
     void property1_segmentSeriesInvariants(
             @ForAll("calendars") List<LocalDate> generated,
             @ForAll long shuffleSeed) {

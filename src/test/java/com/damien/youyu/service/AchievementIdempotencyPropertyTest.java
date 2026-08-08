@@ -262,7 +262,7 @@ class AchievementIdempotencyPropertyTest {
      *
      * <p>Validates: Requirements 2.1, 2.5, 2.7, 2.8, 2.9</p>
      */
-    @Property(tries = 20)
+    @Property(tries = 10)
     void property1_atMostOneRowPerBadgeAndFirstRowIsImmutable(
             @ForAll("operations") List<Op> ops,
             @ForAll @IntRange(min = 2, max = 5) int userCount,

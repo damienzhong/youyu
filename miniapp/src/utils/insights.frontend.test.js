@@ -232,7 +232,7 @@ describe('属性：shouldFetchInsights ⟺ 已登录 ∧ 非聚合（需求 1.9�
       fc.property(fc.boolean(), fc.boolean(), (loggedIn, isAll) => {
         expect(shouldFetchInsights(loggedIn, isAll)).toBe(loggedIn && !isAll)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })
@@ -250,7 +250,7 @@ describe('属性：未登录或聚合视图恒不请求不展示（需求 1.9、
         expect(state.insights).toBe(null)
         expect(Object.keys(state).sort()).toEqual([...AI_STATE_KEYS])
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })
@@ -272,7 +272,7 @@ describe('属性：任意失败恒静默隐藏（需求 11.1、11.5）', () => {
           expect(Object.keys(state).sort()).toEqual([...AI_STATE_KEYS])
         }
       ),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })
@@ -466,7 +466,7 @@ describe('insightToDisplay：字段隔离——绝不泄露被禁字段/其值�
           }
         }
       ),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })

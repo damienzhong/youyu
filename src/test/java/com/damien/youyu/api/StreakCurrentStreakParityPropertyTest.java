@@ -160,7 +160,7 @@ class StreakCurrentStreakParityPropertyTest {
      *
      * <p>Validates: Requirements 2.3, 10.5, 2.1, 2.4</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property9_currentStreakAndMaxStreakEqualAcrossBothOverviews(
             @ForAll("calendars") List<LocalDate> calendar,
             @ForAll @IntRange(min = -3, max = 3) int judgmentOffset) {

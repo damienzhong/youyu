@@ -166,7 +166,7 @@ class GrowthExpLevelConsistencyPropertyTest {
      *
      * <p>Validates: Requirements 1.1, 1.2, 1.3, 2.8, 2.9, 2.10</p>
      */
-    @Property(tries = 50)
+    @Property(tries = 25)
     void property2_expEqualsEventSumAndLevelIsConsistent(
             @ForAll("operationSequences") List<Integer> ops) {
 

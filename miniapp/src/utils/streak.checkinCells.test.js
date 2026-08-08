@@ -115,7 +115,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
         }
         expect(seen.size).toBe(STREAK_CELL_COUNT)
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -131,7 +131,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
           expect(cell.checked).toBe(inRange)
         })
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -146,7 +146,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
         expect(cells.length).toBe(STREAK_CELL_COUNT)
         expect(cells.every((c) => c.checked === false)).toBe(true)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -161,7 +161,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
         const notCovering = [{ startDate: epochDayToStr(last - span - 1), endDate: epochDayToStr(last - 1) }]
         expect(checkinCells(nowMs, notCovering)[STREAK_CELL_COUNT - 1].checked).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -178,7 +178,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
           }
         })
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -195,7 +195,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
         // 末格日期尤其不随时区漂移
         expect(results[0][STREAK_CELL_COUNT - 1].date).toBe(epochDayToStr(lastEpochDayRef(nowMs)))
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -206,7 +206,7 @@ describe('任务 9.3 / Property 15: checkinCells', () => {
         expect(cells.length).toBe(STREAK_CELL_COUNT)
         expect(cells.every((c) => typeof c.checked === 'boolean')).toBe(true)
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 })

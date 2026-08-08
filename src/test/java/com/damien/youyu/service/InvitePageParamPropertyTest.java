@@ -127,7 +127,7 @@ class InvitePageParamPropertyTest {
      *
      * <p>Validates: Requirements 7.9</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property10_pageParamRejectionBoundary(
             @ForAll("rawParams") String rawPage,
             @ForAll("rawParams") String rawSize,

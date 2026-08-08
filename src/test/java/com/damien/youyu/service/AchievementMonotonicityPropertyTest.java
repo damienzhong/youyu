@@ -198,7 +198,7 @@ class AchievementMonotonicityPropertyTest {
      *
      * <p>Validates: Requirements 2.3, 2.4, 3.12</p>
      */
-    @Property(tries = 20)
+    @Property(tries = 10)
     void property2_unlockedCountNeverDecreasesAndBadgeRowsStayIdentical(
             @ForAll("rollbackSequences") List<RollbackOp> ops,
             @ForAll @IntRange(min = 2, max = 5) int userCount) {

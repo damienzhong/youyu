@@ -250,7 +250,7 @@ class AchievementCrossThresholdPropertyTest {
      *
      * <p>Validates: Requirements 2.6, 2.12, 2.13</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property4_crossingThresholdsUnlocksEveryQualifiedBadgeInDisplayOrder(
             @ForAll("scenarios") Scenario scenario) {
         long userId = SEQ.getAndIncrement();

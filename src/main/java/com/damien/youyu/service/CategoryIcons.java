@@ -2,6 +2,9 @@ package com.damien.youyu.service;
 
 import com.damien.youyu.domain.CategoryKind;
 
+import java.util.Set;
+import java.util.regex.Pattern;
+
 /**
  * 分类图标启发式：按分类名称推断内置线性图标集的 key。
  *
@@ -11,6 +14,50 @@ import com.damien.youyu.domain.CategoryKind;
 public final class CategoryIcons {
 
     private CategoryIcons() {
+    }
+
+    /**
+     * 内置图标 key 白名单，与前端 {@code miniapp/src/utils/icons.js} 的 {@code ICON_KEY_SET} 完全一致
+     * （逐 key 相等，见设计 Property 1）。来源：{@code design/category-icon-library.html} 的全部分组 key
+     * 加上 icons.js 既有 key，去重后共 171 枚。{@link Set#of} 在类加载时即校验无重复。
+     */
+    public static final Set<String> KEYS = Set.of(
+            "food", "breakfast", "coffee", "milktea", "fruit", "wine", "snack", "dessert", "hotpot", "veg",
+            "bbq", "noodle", "transport", "subway", "taxi", "fuel", "parking", "train", "plane", "bike",
+            "ship", "charge", "shopping", "clothes", "shoe", "digital", "beauty", "daily", "homeapp", "gift",
+            "bag", "baby", "supermarket", "home", "water", "electric", "gas", "property", "furniture", "repair",
+            "wifi", "clean", "plant", "entertainment", "movie", "game", "ktv", "travel", "sport", "book",
+            "music", "photo", "pet", "show", "medical", "medicine", "checkup", "heart", "tooth", "fitness",
+            "education", "stationery", "tuition", "training", "instrument", "read", "redpacket", "treat", "ceremony", "donate",
+            "family", "communication", "broadband", "phonebill", "mail", "express", "cloud", "invest", "insurance", "repay",
+            "interest", "fee", "tax", "salary", "bonus", "parttime", "refund", "earning", "reimburse", "basketball",
+            "soccer", "swim", "dumbbell", "badminton", "hiking", "car", "carwash", "maintain", "toll", "tire",
+            "carinsure", "hotel", "ticket", "luggage", "visa", "beach", "map", "haircut", "laundry", "housekeep",
+            "moving", "member", "locksmith", "laptop", "mobile", "camera", "headphone", "printer", "software", "formula",
+            "diaper", "toy", "kidcloth", "kidedu", "vaccine", "cake", "lantern", "rings", "tree", "firework",
+            "anniversary", "makeup", "skincare", "perfume", "nail", "spa", "razor", "receipt", "transfer", "cash",
+            "card", "wallet", "coin", "pig", "star", "flag", "more", "calendar", "lock", "utilities",
+            "income", "chart", "budget", "list", "diamond", "user", "search", "members", "import", "export",
+            "recycle", "tag", "loan", "folder", "info", "chat", "yuan", "badge", "warning", "bell",
+            "settings"
+    );
+
+    /** 图标背景色格式：{@code #RRGGBB}（6 位十六进制，大小写均可）。 */
+    private static final Pattern COLOR_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
+
+    /** 是否为合法的 hex 背景色（{@code ^#[0-9a-fA-F]{6}$}）。 */
+    public static boolean isValidColor(String color) {
+        return color != null && COLOR_PATTERN.matcher(color).matches();
+    }
+
+    /** 净化背景色：合法（{@link #isValidColor}）原样返回，否则返回 {@code null}（视为未提供，由默认色兜底）。 */
+    public static String sanitizeColor(String color) {
+        return isValidColor(color) ? color : null;
+    }
+
+    /** 净化图标 key：在 {@link #KEYS} 白名单内原样返回，否则返回 {@code null}（视为未提供，由名称推断兜底）。 */
+    public static String sanitizeIcon(String icon) {
+        return icon != null && KEYS.contains(icon) ? icon : null;
     }
 
     /** 依据名称关键字推断图标 key；未命中按种类兜底。 */

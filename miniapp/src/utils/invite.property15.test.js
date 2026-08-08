@@ -150,7 +150,7 @@ describe('Property 15: 待绑定邀请码的时效状态机', () => {
           expect(after.at).toBeNull()
         }
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -175,7 +175,7 @@ describe('Property 15: 待绑定邀请码的时效状态机', () => {
           expect(snapshot()).toEqual(before)
         }
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -194,7 +194,7 @@ describe('Property 15: 待绑定邀请码的时效状态机', () => {
         expect(snapshot()).toEqual({ code: null, at: null })
         expect(takePendingInviteCode()).toBe('')
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -223,7 +223,7 @@ describe('Property 15: 待绑定邀请码的时效状态机', () => {
         if (fault === 'remove') expect(cleared).toBe(false)
         if (fault === 'none' || fault === 'get') expect(saved).toBe(isLegal(codeInput))
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })

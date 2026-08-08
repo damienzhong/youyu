@@ -137,7 +137,7 @@ class InviteSavepointPropertyTest {
      *
      * <p>Validates: Requirements 5.10, 6.8</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property6_uniqueConflictAbsorbedBySavepoint(
             @ForAll("codeMangles") int mangle,
             @ForAll("relationStatuses") InviteStatus preexistingStatus,

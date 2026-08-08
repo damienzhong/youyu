@@ -50,6 +50,10 @@ public class Category {
     @Column(name = "icon", length = 32)
     private String icon;
 
+    /** 分类图标背景色 hex #RRGGBB；为空表示用默认色 #12a150。 */
+    @Column(name = "icon_color", length = 9)
+    private String iconColor;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -114,6 +118,14 @@ public class Category {
 
     public void setIcon(String icon) {
         this.icon = icon;
+    }
+
+    public String getIconColor() {
+        return iconColor;
+    }
+
+    public void setIconColor(String iconColor) {
+        this.iconColor = iconColor;
     }
 
     public LocalDateTime getCreatedAt() {

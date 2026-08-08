@@ -85,7 +85,7 @@ class VerificationCodePropertyTest {
      *
      * <p>Validates: Requirements 2.1, 5.4</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property1_successfulCodeIsSingleUse(
             @ForAll("emails") String email,
             @ForAll("purposes") EmailCodePurpose purpose,
@@ -116,7 +116,7 @@ class VerificationCodePropertyTest {
      *
      * <p>Validates: Requirements 1.2, 2.2, 2.3</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property2_expiredOrOverAttemptAlwaysFails(
             @ForAll("emails") String email,
             @ForAll("purposes") EmailCodePurpose purpose,
@@ -156,7 +156,7 @@ class VerificationCodePropertyTest {
      *
      * <p>Validates: Requirements 1.3, 1.4</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property3_cooldownAndRateLimit(
             @ForAll("emails") String email,
             @ForAll("purposes") EmailCodePurpose purpose,

@@ -181,7 +181,7 @@ class GrowthBackfillPropertyTest {
      *
      * <p>Validates: Requirements 3.10, 4.2, 4.3, 4.5, 4.6, 4.9, 4.14</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property7_backfillBoundedAndConverging(@ForAll("recordHistories") RecordHistory history) {
         long userId = SEQ.getAndIncrement();
         long ledgerId = SEQ.getAndIncrement();

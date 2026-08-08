@@ -128,7 +128,7 @@ function viewInRecords() {
       <text class="g-date">{{ g.label }}</text>
       <view class="card">
         <view v-for="t in g.list" :key="t.id" class="tx" @click="openTx(t)">
-          <view class="tx-ic"><AppIcon :name="iconKeyOf(t)" :size="40" /></view>
+          <CategoryIcon :icon="iconKeyOf(t)" :size="38" />
           <view class="tx-main">
             <text class="tx-name">{{ labelOf(t) }}</text>
             <text v-if="t.note" class="tx-note">{{ t.note }}</text>

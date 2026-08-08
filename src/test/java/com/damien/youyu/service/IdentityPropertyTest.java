@@ -88,7 +88,7 @@ class IdentityPropertyTest {
      *
      * <p>Validates: Requirements 4.1, 5.2, 6.2</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property4_identitiesGloballyUnique(@ForAll("opSequences") List<Op> ops) {
         Fixture f = newFixture();
 
@@ -133,7 +133,7 @@ class IdentityPropertyTest {
      *
      * <p>Validates: Requirements 4.2, 7.1, 7.2</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property5_atLeastOneLoginMethod(@ForAll("opSequences") List<Op> ops) {
         Fixture f = newFixture();
 

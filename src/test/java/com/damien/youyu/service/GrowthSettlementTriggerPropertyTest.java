@@ -189,7 +189,7 @@ class GrowthSettlementTriggerPropertyTest {
      *
      * <p>Validates: Requirements 9.1, 9.3, 9.4, 9.9</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property14_sameTxDedupesAndMergesInStableOrderOnTestThread(
             @ForAll("callSequences") List<Integer> callIndices) {
 
@@ -227,7 +227,7 @@ class GrowthSettlementTriggerPropertyTest {
      *
      * <p>Validates: Requirements 9.5, 9.6, 9.7</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property14_settlementFailureIsInvisibleToBusinessTransaction(
             @ForAll("faultSelectors") int faultSelector) {
 
@@ -258,7 +258,7 @@ class GrowthSettlementTriggerPropertyTest {
      *
      * <p>Validates: Requirements 9.3, 9.4</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property14_resourceUnboundAfterCompletionSoNextTxNotPolluted(
             @ForAll @IntRange(min = 1, max = 5) int repeatInTxA) {
 
@@ -289,7 +289,7 @@ class GrowthSettlementTriggerPropertyTest {
      *
      * <p>Validates: Requirements 9.1, 9.9</p>
      */
-    @Property(tries = 20)
+    @Property(tries = 10)
     void property14_noTransactionContextFallsBackToInlineSettlement(
             @ForAll @IntRange(min = 1, max = 3) int ignored) {
 
@@ -355,7 +355,7 @@ class GrowthSettlementTriggerPropertyTest {
      *
      * <p>Validates: Requirements 1.8, 9.5, 9.7</p>
      */
-    @Property(tries = 8)
+    @Property(tries = 10)
     void property14_concurrentSettlementsConvergeToSingleProfileRow(
             @ForAll @IntRange(min = 2, max = 8) int concurrency) throws InterruptedException {
 

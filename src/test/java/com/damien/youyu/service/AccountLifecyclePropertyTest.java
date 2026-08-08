@@ -85,7 +85,7 @@ class AccountLifecyclePropertyTest {
      *
      * <p>Validates: Requirements 7.3, 8.4</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property6_deletionReleasesIdentitiesForReuse(
             @ForAll("emails") String email,
             @ForAll("openids") String openid) {

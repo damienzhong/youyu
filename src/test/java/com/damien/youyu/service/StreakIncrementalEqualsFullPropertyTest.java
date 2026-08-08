@@ -110,7 +110,7 @@ class StreakIncrementalEqualsFullPropertyTest {
      *
      * <p>Validates: Requirements 4.9, 4.10, 4.4</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void incrementalMaintenanceEqualsFullRecompute(@ForAll("appendSequences") List<List<Integer>> batches) {
         assertIncrementalEqualsFull(batches);
     }

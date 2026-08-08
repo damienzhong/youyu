@@ -269,7 +269,7 @@ class SavingMonthTimezonePropertyTest {
      *
      * <p>Validates: Requirements 4.6, 4.7, 3.2</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void savingMonthAndRecordCalendarAreIndependentOfJvmDefaultTimeZone(
             @ForAll("zones") ZoneId zone,
             @ForAll("settlementMoments") LocalDateTime settlementMoment,

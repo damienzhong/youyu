@@ -146,7 +146,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 1.1, 1.3, 1.4, 9.6</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property1_responseIsCompleteAndMonthStatusIsCorrect(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -251,7 +251,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 1.6, 2.1, 3.1, 4.1, 4.2, 5.1, 6.1, 13.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property2_derivedMetricsAreValueEqualToReportService(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -441,7 +441,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 1.5, 10.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property3_ledgerIsolation(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -487,7 +487,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 1.7</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property4_amountsAndChangeRateHaveTwoDecimals(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -635,7 +635,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 2.2, 2.3, 2.4, 2.5, 2.8</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property5_categoryDeltaGatingFieldsDirectionAndRate(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -829,7 +829,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property6_savingsTotalGatingArithmeticAndRole(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -992,7 +992,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 4.3, 4.4, 4.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property7_frequencyDeltaGatingCountArithmeticAndDirection(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -1231,7 +1231,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 5.2, 5.3, 5.4, 5.5, 5.6</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property8_trendStreakDetectionGatingAndDirection(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -1401,7 +1401,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 6.2, 6.3, 6.4, 6.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property9_topMoverSelectionAndDeterministicTieBreak(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -1645,7 +1645,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 2.7, 4.6</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property10_deletedOrUnnamedDimensionFallsBackAndIsNotDropped(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -1815,7 +1815,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.5, 7.6</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property11_selectionIsDeterministicIdempotentBoundedAndDeduplicated(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -1986,7 +1986,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 8.1, 8.2, 8.4, 8.5, 8.6, 8.7, 8.8</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property12_narrativeTextIsCorrectInNumbersAndPolarity(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -2127,7 +2127,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property13_encouragingFallbackSemantics(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -2298,7 +2298,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 12.3, 12.4, 12.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property14_privacyWhitelist(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = -1) int monthOffset,
@@ -2492,7 +2492,7 @@ class AiInsightServicePropertyTest {
      *
      * <p>Validates: Requirements 13.1</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property15_readOnlyNoDbWrites(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,

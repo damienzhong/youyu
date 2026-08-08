@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts, listRepayReminders, accountDisplayName } from '../../api/account'
-import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth, deleteTransaction, searchTransactions, batchDeleteTransactions } from '../../api/transaction'
 import { listMembers } from '../../api/ledger'
@@ -40,6 +40,7 @@ const transactions = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
 const categoryIconMap = ref({})
+const categoryColorMap = ref({})
 const memberMap = ref({})
 const tagNameById = ref({})
 const loading = ref(false)
@@ -188,6 +189,7 @@ async function load() {
     acctOptions.value = accs.map((a) => ({ id: a.id, name: accountDisplayName(a) }))
     categoryMap.value = buildCategoryLabelMap(cats)
     categoryIconMap.value = buildCategoryIconMap(cats)
+    categoryColorMap.value = buildCategoryColorMap(cats)
     catOptions.value = [...(cats.expense || []), ...(cats.income || [])].map((c) => ({
       id: c.id, name: c.name, kind: (cats.expense || []).includes(c) ? 'expense' : 'income'
     }))
@@ -404,6 +406,14 @@ function iconKeyOf(t) {
 function catGroupIcon(g) {
   return resolveIcon(categoryIconMap.value[g.id], g.name, g.type)
 }
+// 分类图标磁贴背景色：转账用默认色，收支取分类 icon_color（缺省由 CategoryIcon 兜底）。
+function catTileColor(t) {
+  if (t.type === 'transfer') return ''
+  return categoryColorMap.value[t.categoryId] || ''
+}
+function catGroupColor(g) {
+  return categoryColorMap.value[g.id] || ''
+}
 function iconColor(t) {
   if (t.type === 'transfer') return '#8a94a6'
   return catColor(categoryMap.value[t.categoryId] || '')
@@ -583,7 +593,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -602,7 +612,7 @@ async function batchDelete() {
         <view class="daygrp">
           <view class="card">
             <view v-for="g in catGroups" :key="g.id" class="tx">
-              <view class="tico"><AppIcon :name="catGroupIcon(g)" :size="42" /></view>
+              <CategoryIcon :icon="catGroupIcon(g)" :color="catGroupColor(g)" :size="40" />
               <view class="tinfo">
                 <text class="tname">{{ g.name }} · {{ g.count }} 笔</text>
                 <view class="pctbar"><view class="pctfill" :style="{ width: g.pct + '%', background: g.color }"></view></view>
@@ -626,7 +636,7 @@ async function batchDelete() {
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
               <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
-              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -750,7 +760,7 @@ async function batchDelete() {
           <view v-if="!selectedDayTx.length" class="empty" style="padding:60rpx 0"><text>这天没有记录</text></view>
           <view v-else class="card">
             <view v-for="t in selectedDayTx" :key="t.id" class="tx" @click="goDetail(t)" @longpress="confirmDelete(t)">
-              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>
@@ -777,7 +787,7 @@ async function batchDelete() {
           <view class="dayhead"><text class="dt">{{ g.label }}</text></view>
           <view class="card">
             <view v-for="t in g.items" :key="t.id" class="tx" @click="goDetail(t)">
-              <view class="tico"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
+              <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="40" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
                 <text class="tsub">{{ subtitleOf(t) }}</text>

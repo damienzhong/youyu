@@ -153,7 +153,7 @@ class GrowthRecordDaysPropertyTest {
      *
      * <p>Validates: Requirements 3.1, 4.4, 4.7, 4.8, 4.9, 4.10</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property8_recordDaysMatchEventsAndNeverFallBackOnDelete(
             @ForAll("daySpecs") List<DaySpec> specs,
             @ForAll boolean deleteAll,

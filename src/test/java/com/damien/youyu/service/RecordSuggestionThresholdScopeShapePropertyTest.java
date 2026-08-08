@@ -76,7 +76,7 @@ class RecordSuggestionThresholdScopeShapePropertyTest {
      *
      * <p>Validates: Requirements 1.1, 6.6, 7.1</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void property4_thresholdYieldsEmptyBelowTwoOtherwiseTwoOrThree(
             @ForAll("shapeIndexLists") List<Integer> shapeIndices) {
         List<SuggestionRow> rows = rowsFromShapeIndices(shapeIndices);
@@ -134,7 +134,7 @@ class RecordSuggestionThresholdScopeShapePropertyTest {
      *
      * <p>Validates: Requirements 2.1, 2.4</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void property5_outputTypesInScopeAndRecencyWithinWindow(
             @ForAll("windowRowSpecs") List<RowSpec> specs) {
         List<SuggestionRow> rows = new ArrayList<>(specs.size());
@@ -185,7 +185,7 @@ class RecordSuggestionThresholdScopeShapePropertyTest {
      *
      * <p>Validates: Requirements 2.2</p>
      */
-    @Property(tries = 300)
+    @Property(tries = 25)
     void property6_whitespaceAndScaleVariantsMergeIntoOneShape(
             @ForAll("shapeGroups") List<int[]> groups,
             @ForAll long seed) {

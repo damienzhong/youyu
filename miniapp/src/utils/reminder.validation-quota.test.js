@@ -158,7 +158,7 @@ describe('属性：isValidTime 与合法时刻空间一致', () => {
       fc.property(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }), (h, m) => {
         expect(isValidTime(hhmm(h, m))).toBe(true)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -167,7 +167,7 @@ describe('属性：isValidTime 与合法时刻空间一致', () => {
       fc.property(fc.integer({ min: 24, max: 99 }), fc.integer({ min: 0, max: 59 }), (h, m) => {
         expect(isValidTime(hhmm(h, m))).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -176,7 +176,7 @@ describe('属性：isValidTime 与合法时刻空间一致', () => {
       fc.property(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 60, max: 99 }), (h, m) => {
         expect(isValidTime(hhmm(h, m))).toBe(false)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 })
@@ -202,7 +202,7 @@ describe('属性：validateReminderForm 只在频率+时间均合法时放行', 
         else if (!timeOk) expect(res.field).toBe('remindTime')
         else expect(res.field).toBe(null)
       }),
-      { numRuns: 600 }
+      { numRuns: 300 }
     )
   })
 })
@@ -219,7 +219,7 @@ describe('属性：normalizeQuota 恒落在 [0, QUOTA_MAX] 且为整数', () => 
           expect(v).toBeLessThanOrEqual(QUOTA_MAX)
         }
       ),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 })

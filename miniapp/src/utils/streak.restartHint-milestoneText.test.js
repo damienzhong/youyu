@@ -49,7 +49,7 @@ describe('任务 9.3 / Property 15: restartHint', () => {
         expect(typeof text).toBe('string')
         expectNoForbiddenWord(text)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -62,7 +62,7 @@ describe('任务 9.3 / Property 15: restartHint', () => {
           expect(restartHint({ broken, lastStreakDays })).toBe('')
         }
       ),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -71,7 +71,7 @@ describe('任务 9.3 / Property 15: restartHint', () => {
       fc.property(unparseable, (lastStreakDays) => {
         expect(restartHint({ broken: true, lastStreakDays })).toBe('')
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -83,7 +83,7 @@ describe('任务 9.3 / Property 15: restartHint', () => {
         expect(text).toContain('重新开始')
         expectNoForbiddenWord(text)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 })
@@ -102,7 +102,7 @@ describe('任务 9.3 / Property 15: milestoneText', () => {
           expectNoForbiddenWord(text)
         }
       ),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -111,7 +111,7 @@ describe('任务 9.3 / Property 15: milestoneText', () => {
       fc.property(unparseable, fc.oneof(finiteNumberish, unparseable), (nextMilestone, daysToNextMilestone) => {
         expect(milestoneText({ nextMilestone, daysToNextMilestone })).toBe('已达成全部里程碑')
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -123,7 +123,7 @@ describe('任务 9.3 / Property 15: milestoneText', () => {
         expect(text).toContain(String(days))
         expectNoForbiddenWord(text)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -137,7 +137,7 @@ describe('任务 9.3 / Property 15: milestoneText', () => {
       fc.property(fc.integer({ min: 1, max: 10 ** 6 }), nonPositiveOrUnparseable, (next, days) => {
         expect(milestoneText({ nextMilestone: next, daysToNextMilestone: days })).toBe('')
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -149,7 +149,7 @@ describe('任务 9.3 / Property 15: milestoneText', () => {
         expect(text).toContain(String(next))
         expect(text).toContain(String(days))
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })

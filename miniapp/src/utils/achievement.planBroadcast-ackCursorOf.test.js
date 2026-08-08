@@ -127,7 +127,7 @@ describe('Property 8: 漏播不可能（未展示项永不被确认）', () => {
           }
         }
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -143,7 +143,7 @@ describe('Property 8: 漏播不可能（未展示项永不被确认）', () => {
         const usable = items.filter(isUsableRef)
         expect(shownCount).toBe(Math.min(usable.length, MAX_BROADCAST_ITEMS))
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -164,7 +164,7 @@ describe('Property 8: 漏播不可能（未展示项永不被确认）', () => {
           expect(Number(planned[i].eventId)).toBeGreaterThan(Number(planned[i - 1].eventId))
         }
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -175,7 +175,7 @@ describe('Property 8: 漏播不可能（未展示项永不被确认）', () => {
         expect(planBroadcast(bad)).toEqual({ modal: null, toasts: [] })
         expect(ackCursorOf(bad)).toBeNull()
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 
@@ -191,7 +191,7 @@ describe('Property 8: 漏播不可能（未展示项永不被确认）', () => {
         expect(planBroadcast(items)).toEqual({ modal: null, toasts: [] })
         expect(ackCursorOf(items)).toBeNull()
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 

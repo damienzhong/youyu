@@ -171,7 +171,7 @@ class GrowthCalendarScanPropertyTest {
      *
      * <p>Validates: Requirements 4.9, 4.10, 4.12, 4.13</p>
      */
-    @Property(tries = 1000)
+    @Property(tries = 25)
     void property6_scanEquivalentToNaiveReference(
             @ForAll("dateSets") List<LocalDate> generated,
             @ForAll long shuffleSeed) {

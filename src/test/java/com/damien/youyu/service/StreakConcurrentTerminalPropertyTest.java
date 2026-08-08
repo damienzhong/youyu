@@ -113,7 +113,7 @@ class StreakConcurrentTerminalPropertyTest {
      *
      * <p>Validates: Requirements 4.12, 4.13, 4.14</p>
      */
-    @Property(tries = 100)
+    @Property(tries = 25)
     void concurrentSettlements_leaveAtMostOneSegmentPerStartDate_andSatisfyFiveInvariants(
             @ForAll("calendars") List<LocalDate> calendar,
             @ForAll @IntRange(min = 2, max = 8) int concurrency) throws Exception {

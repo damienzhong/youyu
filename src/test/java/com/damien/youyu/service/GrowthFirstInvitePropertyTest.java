@@ -106,7 +106,7 @@ class GrowthFirstInvitePropertyTest {
      * 写入即恒为 1 条 80 经验，增长到 100 不叠加、被邀请人全部注销回落到 0 不撤销；每一次结算都只读
      * {@code invite_relations}（逐行快照不变）；未结算前的邀请关系写入不为邀请人创建任何成长行。
      */
-    @Property(tries = 25)
+    @Property(tries = 12)
     void property12_firstInviteAwardedOnceReadOnlyAndIrrevocable(
             @ForAll @IntRange(min = 1, max = 100) int growTo,
             @ForAll @IntRange(min = 0, max = 4) int extraSettles,

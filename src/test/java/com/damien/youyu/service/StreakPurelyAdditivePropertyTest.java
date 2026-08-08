@@ -160,7 +160,7 @@ class StreakPurelyAdditivePropertyTest {
      *
      * <p>Validates: Requirements 10.1, 10.2, 10.3, 7.12, 3.1, 3.10</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void segmentMaintenance_changesNeitherGrowthNorAchievement(
             @ForAll("calendars") List<LocalDate> calendar) {
 

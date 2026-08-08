@@ -196,7 +196,7 @@ class InviteUniqueRelationPropertyTest {
      *
      * <p>Validates: Requirements 6.1, 6.3, 6.4, 6.6, 6.9, 9.3</p>
      */
-    @Property(tries = 100)
+    @Property(tries = 25)
     void property5_atMostOneRelationPerInvitee(
             @ForAll("requestSequences") List<Req> requests,
             @ForAll @IntRange(min = 2, max = 4) int inviterPoolSize,

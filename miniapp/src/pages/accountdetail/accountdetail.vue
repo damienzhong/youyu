@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { onShow, onLoad } from '@dcloudio/uni-app'
 import { listAccounts, accountTypeIcon, accountDisplayName, listAccountTransactions } from '../../api/account'
 import { listAccountLoanEntries } from '../../api/loan'
-import { buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { listAllCategories } from '../../api/aggregate'
 import { useLedgerStore } from '../../stores/ledger'
 import { resolveIcon } from '../../utils/icons'
@@ -20,6 +20,7 @@ const txs = ref([])
 const loanEntries = ref([]) // 该账户的借贷流水投影（借出/借入本金 + 收款/还款）
 const catMap = ref({})
 const catIconMap = ref({})
+const catColorMap = ref({})
 const loading = ref(false)
 const expanded = ref({}) // 月份展开状态
 
@@ -45,6 +46,7 @@ async function load() {
     loanEntries.value = loanList || []
     catMap.value = buildCategoryLabelMap(cats)
     catIconMap.value = buildCategoryIconMap(cats)
+    catColorMap.value = buildCategoryColorMap(cats)
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
   } finally {
@@ -139,6 +141,11 @@ function iconOf(t) {
   if (t.ledgerId == null) return 'yuan' // 余额调整
   return resolveIcon(catIconMap.value[t.categoryId], catMap.value[t.categoryId], t.type)
 }
+// 分类图标磁贴背景色：转账/余额调整用默认色，收支取分类 icon_color（缺省由 CategoryIcon 兜底）。
+function iconColorOf(t) {
+  if (t.type === 'transfer' || t.ledgerId == null) return ''
+  return catColorMap.value[t.categoryId] || ''
+}
 function subOf(t) {
   const parts = []
   const d = dayLabel(dayKeyOf(t.occurredAt))
@@ -231,7 +238,8 @@ function goTransfer() {
 
       <view v-if="expanded[m.key]" class="m-list">
         <view v-for="it in m.list" :key="it.key" class="tx" @click="openItem(it)">
-          <view class="tx-ic"><AppIcon :name="it.tx ? iconOf(it.tx) : loanIcon(it.loan)" :size="40" /></view>
+          <CategoryIcon v-if="it.tx" :icon="iconOf(it.tx)" :color="iconColorOf(it.tx)" :size="36" />
+          <view v-else class="tx-ic"><AppIcon :name="loanIcon(it.loan)" :size="40" /></view>
           <view class="tx-main">
             <view class="tx-titrow">
               <text class="tx-name">{{ it.tx ? titleOf(it.tx) : loanTitle(it.loan) }}</text>

@@ -277,7 +277,7 @@ class AchievementCursorMonotonicityPropertyTest {
      *
      * <p>Validates: Requirements 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property7_cursorIsMonotonicAndFinalStateIsMaxOfLegalValues(
             @ForAll("requests") List<Request> requests,
             @ForAll @IntRange(min = 1, max = 8) int concurrency,

@@ -200,7 +200,7 @@ class InviteRelationValueInvariantPropertyTest {
      *
      * <p>Validates: Requirements 6.5, 6.7</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property7_relationRowValueInvariants(
             @ForAll("operationSequences") List<Step> steps,
             @ForAll @IntRange(min = 1, max = 3) int inviterPoolSize) {

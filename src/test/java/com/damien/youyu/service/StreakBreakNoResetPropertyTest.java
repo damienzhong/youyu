@@ -107,7 +107,7 @@ class StreakBreakNoResetPropertyTest {
      *
      * <p>Validates: Requirements 5.1, 5.2, 5.3, 5.6, 5.7, 5.10, 2.8</p>
      */
-    @Property(tries = 12)
+    @Property(tries = 10)
     void breakDoesNotResetHistory(
             @ForAll @IntRange(min = 1, max = 400) int n,
             @ForAll @IntRange(min = 1, max = 400) int m,

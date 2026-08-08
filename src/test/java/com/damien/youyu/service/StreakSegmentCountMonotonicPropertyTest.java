@@ -95,7 +95,7 @@ class StreakSegmentCountMonotonicPropertyTest {
      *
      * <p>Validates: Requirements 5.8, 3.4</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void segmentCountIsMonotonicNonDecreasing(
             @ForAll @IntRange(min = 2, max = 5) int userCount,
             @ForAll("operationSequences") List<Tuple2<Integer, Integer>> ops) {

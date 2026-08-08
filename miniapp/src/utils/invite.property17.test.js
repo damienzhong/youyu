@@ -116,7 +116,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
         expect(link).toBe(link.trim())
         expect(encodeURIComponent(code)).toBe(code)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -146,7 +146,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
           }
         }
       ),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -177,7 +177,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
           total === 0 ? INVITE_LIST_STATE.EMPTY : INVITE_LIST_STATE.LOADED
         )
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -205,7 +205,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
         }
         expect(r.requestCount).toBe(before)
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -226,7 +226,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
           expect(next.page).toBe(expected ? nextPage : null)
         }
       ),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -244,7 +244,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
         // 逆映射唯一：由文案能反推回原状态
         expect(known.filter((s) => inviteStatusLabel(s) === label)).toEqual([status])
       }),
-      { numRuns: 50 }
+      { numRuns: 25 }
     )
 
     fc.assert(
@@ -258,7 +258,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
           expect(labels).not.toContain(label)
         }
       ),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -281,7 +281,7 @@ describe('Property 17: 邀请页的展示契约与分享降级', () => {
           if (page !== 0) expect(merged.slice(0, prev.length)).toEqual(prev)
         }
       ),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 })

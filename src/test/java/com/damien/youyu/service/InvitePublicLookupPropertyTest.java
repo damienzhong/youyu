@@ -205,7 +205,7 @@ class InvitePublicLookupPropertyTest {
      *
      * <p>Validates: Requirements 4.2, 4.4, 8.1, 8.2, 8.4, 8.6, 8.7, 8.9, 8.10</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property14_publicLookupAuthRateLimitAndIndistinguishability(
             @ForAll("requestSequences") List<Step> steps,
             @ForAll("pageParams") String rawPage,

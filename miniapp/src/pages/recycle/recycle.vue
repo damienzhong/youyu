@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listAccounts } from '../../api/account'
 import { accountDisplayName } from '../../api/account'
-import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listRecycle, restoreTransaction, purgeTransaction } from '../../api/transaction'
 import { formatAmount, categoryEmoji, dayLabel, dayKeyOf } from '../../utils/format'
@@ -12,6 +12,7 @@ const items = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
 const categoryIconMap = ref({})
+const categoryColorMap = ref({})
 const loading = ref(false)
 
 async function load() {
@@ -21,6 +22,7 @@ async function load() {
     accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
     categoryMap.value = buildCategoryLabelMap(cats)
     categoryIconMap.value = buildCategoryIconMap(cats)
+    categoryColorMap.value = buildCategoryColorMap(cats)
     items.value = txs
   } catch (e) {
     if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
@@ -41,6 +43,10 @@ function iconOf(t) {
 function iconKeyOf(t) {
   if (t.type === 'transfer') return 'transfer'
   return resolveIcon(categoryIconMap.value[t.categoryId], categoryMap.value[t.categoryId], t.type)
+}
+function iconColorOf(t) {
+  if (t.type === 'transfer') return ''
+  return categoryColorMap.value[t.categoryId] || ''
 }
 function subOf(t) {
   const d = dayKeyOf(t.occurredAt)
@@ -82,7 +88,7 @@ function purge(t) {
     <view v-if="!items.length && !loading" class="empty"><text class="big">🗑️</text><text>回收站是空的</text></view>
     <view v-else class="card">
       <view v-for="t in items" :key="t.id" class="row">
-        <view class="ico"><AppIcon :name="iconKeyOf(t)" :size="40" /></view>
+        <CategoryIcon :icon="iconKeyOf(t)" :color="iconColorOf(t)" :size="36" />
         <view class="info">
           <text class="name">{{ titleOf(t) }}</text>
           <text class="sub">{{ subOf(t) }}</text>

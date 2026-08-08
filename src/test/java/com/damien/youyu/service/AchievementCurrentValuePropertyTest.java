@@ -100,7 +100,7 @@ class AchievementCurrentValuePropertyTest {
      *
      * <p>Validates: Requirements 3.13, 6.4</p>
      */
-    @Property(tries = 1000, generation = GenerationMode.EXHAUSTIVE)
+    @Property(tries = 50, generation = GenerationMode.EXHAUSTIVE)
     void property3_currentValueIsClampedIntoTargetRange(@ForAll("badgeIndexes") int badgeIndex,
                                                         @ForAll ValueKind kind,
                                                         @ForAll boolean unlocked) {

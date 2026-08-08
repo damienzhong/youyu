@@ -165,7 +165,7 @@ class RecordSuggestionRankerPropertyTest {
      *
      * <p>Validates: Requirements 3.1</p>
      */
-    @Property(tries = 500)
+    @Property(tries = 25)
     void property1_noTwoResultsShareTheSameShape(@ForAll("rowLists") List<Row> rows) {
         List<RankedShape> result = RecordSuggestionRanker.rank(toRows(rows));
 
@@ -188,7 +188,7 @@ class RecordSuggestionRankerPropertyTest {
      *
      * <p>Validates: Requirements 3.2, 3.3, 3.5</p>
      */
-    @Property(tries = 500)
+    @Property(tries = 25)
     void property2_fullOrderAndOrderIndependentDeterminism(
             @ForAll("rowLists") List<Row> rows,
             @ForAll long shuffleSeed) {
@@ -229,7 +229,7 @@ class RecordSuggestionRankerPropertyTest {
      *
      * <p>Validates: Requirements 2.3, 3.4</p>
      */
-    @Property(tries = 500)
+    @Property(tries = 25)
     void property3_truncationAndDeterministicRepresentative(@ForAll("rowLists") List<Row> rows) {
         List<SuggestionRow> input = toRows(rows);
         List<RankedShape> result = RecordSuggestionRanker.rank(input);

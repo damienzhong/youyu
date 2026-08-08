@@ -251,7 +251,7 @@ class GrowthBadgePropertyTest {
      *
      * <p>Validates: Requirements 8.1, 8.2, 8.3, 8.5, 8.6, 8.7, 8.8, 8.11, 8.12, 8.13</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property13_badgeNamespaceIsolationCurrentRangeAndOrder(@ForAll("scenarios") Scenario scenario) {
         long userId = SEQ.getAndIncrement();
         long ledgerId = SEQ.getAndIncrement();

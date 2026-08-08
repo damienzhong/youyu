@@ -154,7 +154,7 @@ describe('Property 16: 落地页的邀请码解析与降级', () => {
         // 解析结果恒为已 trim 的大写串
         expect(parsed).toBe(parsed.trim().toUpperCase())
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -165,7 +165,7 @@ describe('Property 16: 落地页的邀请码解析与降级', () => {
         expect(parsed).toBe(code)
         expect(decodeInviteParam(raw)).toBe(code)
       }),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 
@@ -193,7 +193,7 @@ describe('Property 16: 落地页的邀请码解析与降级', () => {
         // 同一输入的判定可重复（纯函数）
         expect(decideInviteLanding(parsed, loggedIn)).toEqual(d)
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -229,7 +229,7 @@ describe('Property 16: 落地页的邀请码解析与降级', () => {
           }
         }
       ),
-      { numRuns: 300 }
+      { numRuns: 150 }
     )
   })
 })

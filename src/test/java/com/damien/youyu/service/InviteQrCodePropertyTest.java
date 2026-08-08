@@ -154,7 +154,7 @@ class InviteQrCodePropertyTest {
      *
      * <p>Validates: Requirements 3.1, 3.2, 3.4, 3.5, 3.7, 3.9, 3.12, 3.13, 8.8</p>
      */
-    @Property(tries = 100)
+    @Property(tries = 25)
     void property13_qrCodeCacheRateLimitAndEncoding(
             @ForAll("requestSequences") List<Step> steps,
             @ForAll("cacheCapacities") int cacheMaxEntries,

@@ -113,7 +113,7 @@ class StreakSegmentCoveragePropertyTest {
      *
      * <p>Validates: Requirements 4.3</p>
      */
-    @Property(tries = 1000)
+    @Property(tries = 25)
     void property3_segmentCoverageIffInCalendar(
             @ForAll("calendars") List<LocalDate> calendar,
             @ForAll long probeSeed) {

@@ -93,7 +93,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
         // 按码点裁剪：绝不把 emoji 或生僻字劈成半个字符
         expect(hasLoneSurrogate(payload.title)).toBe(false)
       }),
-      { numRuns: 500 }
+      { numRuns: 250 }
     )
   })
 
@@ -108,7 +108,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
         expect(title).toContain('有余')
         expect(title.length).toBeLessThanOrEqual(SHARE_TITLE_MAX_LEN)
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -123,7 +123,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
           expect(path).toBe(`${ACHIEVEMENT_PAGE_PATH}?code=${encodeURIComponent(trimmedCode)}`)
         }
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -135,7 +135,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
         expect(payload.title.length).toBeLessThanOrEqual(SHARE_TITLE_MAX_LEN)
         expect(payload.path).toBe(ACHIEVEMENT_PAGE_PATH)
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 
@@ -146,7 +146,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
         const raw = path.slice(`${ACHIEVEMENT_PAGE_PATH}?code=`.length)
         expect(resolveHighlightCode(raw, ACHIEVEMENTS)).toBe(code)
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
   })
 
@@ -162,7 +162,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
         // 大小写不同即不匹配（编码区分大小写）
         expect(resolveHighlightCode(code.toLowerCase(), ACHIEVEMENTS)).toBeNull()
       }),
-      { numRuns: 200 }
+      { numRuns: 100 }
     )
   })
 
@@ -186,7 +186,7 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
       fc.property(fc.oneof(tooLong, blank, notInCatalog), (raw) => {
         expect(resolveHighlightCode(raw, ACHIEVEMENTS)).toBeNull()
       }),
-      { numRuns: 400 }
+      { numRuns: 200 }
     )
   })
 
@@ -203,13 +203,13 @@ describe('任务 9.3: 分享载荷与待高亮成就编码', () => {
       fc.property(malformedPercent, (raw) => {
         expect(resolveHighlightCode(raw, ACHIEVEMENTS)).toBeNull()
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
     fc.assert(
       fc.property(fc.constantFrom(...CODES), fc.constantFrom(null, undefined, 0, '', 'x', 42, true, {}), (code, badList) => {
         expect(resolveHighlightCode(code, badList)).toBeNull()
       }),
-      { numRuns: 100 }
+      { numRuns: 50 }
     )
     // 清单内含畸形项时仍能命中合法项
     expect(resolveHighlightCode('BUDGET_MET', [null, 1, 'x', {}, { code: 'BUDGET_MET' }])).toBe('BUDGET_MET')

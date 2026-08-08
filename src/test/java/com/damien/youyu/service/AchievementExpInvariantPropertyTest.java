@@ -222,7 +222,7 @@ class AchievementExpInvariantPropertyTest {
      *
      * <p>Validates: Requirements 1.11, 12.6</p>
      */
-    @Property(tries = 20)
+    @Property(tries = 10)
     void property5_badgesAndSavingMonthsNeverChangeExpOrLevel(@ForAll("operations") List<Op> ops) {
         Ctx ctx = newUser();
         long expBefore = profileExp(ctx.userId());

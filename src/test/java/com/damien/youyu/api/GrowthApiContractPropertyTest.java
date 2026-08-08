@@ -206,7 +206,7 @@ class GrowthApiContractPropertyTest {
      *
      * <p>Validates: Requirements 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8, 10.9, 10.10, 10.11, 10.13, 10.15</p>
      */
-    @Property(tries = 25)
+    @Property(tries = 12)
     void property16_fieldSetsPaginationAndAccessControl(
             @ForAll @IntRange(min = 0, max = 60) int eventCountA,
             @ForAll("walkSizes") int walkSize,

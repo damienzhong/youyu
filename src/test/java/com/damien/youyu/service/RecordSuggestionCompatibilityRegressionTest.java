@@ -22,8 +22,8 @@ import org.junit.jupiter.api.Test;
  *       写操作 —— 无 {@code INSERT/UPDATE/DELETE} 语句、无 {@code @Modifying}、无
  *       {@code save/saveAll/delete/deleteAll/persist/merge/remove} 之类写调用；只允许只读事务
  *       与 {@code SELECT}/派生读查询（需求 8.1）。</li>
- *   <li><b>无迁移改动</b>：迁移目录内最大版本号仍为 {@code V35}，本 spec 未新增任何 {@code V36+}
- *       脚本、未新建任何表（需求 8.2）。</li>
+ *   <li><b>无迁移改动</b>：本 spec 未新增任何迁移脚本、未新建任何表（需求 8.2）。全局最大版本号
+ *       随后续 spec 增长，当前为 {@code V36}（category-icons 的 {@code V36__category_icon_color.sql}）。</li>
  *   <li><b>不碰记账模板</b>：本 spec 自有源文件及其对既有仓库的两处只读增补，均不引用
  *       {@code transaction_templates}/{@code TransactionTemplate}（需求 2.6、8.3）。</li>
  * </ol>
@@ -168,7 +168,7 @@ class RecordSuggestionCompatibilityRegressionTest {
     }
 
     @Test
-    void noMigrationAboveV35() {
+    void noMigrationAboveV36() {
         try (Stream<Path> files = Files.list(MIGRATION_DIR)) {
             List<Integer> versions = files.filter(Files::isRegularFile)
                     .map(p -> p.getFileName().toString())
@@ -177,9 +177,11 @@ class RecordSuggestionCompatibilityRegressionTest {
                     .toList();
 
             assertThat(versions).as("迁移目录不应为空").isNotEmpty();
+            // record-suggestion 本身不新增迁移；全局最大版本号随后续 spec 增长，
+            // 目前由 category-icons 的 V36__category_icon_color.sql 推进到 36。
             assertThat(versions.stream().mapToInt(Integer::intValue).max().orElseThrow())
-                    .as("本 spec 不新增迁移：目录内最大版本号须仍为 V35（需求 8.2）")
-                    .isEqualTo(35);
+                    .as("record-suggestion 不新增迁移：目录内当前最大版本号为 V36（需求 8.2）")
+                    .isEqualTo(36);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

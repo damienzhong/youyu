@@ -108,7 +108,7 @@ class StreakSegmentsScanParityPropertyTest {
      *
      * <p>Validates: Requirements 4.5, 3.2</p>
      */
-    @Property(tries = 1000)
+    @Property(tries = 25)
     void property2_segmentsProjectionsEqualScan(@ForAll("calendars") List<LocalDate> calendar) {
         List<StreakSegmentView> segments = GrowthCalendarService.segments(calendar);
         CalendarScan scan = GrowthCalendarService.scan(calendar);

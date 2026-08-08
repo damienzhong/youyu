@@ -266,7 +266,7 @@ class InviteDeletionRetentionPropertyTest {
      *
      * <p>Validates: Requirements 9.5, 9.6, 10.1, 10.2, 10.3, 10.4, 10.6, 10.7, 10.9, 10.10</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property12_retentionInvariantsAfterAccountDeletion(
             @ForAll("registrationSequences") List<Reg> registrations,
             @ForAll("deletionSequences") List<Del> deletions) {

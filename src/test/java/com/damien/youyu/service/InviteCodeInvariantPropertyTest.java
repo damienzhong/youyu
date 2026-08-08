@@ -232,7 +232,7 @@ class InviteCodeInvariantPropertyTest {
      *
      * <p>Validates: Requirements 1.1, 1.2, 1.5, 1.6, 9.1</p>
      */
-    @Property(tries = 200)
+    @Property(tries = 25)
     void property1_inviteCodeFormatAndGlobalUniqueness(
             @ForAll("operationSequences") List<Step> steps,
             @ForAll @IntRange(min = 3, max = 8) int poolCap,

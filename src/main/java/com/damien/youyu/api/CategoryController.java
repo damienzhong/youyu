@@ -48,7 +48,8 @@ public class CategoryController {
     @PostMapping
     public ResponseEntity<CategoryResponse> create(@RequestBody CategoryCreateRequest req) {
         Long ledgerId = currentLedger.requireLedgerId();
-        Category category = categoryService.create(ledgerId, req.kind(), req.name(), req.parentId(), req.icon());
+        Category category = categoryService.create(
+                ledgerId, req.kind(), req.name(), req.parentId(), req.icon(), req.iconColor());
         return ResponseEntity.status(HttpStatus.CREATED).body(CategoryResponse.from(category));
     }
 
@@ -71,7 +72,7 @@ public class CategoryController {
     public ResponseEntity<CategoryResponse> rename(
             @PathVariable Long id, @RequestBody CategoryUpdateRequest req) {
         Long ledgerId = currentLedger.requireLedgerId();
-        Category category = categoryService.update(ledgerId, id, req.name(), req.icon());
+        Category category = categoryService.update(ledgerId, id, req.name(), req.icon(), req.iconColor());
         return ResponseEntity.ok(CategoryResponse.from(category));
     }
 

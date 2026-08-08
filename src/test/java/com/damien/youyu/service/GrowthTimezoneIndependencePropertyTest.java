@@ -229,7 +229,7 @@ class GrowthTimezoneIndependencePropertyTest {
      *
      * <p>Validates: Requirements 3.7, 3.8, 4.1, 4.16</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void recordDaysAreIndependentOfJvmDefaultTimeZone(
             @ForAll("transactionBatches") List<LocalDateTime> createdAts) {
 

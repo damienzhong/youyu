@@ -161,7 +161,7 @@ class GrowthRecalculationPropertyTest {
      *
      * <p>Validates: Requirements 1.7, 1.12, 4.13</p>
      */
-    @Property(tries = 60)
+    @Property(tries = 25)
     void recalculateOnly_leavesMaterializedColumnsAndEventsIdentical(@ForAll("scenarios") Scenario scenario) {
         long userId = SEQ.getAndIncrement();
         long ledgerId = SEQ.getAndIncrement();

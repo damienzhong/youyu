@@ -7,7 +7,7 @@ import {
   renameCategory,
   deleteCategory
 } from '../../api/category'
-import { ICON_KEYS, resolveIcon, guessIcon } from '../../utils/icons'
+import { resolveIcon, guessIcon, DEFAULT_ICON_COLOR } from '../../utils/icons'
 
 const KINDS = [
   { value: 'EXPENSE', label: '支出' },
@@ -20,7 +20,6 @@ const loading = ref(false)
 
 const roots = computed(() => (kind.value === 'EXPENSE' ? tree.value.expense : tree.value.income))
 const emojiKind = computed(() => (kind.value === 'EXPENSE' ? 'expense' : 'income'))
-const iconKeys = ICON_KEYS
 
 // 分类图标 key：优先分类自身 icon，否则按名称推断。
 function catIcon(node) {
@@ -47,6 +46,7 @@ const editor = ref({
   title: '',
   name: '',
   icon: 'receipt',
+  iconColor: DEFAULT_ICON_COLOR, // 背景色（缺省品牌绿）
   manualIcon: false, // 用户是否手动选过图标（未选则随名称自动推断）
   parentId: null,
   editId: null
@@ -56,19 +56,22 @@ const submitting = ref(false)
 function openCreateParent() {
   editor.value = {
     visible: true, mode: 'create', title: `新建${kind.value === 'EXPENSE' ? '支出' : '收入'}分类`,
-    name: '', icon: guessIcon('', emojiKind.value), manualIcon: false, parentId: null, editId: null
+    name: '', icon: guessIcon('', emojiKind.value), iconColor: DEFAULT_ICON_COLOR,
+    manualIcon: false, parentId: null, editId: null
   }
 }
 function openCreateChild(parent) {
   editor.value = {
     visible: true, mode: 'create', title: `在「${parent.name}」下新建子分类`,
-    name: '', icon: guessIcon('', emojiKind.value), manualIcon: false, parentId: parent.id, editId: null
+    name: '', icon: guessIcon('', emojiKind.value), iconColor: DEFAULT_ICON_COLOR,
+    manualIcon: false, parentId: parent.id, editId: null
   }
 }
 function openEdit(node) {
   editor.value = {
     visible: true, mode: 'edit', title: '编辑分类',
-    name: node.name, icon: catIcon(node), manualIcon: true, parentId: node.parentId ?? null, editId: node.id
+    name: node.name, icon: catIcon(node), iconColor: node.iconColor || DEFAULT_ICON_COLOR,
+    manualIcon: true, parentId: node.parentId ?? null, editId: node.id
   }
 }
 function closeEditor() {
@@ -80,7 +83,8 @@ function onNameInput(e) {
   editor.value.name = v
   if (!editor.value.manualIcon) editor.value.icon = guessIcon(v, emojiKind.value)
 }
-function pickIcon(key) {
+// IconPicker 选图标：标记为手动选择（不再随名称推断）。
+function onPickIcon(key) {
   editor.value.icon = key
   editor.value.manualIcon = true
 }
@@ -90,12 +94,15 @@ async function submitEditor() {
     uni.showToast({ title: '请输入分类名称', icon: 'none' })
     return
   }
+  // 未手动选图标时不下发 icon，交由后端按名称兜底推断（需求 2.4）。
+  const icon = editor.value.manualIcon ? editor.value.icon : null
+  const iconColor = editor.value.iconColor || DEFAULT_ICON_COLOR
   submitting.value = true
   try {
     if (editor.value.mode === 'create') {
-      await createCategory({ kind: kind.value, name, parentId: editor.value.parentId, icon: editor.value.icon })
+      await createCategory({ kind: kind.value, name, parentId: editor.value.parentId, icon, iconColor })
     } else {
-      await renameCategory(editor.value.editId, name, editor.value.icon)
+      await renameCategory(editor.value.editId, name, icon, iconColor)
     }
     editor.value.visible = false
     await load()
@@ -142,7 +149,7 @@ function remove(node) {
 
     <view v-for="parent in roots" :key="parent.id" class="parent">
       <view class="parent-head">
-        <view class="p-ic"><AppIcon :name="catIcon(parent)" :size="34" /></view>
+        <CategoryIcon :icon="parent.icon" :name="parent.name" :kind="emojiKind" :color="parent.iconColor" :size="32" />
         <text class="parent-name">{{ parent.name }}</text>
         <view class="ops">
           <text class="op" @click="openCreateChild(parent)">＋子</text>
@@ -151,7 +158,7 @@ function remove(node) {
         </view>
       </view>
       <view v-for="child in parent.children" :key="child.id" class="child">
-        <view class="c-ic"><AppIcon :name="catIcon(child)" :size="28" /></view>
+        <CategoryIcon :icon="child.icon" :name="child.name" :kind="emojiKind" :color="child.iconColor" :size="26" />
         <text class="child-name">{{ child.name }}</text>
         <view class="ops">
           <text class="op" @click="openEdit(child)">编辑</text>
@@ -171,29 +178,20 @@ function remove(node) {
           <text class="sh-s" @click="submitEditor">保存</text>
         </view>
 
-        <view class="preview">
-          <view class="pv-tile"><AppIcon :name="editor.icon" :size="40" active /></view>
-          <text class="pv-nm">{{ editor.name || '分类名称' }}</text>
-        </view>
-
         <view class="field">
           <text class="fk">名称</text>
           <input class="fi" :value="editor.name" placeholder="分类名称" maxlength="50" @input="onNameInput" />
         </view>
 
-        <text class="lib-t">选择图标</text>
-        <scroll-view scroll-y class="lib">
-          <view class="lib-grid">
-            <view
-              v-for="k in iconKeys"
-              :key="k"
-              class="li"
-              @click="pickIcon(k)"
-            >
-              <view class="li-tile" :class="{ on: editor.icon === k }">
-                <AppIcon :name="k" :size="40" :active="editor.icon === k" />
-              </view>
-            </view>
+        <scroll-view scroll-y class="picker-scroll">
+          <view class="picker-wrap">
+            <IconPicker
+              :icon="editor.icon"
+              :color="editor.iconColor"
+              :kind="emojiKind"
+              @update:icon="onPickIcon"
+              @update:color="editor.iconColor = $event"
+            />
           </view>
         </scroll-view>
 
@@ -247,15 +245,6 @@ function remove(node) {
   padding: 26rpx 0;
   border-bottom: 1rpx solid #eef0f2;
 }
-.p-ic {
-  width: 60rpx;
-  height: 60rpx;
-  border-radius: 16rpx;
-  background: #f4f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .parent-name {
   flex: 1;
   font-size: 32rpx;
@@ -267,15 +256,6 @@ function remove(node) {
   align-items: center;
   gap: 16rpx;
   padding: 22rpx 0 22rpx 24rpx;
-}
-.c-ic {
-  width: 48rpx;
-  height: 48rpx;
-  border-radius: 12rpx;
-  background: #f4f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .child-name {
   flex: 1;
@@ -337,24 +317,6 @@ function remove(node) {
 .sh-c { font-size: 28rpx; color: #8a919b; }
 .sh-t { font-size: 32rpx; font-weight: 700; }
 .sh-s { font-size: 28rpx; color: #12a150; font-weight: 700; }
-.preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14rpx;
-  padding: 32rpx 0;
-  background: #fff;
-}
-.pv-tile {
-  width: 108rpx;
-  height: 108rpx;
-  border-radius: 32rpx;
-  background: #e7f7ee;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pv-nm { font-size: 30rpx; font-weight: 600; color: #1f2329; }
 .field {
   display: flex;
   align-items: center;
@@ -365,41 +327,13 @@ function remove(node) {
 }
 .fk { font-size: 28rpx; color: #5b6470; width: 88rpx; }
 .fi { flex: 1; font-size: 30rpx; color: #1f2329; }
-.lib-t {
-  display: block;
-  font-size: 24rpx;
-  color: #8a919b;
-  padding: 24rpx 32rpx 12rpx;
-}
-.lib {
+.picker-scroll {
   background: #fff;
-  max-height: 460rpx;
-  padding: 8rpx 20rpx 20rpx;
+  margin-top: 16rpx;
+  max-height: 52vh;
 }
-.lib-grid {
-  display: flex;
-  flex-wrap: wrap;
-}
-.li {
-  width: 16.66%;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12rpx 0;
-}
-.li-tile {
-  width: 76rpx;
-  height: 76rpx;
-  border-radius: 20rpx;
-  background: #f4f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.li-tile.on {
-  background: #e7f7ee;
-  box-shadow: 0 0 0 3rpx #12a150 inset;
+.picker-wrap {
+  padding: 24rpx 32rpx 8rpx;
 }
 .save {
   margin: 24rpx 32rpx 0;

@@ -2,7 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { getTransaction, deleteTransaction } from '../../api/transaction'
 import { listAccounts, accountDisplayName } from '../../api/account'
-import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { listProjects } from '../../api/project'
 import { listMerchants } from '../../api/merchant'
 import { listTags } from '../../api/tag'
@@ -20,6 +20,7 @@ const tx = ref(null)
 const accMap = ref({})
 const catMap = ref({})
 const catIconMap = ref({})
+const catColorMap = ref({})
 const projMap = ref({})
 const merchMap = ref({})
 const tagMap = ref({})
@@ -48,6 +49,7 @@ async function load() {
     accMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
     catMap.value = buildCategoryLabelMap(cats)
     catIconMap.value = buildCategoryIconMap(cats)
+    catColorMap.value = buildCategoryColorMap(cats)
     try {
       if (t.projectId != null) {
         const ps = await listProjects(props.ledgerId)
@@ -85,6 +87,8 @@ const categoryName = computed(() => (tx.value ? catMap.value[tx.value.categoryId
 const categoryIcon = computed(() =>
   tx.value ? resolveIcon(catIconMap.value[tx.value.categoryId], categoryName.value, tx.value.type) : 'receipt'
 )
+// 分类图标磁贴背景色：取分类 icon_color（缺省由 CategoryIcon 兜底默认色）。
+const categoryColor = computed(() => (tx.value ? catColorMap.value[tx.value.categoryId] || '' : ''))
 const accountName = computed(() => (tx.value ? accMap.value[tx.value.accountId] || '—' : ''))
 const sourceName = computed(() => (tx.value ? accMap.value[tx.value.sourceAccountId] || '—' : ''))
 const destName = computed(() => (tx.value ? accMap.value[tx.value.destinationAccountId] || '—' : ''))
@@ -166,7 +170,7 @@ function confirmDelete() {
         <template v-else>
           <view class="td-row">
             <text class="k">分类</text>
-            <view class="v cat"><AppIcon :name="categoryIcon" :size="34" /><text>{{ categoryName }}</text></view>
+            <view class="v cat"><CategoryIcon :icon="categoryIcon" :color="categoryColor" :size="24" /><text>{{ categoryName }}</text></view>
           </view>
           <view class="td-row"><text class="k">账户</text><text class="v">{{ accountName }}</text></view>
         </template>

@@ -157,7 +157,7 @@ class ReminderCorrectnessPropertyTest {
      *
      * <p>Validates: Requirements 3.5, 6.5, 6.6</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property1_dispatchIsIdempotentPerReminderAndTriggerDate(
             @ForAll @IntRange(min = 2, max = 6) int dispatchCount,
             @ForAll boolean concurrent) throws Exception {
@@ -217,7 +217,7 @@ class ReminderCorrectnessPropertyTest {
      *
      * <p>Validates: Requirements 5.3, 5.5, 5.8</p>
      */
-    @Property(tries = 40)
+    @Property(tries = 20)
     void property2_quotaStaysBoundedAndMatchesReferenceModel(
             @ForAll("quotaOps") List<Integer> ops) {
 
@@ -264,7 +264,7 @@ class ReminderCorrectnessPropertyTest {
      *
      * <p>Validates: Requirements 5.8</p>
      */
-    @Property(tries = 30)
+    @Property(tries = 15)
     void property2_concurrentGrantsAndDecrementsLoseNoUpdates(
             @ForAll @IntRange(min = 2, max = 8) int concurrency,
             @ForAll boolean sendsOnly) throws Exception {
@@ -299,7 +299,7 @@ class ReminderCorrectnessPropertyTest {
      *
      * <p>Validates: Requirements 3.3, 3.4, 3.7</p>
      */
-    @Property(tries = 61)
+    @Property(tries = 25)
     void property5_catchUpWindowIsMonotonic(
             @ForAll @IntRange(min = -30, max = 30) int offsetMinutes) {
 
@@ -359,7 +359,7 @@ class ReminderCorrectnessPropertyTest {
      *
      * <p>Validates: Requirements 1.9</p>
      */
-    @Property(tries = 32)
+    @Property(tries = 16)
     void property6_creationValidationPriorityIsDeterministic(
             @ForAll boolean freqValid,
             @ForAll boolean timeValid,

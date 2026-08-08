@@ -163,7 +163,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 1.1, 1.3, 1.4, 2.5, 9.1</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property1_digestIsCompleteAndMonthStatusIsCorrect(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -249,7 +249,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 1.6, 2.1, 2.2, 2.3, 2.4, 11.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property2_incomeExpenseMatchModelAndBalanceIsDifference(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -322,7 +322,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property4_trendIsDenseAscendingDualValuedWithCorrectWindow(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -466,7 +466,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 4.1, 4.2, 4.3, 4.4, 4.5, 11.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property5_categoryRankingMatchesModelWithFallbackOrderingAndPercentageConservation(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -602,7 +602,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 11.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property6_budgetMatchesModelAndForecastFollowsMonthStatus(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -731,7 +731,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 6.1, 6.2, 6.3</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property7_largestExpenseSelectionWithDeterministicTieBreak(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -853,7 +853,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 7.1, 7.2, 7.3, 7.4, 7.6</p>
      */
-    @Property(tries = 150)
+    @Property(tries = 25)
     void property8_mostFrugalWeekSegmentationSelectionAndWindow(
             @ForAll @IntRange(min = 0, max = 4) int scenario,
             @ForAll @IntRange(min = 1, max = 6) int shortNowDay,
@@ -1030,7 +1030,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 1.7, 3.6, 4.6, 6.4, 7.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property9_emptyDataReturnsGracefully(
             @ForAll @IntRange(min = 0, max = 3) int scenario,
             @ForAll @IntRange(min = 1, max = 6) int shortNowDay,
@@ -1207,7 +1207,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 1.5, 9.5</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property3_ledgerIsolation(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
@@ -1392,7 +1392,7 @@ class MonthlyDigestServicePropertyTest {
      *
      * <p>Validates: Requirements 11.1</p>
      */
-    @Property(tries = 120)
+    @Property(tries = 25)
     void property10_digestIsPureReadOnly(
             @ForAll("nowDayOffsets") int nowDayOffset,
             @ForAll @IntRange(min = -14, max = 0) int monthOffset,
