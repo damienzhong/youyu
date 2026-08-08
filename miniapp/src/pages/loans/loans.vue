@@ -167,7 +167,7 @@ async function submit() {
     <view class="list" v-if="shown.length">
       <view v-for="l in shown" :key="l.id" class="item" :class="{ settled: l.settled }" @click="goDetail(l)">
         <view class="i-ic" :class="isLend ? 'lend' : 'borrow'">
-          <AppIcon :name="isLend ? 'transfer' : 'wallet'" :size="40" color="#fff" />
+          <AppIcon :name="isLend ? 'transfer' : 'wallet'" :size="36" color="#fff" />
         </view>
         <view class="i-main">
           <text class="i-name">{{ l.counterparty }}</text>
@@ -261,18 +261,18 @@ async function submit() {
 .empty { text-align: center; color: #9aa2ad; font-size: 28rpx; margin-top: 100rpx; }
 /* 列表 */
 .list { margin: 20rpx 24rpx 0; background: #fff; border-radius: 22rpx; overflow: hidden; box-shadow: 0 8rpx 24rpx rgba(20,24,28,0.05); }
-.item { display: flex; align-items: center; gap: 20rpx; padding: 26rpx 28rpx; border-top: 1rpx solid #f1f3f5; }
+.item { display: flex; align-items: center; gap: 20rpx; padding: 22rpx 26rpx; border-top: 1rpx solid #f1f3f5; }
 .list .item:first-child { border-top: none; }
 .item.settled { opacity: 0.5; }
-.i-ic { width: 72rpx; height: 72rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.i-ic { width: 66rpx; height: 66rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .i-ic.borrow { background: #5b66bf; }
 .i-ic.lend { background: #b58a6a; }
 .i-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
-.i-name { font-size: 30rpx; font-weight: 600; color: #16181c; }
+.i-name { font-size: 29rpx; font-weight: 500; color: #16181c; }
 .i-sub { font-size: 22rpx; color: #9aa2ad; }
 .i-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6rpx; }
 .i-flag { font-size: 20rpx; color: #9aa2ad; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
-.i-amt { font-size: 32rpx; font-weight: 800; color: #16181c; }
+.i-amt { font-size: 30rpx; font-weight: 600; color: #16181c; font-variant-numeric: tabular-nums; }
 .i-caret { font-size: 30rpx; color: #c0c4cc; }
 /* 底部添加 */
 .addbar {
