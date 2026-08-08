@@ -1,9 +1,10 @@
 name: CI
 
 on:
+  # 部署走 push 到 main（见 deploy.yml，且以 -DskipTests 打包），因此 main 推送不跑测试门，
+  # 避免部署时被测试阻塞/刷屏。测试门仍覆盖 PR 合入 main 与 feat/**、fix/** 分支推送。
   push:
     branches:
-      - main
       - 'feat/**'
       - 'fix/**'
   pull_request:
