@@ -238,8 +238,8 @@ function goTransfer() {
 
       <view v-if="expanded[m.key]" class="m-list">
         <view v-for="it in m.list" :key="it.key" class="tx" @click="openItem(it)">
-          <CategoryIcon v-if="it.tx" :icon="iconOf(it.tx)" :color="iconColorOf(it.tx)" :size="36" />
-          <view v-else class="tx-ic"><AppIcon :name="loanIcon(it.loan)" :size="40" /></view>
+          <CategoryIcon v-if="it.tx" :icon="iconOf(it.tx)" :color="iconColorOf(it.tx)" :size="35" />
+          <view v-else class="tx-ic"><AppIcon :name="loanIcon(it.loan)" :size="36" /></view>
           <view class="tx-main">
             <view class="tx-titrow">
               <text class="tx-name">{{ it.tx ? titleOf(it.tx) : loanTitle(it.loan) }}</text>
@@ -317,16 +317,16 @@ function goTransfer() {
 .m-caret { font-size: 22rpx; color: #c0c4cc; }
 .m-list { background: #fff; border-radius: 0 0 18rpx 18rpx; padding: 0 26rpx; }
 .tx { display: flex; align-items: center; gap: 20rpx; padding: 22rpx 0; border-top: 1rpx solid #f1f3f5; }
-.tx-ic { width: 68rpx; height: 68rpx; border-radius: 20rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.tx-ic { width: 66rpx; height: 66rpx; border-radius: 20rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .tx-titrow { display: flex; align-items: center; gap: 10rpx; }
-.tx-name { font-size: 30rpx; font-weight: 600; color: #16181c; }
+.tx-name { font-size: 29rpx; font-weight: 500; color: #16181c; }
 .tx-ltag { font-size: 18rpx; color: #9aa2ad; background: #f0f2f5; border-radius: 999rpx; padding: 2rpx 12rpx; }
 .tx-sub { font-size: 22rpx; color: #9aa2ad; }
-.tx-amt { font-size: 30rpx; font-weight: 800; }
+.tx-amt { font-size: 30rpx; font-weight: 600; font-variant-numeric: tabular-nums; }
 /* 金额配色与账本流水一致：收入绿、支出红 */
 .tx-amt.inc { color: #12a150; }
-.tx-amt.exp { color: #f0553d; }
+.tx-amt.exp { color: #e5544b; }
 /* 底部操作栏 */
 .actionbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
