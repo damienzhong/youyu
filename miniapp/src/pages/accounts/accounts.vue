@@ -180,17 +180,16 @@ function onAccountSaved() {
       </view>
     </view>
 
-    <!-- 借贷往来：拆成两张独立卡片，各自进入对应列表 -->
-    <view v-if="showLoans" class="loan-cards">
-      <view class="loan-card" @click="goLoans('BORROW')">
-        <text class="lc-k">借入 / 待还</text>
-        <text class="lc-v exp">{{ money(borrowOutstanding) }}</text>
-        <text class="lc-caret">›</text>
+    <!-- 借贷往来：对齐竞品的轻量窄行（小字、并排、不抢眼），各半区进入对应列表 -->
+    <view v-if="showLoans" class="loan-strip">
+      <view class="ls-item" @click="goLoans('BORROW')">
+        <text class="ls-k">借入/待还</text>
+        <text class="ls-v exp">{{ money(borrowOutstanding) }}</text>
       </view>
-      <view class="loan-card" @click="goLoans('LEND')">
-        <text class="lc-k">借出 / 待收</text>
-        <text class="lc-v inc">{{ money(lendOutstanding) }}</text>
-        <text class="lc-caret">›</text>
+      <view class="ls-sep"></view>
+      <view class="ls-item" @click="goLoans('LEND')">
+        <text class="ls-k">借出/待收</text>
+        <text class="ls-v inc">{{ money(lendOutstanding) }}</text>
       </view>
     </view>
 
@@ -289,36 +288,30 @@ function onAccountSaved() {
 .nw-value::before { content: '¥'; font-size: 36rpx; opacity: 0.8; margin-right: 6rpx; }
 .nw-value.neg { color: #fecaca; }
 .nw-foot { display: flex; justify-content: space-between; font-size: 24rpx; opacity: 0.9; }
-.loan-cards { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
-.loan-card {
-  flex: 1; position: relative;
-  background: #fff; border-radius: 22rpx; padding: 24rpx 28rpx;
-  display: flex; flex-direction: column; gap: 8rpx;
-  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
-}
-.lc-k { font-size: 24rpx; color: #9aa2ad; }
-.lc-v { font-size: 38rpx; font-weight: 800; }
-.lc-v::before { content: '¥'; font-size: 22rpx; opacity: 0.7; margin-right: 2rpx; }
-.lc-v.exp { color: #e5563d; }
-.lc-v.inc { color: #0f8a45; }
-.lc-caret { position: absolute; top: 24rpx; right: 24rpx; color: #c0c4cc; font-size: 30rpx; }
-.loan-row {
+/* 借贷窄行：对齐竞品，单行轻量、小字、两半区并排，标签左 + 金额右 */
+.loan-strip {
   display: flex;
   align-items: center;
   background: #fff;
-  border-radius: 22rpx;
-  padding: 24rpx 28rpx;
+  border-radius: 18rpx;
+  padding: 22rpx 24rpx;
   margin-bottom: 24rpx;
   box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
-.loan-tile { flex: 1; display: flex; flex-direction: column; gap: 8rpx; }
-.lt-k { font-size: 24rpx; color: #9aa2ad; }
-.lt-v { font-size: 34rpx; font-weight: 800; }
-.lt-v::before { content: '¥'; font-size: 22rpx; opacity: 0.7; margin-right: 2rpx; }
-.lt-v.exp { color: #e5563d; }
-.lt-v.inc { color: #0f8a45; }
-.loan-sep { width: 1rpx; height: 56rpx; background: #eceef1; margin: 0 8rpx; }
-.loan-caret { color: #c0c4cc; font-size: 34rpx; margin-left: 12rpx; }
+.ls-item {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12rpx;
+  min-width: 0;
+}
+.ls-k { font-size: 24rpx; color: #9aa2ad; }
+.ls-v { font-size: 30rpx; font-weight: 700; }
+.ls-v::before { content: '¥'; font-size: 20rpx; opacity: 0.7; margin-right: 2rpx; }
+.ls-v.exp { color: #e5563d; }
+.ls-v.inc { color: #0f8a45; }
+.ls-sep { width: 1rpx; height: 34rpx; background: #eceef1; margin: 0 24rpx; flex: 0 0 auto; }
 .repay {
   background: #fff;
   border-radius: 22rpx;

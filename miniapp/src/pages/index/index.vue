@@ -419,9 +419,6 @@ function goRecords() {
   // 「明细」已从底部 tab 移除，改为普通页 push 进入。
   uni.navigateTo({ url: '/pages/records/records' })
 }
-function goSearch() {
-  uni.navigateTo({ url: '/pages/records/records' })
-}
 </script>
 
 <template>
@@ -435,7 +432,6 @@ function goSearch() {
           <text v-if="isCollab" class="hl-tag">协作</text>
           <text class="hl-caret">▾</text>
         </view>
-        <view class="hnav-search" @click="goSearch"><AppIcon name="search" :size="40" color="#ffffff" /></view>
       </view>
 
       <view class="hero-main">
@@ -704,10 +700,6 @@ function goSearch() {
 .hl-caret {
   font-size: 20rpx;
   opacity: 0.9;
-}
-.hnav-search {
-  font-size: 34rpx;
-  opacity: 0.95;
 }
 .hero-main {
   padding: 4rpx 32rpx 0;
