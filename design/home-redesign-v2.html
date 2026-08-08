@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 首页改版原型 v2（精简一屏 · 今日收支 + 记账提醒 + 情绪价值 + 成长/成就）</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#12a150; --warn:#f4a72b;
+    --hero:linear-gradient(155deg,#1fbf63,#0f8a45 78%);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1200px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;}
+  h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:14px 0 10px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:880px;line-height:1.7;margin:0;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:44px 0 16px;}
+  .audit{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:8px;}
+  .c2{background:var(--surface);border-radius:16px;padding:16px 18px;box-shadow:0 8px 24px rgba(20,24,28,.05);border-left:4px solid var(--brand);}
+  .c2 h4{margin:0 0 8px;font-size:15px;} .c2 p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;}
+  .pw{width:360px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .phone{width:360px;height:760px;background:#fff;border-radius:44px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:34px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 4px;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto;}
+  .body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .pad{padding:0 15px;}
+
+  /* Hero（收紧） */
+  .hero{background:var(--hero);color:#fff;padding:0 18px 42px;position:relative;overflow:hidden;flex:0 0 auto;}
+  .hero::after{content:"";position:absolute;right:-50px;top:-40px;width:190px;height:190px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .htop{display:flex;gap:10px;height:36px;align-items:center;position:relative;z-index:2;}
+  .hicon{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .hgreet{display:flex;align-items:center;gap:10px;margin-top:4px;position:relative;z-index:2;}
+  .hg-t{font-size:21px;font-weight:800;}
+  .plan{font-size:11px;font-weight:700;background:rgba(255,255,255,.2);border-radius:999px;padding:3px 11px;}
+  .hsub{font-size:12.5px;opacity:.85;margin-top:5px;position:relative;z-index:2;}
+
+  /* 今日收支卡 */
+  .today{background:var(--surface);border-radius:20px;box-shadow:0 12px 30px rgba(20,24,28,.08);margin-top:-30px;position:relative;z-index:3;overflow:hidden;}
+  .t-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0;}
+  .t-date{font-size:13.5px;font-weight:800;}
+  .t-tag{font-size:11.5px;font-weight:700;padding:3px 11px;border-radius:999px;}
+  .t-tag.todo{background:#fff4e5;color:#c47f16;}
+  .t-tag.done{background:var(--brand-weak);color:var(--brand-600);}
+  .t-io{display:flex;padding:10px 16px 2px;gap:8px;}
+  .t-col{flex:1;}
+  .t-k{font-size:11.5px;color:var(--ink-3);}
+  .t-v{font-size:26px;font-weight:800;letter-spacing:-.02em;margin-top:3px;}
+  .t-v.exp{color:var(--exp);} .t-v.inc{color:var(--inc);}
+  .t-v.zero{color:#c7ccd2;}
+  .t-div{width:1px;background:#eef0f2;margin:6px 4px;}
+  .t-col.net .t-v{font-size:21px;color:var(--ink);}
+  .nudge{margin:10px 12px 14px;background:var(--surface-2);border-radius:11px;padding:10px 12px;display:flex;align-items:center;gap:9px;}
+  .nudge .em{font-size:18px;}
+  .nudge .txt{flex:1;font-size:12px;color:var(--ink-2);line-height:1.4;}
+  .nudge .txt b{color:var(--ink);}
+  .cta{margin:10px 12px 14px;height:44px;border-radius:13px;background:var(--brand);color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 22px rgba(18,161,80,.26);}
+  .cta.ghost{background:#fff;color:var(--brand-600);border:1.5px solid var(--brand-weak);box-shadow:none;height:40px;font-size:13.5px;}
+
+  /* 成长坚持合并卡：成长 Lv + 最新成就 + 连续记账 + 情绪 */
+  .card{background:var(--surface);border-radius:18px;box-shadow:0 8px 24px rgba(20,24,28,.05);}
+  .grow{margin-top:12px;padding:14px 16px;}
+  .g-strip{display:flex;align-items:center;}
+  .g-col{flex:1;display:flex;align-items:center;gap:11px;min-width:0;}
+  .ring{width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--brand) 62%,#e9edf0 0);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .ring i{width:34px;height:34px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:800;color:var(--brand-600);font-style:normal;}
+  .medal{width:44px;height:44px;border-radius:13px;background:#fdf3e2;display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto;}
+  .g-t{font-size:11.5px;color:var(--ink-3);}
+  .g-v{font-size:14px;font-weight:800;margin-top:1px;}
+  .g-s{font-size:11px;color:var(--ink-3);margin-top:1px;}
+  .g-sep{width:1px;height:40px;background:#eef0f2;margin:0 12px;flex:0 0 auto;}
+  .g-hr{height:1px;background:var(--line);margin:14px 0;}
+  .sc-h{display:flex;align-items:baseline;justify-content:space-between;}
+  .sc-t{font-size:14.5px;font-weight:800;} .sc-t b{color:var(--brand);font-size:18px;}
+  .sc-m{font-size:11.5px;color:var(--brand-600);font-weight:700;}
+  .sc-m.todo{color:var(--ink-3);font-weight:400;}
+  .mood-line{font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.4;}
+  .mood-line b{color:var(--ink);}
+  .week{display:flex;justify-content:space-between;margin:12px 2px 0;}
+  .wd{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);}
+  .wd .dot{width:30px;height:30px;border-radius:50%;background:#f1f3f5;display:flex;align-items:center;justify-content:center;font-size:12px;color:#c8ccd2;}
+  .wd.done .dot{background:var(--brand-weak);color:var(--brand);}
+  .wd.today .dot{background:var(--brand);color:#fff;box-shadow:0 6px 14px rgba(18,161,80,.35);}
+  .wd.today{color:var(--brand-600);font-weight:700;}
+
+  /* 猜你要记：一行横向药丸 */
+  .blk-h{display:flex;align-items:center;justify-content:space-between;padding:15px 4px 8px;}
+  .blk-t{font-size:14px;font-weight:800;}
+  .blk-m{font-size:11.5px;color:var(--ink-3);}
+  .quick{display:flex;gap:9px;overflow-x:auto;}
+  .quick::-webkit-scrollbar{height:0;}
+  .qpill{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:#fff;border-radius:999px;padding:8px 13px 8px 8px;box-shadow:0 6px 16px rgba(20,24,28,.06);}
+  .qpill .qi{width:28px;height:28px;border-radius:50%;background:var(--brand);display:flex;align-items:center;justify-content:center;}
+  .qpill .qi .cico{width:16px;height:16px;stroke:#fff;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .qpill .qn{font-size:12.5px;font-weight:600;}
+  .qpill .qa{font-size:12px;font-weight:700;color:var(--exp);}
+
+  /* 本月发现：一行三个细入口 */
+  .disc{display:flex;background:#fff;border-radius:14px;margin-top:12px;box-shadow:0 6px 16px rgba(20,24,28,.05);}
+  .di{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:12px 4px;font-size:12.5px;color:var(--ink-2);font-weight:600;}
+  .di + .di{border-left:1px solid var(--line);}
+  .di .de{font-size:16px;}
+
+  /* tabbar */
+  .tabbar{height:58px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;position:relative;flex:0 0 auto;}
+  .tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--ink-3);}
+  .tb.on{color:var(--brand);font-weight:700;}
+  .tb .d{width:20px;height:20px;stroke:currentColor;stroke-width:1.8;fill:none;}
+  .center{position:absolute;left:50%;top:-14px;transform:translateX(-50%);width:48px;height:48px;border-radius:50%;background:var(--hero);display:flex;align-items:center;justify-content:center;color:#fff;font-size:25px;box-shadow:0 10px 22px rgba(18,161,80,.4);}
+  .legend{margin-top:34px;font-size:14px;color:var(--ink-2);line-height:1.9;}
+  .legend b{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 首页改版 v2（精简一屏）</span>
+  <h1>首页：一屏看完 · 今日收支 + 提醒 + 情绪 + 成长/成就</h1>
+  <p class="sub">应你要求把「成长等级」「最新成就」也保留。做法是并进一张「成长坚持」合并卡：顶部两列小条给成长 Lv 与最新成就，下面接连续记账周点 + 一句情绪文案——四件事一张卡，整页仍控制在不用滚动的一屏内。左右两屏为「未记账引导态」与「已记账反馈态」。</p>
+
+  <div class="sec">改了什么</div>
+  <div class="audit">
+    <div class="c2"><h4>成长 + 成就并入合并卡</h4><p>成长等级（含进度环）与最新成就压成顶部两列小条，保留可点进入成长页/成就页，不再单占一整张大卡。</p></div>
+    <div class="c2"><h4>四合一：成长坚持卡</h4><p>成长 · 成就 · 连续记账 · 情绪一句话合并为一张卡，少三次下滑。</p></div>
+    <div class="c2"><h4>今日收支置顶 + 记账引导</h4><p>打开先看今日支出/收入（或结余）与记没记；未记账给大号「记一笔」，已记账给对比反馈。</p></div>
+    <div class="c2"><h4>猜你要记 / 本月发现 收窄</h4><p>猜你要记改一行横向药丸；本月发现压成一行三个细入口，整页一屏放下。</p></div>
+  </div>
+
+  <div class="sec">原型</div>
+  <div class="screens">
+
+    <!-- 屏 A：今天还没记账 -->
+    <div class="pw">
+      <p class="cap"><span class="n">A</span> 今天还没记账 · 引导态</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="htop"><div class="hicon">🔔</div><div class="hicon">⚙️</div></div>
+            <div class="hgreet"><span class="hg-t">🌙 晚上好，Damien</span><span class="plan">免费版</span></div>
+            <div class="hsub">记好每一笔，日子更有余 ✍️</div>
+          </div>
+
+          <div class="pad">
+            <!-- 今日收支卡 -->
+            <div class="today">
+              <div class="t-head"><span class="t-date">今天 · 8月9日 周六</span><span class="t-tag todo">还没记账</span></div>
+              <div class="t-io">
+                <div class="t-col"><div class="t-k">今日支出</div><div class="t-v zero">¥0.00</div></div>
+                <div class="t-div"></div>
+                <div class="t-col"><div class="t-k">今日收入</div><div class="t-v zero">¥0.00</div></div>
+              </div>
+              <div class="nudge"><span class="em">🔥</span><span class="txt">今天还没记账，花 10 秒记一笔，<b>别断了 8 天连续</b>～</span></div>
+            </div>
+
+            <!-- 猜你要记（上移到今日卡下方） -->
+            <div class="blk-h"><span class="blk-t">✨ 猜你要记</span><span class="blk-m">点一下去记账</span></div>
+            <div class="quick">
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 12h14M9 20l-1.5 2M15 20l1.5 2"/></svg></span><span class="qn">过路费</span><span class="qa">-7.5</span></div>
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><path d="M4 3v7a3 3 0 0 0 3 3v8M7 3v6M10 3v6"/></svg></span><span class="qn">午餐</span><span class="qa">-25</span></div>
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></span><span class="qn">购物</span><span class="qa">-99</span></div>
+            </div>
+
+            <!-- 成长坚持合并卡 -->
+            <div class="card grow">
+              <div class="g-strip">
+                <div class="g-col">
+                  <div class="ring"><i>Lv.5</i></div>
+                  <div><div class="g-t">成长等级</div><div class="g-v">Lv.5</div><div class="g-s">距下一级 10 经验</div></div>
+                </div>
+                <div class="g-sep"></div>
+                <div class="g-col">
+                  <div class="medal">🏅</div>
+                  <div><div class="g-t">最新成就</div><div class="g-v">七日不辍</div><div class="g-s">已解锁 3 枚 ›</div></div>
+                </div>
+              </div>
+              <div class="g-hr"></div>
+              <div class="sc-h"><span class="sc-t">🔥 已连续记账 <b>8</b> 天</span><span class="sc-m todo">今天还没记</span></div>
+              <div class="mood-line">💪 超过了 <b>87%</b> 的有余用户，再坚持 22 天解锁「满月坚持」🏅</div>
+              <div class="week">
+                <div class="wd done"><div class="dot">✓</div><span>一</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>二</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>三</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>四</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>五</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>六</span></div>
+                <div class="wd today"><div class="dot">·</div><span>今</span></div>
+              </div>
+            </div>
+
+            <!-- 本月发现 -->
+            <div class="disc">
+              <div class="di"><span class="de">📊</span>报表</div>
+              <div class="di"><span class="de">🏷️</span>人格</div>
+              <div class="di"><span class="de">🧋</span>趣味</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tb on"><svg class="d" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/></svg>账本</div>
+          <div class="tb" style="visibility:hidden;">记</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><path d="M12 3l4 5-4 13-4-13 4-5Z"/></svg>资产</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>我的</div>
+          <div class="center">＋</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 屏 B：今天已记账 -->
+    <div class="pw">
+      <p class="cap"><span class="n">B</span> 今天已记账 · 反馈态</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="body">
+          <div class="hero">
+            <div class="htop"><div class="hicon">🔔</div><div class="hicon">⚙️</div></div>
+            <div class="hgreet"><span class="hg-t">🌙 晚上好，Damien</span><span class="plan">免费版</span></div>
+            <div class="hsub">记好每一笔，日子更有余 ✍️</div>
+          </div>
+
+          <div class="pad">
+            <!-- 今日收支卡（已记账） -->
+            <div class="today">
+              <div class="t-head"><span class="t-date">今天 · 8月9日 周六</span><span class="t-tag done">已记 3 笔 ✓</span></div>
+              <div class="t-io">
+                <div class="t-col"><div class="t-k">今日支出</div><div class="t-v exp">¥128.50</div></div>
+                <div class="t-div"></div>
+                <div class="t-col net"><div class="t-k">今日结余</div><div class="t-v">−128.50</div></div>
+              </div>
+              <div class="nudge"><span class="em">👏</span><span class="txt">今天比昨天<b>少花了 ¥42</b>，钱包在感谢你 💚</span></div>
+            </div>
+
+            <!-- 猜你要记（上移到今日卡下方） -->
+            <div class="blk-h"><span class="blk-t">✨ 猜你要记</span><span class="blk-m">点一下去记账</span></div>
+            <div class="quick">
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 12h14M9 20l-1.5 2M15 20l1.5 2"/></svg></span><span class="qn">过路费</span><span class="qa">-7.5</span></div>
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><path d="M4 3v7a3 3 0 0 0 3 3v8M7 3v6M10 3v6"/></svg></span><span class="qn">晚餐</span><span class="qa">-35</span></div>
+              <div class="qpill"><span class="qi"><svg class="cico" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="10" rx="5"/></svg></span><span class="qn">娱乐</span><span class="qa">-50</span></div>
+            </div>
+
+            <!-- 成长坚持合并卡 -->
+            <div class="card grow">
+              <div class="g-strip">
+                <div class="g-col">
+                  <div class="ring"><i>Lv.5</i></div>
+                  <div><div class="g-t">成长等级</div><div class="g-v">Lv.5</div><div class="g-s">距下一级 8 经验</div></div>
+                </div>
+                <div class="g-sep"></div>
+                <div class="g-col">
+                  <div class="medal">🏅</div>
+                  <div><div class="g-t">最新成就</div><div class="g-v">七日不辍</div><div class="g-s">已解锁 3 枚 ›</div></div>
+                </div>
+              </div>
+              <div class="g-hr"></div>
+              <div class="sc-h"><span class="sc-t">🔥 已连续记账 <b>9</b> 天</span><span class="sc-m">今日已记 ✓</span></div>
+              <div class="mood-line">🎉 连续第 9 天打卡，超过了 <b>87%</b> 的有余用户，保持住！</div>
+              <div class="week">
+                <div class="wd done"><div class="dot">✓</div><span>一</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>二</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>三</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>四</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>五</span></div>
+                <div class="wd done"><div class="dot">✓</div><span>六</span></div>
+                <div class="wd today"><div class="dot">✓</div><span>今</span></div>
+              </div>
+            </div>
+
+            <!-- 本月发现 -->
+            <div class="disc">
+              <div class="di"><span class="de">📊</span>报表</div>
+              <div class="di"><span class="de">🏷️</span>人格</div>
+              <div class="di"><span class="de">🧋</span>趣味</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tb on"><svg class="d" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6"/><path d="M6 10v9h12v-9"/></svg>首页</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/></svg>账本</div>
+          <div class="tb" style="visibility:hidden;">记</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><path d="M12 3l4 5-4 13-4-13 4-5Z"/></svg>资产</div>
+          <div class="tb"><svg class="d" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>我的</div>
+          <div class="center">＋</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <p><b>落地要点：</b>「今日收支」取当天流水聚合（仅金额，不列明细）；<b>记账提醒</b>按 <code>todayDone</code> 切换两态文案与 CTA；<b>成长/成就</b>沿用 growth/achievement 概览接口，压成两列小条并保留跳转；<b>情绪价值</b>一句话由昨日对比/连续天数百分位/月度节省派生，失败回退固定鼓励语；<b>猜你要记</b>沿用推荐接口改横向药丸。整页一屏内，成长/成就/流水详情分别去对应页深看。颜色沿用主题令牌。</p>
+  </div>
+</div>
+</body>
+</html>
