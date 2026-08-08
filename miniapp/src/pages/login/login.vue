@@ -60,11 +60,18 @@ async function handleWxLogin() {
   }
 }
 
-// 进入登录页时，小程序端尝试一次静默微信登录（除非用户此前主动退出登录）。
-// 静默失败则安静停留在登录页，由用户手动选择登录方式，不弹错、不重试。
+// 登录页是小程序/H5 的入口页（pages[0]），冷启动总会先落在这里。
+// 已登录（本地有令牌）就直接转发进应用——修复「登录后重新进入小程序又回到登录页」：
+// 根因是入口页从不为已登录用户转发，而非令牌未持久化。
 onShow(() => {
+  if (auth.isLoggedIn) {
+    routeAfterLogin()
+    return
+  }
+  // 未登录：小程序端尝试一次静默微信登录（除非用户此前主动退出）。
+  // 静默失败则安静停留在登录页，由用户手动选择登录方式，不弹错、不重试。
   // #ifdef MP-WEIXIN
-  if (autoTried.value || loading.value || auth.isLoggedIn) return
+  if (autoTried.value || loading.value) return
   if (uni.getStorageSync(STORAGE_KEYS.signedOut)) return
   autoTried.value = true
   loading.value = true
