@@ -75,6 +75,8 @@ export const useAuthStore = defineStore('auth', {
       this.user = user
       uni.setStorageSync(STORAGE_KEYS.token, token)
       uni.setStorageSync(STORAGE_KEYS.user, user)
+      // 成功登录即解除「主动退出」标记，恢复小程序端自动静默登录。
+      uni.removeStorageSync(STORAGE_KEYS.signedOut)
     },
 
     /**
@@ -96,6 +98,8 @@ export const useAuthStore = defineStore('auth', {
       uni.removeStorageSync(STORAGE_KEYS.user)
       uni.removeStorageSync(STORAGE_KEYS.ledgerId)
       uni.removeStorageSync('youyu_onboarded')
+      // 记录「主动退出」，避免小程序端在登录页自动静默登录把用户又登回去。
+      uni.setStorageSync(STORAGE_KEYS.signedOut, '1')
     }
   }
 })

@@ -16,5 +16,7 @@ export const STORAGE_KEYS = {
   // 待绑定邀请码的写入时刻，用于 7 天有效期判定
   pendingInviteCodeAt: 'youyu_pending_invite_code_at',
   // 待高亮成就编码（未登录时从成就分享卡片暂存，登录后带进成就页并清除）
-  pendingAchievementCode: 'youyu_pending_achievement_code'
+  pendingAchievementCode: 'youyu_pending_achievement_code',
+  // 主动退出登录标记：置位后小程序端不再自动静默登录（避免退出后被立刻登回）；任一次成功登录时清除。
+  signedOut: 'youyu_signed_out'
 }

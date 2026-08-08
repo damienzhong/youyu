@@ -46,6 +46,10 @@
         "text": "首页"
       },
       {
+        "pagePath": "pages/accounts/accounts",
+        "text": "资产"
+      },
+      {
         "pagePath": "pages/report/report",
         "text": "报表"
       },

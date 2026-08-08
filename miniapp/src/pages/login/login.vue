@@ -1,12 +1,17 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { sendCode } from '../../api/auth'
 import { listAccounts } from '../../api/account'
 import { takePendingAchievementCode } from '../../utils/achievement'
+import { STORAGE_KEYS } from '../../utils/config'
 
 const auth = useAuthStore()
 const loading = ref(false)
+// 小程序端自动静默登录：微信 wx.login 无需用户交互即可拿 code，
+// 因此被踢回登录页时可直接静默换取令牌、免去手动点按。仅试一次，避免失败时死循环。
+const autoTried = ref(false)
 
 // 登录后路由：无账户且未走过引导的新用户 → 新手引导；否则进首页。
 async function routeAfterLogin() {
@@ -54,6 +59,22 @@ async function handleWxLogin() {
     loading.value = false
   }
 }
+
+// 进入登录页时，小程序端尝试一次静默微信登录（除非用户此前主动退出登录）。
+// 静默失败则安静停留在登录页，由用户手动选择登录方式，不弹错、不重试。
+onShow(() => {
+  // #ifdef MP-WEIXIN
+  if (autoTried.value || loading.value || auth.isLoggedIn) return
+  if (uni.getStorageSync(STORAGE_KEYS.signedOut)) return
+  autoTried.value = true
+  loading.value = true
+  auth
+    .loginWithWeixin()
+    .then(routeAfterLogin)
+    .catch(() => { /* 静默失败：留在登录页，等待用户手动登录 */ })
+    .finally(() => { loading.value = false })
+  // #endif
+})
 
 // 邮箱验证码登录/注册合一（默认折叠，微信一键为主路径，需要时展开）
 const showEmail = ref(false)

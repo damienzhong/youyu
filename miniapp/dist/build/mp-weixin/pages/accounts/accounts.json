@@ -4,6 +4,7 @@
   "usingComponents": {
     "app-icon": "../../components/AppIcon/AppIcon",
     "account-type-sheet": "../../components/AccountTypeSheet/AccountTypeSheet",
-    "account-edit-sheet": "../../components/AccountEditSheet/AccountEditSheet"
+    "account-edit-sheet": "../../components/AccountEditSheet/AccountEditSheet",
+    "tab-bar": "../../components/TabBar/TabBar"
   }
 }

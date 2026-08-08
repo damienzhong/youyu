@@ -252,8 +252,10 @@ public class TransactionService {
         if (accountId == null) {
             throw ApiException.fieldRequired("accountId");
         }
-        // 校验账户在该账本可用并读取当前余额（不加锁，随后 create 内再加锁更新）。
-        Account account = accountResolver.lockUsableAccount(userId, ledgerId, accountId);
+        // 余额调整是账户级操作（补差记 ledger_id=null，脱离账本），只校验账户归属本人并加锁读取当前余额，
+        // 不要求账户在当前账本可用——否则从「资产」页调整未纳入当前账本的账户会误报「账户不存在」。
+        Account account = accountRepository.findForUpdateByIdAndUserId(accountId, userId)
+                .orElseThrow(() -> ApiException.notFound("账户不存在"));
 
         BigDecimal target = validateBalance(rawTarget);
         BigDecimal delta = target.subtract(account.getCurrentBalance()).setScale(2, RoundingMode.HALF_UP);
