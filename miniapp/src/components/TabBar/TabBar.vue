@@ -3,25 +3,28 @@
  * 自定义底部导航（方案 B：满宽栏 + 中间凸起「记一笔」）。
  *
  * 用法：在各 tab 页根节点末尾放 <TabBar active="home" />。
- * - 4 个 tab（首页/资产/报表/我的）用 uni.switchTab 切换（pages.json tabBar 设 custom:true）。
+ * - 4 个 tab（首页/账本/资产/我的）用 uni.switchTab 切换（active: home|ledger|assets|me）。
  * - 中间凸起键跳「记一笔」记账页（navigateTo，非 tab 页）。
  * - 图标用统一线性图标集（AppIcon，SVG data-URI，H5/小程序通用），选中态品牌绿。
  * 依赖 easycom 自动注册（components/TabBar/TabBar.vue → <TabBar/>）。
  */
 import { computed } from 'vue'
+import { useThemeStore } from '../../stores/theme'
 
 const props = defineProps({
   active: { type: String, default: 'home' } // home | assets | report | me
 })
 
-const ACTIVE = '#12a150'
+const themeStore = useThemeStore()
+// 选中态图标色随主题（AppIcon 把颜色烧进 SVG data-URI，只能走 JS，不能靠 CSS 变量）。
+const ACTIVE = computed(() => themeStore.current.vars['--c-brand'])
 const INACTIVE = '#9aa2ad'
 
+// 一级 tab：首页(总览) / 账本(记账明细) / 资产 / 我的；报表降为账本页快捷入口。
 const TABS = [
-  { key: 'home', label: '首页', icon: 'home', path: '/pages/index/index' },
-  // 资产升为一级 tab（已加入 pages.json tabBar.list），用 switchTab 切换。
+  { key: 'home', label: '首页', icon: 'home', path: '/pages/home/home' },
+  { key: 'ledger', label: '账本', icon: 'book', path: '/pages/index/index' },
   { key: 'assets', label: '资产', icon: 'diamond', path: '/pages/accounts/accounts' },
-  { key: 'report', label: '报表', icon: 'chart', path: '/pages/report/report' },
   { key: 'me', label: '我的', icon: 'user', path: '/pages/me/me' }
 ]
 
@@ -51,16 +54,16 @@ function onCenter() {
       <view class="tab" :class="{ on: active === 'home' }" @click="switchTo(TABS[0])">
         <AppIcon class="ic" name="home" :size="42" :color="active === 'home' ? ACTIVE : INACTIVE" /><text class="t">首页</text>
       </view>
-      <view class="tab" :class="{ on: active === 'assets' }" @click="switchTo(TABS[1])">
-        <AppIcon class="ic" name="diamond" :size="42" :color="active === 'assets' ? ACTIVE : INACTIVE" /><text class="t">资产</text>
+      <view class="tab" :class="{ on: active === 'ledger' }" @click="switchTo(TABS[1])">
+        <AppIcon class="ic" name="book" :size="42" :color="active === 'ledger' ? ACTIVE : INACTIVE" /><text class="t">账本</text>
       </view>
       <!-- 中间：图标区留白给凸起键，标签随页面上下文变化，与其它标签基线对齐 -->
       <view class="tab center-slot" @click="onCenter">
         <view class="ic-space"></view>
         <text class="t hl">{{ centerLabel }}</text>
       </view>
-      <view class="tab" :class="{ on: active === 'report' }" @click="switchTo(TABS[2])">
-        <AppIcon class="ic" name="chart" :size="42" :color="active === 'report' ? ACTIVE : INACTIVE" /><text class="t">报表</text>
+      <view class="tab" :class="{ on: active === 'assets' }" @click="switchTo(TABS[2])">
+        <AppIcon class="ic" name="diamond" :size="42" :color="active === 'assets' ? ACTIVE : INACTIVE" /><text class="t">资产</text>
       </view>
       <view class="tab" :class="{ on: active === 'me' }" @click="switchTo(TABS[3])">
         <AppIcon class="ic" name="user" :size="42" :color="active === 'me' ? ACTIVE : INACTIVE" /><text class="t">我的</text>
@@ -113,7 +116,7 @@ function onCenter() {
   color: #9aa2ad;
 }
 .tab.on .t {
-  color: #12a150;
+  color: var(--c-brand, #12a150);
   font-weight: 600;
 }
 /* 中间槽：图标区留白（与其它 tab 图标同高），使「记一笔」标签与其它标签对齐 */
@@ -122,7 +125,7 @@ function onCenter() {
   height: 40rpx;
 }
 .center-slot .t.hl {
-  color: #12a150;
+  color: var(--c-brand, #12a150);
   font-weight: 600;
 }
 /* 白色护城河：把凸起键托进栏里 */
@@ -145,11 +148,11 @@ function onCenter() {
   width: 80rpx;
   height: 80rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #18b85a, #0e8a44);
+  background: var(--c-hero, linear-gradient(135deg, #18b85a, #0e8a44));
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 10rpx 22rpx rgba(18, 161, 80, 0.45);
+  box-shadow: 0 10rpx 22rpx rgba(20, 24, 28, 0.28);
   z-index: 2;
   pointer-events: auto;
 }

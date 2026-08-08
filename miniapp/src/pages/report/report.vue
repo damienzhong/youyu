@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { categoryReport, memberReport, dimensionReport, trendReport, monthlyDigest, aiInsights, personalityTags, monthRange, shiftMonth } from '../../api/report'
 import { listAllCategories, listAllTransactionsByMonth } from '../../api/aggregate'
-import { buildCategoryLabelMap } from '../../api/category'
+import { buildCategoryLabelMap, flattenAll, listCategories } from '../../api/category'
+import { rollupCategoryShares } from '../../utils/categoryRollup'
+import { useThemeStore } from '../../stores/theme'
 import { useLedgerStore } from '../../stores/ledger'
 import { formatAmount, categoryEmoji, currentMonth, monthLabel } from '../../utils/format'
-import { guessIcon } from '../../utils/icons'
 import { STORAGE_KEYS } from '../../utils/config'
 import {
   DIGEST_TIMEOUT_MS,
@@ -28,6 +29,7 @@ import {
 } from '../../utils/personalityTags'
 
 const ledgerStore = useLedgerStore()
+const themeStore = useThemeStore()
 
 const KINDS = [
   { value: 'expense', label: '支出' },
@@ -53,6 +55,14 @@ const rows = ref([])
 const members = ref([])
 const trend = ref([])
 const loading = ref(false)
+
+// 分类维度：一级分类归并 + 子分类下钻。expandedRootId 记录当前展开的父分类 id（null=全部收起）。
+const isCategoryDim = computed(() => dim.value === 'category')
+const expandedRootId = ref(null)
+function toggleExpand(r) {
+  if (!r.children || !r.children.length) return
+  expandedRootId.value = expandedRootId.value === r.categoryId ? null : r.categoryId
+}
 
 // 智能月报（需求 1、10）：与其它报表相互独立的响应式状态。
 // digest 承载九模块数据包；digestVisible 控制月报区块是否展示。
@@ -296,6 +306,8 @@ async function load() {
   loadInsights()
   loadTags()
   loading.value = true
+  // 重新加载时收起子分类下钻，避免月份/类别切换后残留展开态。
+  expandedRootId.value = null
   try {
     if (ledgerStore.isAll) {
       await loadAllAggregate()
@@ -304,9 +316,18 @@ async function load() {
     } else {
       const { from, to } = monthRange(month.value)
       if (dim.value === 'category') {
-        const res = await categoryReport(from, to, kind.value)
+        // 叶子级占比 + 分类树并行取：树用于把子分类归并到父分类、并支持下钻（需求：先看一级、再看次级）。
+        // 分类树请求失败可降级：null → rollup 退化为叶子级平铺，绝不因取树失败而整页空白。
+        const [res, tree] = await Promise.all([
+          categoryReport(from, to, kind.value),
+          listCategories(ledgerStore.currentLedgerId).catch(() => null)
+        ])
         total.value = res.totalExpense
-        rows.value = res.categories || []
+        rows.value = rollupCategoryShares(
+          res.categories || [],
+          tree ? flattenAll(tree) : [],
+          res.totalExpense
+        )
       } else {
         const res = await dimensionReport(from, to, dim.value, kind.value)
         total.value = res.total
@@ -364,14 +385,21 @@ async function loadAllAggregate() {
     percentage: totalCents > 0 ? Number(((c.amount / totalCents) * 100).toFixed(2)) : 0,
     count: c.count
   }))
-  list.sort((a, b) => Number(b.amount) - Number(a.amount))
-  rows.value = list
+  // 与具体账本一致：按父分类归并、支持子分类下钻（跨账本分类树来自 /all/categories）。
+  rows.value = rollupCategoryShares(list, flattenAll(cats), total.value)
 }
 
-onShow(() => {
-  uni.hideTabBar({ animation: false, fail() {} })
+onShow(async () => {
+  // 报表已从底部一级 tab 降为账本页快捷入口（navigateTo 进入），普通页有原生返回，无需隐藏/渲染自定义 TabBar。
   // 开启右上角转发菜单，供月报配图分享（需求 8.4）。
   uni.showShareMenu({ withShareTicket: false, fail() {} })
+  // 首次进入若账本列表尚未加载，先加载并校正当前账本（load() 会把失效的 currentLedgerId 回退到默认）。
+  // 否则可能带着过期/未就绪的 X-Ledger-Id 发起请求，命中空账本导致「第一次进来没有数据」。
+  try {
+    if (!ledgerStore.ledgers.length) await ledgerStore.load()
+  } catch (e) {
+    /* 账本加载失败不阻断报表：仍按当前账本上下文尝试拉取 */
+  }
   load()
 })
 
@@ -411,7 +439,7 @@ function nextMonth() {
 </script>
 
 <template>
-  <view class="page">
+  <view class="page" :style="themeStore.current.vars">
     <view class="kinds">
       <view
         v-for="k in KINDS"
@@ -689,25 +717,68 @@ function nextMonth() {
     </view>
 
     <view class="list" v-if="rows.length">
-      <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row" @click="onRowTap(r)">
-        <view class="cat-ic">
-          <AppIcon :name="guessIcon(r.categoryName, kind)" :size="40" />
+      <!-- 分类维度：一级分类归并，点父分类展开查看子分类 -->
+      <template v-if="isCategoryDim">
+        <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="cat-group">
+          <view class="row" @click="toggleExpand(r)">
+            <CategoryIcon :name="r.categoryName" :kind="kind" :size="38" />
+            <view class="row-body">
+              <view class="row-head">
+                <text class="row-name">{{ r.categoryName || '未分类' }}</text>
+                <text class="row-amount">¥{{ formatAmount(r.amount) }}</text>
+              </view>
+              <view class="bar-bg">
+                <view class="bar" :style="{ width: r.percentage + '%', background: colorAt(i) }"></view>
+              </view>
+              <view class="row-foot">
+                <text class="row-pct">{{ r.percentage }}%</text>
+                <text class="row-count">{{ r.count }} 笔</text>
+              </view>
+            </view>
+            <text
+              v-if="r.children && r.children.length"
+              class="row-caret expand"
+              :class="{ open: expandedRootId === r.categoryId }"
+            >⌄</text>
+          </view>
+          <!-- 子分类下钻：占比相对该父分类 -->
+          <view
+            v-if="r.children && r.children.length && expandedRootId === r.categoryId"
+            class="sublist"
+          >
+            <view v-for="(c, ci) in r.children" :key="ci" class="subrow">
+              <text class="subname">{{ c.categoryName }}</text>
+              <view class="subbar-bg">
+                <view class="subbar" :style="{ width: c.percentage + '%', background: colorAt(i) }"></view>
+              </view>
+              <view class="submeta">
+                <text class="subamt">¥{{ formatAmount(c.amount) }}</text>
+                <text class="subcount">{{ c.percentage }}% · {{ c.count }} 笔</text>
+              </view>
+            </view>
+          </view>
         </view>
-        <view class="row-body">
-          <view class="row-head">
-            <text class="row-name">{{ r.categoryName || '未分类' }}</text>
-            <text class="row-amount">¥{{ formatAmount(r.amount) }}</text>
+      </template>
+      <!-- 项目 / 商家 / 标签维度：保持原扁平列表与筛选跳转 -->
+      <template v-else>
+        <view v-for="(r, i) in rows" :key="r.categoryId ?? i" class="row" @click="onRowTap(r)">
+          <CategoryIcon :name="r.categoryName" :kind="kind" :size="38" />
+          <view class="row-body">
+            <view class="row-head">
+              <text class="row-name">{{ r.categoryName || '未分类' }}</text>
+              <text class="row-amount">¥{{ formatAmount(r.amount) }}</text>
+            </view>
+            <view class="bar-bg">
+              <view class="bar" :style="{ width: r.percentage + '%', background: colorAt(i) }"></view>
+            </view>
+            <view class="row-foot">
+              <text class="row-pct">{{ r.percentage }}%</text>
+              <text class="row-count">{{ r.count }} 笔</text>
+            </view>
           </view>
-          <view class="bar-bg">
-            <view class="bar" :style="{ width: r.percentage + '%', background: colorAt(i) }"></view>
-          </view>
-          <view class="row-foot">
-            <text class="row-pct">{{ r.percentage }}%</text>
-            <text class="row-count">{{ r.count }} 笔</text>
-          </view>
+          <text class="row-caret">›</text>
         </view>
-        <text v-if="showDims && dim !== 'category'" class="row-caret">›</text>
-      </view>
+      </template>
     </view>
 
     <!-- 协作账本：成员支出占比 -->
@@ -758,8 +829,6 @@ function nextMonth() {
         <view class="poster-close" @click="closePoster">关闭</view>
       </view>
     </view>
-
-    <TabBar active="report" />
   </view>
 </template>
 
@@ -767,6 +836,7 @@ function nextMonth() {
 .page {
   min-height: 100vh;
   padding: 24rpx;
+  background: var(--c-page-bg, #eef0f2);
 }
 .kinds {
   display: flex;
@@ -783,7 +853,7 @@ function nextMonth() {
   color: #6b7280;
 }
 .kind.active {
-  background: #12a150;
+  background: var(--c-brand, #12a150);
   color: #fff;
   font-weight: 700;
 }
@@ -792,8 +862,8 @@ function nextMonth() {
   padding: 32rpx 36rpx 40rpx;
   margin-bottom: 24rpx;
   color: #fff;
-  background: linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34);
-  box-shadow: 0 20rpx 44rpx rgba(22, 163, 74, 0.26);
+  background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34));
+  box-shadow: 0 20rpx 44rpx rgba(20, 24, 28, 0.2);
 }
 .month-bar {
   display: flex;
@@ -836,7 +906,7 @@ function nextMonth() {
   box-shadow: 0 4rpx 12rpx rgba(20, 24, 28, 0.04);
 }
 .dim.on {
-  background: #12a150;
+  background: var(--c-brand, #12a150);
   color: #fff;
   font-weight: 700;
 }
@@ -1008,6 +1078,75 @@ function nextMonth() {
   color: #c0c4cc;
   font-size: 40rpx;
   padding-left: 8rpx;
+}
+/* 可展开的父分类：用 ⌄ 指示，展开时旋转 180° */
+.row-caret.expand {
+  font-size: 34rpx;
+  transition: transform 0.18s ease;
+}
+.row-caret.expand.open {
+  transform: rotate(180deg);
+  color: #12a150;
+}
+
+/* 分类分组：分组间用细线分隔，父行不再单独描边（避免与分组线重叠） */
+.cat-group {
+  border-top: 1rpx solid #eef0f2;
+}
+.cat-group:first-child {
+  border-top: none;
+}
+.cat-group .row {
+  border-top: none;
+}
+
+/* 子分类下钻列表：缩进、弱化，占比相对父分类 */
+.sublist {
+  padding: 4rpx 0 18rpx 58rpx;
+}
+.subrow {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 12rpx 0;
+}
+.subname {
+  flex: 0 0 auto;
+  width: 150rpx;
+  font-size: 24rpx;
+  color: #5b6470;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.subbar-bg {
+  flex: 1;
+  height: 12rpx;
+  background: #f0f2f4;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+.subbar {
+  height: 100%;
+  border-radius: 6rpx;
+  opacity: 0.85;
+}
+.submeta {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2rpx;
+  min-width: 150rpx;
+}
+.subamt {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #16181c;
+}
+.subcount {
+  font-size: 20rpx;
+  color: #9aa2ad;
 }
 
 /* ── 智能月报区块 ─────────────────────────────── */
@@ -1280,8 +1419,8 @@ function nextMonth() {
   gap: 12rpx;
   padding: 24rpx 0;
   border-radius: 18rpx;
-  background: linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34);
-  box-shadow: 0 10rpx 24rpx rgba(22, 163, 74, 0.22);
+  background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34));
+  box-shadow: 0 10rpx 24rpx rgba(20, 24, 28, 0.18);
 }
 .dg-poster-entry.busy {
   opacity: 0.6;

@@ -3,8 +3,9 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useLedgerStore } from '../../stores/ledger'
+import { useThemeStore } from '../../stores/theme'
 import { listAccounts, accountDisplayName } from '../../api/account'
-import { listCategories, buildCategoryLabelMap, buildCategoryIconMap } from '../../api/category'
+import { listCategories, buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
 import { listTransactionsByMonth } from '../../api/transaction'
 import { listTags } from '../../api/tag'
@@ -22,6 +23,7 @@ import { formatAmount, categoryEmoji, dayKeyOf, dayLabel, currentMonth } from '.
 
 const auth = useAuthStore()
 const ledgerStore = useLedgerStore()
+const themeStore = useThemeStore()
 
 const month = ref(currentMonth())
 const loaded = ref(false)
@@ -29,6 +31,7 @@ const accounts = ref([])
 const accountMap = ref({})
 const categoryMap = ref({})
 const categoryIconMap = ref({})
+const categoryColorMap = ref({})
 const transactions = ref([])
 const budget = ref(null)
 const memberMap = ref({})
@@ -36,6 +39,8 @@ const tagNameById = ref({})
 
 // 记账推荐候选（至多 3 条；<2 条不展示卡）。纯只读派生，点候选仅跳转预填、绝不入账。
 const suggestions = ref([])
+// 账本页与首页一致，只展示前 2 条候选。
+const topSuggestions = computed(() => suggestions.value.slice(0, 2))
 // 请求序号：账本切换/多次 onShow 时丢弃过期响应，避免旧账本候选覆盖新账本。
 let suggestSeq = 0
 
@@ -109,6 +114,7 @@ async function load() {
       ])
       categoryMap.value = buildCategoryLabelMap(cats)
       categoryIconMap.value = buildCategoryIconMap(cats)
+      categoryColorMap.value = buildCategoryColorMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
       transactions.value = txs
@@ -123,6 +129,7 @@ async function load() {
       ])
       categoryMap.value = buildCategoryLabelMap(cats)
       categoryIconMap.value = buildCategoryIconMap(cats)
+      categoryColorMap.value = buildCategoryColorMap(cats)
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
       transactions.value = txs
@@ -195,10 +202,7 @@ function loadSuggestions() {
     })
 }
 
-// 展示辅助：图标（缺省走 AppIcon 名称回退）、标题（分类名，已删则按方向兜底）、方向、带符号金额。
-function suggestIcon(s) {
-  return resolveIcon(s.categoryIcon, s.categoryName, s.type)
-}
+// 展示辅助：标题（分类名，已删则按方向兜底）、方向、带符号金额。
 function suggestTitle(s) {
   // 优先用首页已构建的分类全路径映射（如「交通 / 过路费」），与流水列表口径一致；
   // 分类已删或映射缺失时回退后端返回的分类名，再回退方向文案。
@@ -280,6 +284,11 @@ function iconOf(t) {
 function iconKeyOf(t) {
   if (t.type === 'transfer') return 'transfer'
   return resolveIcon(categoryIconMap.value[t.categoryId], categoryMap.value[t.categoryId], t.type)
+}
+// 交易行分类图标背景色：转账用默认色，收支取分类 icon_color（缺省由 CategoryIcon 兜底）。
+function iconColorOf(t) {
+  if (t.type === 'transfer') return ''
+  return categoryColorMap.value[t.categoryId] || ''
 }
 function tagNamesOf(t) {
   if (!Array.isArray(t.tagIds) || !t.tagIds.length) return []
@@ -416,7 +425,7 @@ function goSearch() {
 </script>
 
 <template>
-  <view class="home">
+  <view class="home" :style="themeStore.current.vars">
     <!-- Hero -->
     <view class="top" :class="{ agg: isAll }">
       <view class="statusbar" :style="{ height: statusBarHeight }"></view>
@@ -459,6 +468,7 @@ function goSearch() {
         <view class="qa" @click="nav('/pages/categories/categories')"><view class="qa-ic"><AppIcon name="tag" :size="42" /></view><text class="qa-l">分类</text></view>
         <view class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
         <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
+        <view class="qa" @click="nav('/pages/report/report')"><view class="qa-ic"><AppIcon name="chart" :size="42" /></view><text class="qa-l">报表</text></view>
         <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
       </view>
     </view>
@@ -497,12 +507,12 @@ function goSearch() {
           <text class="sug-why">按常记 · 点一下去记账</text>
         </view>
         <view
-          v-for="(s, i) in suggestions"
+          v-for="(s, i) in topSuggestions"
           :key="`${s.type}-${s.categoryId}-${s.accountId}-${s.amount}-${i}`"
           class="cand"
           @click="pickSuggestion(s)"
         >
-          <view class="cand-ic"><AppIcon :name="suggestIcon(s)" :size="42" /></view>
+          <CategoryIcon :icon="s.categoryIcon" :name="s.categoryName" :kind="s.type" :size="35" />
           <view class="cand-info">
             <text class="cand-name">{{ suggestTitle(s) }}</text>
             <text class="cand-meta">{{ suggestDir(s) }}</text>
@@ -555,7 +565,7 @@ function goSearch() {
         </view>
         <view class="tx-list">
           <view v-for="t in g.items" :key="t.id" class="tx" @click="goEdit(t)">
-            <view class="tx-ic"><AppIcon :name="iconKeyOf(t)" :size="42" /></view>
+            <CategoryIcon :icon="iconKeyOf(t)" :color="iconColorOf(t)" :size="35" />
             <view class="tx-info">
               <view class="tx-titrow">
                 <text class="tx-title">{{ titleOf(t) }}</text>
@@ -573,7 +583,7 @@ function goSearch() {
       <view style="height:180rpx;"></view>
     </view>
 
-    <TabBar active="home" />
+    <TabBar active="ledger" />
 
     <!-- 账本切换 -->
     <view v-if="showLedgerSheet" class="mask" @click="showLedgerSheet = false">
@@ -644,16 +654,17 @@ function goSearch() {
 <style scoped>
 .home {
   min-height: 100vh;
-  background: #eef0f2;
+  background: var(--c-page-bg, #eef0f2);
 }
 .top {
-  background: linear-gradient(155deg, #1fbf63, #0f8a45 78%);
+  background: var(--c-hero, linear-gradient(155deg, #1fbf63, #0f8a45 78%));
   padding-bottom: 74rpx;
   position: relative;
   overflow: hidden;
 }
+/* 「全部账本」聚合视图沿用主题页头，保持与具体账本一致的观感 */
 .top.agg {
-  background: linear-gradient(155deg, #2b3a34, #1f2a30 78%);
+  background: var(--c-hero, linear-gradient(155deg, #1fbf63, #0f8a45 78%));
 }
 .top::after {
   content: '';
@@ -866,7 +877,7 @@ function goSearch() {
 .bar {
   height: 100%;
   border-radius: 8rpx;
-  background: #12a150;
+  background: var(--c-brand, #12a150);
 }
 .bar.warn {
   background: #f4a72b;
@@ -922,8 +933,8 @@ function goSearch() {
   min-width: 0;
 }
 .cand-name {
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 29rpx;
+  font-weight: 500;
   color: #16181c;
 }
 .cand-meta {
@@ -933,11 +944,12 @@ function goSearch() {
   display: block;
 }
 .cand-amt {
-  font-size: 32rpx;
-  font-weight: 800;
+  font-size: 30rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .cand-amt.expense {
-  color: #f0553d;
+  color: #e5544b;
 }
 .cand-amt.income {
   color: #12a150;
@@ -947,13 +959,13 @@ function goSearch() {
   flex: 0 0 auto;
   font-size: 24rpx;
   font-weight: 700;
-  color: #0e8a44;
-  background: #e6f6ec;
+  color: var(--c-brand-ink, #0e8a44);
+  background: var(--c-brand-weak, #e6f6ec);
   border-radius: 999rpx;
   padding: 10rpx 22rpx;
 }
 .cand-go:active {
-  background: #d3efdd;
+  opacity: 0.85;
 }
 
 .mcard {
@@ -984,7 +996,7 @@ function goSearch() {
   width: 34rpx;
   height: 34rpx;
   border-radius: 50%;
-  background: #12a150;
+  background: var(--c-brand, #12a150);
   color: #fff;
   font-size: 20rpx;
   text-align: center;
@@ -1027,19 +1039,19 @@ function goSearch() {
   width: 100%;
   height: 88rpx;
   border-radius: 999rpx;
-  background: #12a150;
+  background: var(--c-brand, #12a150);
   color: #fff;
   font-size: 30rpx;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 14rpx 30rpx rgba(18, 161, 80, 0.26);
+  box-shadow: 0 14rpx 30rpx rgba(20, 24, 28, 0.18);
 }
 .g-link {
   margin-top: 20rpx;
   font-size: 24rpx;
-  color: #0e8a44;
+  color: var(--c-brand-ink, #0e8a44);
   font-weight: 700;
 }
 .month-empty {
@@ -1111,8 +1123,8 @@ function goSearch() {
   gap: 10rpx;
 }
 .tx-title {
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 29rpx;
+  font-weight: 500;
   color: #16181c;
 }
 .tx-ltag {
@@ -1135,17 +1147,18 @@ function goSearch() {
 }
 .tx-tag {
   font-size: 18rpx;
-  color: #0e8a44;
-  background: #e6f6ec;
+  color: var(--c-brand-ink, #0e8a44);
+  background: var(--c-brand-weak, #e6f6ec);
   border-radius: 6rpx;
   padding: 2rpx 12rpx;
 }
 .tx-amt {
-  font-size: 32rpx;
-  font-weight: 800;
+  font-size: 30rpx;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .tx-amt.expense {
-  color: #f0553d;
+  color: #e5544b;
 }
 .tx-amt.income {
   color: #12a150;
@@ -1161,12 +1174,12 @@ function goSearch() {
   width: 104rpx;
   height: 104rpx;
   border-radius: 50%;
-  background: linear-gradient(135deg, #18b85a, #0e8a44);
+  background: var(--c-hero, linear-gradient(135deg, #18b85a, #0e8a44));
   color: #fff;
   font-size: 62rpx;
   line-height: 104rpx;
   text-align: center;
-  box-shadow: 0 14rpx 34rpx rgba(18, 161, 80, 0.45);
+  box-shadow: 0 14rpx 34rpx rgba(20, 24, 28, 0.28);
   z-index: 200;
 }
 
@@ -1247,8 +1260,8 @@ function goSearch() {
   box-sizing: border-box;
 }
 .li-radio.on {
-  border-color: #12a150;
-  background: radial-gradient(circle at center, #12a150 0, #12a150 9rpx, #fff 10rpx, #fff 100%);
+  border-color: var(--c-brand, #12a150);
+  background: radial-gradient(circle at center, var(--c-brand, #12a150) 0, var(--c-brand, #12a150) 9rpx, #fff 10rpx, #fff 100%);
 }
 .li-edit {
   font-size: 24rpx;
@@ -1270,7 +1283,7 @@ function goSearch() {
   text-align: center;
   padding: 30rpx;
   font-size: 30rpx;
-  color: #0e8a44;
+  color: var(--c-brand-ink, #0e8a44);
   font-weight: 700;
 }
 .sheet-act.join {

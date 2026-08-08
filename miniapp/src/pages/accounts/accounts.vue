@@ -11,9 +11,11 @@ import {
 } from '../../api/account'
 import { listLoans } from '../../api/loan'
 import { useLedgerStore } from '../../stores/ledger'
+import { useThemeStore } from '../../stores/theme'
 import { formatAmount } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
+const themeStore = useThemeStore()
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
 const accounts = ref([])
@@ -160,7 +162,7 @@ function onAccountSaved() {
 </script>
 
 <template>
-  <view class="page">
+  <view class="page" :style="themeStore.current.vars">
     <!-- 页面标题（一级 tab：无返回，仅标题）-->
     <view class="topbar" :style="{ paddingTop: statusBarHeight }">
       <text class="topbar-title">资产管理</text>
@@ -241,7 +243,7 @@ function onAccountSaved() {
 .page {
   min-height: 100vh;
   padding: 0 24rpx 24rpx;
-  background: #eef0f2;
+  background: var(--c-page-bg, #eef0f2);
 }
 /* 自定义页面标题（二级页导航，含返回）*/
 .topbar {
@@ -272,8 +274,8 @@ function onAccountSaved() {
   padding: 36rpx;
   margin-bottom: 24rpx;
   color: #fff;
-  background: linear-gradient(150deg, #2b3a34, #1f2a30 70%);
-  box-shadow: 0 18rpx 40rpx rgba(31, 42, 48, 0.28);
+  background: var(--c-hero, linear-gradient(150deg, #1fbf63, #0f8a45 78%));
+  box-shadow: 0 18rpx 40rpx rgba(20, 24, 28, 0.22);
 }
 .nw-label { font-size: 24rpx; opacity: 0.85; }
 .eye { font-size: 24rpx; margin-left: 8rpx; }
@@ -379,7 +381,7 @@ function onAccountSaved() {
   padding: 28rpx 0;
   background: #fff;
   border-radius: 22rpx;
-  color: #12a150;
+  color: var(--c-brand, #12a150);
   font-weight: 700;
   box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }

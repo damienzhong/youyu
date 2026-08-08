@@ -28,7 +28,6 @@ import {
   categoryTreeHasId,
   accountsHasId
 } from '../../utils/suggestion'
-import { resolveIcon } from '../../utils/icons'
 import { safeBack } from '../../utils/nav'
 import { buildAchievementSharePayload } from '../../utils/achievement'
 // AchievementUnlockModal 由 easycom 自动注册，无需显式 import。
@@ -43,6 +42,10 @@ import {
 
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
+
+// 状态栏高度：与首页/账本/资产页一致用 JS 取值精确避让微信胶囊，
+// 不用 env(safe-area-inset-top)（小程序里常为 0，会让顶栏顶到胶囊下）。
+const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
 const TYPES = [
   // 借贷改由「借贷往来」页新建，记账页对齐竞品仅保留 支出/收入/转账
@@ -144,10 +147,6 @@ function catColor(name) {
 }
 function catEmoji(name) {
   return categoryEmoji(name, type.value)
-}
-// 分类图标 key：优先用分类自身 icon，否则按名称推断。
-function catIcon(c) {
-  return resolveIcon(c.icon, c.name, type.value)
 }
 function pickParent(p) {
   categoryId.value = p.id
@@ -747,20 +746,23 @@ function goAddCategory() {
 
 <template>
   <view class="rec" :class="accentClass">
-    <!-- 顶部 -->
+    <!-- 顶部：状态栏用 JS 高度精确避让；右上留空给微信胶囊，不放任何操作按钮 -->
+    <view class="statusbar" :style="{ height: statusBarHeight }"></view>
     <view class="rnav">
-      <text class="nb" @click="goBack">‹</text>
+      <text class="nb back" @click="goBack">‹</text>
       <view class="ledgersw" :class="{ dis: isEditing }" @click="!isEditing && (showLedgerSheet = true)">
         <text class="ls-name">{{ isEditing ? '编辑记录' : headerLedgerName }}</text>
         <text v-if="!isEditing" class="ls-caret">▾</text>
       </view>
-      <text class="nb add" @click="goAddCategory">＋</text>
+      <!-- 占位：与左侧返回键等宽，保证标题居中；右上角空出给胶囊 -->
+      <view class="nb spacer"></view>
     </view>
-    <scroll-view scroll-x class="types" :show-scrollbar="false">
-      <text v-for="t in TYPES" :key="t.value" class="ty" :class="{ on: type === t.value }" @click="setType(t.value)">{{ t.label }}</text>
-    </scroll-view>
+    <!-- 类型：pill 分段控件（选中白底绿字），对齐整体分段风格 -->
+    <view class="tyseg">
+      <text v-for="t in TYPES" :key="t.value" class="tys" :class="{ on: type === t.value }" @click="setType(t.value)">{{ t.label }}</text>
+    </view>
 
-    <!-- 金额条 -->
+    <!-- 金额卡 -->
     <view class="amt">
       <text class="cur">¥</text>
       <text class="amtv" :class="{ ph: expr === '' }">{{ amountDisplay }}<text class="cursor"></text></text>
@@ -768,8 +770,9 @@ function goAddCategory() {
 
     <!-- 主区 -->
     <scroll-view scroll-y class="main">
-      <!-- 支出/收入：分类九宫格 -->
+      <!-- 支出/收入：分类九宫格（卡片化） -->
       <template v-if="!isTransfer && !isLoan">
+        <view class="cats">
         <view v-if="!parents.length" class="cempty">
           还没有{{ type === 'income' ? '收入' : '支出' }}分类，
           <text class="link" @click="uni.navigateTo({ url: '/pages/categories/categories' })">去添加</text>
@@ -778,19 +781,25 @@ function goAddCategory() {
           <template v-for="p in parents" :key="p.id">
             <view class="cat" :class="{ on: categoryId === p.id }" @click="pickParent(p)">
               <view class="cic">
-                <AppIcon :name="catIcon(p)" :size="48" :active="categoryId === p.id" />
+                <CategoryIcon :icon="p.icon" :name="p.name" :kind="type" :color="p.iconColor" :size="46" />
                 <text v-if="p.children && p.children.length" class="subdot">{{ expandedId === p.id ? '▴' : '▾' }}</text>
               </view>
               <text class="cl" :class="{ on: categoryId === p.id }">{{ p.name }}</text>
             </view>
           </template>
+          <!-- 管理分类：原右上角「＋」迁移至此，避开微信胶囊 -->
+          <view class="cat manage" @click="goAddCategory">
+            <view class="cic mgr"><text class="mgr-plus">＋</text></view>
+            <text class="cl">管理</text>
+          </view>
         </view>
         <!-- 子分类 -->
         <view v-if="expandedChildren.length" class="subwrap">
           <view v-for="c in expandedChildren" :key="c.id" class="cat" :class="{ on: categoryId === c.id }" @click="pickChild(c)">
-            <view class="cic sub"><AppIcon :name="catIcon(c)" :size="42" :active="categoryId === c.id" /></view>
+            <view class="cic sub"><CategoryIcon :icon="c.icon" :name="c.name" :kind="type" :color="c.iconColor" :size="40" /></view>
             <text class="cl" :class="{ on: categoryId === c.id }">{{ c.name }}</text>
           </view>
+        </view>
         </view>
       </template>
 
@@ -991,17 +1000,18 @@ function goAddCategory() {
 
 <style scoped>
 .rec {
-  --accent: #f0553d;
+  /* 主色统一品牌绿，去掉突兀的橙红（收支语义交给列表/报表页表达） */
+  --accent: #12a150;
   height: 100vh;        /* 自定义导航下铺满整屏，避免整页下拉 */
   overflow: hidden;
   box-sizing: border-box;
-  padding-top: env(safe-area-inset-top);  /* 让出状态栏/刘海，内容不被遮 */
-  background: #fff;
+  background: #eef0f2;   /* 浅底，与首页/账本/资产一致 */
   display: flex;
   flex-direction: column;
 }
-.rec.inc { --accent: #12a150; }
-.rec.tr { --accent: #8a94a6; }
+
+/* 状态栏占位：高度由 JS statusBarHeight 注入，精确让出胶囊所在的状态栏区域 */
+.statusbar { width: 100%; }
 
 .rnav {
   display: flex;
@@ -1013,9 +1023,11 @@ function goAddCategory() {
 .rnav .nb {
   width: 64rpx; height: 64rpx; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 44rpx; color: #3a3f45; background: #f4f5f7;
+  font-size: 44rpx; color: #3a3f45;
 }
-.rnav .nb.add { font-size: 40rpx; }
+.rnav .nb.back { background: #f4f5f7; }
+/* 右侧占位：与返回键等宽保持标题居中，不渲染背景/按钮，空间留给微信胶囊 */
+.rnav .nb.spacer { background: transparent; }
 .rnav .ledgersw {
   display: flex; align-items: center; gap: 8rpx;
   padding: 8rpx 20rpx; border-radius: 999rpx;
@@ -1024,38 +1036,41 @@ function goAddCategory() {
 .rnav .ls-name { font-size: 32rpx; font-weight: 800; color: #16181c; }
 .rnav .ls-caret { font-size: 22rpx; color: #9aa2ad; }
 
-.types {
-  white-space: nowrap;
-  padding: 0 20rpx 12rpx;
+/* 类型 pill 分段控件：选中白底绿字 */
+.tyseg {
+  display: flex;
+  background: #e3e7ea;
+  border-radius: 16rpx;
+  padding: 6rpx;
+  margin: 4rpx 24rpx 0;
 }
-.ty {
-  display: inline-block;
-  font-size: 32rpx;
+.tys {
+  flex: 1;
+  text-align: center;
+  font-size: 30rpx;
   font-weight: 700;
-  color: #9aa2ad;
-  padding: 8rpx 22rpx;
+  color: #5b6470;
+  padding: 16rpx 0;
+  border-radius: 12rpx;
 }
-.ty.on {
-  color: #16181c;
-}
-.ty.on::after {
-  content: '';
-  display: block;
-  height: 6rpx;
-  width: 40rpx;
-  margin: 6rpx auto 0;
-  border-radius: 4rpx;
-  background: var(--accent);
+.tys.on {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 2rpx 8rpx rgba(20, 24, 28, 0.08);
 }
 
+/* 金额卡 */
 .amt {
   display: flex;
   align-items: center;
   gap: 14rpx;
-  padding: 16rpx 32rpx 22rpx;
-  border-bottom: 1rpx solid #f1f3f5;
+  margin: 16rpx 24rpx 0;
+  padding: 26rpx 28rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
-.cur { font-size: 40rpx; color: #5b6470; font-weight: 700; }
+.cur { font-size: 40rpx; color: #9aa2ad; font-weight: 700; }
 .amtv { flex: 1; font-size: 68rpx; font-weight: 800; color: #16181c; letter-spacing: -0.02em; }
 .amtv.ph { color: #c7ccd2; }
 .cursor { display: inline-block; width: 3rpx; height: 52rpx; background: var(--accent); margin-left: 4rpx; vertical-align: -8rpx; }
@@ -1064,16 +1079,24 @@ function goAddCategory() {
   flex: 1;
   min-height: 0;        /* 允许在 flex 中收缩，仅本区内部滚动，键盘钉底 */
 }
-.cgrid { display: flex; flex-wrap: wrap; padding: 16rpx 8rpx 4rpx; }
+/* 分类卡片容器 */
+.cats {
+  background: #fff;
+  border-radius: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+  margin: 16rpx 24rpx 0;
+  padding: 8rpx 8rpx 4rpx;
+}
+.cgrid { display: flex; flex-wrap: wrap; padding: 8rpx 0 0; }
 .cat { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 16rpx 0; }
 .cic {
   width: 88rpx; height: 88rpx; border-radius: 26rpx;
-  background: #f4f5f7;
+  background: transparent;
   display: flex; align-items: center; justify-content: center;
-  position: relative; transition: background .15s;
+  position: relative; transition: box-shadow .15s;
 }
 .cic.sub { width: 76rpx; height: 76rpx; border-radius: 22rpx; }
-.cat.on .cic { background: #e7f7ee; }
+.cat.on .cic { box-shadow: 0 0 0 4rpx rgba(18, 161, 80, 0.4); }
 .subdot {
   position: absolute; right: -2rpx; bottom: -2rpx;
   width: 30rpx; height: 30rpx; border-radius: 50%;
@@ -1083,6 +1106,13 @@ function goAddCategory() {
 }
 .cl { font-size: 22rpx; color: #5b6470; max-width: 120rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cat.on .cl { color: #12a150; font-weight: 700; }
+/* 管理分类入口：虚线圈 ＋，弱化处理，区别于可选分类 */
+.cic.mgr {
+  border: 2rpx dashed #d1d5db;
+  border-radius: 24rpx;
+  width: 84rpx; height: 84rpx;
+}
+.mgr-plus { font-size: 44rpx; color: #b6bcc4; font-weight: 300; line-height: 1; }
 .subwrap {
   display: flex; flex-wrap: wrap;
   background: #f6f7f9; border-radius: 18rpx; margin: 4rpx 20rpx 12rpx; padding: 10rpx 4rpx;
@@ -1091,8 +1121,8 @@ function goAddCategory() {
 .cempty { padding: 60rpx 40rpx; text-align: center; color: #6b7280; font-size: 28rpx; }
 .link { color: #12a150; font-weight: 700; }
 
-.xfer { display: flex; flex-direction: column; align-items: center; gap: 16rpx; padding: 24rpx; }
-.xcard { width: 100%; display: flex; align-items: center; gap: 18rpx; background: #f6f7f9; border-radius: 18rpx; padding: 26rpx; }
+.xfer { display: flex; flex-direction: column; align-items: center; gap: 16rpx; padding: 16rpx 24rpx 24rpx; }
+.xcard { width: 100%; display: flex; align-items: center; gap: 18rpx; background: #fff; border-radius: 20rpx; padding: 26rpx; box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05); }
 .xic { width: 60rpx; height: 60rpx; border-radius: 16rpx; text-align: center; line-height: 60rpx; font-size: 30rpx; }
 .xic.out { background: #fdece8; color: #f0553d; }
 .xic.in { background: #e6f6ec; color: #12a150; }
@@ -1108,23 +1138,28 @@ function goAddCategory() {
 .lk { font-size: 30rpx; color: #5b6470; }
 .lv { font-size: 30rpx; font-weight: 600; color: #16181c; }
 
-.chips { white-space: nowrap; padding: 12rpx 20rpx; border-top: 1rpx solid #f1f3f5; }
+.chips { white-space: nowrap; padding: 16rpx 24rpx; }
 .chip {
   display: inline-flex; align-items: center;
-  background: #f6f7f9; border-radius: 999rpx; padding: 12rpx 22rpx; margin-right: 12rpx;
+  background: #fff; border-radius: 999rpx; padding: 14rpx 24rpx; margin-right: 12rpx;
   font-size: 24rpx; color: #5b6470;
+  box-shadow: 0 4rpx 14rpx rgba(20, 24, 28, 0.05);
 }
-.chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; }
+.chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; box-shadow: none; }
 
 .kp {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rpx;
   background: #e4e7ec;
+  margin-top: 12rpx;
+  border-radius: 24rpx 24rpx 0 0;
+  overflow: hidden;
+  box-shadow: 0 -6rpx 20rpx rgba(20, 24, 28, 0.06);
   padding-bottom: env(safe-area-inset-bottom);
 }
 .key {
-  background: #fbfbfc; height: 108rpx;
+  background: #fdfdfe; height: 108rpx;
   display: flex; align-items: center; justify-content: center;
   font-size: 44rpx; font-weight: 600; color: #16181c;
 }

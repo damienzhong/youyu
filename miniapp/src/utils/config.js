@@ -18,5 +18,7 @@ export const STORAGE_KEYS = {
   // 待高亮成就编码（未登录时从成就分享卡片暂存，登录后带进成就页并清除）
   pendingAchievementCode: 'youyu_pending_achievement_code',
   // 主动退出登录标记：置位后小程序端不再自动静默登录（避免退出后被立刻登回）；任一次成功登录时清除。
-  signedOut: 'youyu_signed_out'
+  signedOut: 'youyu_signed_out',
+  // 用户选择的主题 id（utils/theme.js 的 THEMES.id），缺省为默认主题。
+  themeId: 'youyu_theme_id'
 }

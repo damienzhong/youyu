@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
+import { useThemeStore } from '../../stores/theme'
 import { fetchInviteInfo } from '../../api/invite'
 import { fetchGrowthOverview } from '../../api/growth'
 
 const auth = useAuthStore()
+const themeStore = useThemeStore()
 
 // 已邀请人数：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 2.6）
 const invitedCount = ref(null)
@@ -78,11 +80,14 @@ const groups = [
 function go(url) {
   uni.navigateTo({ url })
 }
+function goTheme() {
+  uni.navigateTo({ url: '/pages/theme/theme' })
+}
 function goAccount() {
   uni.navigateTo({ url: '/pages/account/account' })
 }
 function about() {
-  uni.showModal({ title: '有余', content: '记好每一笔，日子有余\n版本 v0.1.0', showCancel: false })
+  uni.showModal({ title: '有余', content: '记好每一笔，日子更有余\n版本 v0.1.0', showCancel: false })
 }
 function logout() {
   uni.showModal({
@@ -98,7 +103,7 @@ function logout() {
 </script>
 
 <template>
-  <view class="page">
+  <view class="page" :style="themeStore.current.vars">
     <!-- 个人卡：点击进账号设置 -->
     <view class="profile" @click="goAccount">
       <view class="avatar">{{ nickname.slice(0, 1) }}</view>
@@ -162,6 +167,17 @@ function logout() {
       </view>
     </template>
 
+    <!-- 个性化：主题切换 -->
+    <view class="sect">个性化</view>
+    <view class="card">
+      <view class="row" @click="goTheme">
+        <view class="r-ic t-green"><AppIcon name="star" :size="36" /></view>
+        <text class="r-t">主题皮肤</text>
+        <text class="r-v r-v-invite">{{ themeStore.current.name }}</text>
+        <text class="arrow">›</text>
+      </view>
+    </view>
+
     <!-- 关于 -->
     <view class="sect">关于</view>
     <view class="card">
@@ -183,7 +199,7 @@ function logout() {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: #f2f4f6;
+  background: var(--c-page-bg, #f2f4f6);
   padding: 24rpx 24rpx 0;
 }
 /* 个人卡 */
@@ -191,11 +207,11 @@ function logout() {
   display: flex;
   align-items: center;
   gap: 24rpx;
-  background: linear-gradient(135deg, #22c55e, #0f8a45 70%);
+  background: var(--c-hero, linear-gradient(135deg, #22c55e, #0f8a45 70%));
   border-radius: 24rpx;
   padding: 34rpx 30rpx;
   color: #fff;
-  box-shadow: 0 16rpx 34rpx rgba(18, 161, 80, 0.28);
+  box-shadow: 0 16rpx 34rpx rgba(20, 24, 28, 0.2);
 }
 .avatar {
   width: 92rpx;
@@ -304,7 +320,7 @@ function logout() {
   color: #9aa2ad;
 }
 .r-v-invite {
-  color: #12a150;
+  color: var(--c-brand, #12a150);
   font-weight: 700;
 }
 .arrow {
@@ -313,7 +329,7 @@ function logout() {
   margin-left: 4rpx;
 }
 /* tile / icon tints */
-.t-green { background: #e7f7ee; }
+.t-green { background: var(--c-brand-weak, #e7f7ee); }
 .t-blue { background: #e8f0fe; }
 .t-orange { background: #fdf0e6; }
 .t-purple { background: #f0ecfe; }
