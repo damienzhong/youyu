@@ -2,7 +2,7 @@
   "navigationBarTitleText": "资产管理",
   "navigationStyle": "custom",
   "usingComponents": {
-    "app-icon": "../../components/AppIcon/AppIcon",
+    "account-badge": "../../components/AccountBadge/AccountBadge",
     "account-type-sheet": "../../components/AccountTypeSheet/AccountTypeSheet",
     "account-edit-sheet": "../../components/AccountEditSheet/AccountEditSheet",
     "tab-bar": "../../components/TabBar/TabBar"

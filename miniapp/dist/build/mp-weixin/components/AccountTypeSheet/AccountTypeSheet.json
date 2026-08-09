@@ -1,6 +1,6 @@
 {
   "component": true,
   "usingComponents": {
-    "app-icon": "../AppIcon/AppIcon"
+    "account-badge": "../AccountBadge/AccountBadge"
   }
 }

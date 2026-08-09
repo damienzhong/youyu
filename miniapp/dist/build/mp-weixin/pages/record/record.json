@@ -4,6 +4,7 @@
   "usingComponents": {
     "category-icon": "../../components/CategoryIcon/CategoryIcon",
     "app-icon": "../../components/AppIcon/AppIcon",
+    "account-badge": "../../components/AccountBadge/AccountBadge",
     "input-sheet": "../../components/InputSheet/InputSheet",
     "achievement-unlock-modal": "../../components/AchievementUnlockModal/AchievementUnlockModal"
   }

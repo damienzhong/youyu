@@ -7,6 +7,19 @@
       }
     },
     {
+      "path": "pages/welcome/welcome",
+      "style": {
+        "navigationBarTitleText": "欢迎使用有余",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/legal/legal",
+      "style": {
+        "navigationBarTitleText": "协议"
+      }
+    },
+    {
       "path": "pages/onboarding/onboarding",
       "style": {
         "navigationBarTitleText": "开始使用",

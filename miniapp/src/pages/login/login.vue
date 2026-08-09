@@ -60,12 +60,17 @@ async function handleWxLogin() {
   }
 }
 
-// 登录页是小程序/H5 的入口页（pages[0]），冷启动总会先落在这里。
+// 欢迎页(pages[0])在首次进入且同意协议后会转发到本页；老用户/已同意者冷启动也会经欢迎页快速转发到这里。
 // 已登录（本地有令牌）就直接转发进应用——修复「登录后重新进入小程序又回到登录页」：
 // 根因是入口页从不为已登录用户转发，而非令牌未持久化。
 onShow(() => {
   if (auth.isLoggedIn) {
     routeAfterLogin()
+    return
+  }
+  // 未登录且未看过欢迎页：先去欢迎页完成协议同意（必须早于任何静默登录）。
+  if (!uni.getStorageSync(STORAGE_KEYS.welcomed)) {
+    uni.reLaunch({ url: '/pages/welcome/welcome' })
     return
   }
   // 未登录：小程序端尝试一次静默微信登录（除非用户此前主动退出）。
@@ -94,6 +99,9 @@ let cooldownTimer = null
 
 function toggleEmail() {
   showEmail.value = !showEmail.value
+}
+function openLegal(type) {
+  uni.navigateTo({ url: `/pages/legal/legal?type=${type}` })
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -204,7 +212,11 @@ async function handleEmailLogin() {
       </button>
     </view>
 
-    <text class="tips">登录即表示同意用户协议与隐私政策</text>
+    <text class="tips">登录即表示同意
+      <text class="tips-link" @click="openLegal('user')">《用户协议》</text>
+      与
+      <text class="tips-link" @click="openLegal('privacy')">《隐私政策》</text>
+    </text>
   </view>
 </template>
 
@@ -326,5 +338,11 @@ async function handleEmailLogin() {
   margin-top: 48rpx;
   font-size: 22rpx;
   color: #bbb;
+  text-align: center;
+  padding: 0 40rpx;
+  line-height: 1.6;
+}
+.tips-link {
+  color: #16a34a;
 }
 </style>

@@ -23,7 +23,9 @@ const props = defineProps({
   // 分类背景色（categories.icon_color），空/非法回退默认色
   color: { type: String, default: '' },
   // 图标像素边长
-  size: { type: Number, default: 42 }
+  size: { type: Number, default: 42 },
+  // 是否圆形（记账页九宫格用圆形，默认圆角方块，保持其它页面不变）
+  round: { type: Boolean, default: false }
 })
 
 // 归一化图标 key：空/未知 → 名称推断 → receipt/income 兜底
@@ -37,7 +39,7 @@ const tileSize = computed(() => Math.round(props.size * 1.9))
 const style = computed(() => ({
   width: tileSize.value + 'rpx',
   height: tileSize.value + 'rpx',
-  borderRadius: Math.round(tileSize.value * 0.28) + 'rpx',
+  borderRadius: props.round ? '50%' : Math.round(tileSize.value * 0.28) + 'rpx',
   backgroundColor: bg.value
 }))
 

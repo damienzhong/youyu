@@ -20,5 +20,7 @@ export const STORAGE_KEYS = {
   // 主动退出登录标记：置位后小程序端不再自动静默登录（避免退出后被立刻登回）；任一次成功登录时清除。
   signedOut: 'youyu_signed_out',
   // 用户选择的主题 id（utils/theme.js 的 THEMES.id），缺省为默认主题。
-  themeId: 'youyu_theme_id'
+  themeId: 'youyu_theme_id',
+  // 是否已看过首次欢迎页并同意协议：置位后冷启动直达登录，不再展示欢迎页。
+  welcomed: 'youyu_welcomed'
 }

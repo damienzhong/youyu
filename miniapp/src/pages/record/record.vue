@@ -762,13 +762,7 @@ function goAddCategory() {
       <text v-for="t in TYPES" :key="t.value" class="tys" :class="{ on: type === t.value }" @click="setType(t.value)">{{ t.label }}</text>
     </view>
 
-    <!-- 金额卡 -->
-    <view class="amt">
-      <text class="cur">¥</text>
-      <text class="amtv" :class="{ ph: expr === '' }">{{ amountDisplay }}<text class="cursor"></text></text>
-    </view>
-
-    <!-- 主区 -->
+    <!-- 主区：分类九宫格置顶（对齐竞品，金额下移到备注行） -->
     <scroll-view scroll-y class="main">
       <!-- 支出/收入：分类九宫格（卡片化） -->
       <template v-if="!isTransfer && !isLoan">
@@ -781,7 +775,7 @@ function goAddCategory() {
           <template v-for="p in parents" :key="p.id">
             <view class="cat" :class="{ on: categoryId === p.id }" @click="pickParent(p)">
               <view class="cic">
-                <CategoryIcon :icon="p.icon" :name="p.name" :kind="type" :color="p.iconColor" :size="46" />
+                <CategoryIcon :icon="p.icon" :name="p.name" :kind="type" :color="p.iconColor" :size="46" :round="true" />
                 <text v-if="p.children && p.children.length" class="subdot">{{ expandedId === p.id ? '▴' : '▾' }}</text>
               </view>
               <text class="cl" :class="{ on: categoryId === p.id }">{{ p.name }}</text>
@@ -796,7 +790,7 @@ function goAddCategory() {
         <!-- 子分类 -->
         <view v-if="expandedChildren.length" class="subwrap">
           <view v-for="c in expandedChildren" :key="c.id" class="cat" :class="{ on: categoryId === c.id }" @click="pickChild(c)">
-            <view class="cic sub"><CategoryIcon :icon="c.icon" :name="c.name" :kind="type" :color="c.iconColor" :size="40" /></view>
+            <view class="cic sub"><CategoryIcon :icon="c.icon" :name="c.name" :kind="type" :color="c.iconColor" :size="40" :round="true" /></view>
             <text class="cl" :class="{ on: categoryId === c.id }">{{ c.name }}</text>
           </view>
         </view>
@@ -830,18 +824,32 @@ function goAddCategory() {
       </template>
     </scroll-view>
 
-    <!-- chips -->
+    <!-- 备注（表单内直接输入，不弹窗） + 金额（右侧按类别着色） -->
+    <view class="noteamt">
+      <input
+        class="na-note"
+        v-model="note"
+        placeholder="添加备注"
+        placeholder-class="na-ph"
+        :maxlength="50"
+        confirm-type="done"
+      />
+      <text class="na-amt" :class="accentClass">{{ amountDisplay }}<text class="cursor"></text></text>
+    </view>
+
+    <!-- meta chips：日期 / 账户 / 记账人 / 标签 / 模板（同一行横向滚动） -->
     <scroll-view scroll-x class="chips" :show-scrollbar="false">
-      <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">记账人：{{ recorderName }}</view>
-      <view v-if="!isTransfer && !isLoan" class="chip" @click="sheetTarget = 'account'">
-        {{ sourceAccount ? accountDisplayName(sourceAccount) : '选择账户' }}
-      </view>
-      <picker mode="date" :value="occurredDate" @change="onDateChange">
-        <view class="chip">{{ dateLabel }}</view>
+      <picker class="chip-picker" mode="date" :value="occurredDate" @change="onDateChange">
+        <view class="chip on">
+          <AppIcon class="chip-ic" name="calendar" :size="26" color="#0e8a44" />
+          <text>{{ dateLabel }}</text>
+        </view>
       </picker>
-      <view class="chip" @click="noteSheet = true">{{ note ? note : '备注' }}</view>
-      <view v-if="!isLoan" class="chip" :class="{ on: projectId != null }" @click="openProjectSheet">{{ projectName || '项目' }}</view>
-      <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: merchantId != null }" @click="openMerchantSheet">{{ merchantName || '商家' }}</view>
+      <view v-if="!isTransfer && !isLoan" class="chip" :class="{ on: !!sourceAccount }" @click="sheetTarget = 'account'">
+        <AppIcon v-if="sourceAccount" class="chip-ic" :name="accountTypeIcon(sourceAccount.type)" :size="26" :color="'#0e8a44'" />
+        <text>{{ sourceAccount ? accountDisplayName(sourceAccount) : '选择账户' }}</text>
+      </view>
+      <view v-if="isCollaborative && !isLoan" class="chip" :class="{ on: createdBy != null && createdBy !== selfId }" @click="openMemberSheet">记账人：{{ recorderName }}</view>
       <view v-if="!isLoan" class="chip" :class="{ on: tagCount > 0 }" @click="openTagSheet">{{ tagCount > 0 ? `标签·${tagCount}` : '标签' }}</view>
       <view v-if="!isLoan && !isEditing" class="chip" @click="openTemplateSheet">模板</view>
     </scroll-view>
@@ -867,7 +875,7 @@ function goAddCategory() {
         </view>
         <scroll-view v-else scroll-y class="slist" :show-scrollbar="false">
           <view v-for="a in accounts" :key="a.id" class="sitem" @click="pickAccount(a)">
-            <view class="si-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="40" /></view>
+            <AccountBadge :account="a" :size="60" />
             <view class="si-name">
               <text class="si-nm">{{ accountDisplayName(a) }}<text v-if="ownerNameOf(a)" class="si-owner">{{ ownerNameOf(a) }}</text></text>
               <text class="si-type">{{ accountTypeLabel(a.type) }}</text>
@@ -1005,7 +1013,7 @@ function goAddCategory() {
   height: 100vh;        /* 自定义导航下铺满整屏，避免整页下拉 */
   overflow: hidden;
   box-sizing: border-box;
-  background: #eef0f2;   /* 浅底，与首页/账本/资产一致 */
+  background: #fff;   /* 对齐竞品：整页白底，彩色圆形分类直接铺在白底上 */
   display: flex;
   flex-direction: column;
 }
@@ -1059,44 +1067,44 @@ function goAddCategory() {
   box-shadow: 0 2rpx 8rpx rgba(20, 24, 28, 0.08);
 }
 
-/* 金额卡 */
-.amt {
+/* 备注 + 金额行（对齐竞品：金额移到此行右侧，按类别着色） */
+.noteamt {
   display: flex;
   align-items: center;
-  gap: 14rpx;
-  margin: 16rpx 24rpx 0;
-  padding: 26rpx 28rpx;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 18rpx 30rpx;
   background: #fff;
-  border-radius: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+  border-top: 1rpx solid #f1f3f5;
 }
-.cur { font-size: 40rpx; color: #9aa2ad; font-weight: 700; }
-.amtv { flex: 1; font-size: 68rpx; font-weight: 800; color: #16181c; letter-spacing: -0.02em; }
-.amtv.ph { color: #c7ccd2; }
-.cursor { display: inline-block; width: 3rpx; height: 52rpx; background: var(--accent); margin-left: 4rpx; vertical-align: -8rpx; }
+.na-note { flex: 1; min-width: 0; font-size: 28rpx; color: #16181c; height: 44rpx; line-height: 44rpx; }
+.na-ph { color: #9aa2ad; }
+.na-amt { font-size: 52rpx; font-weight: 800; color: #16181c; letter-spacing: -0.02em; flex: 0 0 auto; }
+.na-amt.exp { color: #e5563d; }
+.na-amt.inc { color: #12a150; }
+.na-amt.tr { color: #8a94a6; }
+.cursor { display: inline-block; width: 3rpx; height: 40rpx; background: currentColor; margin-left: 4rpx; vertical-align: -6rpx; opacity: 0.7; }
 
 .main {
-  flex: 1;
-  min-height: 0;        /* 允许在 flex 中收缩，仅本区内部滚动，键盘钉底 */
+  /* 分类九宫格为主区，撑满剩余高度，把键盘稳定钉底；内容多时内部滚动 */
+  flex: 1 1 auto;
+  min-height: 0;
 }
-/* 分类卡片容器 */
+/* 分类容器：白底直接铺满（不再浮动卡片），对齐竞品 */
 .cats {
-  background: #fff;
-  border-radius: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
-  margin: 16rpx 24rpx 0;
-  padding: 8rpx 8rpx 4rpx;
+  padding: 12rpx 12rpx 4rpx;
 }
-.cgrid { display: flex; flex-wrap: wrap; padding: 8rpx 0 0; }
+.cgrid { display: flex; flex-wrap: wrap; padding: 4rpx 0 0; }
 .cat { width: 20%; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 16rpx 0; }
 .cic {
-  width: 88rpx; height: 88rpx; border-radius: 26rpx;
+  width: 88rpx; height: 88rpx; border-radius: 50%;
   background: transparent;
   display: flex; align-items: center; justify-content: center;
   position: relative; transition: box-shadow .15s;
 }
-.cic.sub { width: 76rpx; height: 76rpx; border-radius: 22rpx; }
-.cat.on .cic { box-shadow: 0 0 0 4rpx rgba(18, 161, 80, 0.4); }
+.cic.sub { width: 76rpx; height: 76rpx; }
+/* 选中：分类圆形外描一圈浅色环 */
+.cat.on .cic { box-shadow: 0 0 0 5rpx rgba(18, 161, 80, 0.22); }
 .subdot {
   position: absolute; right: -2rpx; bottom: -2rpx;
   width: 30rpx; height: 30rpx; border-radius: 50%;
@@ -1106,10 +1114,10 @@ function goAddCategory() {
 }
 .cl { font-size: 22rpx; color: #5b6470; max-width: 120rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cat.on .cl { color: #12a150; font-weight: 700; }
-/* 管理分类入口：虚线圈 ＋，弱化处理，区别于可选分类 */
+/* 管理分类入口：虚线圆圈 ＋，弱化处理，区别于可选分类 */
 .cic.mgr {
   border: 2rpx dashed #d1d5db;
-  border-radius: 24rpx;
+  border-radius: 50%;
   width: 84rpx; height: 84rpx;
 }
 .mgr-plus { font-size: 44rpx; color: #b6bcc4; font-weight: 300; line-height: 1; }
@@ -1138,14 +1146,16 @@ function goAddCategory() {
 .lk { font-size: 30rpx; color: #5b6470; }
 .lv { font-size: 30rpx; font-weight: 600; color: #16181c; }
 
-.chips { white-space: nowrap; padding: 16rpx 24rpx; }
+.chips { white-space: nowrap; padding: 14rpx 24rpx 16rpx; background: #fff; }
+/* 日期 picker 保持行内，避免把后面的账户/标签挤到下一行 */
+.chip-picker { display: inline-block; vertical-align: middle; }
 .chip {
-  display: inline-flex; align-items: center;
-  background: #fff; border-radius: 999rpx; padding: 14rpx 24rpx; margin-right: 12rpx;
-  font-size: 24rpx; color: #5b6470;
-  box-shadow: 0 4rpx 14rpx rgba(20, 24, 28, 0.05);
+  display: inline-flex; align-items: center; gap: 8rpx;
+  background: #f4f5f7; border-radius: 999rpx; padding: 12rpx 22rpx; margin-right: 12rpx;
+  font-size: 24rpx; color: #5b6470; vertical-align: middle;
 }
-.chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; box-shadow: none; }
+.chip .chip-ic { flex: 0 0 auto; }
+.chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; }
 
 .kp {
   display: grid;

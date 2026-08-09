@@ -16,6 +16,13 @@ spring:
       # 记账请求数 × 2」的余量并给其它读请求腾出连接。池打满时结算会以「获取连接超时」失败，这正是
       # 它被设计成「失败即吞、下次自愈」的原因（需求 9.13/9.14），不会拖垮记账。可用环境变量覆盖。
       maximum-pool-size: ${YOUYU_DB_POOL_MAX_SIZE:20}
+      # 云/远程 MySQL 常主动断开空闲连接（wait_timeout）。不做保活时池里的空闲连接会被服务端悄悄关闭，
+      # 下次借出即抛「No operations allowed after connection closed」。keepalive 定期保活并剔除失效连接；
+      # max-lifetime 早于服务端 wait_timeout 主动回收重建；validation-timeout 为借出前存活校验超时。
+      # 本地直连远程测试库（deploy/dev-remote-db.sh）尤其需要，生产亦受益。可用环境变量覆盖。
+      keepalive-time: ${YOUYU_DB_KEEPALIVE_MS:30000}
+      max-lifetime: ${YOUYU_DB_MAX_LIFETIME_MS:1500000}
+      validation-timeout: ${YOUYU_DB_VALIDATION_TIMEOUT_MS:5000}
 
   jpa:
     hibernate:

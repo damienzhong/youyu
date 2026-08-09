@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 首次进入欢迎页原型（卖点 + 协议同意）</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --hero:linear-gradient(160deg,#22c55e,#0f8a45 72%);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1100px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;}
+  h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:14px 0 10px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:880px;line-height:1.7;margin:0;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:44px 0 16px;}
+  .audit{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:8px;}
+  .c2{background:var(--surface);border-radius:16px;padding:16px 18px;box-shadow:0 8px 24px rgba(20,24,28,.05);border-left:4px solid var(--brand);}
+  .c2 h4{margin:0 0 8px;font-size:15px;} .c2 p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6;}
+
+  .screens{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;}
+  .pw{width:360px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .phone{width:360px;height:760px;background:#fff;border-radius:44px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:34px;overflow:hidden;background:#fff;display:flex;flex-direction:column;position:relative;}
+  .sb{height:36px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 5px;font-size:12px;font-weight:700;color:var(--ink);flex:0 0 auto;}
+
+  .welcome{flex:1;display:flex;flex-direction:column;padding:8px 30px 0;}
+  /* 品牌 */
+  .brand{display:flex;flex-direction:column;align-items:center;margin-top:26px;}
+  .logo{width:88px;height:88px;border-radius:26px;background:var(--hero);display:flex;align-items:center;justify-content:center;box-shadow:0 16px 34px rgba(18,161,80,.32);}
+  .logo span{font-size:46px;}
+  .app{font-size:26px;font-weight:800;margin-top:16px;letter-spacing:.02em;}
+  .slogan{font-size:14px;color:var(--ink-2);margin-top:6px;}
+
+  /* 预览插画 */
+  .preview{margin:26px 0 6px;background:var(--surface-2);border-radius:22px;padding:20px;display:flex;align-items:center;gap:18px;}
+  .donut{width:96px;height:96px;flex:0 0 auto;}
+  .pv-list{flex:1;display:flex;flex-direction:column;gap:10px;}
+  .pv-k{font-size:12px;color:var(--ink-3);}
+  .pv-v{font-size:26px;font-weight:800;letter-spacing:-.02em;}
+  .pv-legend{display:flex;flex-direction:column;gap:7px;margin-top:2px;}
+  .lg{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);}
+  .lg i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+  /* 卖点 */
+  .feats{margin-top:14px;display:flex;flex-direction:column;gap:14px;}
+  .feat{display:flex;align-items:center;gap:14px;}
+  .feat .fi{width:44px;height:44px;border-radius:14px;background:var(--brand-weak);display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto;}
+  .feat .ft{font-size:15px;font-weight:700;}
+  .feat .fs{font-size:12.5px;color:var(--ink-2);margin-top:2px;}
+
+  /* 底部：协议 + CTA */
+  .foot{margin-top:auto;padding:18px 0 24px;}
+  .agree{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-bottom:14px;justify-content:center;}
+  .box{width:18px;height:18px;border-radius:50%;border:1.5px solid #cfd5db;flex:0 0 auto;margin-top:1px;position:relative;}
+  .box.on{background:var(--brand);border-color:var(--brand);}
+  .box.on::after{content:"✓";color:#fff;font-size:12px;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);}
+  .agree a{color:var(--brand-600);font-weight:600;text-decoration:none;}
+  .cta{height:52px;border-radius:16px;background:var(--brand);color:#fff;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 12px 26px rgba(18,161,80,.28);}
+  .cta.disabled{background:#c9d2cc;color:#eef3ef;box-shadow:none;}
+  .cta .wx{font-size:19px;}
+  .alt{text-align:center;font-size:13px;color:var(--ink-3);margin-top:14px;}
+  .toast{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(20,24,28,.86);color:#fff;font-size:12.5px;padding:8px 16px;border-radius:10px;white-space:nowrap;}
+
+  .legend{margin-top:34px;font-size:14px;color:var(--ink-2);line-height:1.9;}
+  .legend b{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">● 有余 · 首次进入欢迎页</span>
+  <h1>欢迎页：品牌卖点 + 协议同意（合规）</h1>
+  <p class="sub">不照搬微信官方记账本的「开通读取支付账单」（那是第三方拿不到的特权能力），而是做一个首次进入的欢迎页：品牌与核心卖点一屏讲清，底部提供可点击的《用户协议》《隐私政策》并需勾选同意后再「微信一键登录」，兼顾第一印象与小程序上架合规。左右两屏为「未勾选（按钮置灰）」与「已勾选（按钮高亮）」。</p>
+
+  <div class="sec">要点</div>
+  <div class="audit">
+    <div class="c2"><h4>不做「开通授权」</h4><p>我们不自动读取微信支付账单（账单靠手动导入），无需竞品那种支付账单读取授权，去掉「开通」概念。</p></div>
+    <div class="c2"><h4>协议可点击 + 勾选</h4><p>《用户协议》《隐私政策》均可点开查看；勾选同意前主按钮置灰，满足微信隐私合规要求。</p></div>
+    <div class="c2"><h4>一屏讲清卖点</h4><p>报表预览 + 三条核心卖点（极速记账 / 多账本协作 / 报表激励），建立第一印象。</p></div>
+    <div class="c2"><h4>仅首次展示</h4><p>同意后本地置标记，后续启动直达首页/登录态，不再打断。</p></div>
+  </div>
+
+  <div class="sec">原型</div>
+  <div class="screens">
+
+    <!-- 屏 A：未勾选 -->
+    <div class="pw">
+      <p class="cap"><span class="n">A</span> 未勾选 · 按钮置灰</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="welcome">
+          <div class="brand">
+            <div class="logo"><span>🌱</span></div>
+            <div class="app">有余</div>
+            <div class="slogan">记好每一笔，日子更有余</div>
+          </div>
+
+          <div class="preview">
+            <svg class="donut" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#eef0f2" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#12a150" stroke-width="6" stroke-dasharray="46 54" stroke-dashoffset="25"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#7fce9f" stroke-width="6" stroke-dasharray="28 72" stroke-dashoffset="79"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#cfe7d7" stroke-width="6" stroke-dasharray="26 74" stroke-dashoffset="51"/>
+            </svg>
+            <div class="pv-list">
+              <div><div class="pv-k">本月支出</div><div class="pv-v">¥ 2,602</div></div>
+              <div class="pv-legend">
+                <span class="lg"><i style="background:#12a150"></i>餐饮 46%</span>
+                <span class="lg"><i style="background:#7fce9f"></i>交通 28%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feats">
+            <div class="feat"><div class="fi">⚡</div><div><div class="ft">极速记账</div><div class="fs">3 秒一笔，计算器键盘 + 猜你要记</div></div></div>
+            <div class="feat"><div class="fi">📒</div><div><div class="ft">多账本 · 协作</div><div class="fs">家庭 / 项目分账，成员一起记</div></div></div>
+            <div class="feat"><div class="fi">📊</div><div><div class="ft">报表 · 预算 · 成长</div><div class="fs">看清钱去哪，记账还能攒成就</div></div></div>
+          </div>
+
+          <div class="foot">
+            <div class="agree">
+              <span class="box"></span>
+              <span>已阅读并同意 <a>《用户协议》</a> 和 <a>《隐私政策》</a></span>
+            </div>
+            <div class="cta disabled"><span class="wx">💬</span> 微信一键登录</div>
+            <div class="alt">其他方式登录</div>
+          </div>
+          <div class="toast">请先阅读并同意协议</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 屏 B：已勾选 -->
+    <div class="pw">
+      <p class="cap"><span class="n">B</span> 已勾选 · 可登录</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span>5G ▮▮▮ 🔋</span></div>
+        <div class="welcome">
+          <div class="brand">
+            <div class="logo"><span>🌱</span></div>
+            <div class="app">有余</div>
+            <div class="slogan">记好每一笔，日子更有余</div>
+          </div>
+
+          <div class="preview">
+            <svg class="donut" viewBox="0 0 42 42">
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#eef0f2" stroke-width="6"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#12a150" stroke-width="6" stroke-dasharray="46 54" stroke-dashoffset="25"/>
+              <circle cx="21" cy="21" r="15.9" fill="none" stroke="#7fce9f" stroke-width="6" stroke-dasharray="28 72" stroke-dashoffset="79"/>
+            </svg>
+            <div class="pv-list">
+              <div><div class="pv-k">本月支出</div><div class="pv-v">¥ 2,602</div></div>
+              <div class="pv-legend">
+                <span class="lg"><i style="background:#12a150"></i>餐饮 46%</span>
+                <span class="lg"><i style="background:#7fce9f"></i>交通 28%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feats">
+            <div class="feat"><div class="fi">⚡</div><div><div class="ft">极速记账</div><div class="fs">3 秒一笔，计算器键盘 + 猜你要记</div></div></div>
+            <div class="feat"><div class="fi">📒</div><div><div class="ft">多账本 · 协作</div><div class="fs">家庭 / 项目分账，成员一起记</div></div></div>
+            <div class="feat"><div class="fi">📊</div><div><div class="ft">报表 · 预算 · 成长</div><div class="fs">看清钱去哪，记账还能攒成就</div></div></div>
+          </div>
+
+          <div class="foot">
+            <div class="agree">
+              <span class="box on"></span>
+              <span>已阅读并同意 <a>《用户协议》</a> 和 <a>《隐私政策》</a></span>
+            </div>
+            <div class="cta"><span class="wx">💬</span> 微信一键登录</div>
+            <div class="alt">其他方式登录</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <p><b>落地要点：</b>新增 welcome 页（或在现有 login 前置一屏）：仅首次进入展示，同意后写本地标记 <code>youyu_welcomed</code> 跳登录；勾选前主按钮禁用并 toast 提示。协议文档可用两个静态页/富文本页承载并从此页点开。样式沿用主题令牌（品牌色/页头渐变随主题切换）。</p>
+  </div>
+</div>
+</body>
+</html>
