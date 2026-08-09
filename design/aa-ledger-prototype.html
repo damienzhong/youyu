@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · AA 账本 交互原型 v2（含账户与资产变动）</title>
+<style>
+  :root { --brand:#12a150; --ink:#16181c; --sub:#5b6470; --muted:#9aa2ad; --line:#eef0f2; --bg:#f5f6f8;
+          --pos:#12a150; --neg:#e5544b; --lend:#3a7bd5; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Helvetica,Arial,sans-serif; line-height:1.5; }
+  .wrap { max-width:1240px; margin:0 auto; padding:32px 20px 80px; }
+  header.top h1 { font-size:26px; margin:0 0 6px; }
+  header.top p { margin:0; color:var(--sub); font-size:14px; max-width:860px; }
+
+  /* 原理讲解卡 */
+  .how { background:#fff; border-radius:16px; box-shadow:0 8px 24px rgba(20,24,28,.05); padding:18px 20px; margin:20px 0 6px; }
+  .how h3 { margin:0 0 12px; font-size:15px; }
+  .how .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; }
+  .how .st { border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+  .how .st .n { display:inline-flex; width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;font-weight:800;align-items:center;justify-content:center;margin-right:8px; }
+  .how .st b { font-size:13.5px; }
+  .how .st p { margin:8px 0 0; font-size:12.5px; color:var(--sub); }
+  .k-pos{color:var(--pos);font-weight:700} .k-neg{color:var(--neg);font-weight:700} .k-lend{color:var(--lend);font-weight:700}
+
+  .flow { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:26px; margin-top:22px; align-items:start; }
+  .step .cap { font-size:13px; color:var(--sub); margin-top:10px; }
+  .step .cap b { color:var(--ink); }
+
+  .phone { background:#fff; border-radius:26px; box-shadow:0 18px 50px rgba(20,24,28,.14); overflow:hidden; border:1px solid #e7e9ec; }
+  .nav { height:50px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; border-bottom:1px solid var(--line); position:relative; }
+  .nav .l { position:absolute; left:14px; font-size:20px; color:var(--muted); }
+  .body { padding:14px 16px 18px; }
+
+  .muted{color:var(--muted)} .sub{color:var(--sub)} .tabnum{font-variant-numeric:tabular-nums}
+  .pos{color:var(--pos)} .neg{color:var(--neg)} .lend{color:var(--lend)}
+  .divider{height:1px;background:var(--line);margin:12px 0}
+  .row{display:flex;align-items:center;gap:12px} .sp{justify-content:space-between}
+
+  .av{width:38px;height:38px;border-radius:50%;color:#fff;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto}
+  .av.sm{width:28px;height:28px;font-size:12px} .av.lg{width:46px;height:46px;font-size:17px}
+
+  .types{display:flex;flex-direction:column;gap:12px}
+  .tcard{border:1.5px solid var(--line);border-radius:16px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start}
+  .tcard.on{border-color:var(--brand);background:#f2fbf5}
+  .tcard .ic{width:42px;height:42px;border-radius:12px;background:#eef1f5;display:flex;align-items:center;justify-content:center;font-size:22px;flex:0 0 auto}
+  .tcard.on .ic{background:#dff3e6}
+  .tcard .t{font-weight:700;font-size:15px} .tcard .d{font-size:12.5px;color:var(--sub);margin-top:2px}
+  .tick{margin-left:auto;color:var(--brand);font-weight:800;align-self:center}
+
+  .field{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+  .field:first-child{border-top:none} .field .k{color:var(--sub);font-size:14px} .field .v{font-weight:600}
+  .btn{display:block;text-align:center;background:var(--brand);color:#fff;font-weight:700;border-radius:14px;padding:13px;margin-top:16px}
+  .btn.ghost{background:#eef6f0;color:var(--brand)}
+  .amt-big{font-size:38px;font-weight:800;letter-spacing:-.02em}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#f4f5f7;border-radius:999px;padding:6px 12px;font-size:12.5px;color:var(--sub);margin:0 6px 6px 0}
+  .chip.on{background:#e6f6ec;color:#0e8a44;font-weight:700}
+  .seg{display:flex;background:#f0f2f4;border-radius:12px;padding:4px;margin:10px 0}
+  .seg b{flex:1;text-align:center;font-size:13px;padding:8px 0;border-radius:9px;color:var(--sub);cursor:pointer;font-weight:600}
+  .seg b.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  .mem{display:flex;align-items:center;gap:10px;padding:8px 0} .mem .nm{flex:1;font-size:14px} .mem .val{font-size:13px;font-variant-numeric:tabular-nums}
+
+  /* 本笔影响拆解框 */
+  .impact{background:#f7f9fb;border:1px solid #e9edf2;border-radius:12px;padding:12px 14px;margin-top:12px}
+  .impact .hd{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .impact .ln{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0}
+  .impact .ln .t{color:var(--sub)} .impact .split{border-top:1px dashed #dfe4ea;margin:8px 0;padding-top:8px}
+
+  .acctline{display:flex;align-items:center;gap:8px}
+  .acctline .b{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+
+  .tx{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)} .tx:first-child{border-top:none}
+  .tx .cat{width:40px;height:40px;border-radius:12px;background:#f4f5f7;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
+  .tx .mid{flex:1;min-width:0} .tx .tt{font-size:14.5px;font-weight:500} .tx .sub2{font-size:12px;color:var(--muted);margin-top:2px}
+  .tx .amt{text-align:right;font-variant-numeric:tabular-nums} .tx .amt .a{font-weight:700} .tx .amt .mine{font-size:11.5px;color:var(--muted)}
+
+  .hero{background:linear-gradient(150deg,#12a150,#0b7d3c);color:#fff;border-radius:18px;padding:16px}
+  .hero .lab{font-size:12.5px;opacity:.9} .hero .big{font-size:28px;font-weight:800;letter-spacing:-.02em;margin:2px 0 12px}
+  .hero .grid3{display:flex;gap:8px} .hero .g{flex:1;background:rgba(255,255,255,.14);border-radius:12px;padding:9px 10px}
+  .hero .g .k{font-size:11px;opacity:.9} .hero .g .v{font-size:15px;font-weight:800;margin-top:2px}
+
+  .settle{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line)} .settle:first-child{border-top:none}
+  .settle .arrow{color:var(--muted)} .settle .amt{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums}
+  .settle .done{margin-left:10px;font-size:12px;color:var(--brand);font-weight:700;border:1px solid #bfe6cd;border-radius:999px;padding:4px 12px;cursor:pointer;white-space:nowrap}
+  .settle.paid{opacity:.5} .settle.paid .amt{text-decoration:line-through}
+  .confirm{background:#f7f9fb;border:1px solid #e9edf2;border-radius:12px;padding:10px 12px;margin:8px 0 4px;font-size:12.5px;color:var(--sub)}
+
+  .note{background:#fff8e6;border:1px solid #f3e2b3;border-radius:12px;padding:10px 12px;font-size:12.5px;color:#7a5b16;margin-top:10px}
+  .legend{font-size:12.5px;color:var(--sub);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>AA 账本 · 交互原型 v2</h1>
+    <p>多人分摊场景。这一版把「钱怎么动」讲清楚，并在记账/结算都接入<b>账户</b>，让你随时看清自己的资产变动。示例：我 / 张三 / 李四 / 王五 一次旅行。</p>
+  </header>
+
+  <div class="how">
+    <h3>它怎么工作（关键：账户支出 ≠ 我的消费）</h3>
+    <div class="steps">
+      <div class="st"><b><span class="n">1</span>记一笔</b><p>付款人选<b>付款账户</b>，该账户按<b>实付全额</b>扣款（真实现金流出）。</p></div>
+      <div class="st"><b><span class="n">2</span>自动拆分</b><p>系统把这笔拆成：<span class="k-neg">我的消费</span>（我摊的份额，计入支出统计）＋ <span class="k-lend">借出/借入</span>（应收/应付，算资产/负债，<b>不计入消费</b>）。</p></div>
+      <div class="st"><b><span class="n">3</span>结算</b><p>按「谁欠谁」给出最少转账；结清时双方各选账户 → <b>账户增减</b>、应收/应付清零。</p></div>
+    </div>
+  </div>
+
+  <div class="flow" id="flow"></div>
+  <p class="legend">交互：③ 点“均分 / 自定义”切换分摊；⑤ 点“标记结清”展开选收款账户并划掉该笔。示例闭合：垫付合计=应摊合计=¥780，净额相加=0。</p>
+</div>
+
+<script>
+const M = {
+  me:{name:'我',color:'#12a150'}, z:{name:'张三',color:'#3a7bd5'},
+  l:{name:'李四',color:'#e0609a'}, w:{name:'王五',color:'#f0a13b'}
+};
+const ch = n => n.slice(-2,-1) || n[0];
+function av(id,cls=''){const m=M[id];return `<span class="av ${cls}" style="background:${m.color}">${ch(m.name)}</span>`;}
+
+/* 账户（当前用户=我 的账户） */
+const ACC = { wechat:{name:'微信',color:'#07C160',ch:'微'}, cmb:{name:'招商银行储蓄卡(1429)',color:'#c7000b',ch:'招'} };
+function acctTag(a){const x=ACC[a];return `<span class="acctline"><span class="b" style="background:${x.color}">${x.ch}</span>${x.name}</span>`;}
+
+const CATS={food:'🍜',taxi:'🚕',fun:'🎫',shop:'🛍️'};
+const TX=[
+  {cat:'food',title:'晚餐',payer:'me',amount:260,acc:'wechat'},
+  {cat:'taxi',title:'打车',payer:'z',amount:80},
+  {cat:'fun',title:'景点门票',payer:'l',amount:400},
+  {cat:'shop',title:'零食',payer:'me',amount:40,acc:'wechat'}
+];
+const P=['me','z','l','w'];
+const per = TX.reduce((s,t)=>s+t.amount,0)/P.length; // 195 我应摊合计
+const paid=Object.fromEntries(P.map(p=>[p,0])); TX.forEach(t=>paid[t.payer]+=t.amount);
+const net=Object.fromEntries(P.map(p=>[p,paid[p]-per]));
+const money=n=>'¥'+n.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});
+function settlements(){
+  const C=P.filter(p=>net[p]>0).map(p=>({p,v:net[p]})).sort((a,b)=>b.v-a.v);
+  const D=P.filter(p=>net[p]<0).map(p=>({p,v:-net[p]})).sort((a,b)=>b.v-a.v);
+  const out=[];let i=0,j=0;
+  while(i<D.length&&j<C.length){const pay=Math.min(D[i].v,C[j].v);out.push({from:D[i].p,to:C[j].p,amount:pay});D[i].v-=pay;C[j].v-=pay;if(D[i].v<=.001)i++;if(C[j].v<=.001)j++;}
+  return out;
+}
+function phone(nav,body){return `<div class="phone"><div class="nav"><span class="l">‹</span>${nav}</div><div class="body">${body}</div></div>`;}
+
+/* ① 新建 */
+const s1=phone('新建账本',`
+  <div class="types">
+    <div class="tcard"><div class="ic">👤</div><div><div class="t">个人账本</div><div class="d">只有自己记账</div></div></div>
+    <div class="tcard"><div class="ic">🏠</div><div><div class="t">家庭账本</div><div class="d">共记一本账，看家庭合计与预算</div></div></div>
+    <div class="tcard on"><div class="ic">🤝</div><div><div class="t">AA 账本</div><div class="d">多人分摊，自动算「谁欠谁」并给出结算方案</div></div><span class="tick">✓</span></div>
+  </div>
+  <div class="field" style="margin-top:8px;border-top:1px solid var(--line)"><span class="k">账本名称</span><span class="v">腾冲毕业旅行</span></div>
+  <div class="btn">创建</div>`);
+
+/* ② 成员 */
+const s2=phone('成员',`
+  <div class="sub" style="font-size:12.5px;margin-bottom:8px">共 4 人 · 均为有余注册用户</div>
+  ${P.map(p=>`<div class="mem">${av(p)}<span class="nm">${M[p].name}${p==='me'?' · 创建者':''}</span><span class="val muted">${p==='me'?'':'已加入'}</span></div>`).join('')}
+  <div class="divider"></div>
+  <div class="row"><span class="av lg" style="background:#eef1f5;color:#9aa2ad">＋</span><div><div style="font-weight:600">邀请成员</div><div class="sub" style="font-size:12px">生成邀请链接 / 二维码</div></div></div>
+  <div class="btn ghost">生成邀请链接</div>
+  <div class="note">受邀人打开链接后需先<b>注册 / 登录有余</b>才能加入；参与人必须是注册用户。</div>`);
+
+/* ③ 记一笔（付款人 + 付款账户 + 分摊 + 本笔影响拆解） */
+function splitList(mode){
+  const even={me:65,z:65,l:65,w:65}, custom={me:80,z:60,l:60,w:60};
+  const d=mode==='even'?even:custom;
+  return P.map(p=>`<div class="mem">${av(p,'sm')}<span class="nm">${M[p].name}</span><span class="val">${money(d[p])}</span></div>`).join('');
+}
+function s3(mode='even'){
+  const myShare=mode==='even'?65:80;
+  return phone('记一笔（AA）',`
+    <div style="text-align:center;padding:4px 0 2px"><span class="amt-big">¥260.00</span></div>
+    <div class="row" style="justify-content:center;margin-bottom:4px"><span class="chip on">🍜 餐饮</span><span class="chip">晚餐</span></div>
+    <div class="field"><span class="k">付款人</span><span class="v row" style="gap:8px">${av('me','sm')} 我 ▾</span></div>
+    <div class="field"><span class="k">付款账户</span><span class="v">${acctTag('wechat')} ▾</span></div>
+    <div class="field"><span class="k">参与分摊</span><span class="v">4 人全选 ▾</span></div>
+    <div class="seg" data-seg><b class="${mode==='even'?'on':''}" data-mode="even">均分</b><b class="${mode==='custom'?'on':''}" data-mode="custom">自定义</b></div>
+    <div>${splitList(mode)}</div>
+    <div class="impact">
+      <div class="hd">本笔对你的影响</div>
+      <div class="ln"><span class="t">微信 账户</span><span class="neg">−¥260.00</span></div>
+      <div class="split">
+        <div class="ln"><span class="t">· 我的消费（记入支出）</span><span class="neg">¥${myShare}.00</span></div>
+        <div class="ln"><span class="t">· 借出给他人（应收）</span><span class="lend">¥${260-myShare}.00</span></div>
+      </div>
+    </div>
+    <div class="btn">保存</div>`);
+}
+
+/* ④ 首页：我的净额 + 资产口径 + 流水 */
+const s4=phone('腾冲毕业旅行 ▾',`
+  <div class="hero">
+    <div class="lab">我的净额（别人欠我）</div>
+    <div class="big tabnum">应收 ${money(net.me)}</div>
+    <div class="grid3">
+      <div class="g"><div class="k">账户已支出</div><div class="v tabnum">${money(paid.me)}</div></div>
+      <div class="g"><div class="k">我的消费</div><div class="v tabnum">${money(per)}</div></div>
+      <div class="g"><div class="k">待收回</div><div class="v tabnum">${money(net.me)}</div></div>
+    </div>
+  </div>
+  <div class="note" style="margin-top:12px">资产口径：净资产只减少「我的消费 ${money(per)}」；多付的 ${money(net.me)} 是<b>应收（资产）</b>，收款后转成账户余额。</div>
+  <div style="margin:12px 0 2px" class="row sp"><b style="font-size:13px">流水</b><span class="sub" style="font-size:12px">共 ${TX.length} 笔</span></div>
+  ${TX.map(t=>`<div class="tx"><div class="cat">${CATS[t.cat]}</div>
+    <div class="mid"><div class="tt">${t.title}</div><div class="sub2">${M[t.payer].name}付${t.payer==='me'&&t.acc?'·'+ACC[t.acc].name.replace(/\(.*\)/,''):''} · 4 人均摊</div></div>
+    <div class="amt"><div class="a">${money(t.amount)}</div><div class="mine">我摊 ${money(t.amount/4)}</div></div></div>`).join('')}
+  <div class="btn">去结算</div>`);
+
+/* ⑤ 结算：净额 + 最少转账 + 结清选账户 */
+const st=settlements();
+function settleRow(s,i){
+  const meInvolved = s.from==='me'||s.to==='me';
+  const confirm = meInvolved
+    ? `<div class="confirm" data-cf="${i}" style="display:none">${s.to==='me'
+        ? `我用 <b>微信</b> 收款 → 结清后：微信 <span class="pos">+${money(s.amount)}</span>，应收 <span class="lend">−${money(s.amount)}</span>`
+        : `我用 <b>微信</b> 付款 → 结清后：微信 <span class="neg">−${money(s.amount)}</span>，应付清零`}</div>`
+    : `<div class="confirm" data-cf="${i}" style="display:none">这笔在 ${M[s.from].name} 与 ${M[s.to].name} 之间，由对方各自选账户结清。</div>`;
+  return `<div class="settle" data-i="${i}">
+      ${av(s.from,'sm')}<span class="arrow">→</span>${av(s.to,'sm')}
+      <span class="nm sub" style="font-size:13px">${M[s.from].name} 转给 ${M[s.to].name}</span>
+      <span class="amt">${money(s.amount)}</span>
+      <span class="done" data-done="${i}">标记结清</span>
+    </div>${confirm}`;
+}
+const s5=phone('结算',`
+  <div class="sub" style="font-size:12.5px;margin-bottom:6px">每人净额</div>
+  ${P.map(p=>`<div class="mem">${av(p)}<span class="nm">${M[p].name}</span><span class="val ${net[p]>=0?'pos':'neg'}">${net[p]>=0?'应收 ':'应付 '}${money(Math.abs(net[p]))}</span></div>`).join('')}
+  <div class="divider"></div>
+  <div class="sub" style="font-size:12.5px;margin-bottom:2px">建议转账（最少 ${st.length} 笔结清）</div>
+  <div id="settleList">${st.map((s,i)=>settleRow(s,i)).join('')}</div>`);
+
+/* ⑥ 结清后的账本状态 / 归档 */
+const s6=phone('账本状态',`
+  <div style="text-align:center;padding:14px 0 6px">
+    <div style="width:56px;height:56px;border-radius:50%;background:#e6f6ec;color:#12a150;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px">✓</div>
+    <div style="font-size:18px;font-weight:800">已全部结清</div>
+    <div class="sub" style="font-size:12.5px;margin-top:4px">总支出 ${money(780)} · 4 人 · 已结清 ${st.length} 笔转账</div>
+  </div>
+  <div class="confirm" style="display:block">结清是动态状态：<b>再记一笔就会重新产生待结算</b>，无需手动改。</div>
+  <div class="btn ghost">归档账本</div>
+  <div class="note">归档后账本转为<b>只读</b>并移入「已归档」分组，历史与导出保留，可随时<b>解档</b>继续。若仍有未结清金额，归档时会二次确认。</div>
+  <div class="divider"></div>
+  <div class="sub" style="font-size:12.5px;margin-bottom:6px">已归档</div>
+  <div class="tx"><div class="cat">🤝</div><div class="mid"><div class="tt">上海团建 AA</div><div class="sub2">已结清 · 已归档</div></div><div class="amt"><div class="a muted">只读</div></div></div>`);
+
+document.getElementById('flow').innerHTML=[
+  `<div class="step">${s1}<div class="cap"><b>① 新建 AA 账本</b></div></div>`,
+  `<div class="step">${s2}<div class="cap"><b>② 邀请成员</b>（先注册再加入）</div></div>`,
+  `<div class="step" id="step3">${s3()}<div class="cap"><b>③ 记一笔</b>：付款人 + <b>付款账户</b> + 分摊；底部实时显示<b>本笔对你的资产影响</b>（账户扣多少、你消费多少、借出多少）。</div></div>`,
+  `<div class="step">${s4}<div class="cap"><b>④ 账本首页</b>：账户已支出 / 我的消费 / 待收回 三口径分开，看清资产变动。</div></div>`,
+  `<div class="step">${s5}<div class="cap"><b>⑤ 结算</b>：最少转账；涉及我的那笔，结清时选<b>收/付账户</b>，账户随之增减。</div></div>`,
+  `<div class="step">${s6}<div class="cap"><b>⑥ 结清 / 归档</b>：全部结清后可手动归档（只读、可解档）；结清是动态状态，再记账会重新产生待结算。</div></div>`
+].join('');
+
+document.getElementById('step3').addEventListener('click',e=>{
+  const b=e.target.closest('[data-mode]'); if(!b)return;
+  document.getElementById('step3').querySelector('.phone').outerHTML=s3(b.dataset.mode);
+});
+document.getElementById('flow').addEventListener('click',e=>{
+  const d=e.target.closest('[data-done]'); if(!d)return;
+  const i=d.dataset.done, rowEl=d.closest('.settle');
+  rowEl.classList.toggle('paid');
+  const paidNow=rowEl.classList.contains('paid');
+  d.textContent=paidNow?'已结清':'标记结清';
+  const cf=document.querySelector(`[data-cf="${i}"]`); if(cf)cf.style.display=paidNow?'block':'none';
+});
+</script>
+</body>
+</html>

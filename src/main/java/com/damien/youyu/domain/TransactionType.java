@@ -9,7 +9,11 @@ package com.damien.youyu.domain;
 public enum TransactionType {
     EXPENSE("expense"),
     INCOME("income"),
-    TRANSFER("transfer");
+    TRANSFER("transfer"),
+    /** AA 账本支出：付款人实付、按分摊拆分；不计入普通收支报表。 */
+    AA_EXPENSE("aa_expense"),
+    /** AA 账本结算：成员间清账转账，驱动账户增减、递减应收/应付；不计入消费。 */
+    AA_SETTLEMENT("aa_settlement");
 
     private final String code;
 

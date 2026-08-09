@@ -24,6 +24,8 @@ public class Ledger {
     public static final String TYPE_PERSONAL = "PERSONAL";
     /** 类型：协作账本（可邀请成员共同记账）。 */
     public static final String TYPE_COLLABORATIVE = "COLLABORATIVE";
+    /** 类型：AA 账本（多人分摊、债务清算）。 */
+    public static final String TYPE_AA = "AA";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,6 +50,10 @@ public class Ledger {
     /** 是否默认账本（每用户唯一）。 */
     @Column(name = "is_default", nullable = false)
     private boolean isDefault = false;
+
+    /** 归档时间（AA 账本专用）：非空即只读，NULL 表示未归档。 */
+    @Column(name = "archived_at")
+    private LocalDateTime archivedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -93,6 +99,24 @@ public class Ledger {
     /** 是否协作账本。 */
     public boolean isCollaborative() {
         return TYPE_COLLABORATIVE.equals(type);
+    }
+
+    /** 是否 AA 账本。 */
+    public boolean isAa() {
+        return TYPE_AA.equals(type);
+    }
+
+    /** 是否已归档（只读）。 */
+    public boolean isArchived() {
+        return archivedAt != null;
+    }
+
+    public LocalDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(LocalDateTime archivedAt) {
+        this.archivedAt = archivedAt;
     }
 
     public int getSortOrder() {

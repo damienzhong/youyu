@@ -48,10 +48,14 @@ public class Transaction {
     @Column(name = "created_by")
     private Long createdBy;
 
-    /** 交易类型：expense/income/transfer。 */
+    /** 交易类型：expense/income/transfer/aa_expense/aa_settlement。 */
     @Convert(converter = TransactionTypeConverter.class)
-    @Column(name = "type", nullable = false, length = 10)
+    @Column(name = "type", nullable = false, length = 20)
     private TransactionType type;
+
+    /** AA 支出的付款人 user_id（AA 账本专用；其余类型为空）。 */
+    @Column(name = "payer_user_id")
+    private Long payerUserId;
 
     /** 金额，恒为正。 */
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
@@ -145,6 +149,14 @@ public class Transaction {
 
     public void setType(TransactionType type) {
         this.type = type;
+    }
+
+    public Long getPayerUserId() {
+        return payerUserId;
+    }
+
+    public void setPayerUserId(Long payerUserId) {
+        this.payerUserId = payerUserId;
     }
 
     public BigDecimal getAmount() {
