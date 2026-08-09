@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 账户图标专题（真实品牌图标版）</title>
+<style>
+  :root { --brand:#12a150; --ink:#16181c; --sub:#5b6470; --muted:#9aa2ad; --line:#eef0f2; --bg:#f5f6f8; --card:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Helvetica,Arial,sans-serif; line-height:1.5; }
+  .wrap { max-width:1120px; margin:0 auto; padding:32px 20px 80px; }
+  header.top h1 { font-size:26px; margin:0 0 6px; }
+  header.top p { margin:0; color:var(--sub); font-size:14px; }
+  .principles { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:22px 0 8px; }
+  .principle { background:var(--card); border-radius:14px; padding:16px 18px; box-shadow:0 6px 20px rgba(20,24,28,.05); }
+  .principle b { display:block; font-size:14px; margin-bottom:4px; }
+  .principle span { font-size:13px; color:var(--sub); }
+  section { margin-top:40px; }
+  section > h2 { font-size:18px; margin:0 0 4px; }
+  section > .desc { color:var(--sub); font-size:13px; margin:0 0 18px; }
+  .group { margin-bottom:26px; }
+  .group-h { font-size:13px; font-weight:700; color:var(--sub); margin:0 0 12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:14px; }
+  .item { background:var(--card); border-radius:14px; padding:16px 8px 12px; text-align:center; box-shadow:0 6px 18px rgba(20,24,28,.04); }
+  .item .badge { margin:0 auto 10px; }
+  .item .label { font-size:13px; }
+  .item .enum { font-size:11px; color:var(--muted); margin-top:2px; font-family:ui-monospace,Menlo,monospace; }
+  .item .tag { display:inline-block; font-size:10px; margin-top:6px; padding:1px 7px; border-radius:999px; }
+  .tag.real { background:#e6f6ec; color:#0e8a44; }
+  .tag.draw { background:#eef1f5; color:#5b6470; }
+
+  .badge { display:inline-flex; align-items:center; justify-content:center; flex:0 0 auto; overflow:hidden; position:relative; }
+  .badge.sq { border-radius:26%; }
+  .badge.circle { border-radius:50%; }
+  .badge img { width:64%; height:64%; object-fit:contain; display:block; }
+  .badge.plain img { width:100%; height:100%; }
+  .badge .ch { font-weight:800; color:#fff; letter-spacing:-.02em; }
+  .badge .fb { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+
+  .banks { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:12px; }
+  .bank { background:var(--card); border-radius:12px; padding:12px 6px; text-align:center; box-shadow:0 4px 14px rgba(20,24,28,.04); }
+  .bank .label { font-size:12px; color:var(--sub); margin-top:8px; }
+
+  .protos { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; align-items:start; }
+  .phone { background:#fff; border-radius:28px; box-shadow:0 18px 50px rgba(20,24,28,.16); overflow:hidden; border:1px solid #e7e9ec; }
+  .phone .pnav { height:52px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; border-bottom:1px solid var(--line); position:relative; }
+  .phone .pnav .x { position:absolute; left:16px; color:var(--muted); font-size:20px; }
+  .phone .pbody { padding:14px 16px 18px; }
+  .caption { font-size:12px; color:var(--muted); text-align:center; margin-top:10px; }
+  .picker-g .t { font-size:12px; font-weight:700; color:var(--sub); padding:10px 2px 6px; }
+  .picker-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px 4px; }
+  .cell { text-align:center; padding:8px 0; border-radius:12px; cursor:pointer; }
+  .cell:hover { background:#f6f7f9; }
+  .cell.on { background:#e6f6ec; }
+  .cell .badge { margin:0 auto 6px; }
+  .cell .l { font-size:11px; color:var(--sub); }
+  .cell.on .l { color:var(--brand); font-weight:700; }
+  .acct { display:flex; align-items:center; gap:12px; padding:12px 4px; border-top:1px solid var(--line); }
+  .acct:first-child { border-top:none; }
+  .acct .nm { flex:1; font-size:14.5px; font-weight:500; }
+  .acct .bal { font-variant-numeric:tabular-nums; font-weight:600; font-size:15px; }
+  .acct .bal.neg { color:#e5544b; }
+  code { background:#eef0f2; border-radius:5px; padding:1px 6px; font-size:12px; }
+  table.map { width:100%; border-collapse:collapse; font-size:13px; background:var(--card); border-radius:12px; overflow:hidden; box-shadow:0 6px 18px rgba(20,24,28,.04); }
+  table.map th, table.map td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.map th { background:#fafbfc; color:var(--sub); font-weight:700; }
+  .note { background:#fff8e6; border:1px solid #f3e2b3; border-radius:12px; padding:14px 16px; font-size:13px; color:#7a5b16; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>账户图标专题 · 真实品牌图标版</h1>
+    <p>方向修正：<b>能用现成真实图标的，一律用真实图标</b>——微信/支付宝/QQ/京东/银联/云闪付等第三方 App 用官方品牌 Logo（开源 Simple Icons，官方品牌色）；银行卡用真实行标（Logo 源）；只有「现金/公积金/股票/基金」等没有现成品牌标的通用类型，才用自绘线性图标。本页 Logo 走 CDN 实时渲染，取不到时自动降级为品牌色字徽。</p>
+  </header>
+
+  <div class="principles">
+    <div class="principle"><b>真实 Logo 优先</b><span>第三方 App / 银行直接用官方品牌图标，辨识度对齐竞品与用户认知。</span></div>
+    <div class="principle"><b>开源可商用来源</b><span>App 品牌走 Simple Icons（图标代码 CC0）；银行走 Logo 源；生产环境打成本地资源包，避免运行时依赖外网。</span></div>
+    <div class="principle"><b>自绘只兜底</b><span>现金/公积金/医保/公交卡/股票/基金/理财等无品牌标的类型，用统一线性图标。</span></div>
+    <div class="principle"><b>降级不空白</b><span>Logo 缺失/加载失败时，回退品牌色字徽（如「支」「京」），永不出现空图标。</span></div>
+  </div>
+
+  <section>
+    <h2>一、账户类型图标总览</h2>
+    <p class="desc"><span style="color:#0e8a44">■ 真实 Logo</span>　<span style="color:#5b6470">■ 自绘线性</span>。标注对应 <code>AccountType</code> 枚举。</p>
+    <div id="overview"></div>
+  </section>
+
+  <section>
+    <h2>二、银行发卡行（真实行标）</h2>
+    <p class="desc">储蓄卡 / 信用卡选定发卡行后展示该行标识。<b>银行 Logo 无可靠的免费来源、且属商标</b>，无法像微信/支付宝那样即时取用；此处统一用「品牌色圆徽 + 简称」这一<b>稳定兜底形态</b>。<b>生产落地方案</b>：随包内置一套银行官方 Logo 资源包（取自各行对外品牌规范），资源包内有则显示真标、缺失则回退此字徽。</p>
+    <div class="banks" id="bankGrid"></div>
+  </section>
+
+  <section>
+    <h2>三、交互原型</h2>
+    <p class="desc">选择账户类型 → 选到储蓄卡/信用卡进「选择发卡行」→ 资产列表按真实品牌渲染。点类型/银行，右侧首行联动。</p>
+    <div class="protos">
+      <div>
+        <div class="phone"><div class="pnav"><span class="x">×</span>选择账户类型</div><div class="pbody" id="typePicker"></div></div>
+        <div class="caption">① 选择账户类型（分组 · 选中高亮）</div>
+      </div>
+      <div>
+        <div class="phone"><div class="pnav"><span class="x">‹</span>选择发卡行</div><div class="pbody"><div class="picker-grid" id="bankPicker" style="grid-template-columns:repeat(4,1fr)"></div></div></div>
+        <div class="caption">② 储蓄卡 / 信用卡 → 选发卡行（真实行标）</div>
+      </div>
+      <div>
+        <div class="phone"><div class="pnav">资产列表预览</div><div class="pbody" id="assetList"></div></div>
+        <div class="caption">③ 列表按真实品牌渲染（首行联动）</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>四、落地与合规说明</h2>
+    <table class="map">
+      <tr><th>项</th><th>方案</th></tr>
+      <tr><td>App 品牌图标</td><td>微信/支付宝/QQ/京东/银联/云闪付/花呗/白条等：采用官方或开源品牌 SVG（Simple Icons 图标代码为 CC0）。构建期打入本地资源包（<code>src/static/brand/*.svg</code>），运行时不依赖外网。</td></tr>
+      <tr><td>银行行标</td><td>主流银行真实 Logo 组成资源包；缺失/小行回退「品牌色圆徽 + 简称」（复用现有 <code>BANKS</code>）。</td></tr>
+      <tr><td>通用类型</td><td>现金/公积金/医保/公交卡/饭卡/会员卡/押金/股票/基金/理财/虚拟货币：自绘线性图标，进 <code>utils/icons.js</code>。</td></tr>
+      <tr><td>渲染</td><td>品牌 Logo 用 <code>&lt;image&gt;</code>（H5/小程序通用）；bankAware 类型（储蓄卡/信用卡）优先按发卡行取行标。</td></tr>
+      <tr><td>降级</td><td>任何 Logo 缺失 → 品牌色字徽/线性图标兜底，保证不空图标。</td></tr>
+    </table>
+    <div class="note"><b>商标提示：</b>各品牌 Logo 的商标权归各自所有者。此处为「标识用户自己的对应账户」的指示性合理使用（与竞品做法一致），不构成品牌联合或背书。落地前建议：优先使用各品牌《开放平台/品牌规范》提供的官方素材，银行 Logo 遵循其对外标识规范。需要的话我可以整理一份各品牌官方素材来源清单。</div>
+  </section>
+</div>
+
+<script>
+/* 自绘线性图标（仅通用类型用；品牌走真实 Logo） */
+const GLYPH = {
+  cash:"<rect x='3' y='6' width='18' height='12' rx='2'/><circle cx='12' cy='12' r='2.4'/><path d='M6 9h.01M18 15h.01'/>",
+  card:"<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3 9h18M7 15h4'/>",
+  house:"<path d='M4 11l8-6 8 6'/><path d='M6 10v9h12v-9'/><path d='M10 19v-5h4v5'/>",
+  cross:"<rect x='4' y='7' width='16' height='12' rx='3'/><path d='M9 7V5h6v2M12 11v4M10 13h4'/>",
+  bus:"<rect x='5' y='3' width='14' height='14' rx='3'/><path d='M5 12h14M9 20l-1.5 2M15 20l1.5 2'/>",
+  food:"<path d='M6 3v7a2.5 2.5 0 0 0 2.5 2.5V21M9.5 3v6M17 3c-1.4 1.4-2 4-2 6s.6 3 2 3v9'/>",
+  star:"<path d='M12 4l2.2 4.8L19 9.5l-3.6 3.4.9 5.1L12 15.6 7.7 18l.9-5.1L5 9.5l4.8-.7z'/>",
+  lock:"<rect x='5' y='10' width='14' height='10' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",
+  candles:"<path d='M8 4v4M8 15v4'/><rect x='5.5' y='8' width='5' height='7' rx='1.2'/><path d='M16 3v3M16 14v4'/><rect x='13.5' y='6' width='5' height='8' rx='1.2'/>",
+  bars:"<path d='M4 21h16'/><path d='M7 21V12M12 21V6M17 21v-6'/>",
+  growth:"<path d='M4 4v16h16'/><path d='M7 15l3-3 2 2 5-6'/>",
+  moneybag:"<path d='M9 5h6l-1.6 3C16 9.4 18 12 18 15c0 3-2.7 4.6-6 4.6S6 18 6 15c0-3 2-5.6 4.6-7L9 5Z'/><path d='M10.3 11.6 12 13.3l1.7-1.7M12 13.3V17M10.2 14.9h3.6'/>",
+  coin:"<ellipse cx='12' cy='7' rx='7' ry='3'/><path d='M5 7v10c0 1.7 3.1 3 7 3s7-1.3 7-3V7'/><path d='M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3'/>",
+  wallet:"<path d='M3 7a2 2 0 0 1 2-2h11v3'/><rect x='3' y='7' width='18' height='12' rx='2'/><circle cx='17' cy='13' r='1.4'/>",
+  doc:"<path d='M7 3h7l4 4v14H7z'/><path d='M14 3v4h4M9 12h6M9 16h4'/>",
+  coins:"<ellipse cx='9' cy='6' rx='5' ry='2.2'/><path d='M4 6v4c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2V6'/><ellipse cx='15' cy='14' rx='5' ry='2.2'/><path d='M10 14v4c0 1.2 2.2 2.2 5 2.2s5-1 5-2.2v-4'/>",
+  redpacket:"<rect x='5' y='4' width='14' height='16' rx='2'/><path d='M5 4c2.5 3.5 11.5 3.5 14 0'/><circle cx='12' cy='12' r='2'/>"
+};
+// Simple Icons CDN：https://cdn.simpleicons.org/{slug}/{hex}
+function si(slug, hex){ return "https://cdn.simpleicons.org/"+slug+"/"+hex.replace('#',''); }
+
+/* 类型模型：
+   brand: 品牌 Logo。real=true 用真实图标：
+     - style 'tile' 白 Logo 置于品牌色圆角块（slug=simpleicons）
+     - style 'plain' 原色 Logo 置于浅底（logo=URL）
+   否则 kind:'glyph'（自绘线性，品牌色 12% 底 + 品牌色描边）或 'char'（字徽兜底）。 */
+const TYPES = [
+  { v:'CASH', l:'现金', g:'FUNDS', kind:'glyph', icon:'cash', color:'#12a150' },
+  { v:'BANK_CARD', l:'储蓄卡', g:'FUNDS', kind:'glyph', icon:'card', color:'#3a7bd5', bankAware:true },
+  { v:'WECHAT', l:'微信', g:'FUNDS', real:true, style:'tile', slug:'wechat', color:'#07C160', ch:'微' },
+  { v:'ALIPAY', l:'支付宝', g:'FUNDS', real:true, style:'tile', slug:'alipay', color:'#1677FF', ch:'支' },
+  { v:'QQ_WALLET', l:'QQ钱包', g:'FUNDS', real:true, style:'tile', slug:'tencentqq', color:'#1296DB', ch:'Q' },
+  { v:'JD_FINANCE', l:'京东金融', g:'FUNDS', real:true, style:'tile', slug:'jd', color:'#E1251B', ch:'京' },
+  { v:'HOUSING_FUND', l:'公积金', g:'FUNDS', kind:'glyph', icon:'house', color:'#C79A3B' },
+  { v:'MEDICAL_INSURANCE', l:'医保账户', g:'FUNDS', kind:'glyph', icon:'cross', color:'#E5563D' },
+  { v:'DIGITAL_RMB', l:'数字人民币', g:'FUNDS', real:true, style:'plain', logo:'https://logo.clearbit.com/ecny.gov.cn', color:'#C1272D', ch:'¥' },
+  { v:'OTHER_FUNDS', l:'其他', g:'FUNDS', kind:'glyph', icon:'wallet', color:'#8A94A6' },
+  { v:'CREDIT_CARD', l:'信用卡', g:'CREDIT', kind:'glyph', icon:'card', color:'#5B8DEF', bankAware:true },
+  { v:'HUABEI', l:'蚂蚁花呗', g:'CREDIT', real:true, style:'tile', slug:'alipay', color:'#1677FF', ch:'花' },
+  { v:'JD_BAITIAO', l:'京东白条', g:'CREDIT', real:true, style:'tile', slug:'jd', color:'#E1251B', ch:'白' },
+  { v:'OTHER_CREDIT', l:'其他', g:'CREDIT', kind:'glyph', icon:'doc', color:'#8A94A6' },
+  { v:'TRANSIT_CARD', l:'公交卡', g:'PREPAID', kind:'glyph', icon:'bus', color:'#2EB8A6' },
+  { v:'MEAL_CARD', l:'饭卡', g:'PREPAID', kind:'glyph', icon:'food', color:'#F0A13B' },
+  { v:'MEMBER_CARD', l:'会员卡', g:'PREPAID', kind:'glyph', icon:'star', color:'#E0609A' },
+  { v:'DEPOSIT', l:'押金', g:'PREPAID', kind:'glyph', icon:'lock', color:'#8A94A6' },
+  { v:'OTHER_PREPAID', l:'其他', g:'PREPAID', kind:'glyph', icon:'redpacket', color:'#B98A4A' },
+  { v:'STOCK', l:'股票', g:'INVESTMENT', kind:'glyph', icon:'candles', color:'#E5563D' },
+  { v:'FUND', l:'基金', g:'INVESTMENT', kind:'glyph', icon:'bars', color:'#5B8DEF' },
+  { v:'CRYPTO', l:'虚拟货币', g:'INVESTMENT', real:true, style:'tile', slug:'bitcoin', color:'#F7931A', ch:'币' },
+  { v:'INVESTMENT', l:'理财', g:'INVESTMENT', kind:'glyph', icon:'moneybag', color:'#12a150' },
+  { v:'OTHER_INVESTMENT', l:'其他', g:'INVESTMENT', kind:'glyph', icon:'coins', color:'#8A94A6' }
+];
+const GROUPS = [ {k:'FUNDS',l:'资金账户'},{k:'CREDIT',l:'信贷账户'},{k:'PREPAID',l:'充值账户'},{k:'INVESTMENT',l:'投资账户'} ];
+
+/* 银行：真实 Logo（Clearbit 按域名）+ 品牌色/简称兜底。复用现有 BANKS 子集。 */
+const BANKS = [
+  ['工商银行','工','#c7000b','icbc.com.cn'],['农业银行','农','#00954c','abchina.com'],['中国银行','中','#b01c2e','boc.cn'],
+  ['建设银行','建','#005baa','ccb.com'],['交通银行','交','#004a9f','bankcomm.com'],['邮储银行','邮','#00713c','psbc.com'],
+  ['招商银行','招','#c7000b','cmbchina.com'],['民生银行','民','#0a8a3c','cmbc.com.cn'],['中信银行','信','#c8102e','citicbank.com'],
+  ['光大银行','光','#6f2c91','cebbank.com'],['浦发银行','浦','#003a70','spdb.com.cn'],['兴业银行','兴','#1a4f9c','cib.com.cn'],
+  ['平安银行','平','#e60012','bank.pingan.com'],['广发银行','广','#e60012','cgbchina.com.cn'],['华夏银行','华','#c8102e','hxb.com.cn'],
+  ['渤海银行','渤','#1b4a9c','cbhb.com.cn'],['北京银行','京','#c8102e','bankofbeijing.com.cn'],['上海银行','沪','#005ba1','bosc.cn'],
+  ['宁波银行','甬','#d40f2b','nbcb.com.cn'],['江苏银行','苏','#007a4d','jsbchina.cn'],['其他银行','银','#8a94a6','']
+];
+
+/* ---------- 渲染 ---------- */
+function svg(icon,color,px){ return "<svg width='"+px+"' height='"+px+"' viewBox='0 0 24 24' fill='none' stroke='"+color+"' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>"+(GLYPH[icon]||GLYPH.wallet)+"</svg>"; }
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return "rgba("+(n>>16&255)+","+(n>>8&255)+","+(n&255)+","+a+")"; }
+function charFB(ch,size){ return "<span class='ch' style='font-size:"+Math.round(size*0.46)+"px'>"+ch+"</span>"; }
+
+// 类型徽标：真实 Logo 优先，onerror 降级字徽/线性
+function badgeHTML(t,size){
+  if (t.real && t.style==='tile') {
+    const src = si(t.slug,'ffffff');
+    return "<span class='badge sq' style='width:"+size+"px;height:"+size+"px;background:"+t.color+"'>"+
+      "<img src='"+src+"' onerror=\"this.style.display='none';this.nextElementSibling.style.display='flex'\"/>"+
+      "<span class='fb' style='display:none'>"+charFB(t.ch,size)+"</span></span>";
+  }
+  if (t.real && t.style==='plain') {
+    return "<span class='badge sq plain' style='width:"+size+"px;height:"+size+"px;background:#fff;border:1px solid #eef0f2'>"+
+      "<img src='"+t.logo+"' onerror=\"this.style.display='none';this.nextElementSibling.style.display='flex'\"/>"+
+      "<span class='fb' style='display:none;background:"+t.color+"'>"+charFB(t.ch,size)+"</span></span>";
+  }
+  const bg = hexA(t.color,0.12);
+  return "<span class='badge sq' style='width:"+size+"px;height:"+size+"px;background:"+bg+"'>"+svg(t.icon,t.color,Math.round(size*0.56))+"</span>";
+}
+// 银行徽标：真实 Logo（白底）优先，降级品牌色圆徽+简称
+function bankBadge(b,size){
+  const [label,short,color,domain]=b;
+  // 银行 Logo 无可靠免费来源（且属商标），外链服务取不到时会返回“地球”占位图（能正常加载，
+  // 反而挡住了字徽兜底）。因此原型统一用「品牌色圆徽 + 简称」这一稳定形态——它也正是生产资源包
+  // 缺该行 Logo 时的兜底。落地时：资源包内有该行官方 SVG 则用真标，否则回退此字徽。
+  return "<span class='badge circle' style='width:"+size+"px;height:"+size+"px;background:"+color+"'>"+charFB(short,size)+"</span>";
+}
+
+(function renderOverview(){
+  const root=document.getElementById('overview');
+  GROUPS.forEach(g=>{
+    const items=TYPES.filter(t=>t.g===g.k).map(t=>{
+      const tag = t.real ? "<span class='tag real'>真实 Logo</span>" : "<span class='tag draw'>自绘</span>";
+      return "<div class='item'>"+badgeHTML(t,52)+"<div class='label'>"+t.l+"</div><div class='enum'>"+t.v+"</div>"+tag+"</div>";
+    }).join('');
+    root.insertAdjacentHTML('beforeend',"<div class='group'><div class='group-h'>"+g.l+"</div><div class='grid'>"+items+"</div></div>");
+  });
+})();
+(function renderBanks(){
+  document.getElementById('bankGrid').innerHTML = BANKS.map(b=>"<div class='bank'>"+bankBadge(b,44)+"<div class='label'>"+b[0]+"</div></div>").join('');
+})();
+
+/* 交互联动 */
+const state={ type:TYPES.find(t=>t.v==='BANK_CARD'), bank:BANKS.find(b=>b[0]==='民生银行') };
+function buildHead(){
+  if (state.type.bankAware && state.bank) return { badge:bankBadge(state.bank,40), name:state.bank[0]+state.type.l+'（0010）', bal:'36,707.05' };
+  return { badge:badgeHTML(state.type,40), name:state.type.l, bal:'1,234.56' };
+}
+function assets(){
+  return [ buildHead(),
+    { badge:bankBadge(BANKS.find(b=>b[0]==='招商银行'),40), name:'招商银行储蓄卡（1429）', bal:'927.09' },
+    { badge:badgeHTML(TYPES.find(t=>t.v==='WECHAT'),40), name:'微信', bal:'217.10' },
+    { badge:badgeHTML(TYPES.find(t=>t.v==='ALIPAY'),40), name:'支付宝', bal:'-1,389.91', neg:true },
+    { badge:badgeHTML(TYPES.find(t=>t.v==='HOUSING_FUND'),40), name:'深圳公积金', bal:'53,235.44' },
+    { badge:badgeHTML(TYPES.find(t=>t.v==='STOCK'),40), name:'华泰证券', bal:'695,683.18' } ];
+}
+function renderTypePicker(){
+  const root=document.getElementById('typePicker');
+  root.innerHTML=GROUPS.map(g=>{
+    const cells=TYPES.filter(t=>t.g===g.k).map(t=>"<div class='cell "+(state.type.v===t.v?'on':'')+"' data-v='"+t.v+"'>"+badgeHTML(t,40)+"<div class='l'>"+t.l+"</div></div>").join('');
+    return "<div class='picker-g'><div class='t'>"+g.l+"</div><div class='picker-grid'>"+cells+"</div></div>";
+  }).join('');
+  root.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{ state.type=TYPES.find(t=>t.v===c.dataset.v); if(!state.type.bankAware) state.bank=null; else if(!state.bank) state.bank=BANKS[6]; renderAll(); });
+}
+function renderBankPicker(){
+  const root=document.getElementById('bankPicker'); const dis=!state.type.bankAware;
+  root.innerHTML=BANKS.map(b=>"<div class='cell "+(state.bank&&state.bank[0]===b[0]?'on':'')+"' data-b='"+b[0]+"' style='"+(dis?'opacity:.35;pointer-events:none':'')+"'>"+bankBadge(b,40)+"<div class='l'>"+b[0].replace('银行','')+"</div></div>").join('');
+  root.querySelectorAll('.cell').forEach(c=>c.onclick=()=>{ state.bank=BANKS.find(b=>b[0]===c.dataset.b); renderAll(); });
+}
+function renderAssetList(){
+  document.getElementById('assetList').innerHTML=assets().map(a=>"<div class='acct'>"+a.badge+"<span class='nm'>"+a.name+"</span><span class='bal"+(a.neg?' neg':'')+"'>"+a.bal+"</span></div>").join('');
+}
+function renderAll(){ renderTypePicker(); renderBankPicker(); renderAssetList(); }
+renderAll();
+</script>
+</body>
+</html>

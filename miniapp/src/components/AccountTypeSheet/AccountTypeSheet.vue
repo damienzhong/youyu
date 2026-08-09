@@ -28,7 +28,7 @@ function pick(t) {
           <text class="tg-title">{{ g.label }}</text>
           <view class="tg-grid">
             <view v-for="t in g.types" :key="t.value" class="tt" @click="pick(t)">
-              <view class="tt-ic"><AppIcon :name="accountTypeIcon(t.value)" :size="40" /></view>
+              <AccountBadge :account="{ type: t.value }" :size="84" />
               <text class="tt-label">{{ t.label }}</text>
             </view>
           </view>

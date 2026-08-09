@@ -208,6 +208,7 @@ function goTransfer() {
         <text class="hn-more" @click="goEdit">•••</text>
       </view>
       <view class="hero-body">
+        <AccountBadge v-if="acc" class="h-badge" :account="acc" :size="72" />
         <text class="h-label">账户余额（元）</text>
         <text class="h-bal" :class="{ neg: acc && Number(acc.currentBalance) < 0 }">{{ acc ? formatAmount(acc.currentBalance) : '0.00' }}</text>
         <view class="h-foot">
@@ -295,6 +296,7 @@ function goTransfer() {
 .hn-title { font-size: 32rpx; font-weight: 700; }
 .hn-more { font-size: 30rpx; width: 60rpx; text-align: right; letter-spacing: 1rpx; }
 .hero-body { padding: 8rpx 34rpx 0; }
+.h-badge { margin-bottom: 12rpx; }
 .h-label { font-size: 24rpx; opacity: 0.85; }
 .h-bal { display: block; font-size: 66rpx; font-weight: 800; letter-spacing: -0.02em; margin: 6rpx 0 18rpx; }
 .h-bal.neg { color: #fecaca; }

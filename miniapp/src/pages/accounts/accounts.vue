@@ -205,7 +205,7 @@ function onAccountSaved() {
       </view>
       <view v-if="!collapsed[g.key]" class="acc-list">
         <view v-for="a in g.items" :key="a.id" class="acc" @click="openAccount(a)">
-          <view class="acc-ic"><AppIcon :name="accountTypeIcon(a.type)" :size="36" /></view>
+          <AccountBadge :account="a" :size="64" />
           <view class="acc-main">
             <view class="acc-titlerow">
               <text class="acc-name">{{ accountDisplayName(a) }}</text>

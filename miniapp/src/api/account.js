@@ -168,8 +168,21 @@ export const BANKS = [
   { label: '其他银行', short: '银', color: '#8a94a6' }
 ]
 const BANK_MAP = Object.fromEntries(BANKS.map((b) => [b.label, b]))
+
+/**
+ * 银行 → 稳定 slug（品牌 Logo 资源包文件名 static/brand/banks/<slug>.svg）。
+ * 未列出的行没有内置 Logo，AccountBadge 会回退「品牌色圆徽 + 简称」。
+ */
+const BANK_SLUG = {
+  工商银行: 'icbc', 农业银行: 'abc', 中国银行: 'boc', 建设银行: 'ccb', 交通银行: 'bocom', 邮储银行: 'psbc',
+  招商银行: 'cmb', 民生银行: 'cmbc', 中信银行: 'citic', 光大银行: 'ceb', 浦发银行: 'spdb', 兴业银行: 'cib',
+  平安银行: 'pab', 广发银行: 'cgb', 华夏银行: 'hxb', 渤海银行: 'cbhb',
+  北京银行: 'bob', 上海银行: 'bosc', 宁波银行: 'nbcb', 江苏银行: 'jsb'
+}
+
 export function bankOf(label) {
-  return BANK_MAP[label] || null
+  const b = BANK_MAP[label]
+  return b ? { ...b, slug: BANK_SLUG[label] || null } : null
 }
 
 const TYPE_MAP = Object.fromEntries(ACCOUNT_TYPES.map((t) => [t.value, t]))
@@ -188,7 +201,7 @@ const TYPE_ICON = {
   DIGITAL_RMB: 'yuan', OTHER_FUNDS: 'wallet',
   CREDIT_CARD: 'card', HUABEI: 'card', JD_BAITIAO: 'card', OTHER_CREDIT: 'card',
   TRANSIT_CARD: 'transport', MEAL_CARD: 'food', MEMBER_CARD: 'star', DEPOSIT: 'lock', OTHER_PREPAID: 'card',
-  STOCK: 'chart', FUND: 'invest', CRYPTO: 'coin', INVESTMENT: 'invest', OTHER_INVESTMENT: 'coin'
+  STOCK: 'candles', FUND: 'invest', CRYPTO: 'coin', INVESTMENT: 'moneybag', OTHER_INVESTMENT: 'coin'
 }
 
 /** 账户类型对应的线性图标 key；未知类型回退 wallet。 */
