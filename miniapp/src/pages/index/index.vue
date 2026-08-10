@@ -686,8 +686,6 @@ function goRecords() {
           <view class="mi" @click="nav('/pages/loans/loans')"><view class="mi-ic"><AppIcon name="loan" :size="44" /></view><text class="mi-l">借贷往来</text></view>
           <view class="mi" @click="nav('/pages/billimport/billimport')"><view class="mi-ic"><AppIcon name="import" :size="44" /></view><text class="mi-l">账单导入</text></view>
           <view class="mi" @click="nav('/pages/data/data')"><view class="mi-ic"><AppIcon name="export" :size="44" /></view><text class="mi-l">数据备份</text></view>
-          <view class="mi" @click="nav('/pages/categories/categories')"><view class="mi-ic"><AppIcon name="tag" :size="44" /></view><text class="mi-l">分类管理</text></view>
-          <view v-if="!isAa" class="mi" @click="nav('/pages/budget/budget')"><view class="mi-ic"><AppIcon name="budget" :size="44" /></view><text class="mi-l">预算管理</text></view>
           <view class="mi" @click="nav('/pages/ledgers/ledgers')"><view class="mi-ic"><AppIcon name="book" :size="44" /></view><text class="mi-l">账本管理</text></view>
         </view>
         <view style="height:calc(20rpx + env(safe-area-inset-bottom));"></view>

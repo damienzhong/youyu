@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 「我的」页重设计 v2（简约版）</title>
+<style>
+  :root{
+    --green:#12a150; --green-d:#0e8a44; --ink:#25292e; --muted:#9aa2ad;
+    --bg:#f2f4f6; --line:#eef0f2; --tint:#f4f5f7; --green-weak:#e7f7ee;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#eceef1;color:var(--ink);padding:36px 20px 80px}
+  h1{text-align:center;font-size:22px;margin-bottom:6px}
+  .sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:34px}
+  .stage{display:flex;gap:46px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .col{width:340px}
+  .cap{text-align:center;font-weight:700;font-size:15px;margin-bottom:4px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:var(--green);border-radius:999px;padding:2px 8px;margin-left:6px}
+  .note{text-align:center;color:#6b7280;font-size:12px;margin-bottom:14px;line-height:1.5}
+
+  .phone{width:340px;height:720px;background:var(--bg);border-radius:38px;border:6px solid #111827;box-shadow:0 20px 60px rgba(0,0,0,.18);overflow:hidden;position:relative}
+  .scroll{position:absolute;inset:0 0 62px 0;overflow-y:auto;overflow-x:hidden}
+  .scroll::-webkit-scrollbar{width:0}
+  .pad{padding:0 16px}
+
+  /* 沉浸式页头：干净渐变，单一装饰圆 */
+  .hero{background:linear-gradient(135deg,#22c55e,#0f8a45 70%);color:#fff;padding:54px 20px 48px;position:relative;overflow:hidden}
+  .hero::after{content:'';position:absolute;right:-50px;top:-46px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .id{display:flex;align-items:center;gap:14px;position:relative;z-index:2}
+  .avatar{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.24);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800}
+  .id-main{flex:1}
+  .id-name{font-size:19px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .id-badge{font-size:11px;font-weight:600;background:rgba(255,255,255,.22);border-radius:999px;padding:2px 9px}
+  .id-sub{font-size:12px;opacity:.9;margin-top:4px}
+  .id-arrow{opacity:.8;font-size:20px}
+  /* 成就统计条：安静、无分隔线以外的装饰 */
+  .stats{display:flex;position:relative;z-index:2;margin-top:24px}
+  .st{flex:1;text-align:center;position:relative}
+  .st + .st::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:1px;background:rgba(255,255,255,.2)}
+  .st .n{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums}
+  .st .l{font-size:11px;opacity:.82;margin-top:3px}
+
+  /* 成长卡：白底、单绿点缀、无 emoji */
+  .growth{background:#fff;border-radius:20px;margin-top:-28px;position:relative;z-index:3;box-shadow:0 8px 22px rgba(20,24,28,.05);padding:18px}
+  .g-top{display:flex;align-items:center;gap:14px}
+  .ring{width:56px;height:56px;flex:0 0 auto;border-radius:50%;background:conic-gradient(var(--green) 0 72%, #eef0ea 0);display:flex;align-items:center;justify-content:center}
+  .ring i{width:44px;height:44px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px;font-weight:800;color:var(--green)}
+  .g-mid{flex:1}
+  .g-title{font-size:15px;font-weight:700;color:var(--ink)}
+  .g-bar{height:6px;background:#eef0f2;border-radius:999px;margin-top:9px;overflow:hidden}
+  .g-bar i{display:block;height:100%;width:72%;background:var(--green);border-radius:999px}
+  .g-hint{font-size:11px;color:var(--muted);margin-top:7px}
+  .g-arrow{color:#c7ccd2;font-size:20px}
+  .g-foot{display:flex;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .gf{flex:1;text-align:center;position:relative}
+  .gf + .gf::before{content:'';position:absolute;left:0;top:2px;bottom:2px;width:1px;background:var(--line)}
+  .gf .n{font-size:16px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+  .gf .l{font-size:11px;color:var(--muted);margin-top:2px}
+
+  /* 管理宫格：统一浅灰底 tile + 描边图标，无彩色 */
+  .grid{display:flex;background:#fff;border-radius:20px;padding:20px 4px;margin-top:14px;box-shadow:0 8px 22px rgba(20,24,28,.05)}
+  .g4{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;font-size:12px;color:#4b5563}
+  .tile{width:46px;height:46px;border-radius:16px;background:var(--tint);display:flex;align-items:center;justify-content:center}
+  .tile svg{width:22px;height:22px;stroke-width:1.7;fill:none;stroke:#3a3f45;stroke-linecap:round;stroke-linejoin:round}
+
+  /* 分组列表 */
+  .sect{font-size:12px;color:var(--muted);margin:22px 6px 10px}
+  .card{background:#fff;border-radius:20px;box-shadow:0 8px 22px rgba(20,24,28,.05);overflow:hidden}
+  .row{display:flex;align-items:center;gap:16px;padding:16px 16px;border-top:1px solid var(--line)}
+  .card .row:first-child{border-top:none}
+  .r-ic{width:34px;height:34px;border-radius:11px;background:var(--tint);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .r-ic svg{width:19px;height:19px;stroke-width:1.7;fill:none;stroke:#3a3f45;stroke-linecap:round;stroke-linejoin:round}
+  .r-ic.on{background:var(--green-weak)}
+  .r-ic.on svg{stroke:var(--green)}
+  .r-t{flex:1;font-size:15px;color:var(--ink)}
+  .r-v{font-size:13px;color:var(--muted)}
+  .r-v.hot{color:var(--green);font-weight:600}
+  .r-arrow{color:#c7ccd2;font-size:18px;margin-left:2px}
+
+  .logout{margin:22px 0 8px;background:#fff;border-radius:18px;text-align:center;padding:16px;color:#e5484d;font-size:15px;font-weight:600;box-shadow:0 8px 22px rgba(20,24,28,.05)}
+
+  /* 底部导航 */
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:flex-end;padding-bottom:8px}
+  .tb{flex:1;text-align:center;font-size:11px;color:var(--muted)}
+  .tb .e{display:block;font-size:20px;filter:grayscale(35%);opacity:.55;margin-bottom:2px}
+  .tb.on{color:var(--green)} .tb.on .e{filter:none;opacity:1}
+  .tb.mid .e{opacity:0}
+  .cadd{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;border:4px solid #fff;box-shadow:0 8px 18px rgba(18,161,80,.45)}
+
+  .legend{max-width:820px;margin:44px auto 0;background:#fff;border-radius:16px;padding:22px 26px;box-shadow:0 8px 24px rgba(0,0,0,.06);font-size:13px;color:#374151;line-height:1.95}
+  .legend h3{font-size:15px;margin-bottom:8px;color:#111827}
+  .legend b{color:#0e8a44}
+  .legend .old{color:#b91c1c}
+</style>
+</head>
+<body>
+  <h1>有余 ·「我的」页重设计（简约版）</h1>
+  <p class="sub">单绿点缀 · 描边图标 · 无 emoji · 留白克制，对齐现有页面调性</p>
+
+  <div class="stage">
+    <div class="col">
+      <div class="cap">重设计方案 <span class="tag">v2 · 简约</span></div>
+      <p class="note">情感锚点上移，但去掉花哨色块与表情，回归克制</p>
+      <div class="phone">
+        <div class="scroll">
+          <!-- 页头 -->
+          <div class="hero">
+            <div class="id">
+              <div class="avatar">D</div>
+              <div class="id-main">
+                <div class="id-name">Damien <span class="id-badge">免费版</span></div>
+                <div class="id-sub">管理账号与登录方式</div>
+              </div>
+              <div class="id-arrow">›</div>
+            </div>
+            <div class="stats">
+              <div class="st"><div class="n">128</div><div class="l">记账天数</div></div>
+              <div class="st"><div class="n">1,024</div><div class="l">累计笔数</div></div>
+              <div class="st"><div class="n">12</div><div class="l">当前连续</div></div>
+            </div>
+          </div>
+
+          <div class="pad">
+            <!-- 成长卡：白底单绿 -->
+            <div class="growth">
+              <div class="g-top">
+                <div class="ring"><i>Lv6</i></div>
+                <div class="g-mid">
+                  <div class="g-title">我的成长</div>
+                  <div class="g-bar"><i></i></div>
+                  <div class="g-hint">再记 42 笔升到 Lv7</div>
+                </div>
+                <div class="g-arrow">›</div>
+              </div>
+              <div class="g-foot">
+                <div class="gf"><div class="n">12</div><div class="l">连续天数</div></div>
+                <div class="gf"><div class="n">8</div><div class="l">已得成就</div></div>
+                <div class="gf"><div class="n">3</div><div class="l">性格标签</div></div>
+              </div>
+            </div>
+
+            <!-- 管理宫格已移除：账本/预算/分类/借贷 在「账本」页快捷栏与「更多」已有，不重复 -->
+
+            <!-- 常用 -->
+            <div class="sect">常用</div>
+            <div class="card">
+              <div class="row">
+                <div class="r-ic on"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M17 7l2 2 3-3"/></svg></div>
+                <span class="r-t">邀请好友</span><span class="r-v">已邀请 0 人</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></div>
+                <span class="r-t">记账提醒</span><span class="r-v">每天 21:00</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></div>
+                <span class="r-t">同步中心</span><span class="r-v">2 待同步</span><span class="r-arrow">›</span>
+              </div>
+            </div>
+
+            <!-- 数据与工具 -->
+            <div class="sect">数据与工具</div>
+            <div class="card">
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg></div>
+                <span class="r-t">账单导入</span><span class="r-v">支付宝 / 微信</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M12 21V9"/><path d="M8 13l4-4 4 4"/><path d="M4 5h16"/></svg></div>
+                <span class="r-t">数据导出 / 导入</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M6 7l1 13h10l1-13"/><path d="M9 7V4h6v3"/></svg></div>
+                <span class="r-t">回收站</span><span class="r-v">30 天可恢复</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                <span class="r-t">项目 / 商家 / 标签</span><span class="r-arrow">›</span>
+              </div>
+            </div>
+
+            <!-- 个性化与关于 -->
+            <div class="sect">个性化与关于</div>
+            <div class="card">
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-1.5 1.5-2 3-2a4 4 0 0 0 4-4c0-4.4-4-8-9-8"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></svg></div>
+                <span class="r-t">主题皮肤</span><span class="r-v hot">清新绿</span><span class="r-arrow">›</span>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/></svg></div>
+                <span class="r-t">关于有余</span><span class="r-v">v0.1.0</span><span class="r-arrow">›</span>
+              </div>
+            </div>
+
+            <div class="logout">退出登录</div>
+            <div style="height:20px"></div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tb"><span class="e">🏠</span>首页</div>
+          <div class="tb"><span class="e">📒</span>账本</div>
+          <div class="tb mid"><span class="e">＋</span>记一笔</div>
+          <div class="tb"><span class="e">💎</span>资产</div>
+          <div class="tb on"><span class="e">🙂</span>我的</div>
+        </div>
+        <div class="cadd">＋</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>简约化的取舍</h3>
+    <p>1. <b>去彩色、去 emoji</b>：<span class="old">上一版</span>用了 🔥🏅🎭 与蓝/橙/紫/粉多色 tile，与现有页面「白卡 + 单绿点缀 + 描边图标」不一致。这版统一浅灰底 tile、灰色描边图标，仅高频入口（邀请）与强调值用绿色。</p>
+    <p>2. <b>成长卡收敛为数据</b>：等级环仍是唯一的绿色主视觉，下方连续/成就/性格标签改为安静的三栏数字（去掉表情与药丸标签），信息量不减但更克制。</p>
+    <p>3. <b>结构不变、噪音减少</b>：身份头统计条 + 成长卡 + 三张分组卡的骨架保留；只是把颜色、圆角、留白拉回和 <code>me.vue</code> 现有 token 一致（20rpx 圆角、同款阴影、同款分隔线）。</p>
+    <p>4. <b>彻底去重</b>：移除管理宫格（账本/预算/分类/借贷）——它们已在「账本」页快捷栏与「更多」里出现，不再在「我的」重复。「我的」聚焦账号、成长、通知、数据与设置。</p>
+  </div>
+</body>
+</html>

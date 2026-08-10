@@ -4,20 +4,30 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useThemeStore } from '../../stores/theme'
 import { useLedgerStore } from '../../stores/ledger'
+import { useSyncStore } from '../../stores/sync'
 import { fetchInviteInfo } from '../../api/invite'
 import { fetchGrowthOverview } from '../../api/growth'
+import { levelProgress } from '../../utils/growth'
+import { formatAmount } from '../../utils/format'
 
 const auth = useAuthStore()
 const themeStore = useThemeStore()
 const ledgerStore = useLedgerStore()
-// AA 账本不设月预算（需求 1.3）：当前账本为 AA 时隐藏「预算」入口。
-const isAaLedger = computed(() => !ledgerStore.isAll && ledgerStore.current?.type === 'AA')
+const syncStore = useSyncStore()
+// 同步中心角标：优先显示需处理数，其次待同步数；均为 0 时不显示。
+const syncBadge = computed(() => {
+  if (syncStore.failedCount > 0) return `${syncStore.failedCount} 待处理`
+  if (syncStore.pendingCount > 0) return `${syncStore.pendingCount} 待同步`
+  return ''
+})
+const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 
 // 已邀请人数：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 2.6）
 const invitedCount = ref(null)
 
-// 当前等级：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 13.2）
-const growthLevel = ref(null)
+// 成长概览（等级 / 经验 / 累计统计 / 徽章）：null 表示尚未取到（含请求失败）。
+// 页头统计条与成长卡的取值全部由这一份概览派生，失败时统一降级为「—」，不渲染假的 0。
+const growth = ref(null)
 
 const nickname = computed(() => auth.user?.nickname || '有余用户')
 const planLabel = computed(() => {
@@ -25,14 +35,57 @@ const planLabel = computed(() => {
   return p === 'pro' ? '专业版' : p === 'lifetime' ? '终身版' : '免费版'
 })
 
+// ---- 页头统计条：记账天数 / 累计笔数 / 当前连续（均来自成长概览）----
+// 非负有限数才取，否则返回 null（渲染成「—」，不展示误导性的 0）。
+function metric(v) {
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : null
+}
+const statDays = computed(() => metric(growth.value?.totalRecordDays))
+const statCount = computed(() => metric(growth.value?.totalRecordCount))
+const statStreak = computed(() => metric(growth.value?.currentStreakDays))
+function statText(n) {
+  return n === null ? '—' : n.toLocaleString('en-US')
+}
+
+// ---- 成长卡 ----
+const level = computed(() => {
+  const n = Number(growth.value?.level)
+  return Number.isFinite(n) && n >= 1 ? n : null
+})
+const maxLevelReached = computed(() => growth.value?.maxLevelReached === true)
+const expToNextLevel = computed(() => {
+  const n = Number(growth.value?.expToNextLevel)
+  return Number.isFinite(n) && n >= 0 ? n : 0
+})
+// 升级进度 0–100%，交给纯函数处理满级 / 分母<=0 / 畸形字段等边界（需求 13.5、13.6）。
+const progressPct = computed(() => Math.round(levelProgress(growth.value) * 100) + '%')
+const levelHint = computed(() => {
+  if (level.value === null) return '记一笔，开启成长'
+  if (maxLevelReached.value) return '已达最高等级'
+  return `还差 ${expToNextLevel.value} 经验升到 Lv${level.value + 1}`
+})
+const expText = computed(() => statText(metric(growth.value?.exp)))
+// 徽章：已点亮 / 总数（按概览返回的 badges 派生，不额外发成就请求）。
+const badges = computed(() => (Array.isArray(growth.value?.badges) ? growth.value.badges : []))
+const badgeText = computed(() => {
+  if (!badges.value.length) return '—'
+  const unlocked = badges.value.filter((b) => b && b.unlocked === true).length
+  return `${unlocked} / ${badges.value.length}`
+})
+const totalExpenseText = computed(() =>
+  growth.value ? '¥' + formatAmount(growth.value?.totalExpense) : '—'
+)
+
 onShow(() => {
   uni.hideTabBar({ animation: false, fail() {} })
   if (!auth.isLoggedIn) {
     uni.reLaunch({ url: '/pages/login/login' })
     return
   }
+  syncStore.refresh()
   auth.refreshUser().catch(() => {})
-  // 人数只是锦上添花：失败静默（不弹错误、不影响页面其余部分），入口保持只有标题与箭头
+  // 人数只是锦上添花：失败静默（不弹错误、不影响页面其余部分），入口保持只有标题与箭头。
   fetchInviteInfo()
     .then((res) => {
       const n = Number(res?.invitedCount)
@@ -41,50 +94,33 @@ onShow(() => {
     .catch(() => {
       invitedCount.value = null
     })
-  // 等级文案只是锦上添花：失败静默（不弹错误、不影响页面其余部分），入口保持只有标题与箭头。
+  // 成长概览驱动页头统计条与成长卡；失败静默降级为「—」（不渲染假数据）。
   // 注意：GET /api/growth 是写入型 GET（服务端在本请求内顺带结算），因此每次进入「我的」页都会
   // 触发一次结算尝试；服务端 10 秒结算节流（需求 10.14）正是为这类调用点准备的，用户在「我的」与
   // 成长页之间来回切换实际只会结算一次。不要把这次调用挪到比 onShow 更高频的时机（例如每次 tab 切换）。
   fetchGrowthOverview()
     .then((res) => {
-      const n = Number(res?.level)
-      growthLevel.value = Number.isFinite(n) && n >= 1 ? n : null
+      growth.value = res || null
     })
     .catch(() => {
-      growthLevel.value = null
+      growth.value = null
     })
 })
 
-// 快捷宫格（管理类高频入口）；AA 账本隐藏「预算」入口（需求 1.3）。
-const grid = computed(() =>
-  [
-    { key: 'ledgers', icon: 'book', label: '账本', url: '/pages/ledgers/ledgers' },
-    { key: 'budget', icon: 'budget', label: '预算', url: '/pages/budget/budget' },
-    { key: 'categories', icon: 'tag', label: '分类', url: '/pages/categories/categories' },
-    { key: 'loans', icon: 'loan', label: '借贷', url: '/pages/loans/loans' }
-  ].filter((item) => !(item.key === 'budget' && isAaLedger.value))
-)
-
-// 分组列表
-const groups = [
-  {
-    title: '记账工具',
-    items: [
-      { key: 'bills', icon: 'import', label: '账单导入', desc: '支付宝 / 微信', url: '/pages/billimport/billimport' },
-      { key: 'data', icon: 'export', label: '数据导出 / 导入', desc: '', url: '/pages/data/data' },
-      { key: 'recycle', icon: 'recycle', label: '回收站', desc: '30 天可恢复', url: '/pages/recycle/recycle' }
-    ]
-  },
-  {
-    title: '标签体系',
-    items: [
-      { key: 'labels', icon: 'folder', label: '项目 / 商家 / 标签', desc: '', url: '/pages/labels/labels' }
-    ]
-  }
+// 分组列表（静态入口）：账本 / 预算 / 分类 / 借贷 等管理入口已在「账本」页快捷栏与「更多」中提供，
+// 「我的」不再重复，聚焦账号、成长、通知、数据与设置。
+const tools = [
+  { key: 'bills', icon: 'import', label: '账单导入', desc: '支付宝 / 微信', url: '/pages/billimport/billimport' },
+  { key: 'data', icon: 'export', label: '数据导出 / 导入', desc: '', url: '/pages/data/data' },
+  { key: 'recycle', icon: 'recycle', label: '回收站', desc: '30 天可恢复', url: '/pages/recycle/recycle' },
+  { key: 'labels', icon: 'folder', label: '项目 / 商家 / 标签', desc: '', url: '/pages/labels/labels' }
 ]
 
 function go(url) {
   uni.navigateTo({ url })
+}
+function goGrowth() {
+  uni.navigateTo({ url: '/pages/growth/growth' })
 }
 function goTheme() {
   uni.navigateTo({ url: '/pages/theme/theme' })
@@ -110,94 +146,98 @@ function logout() {
 
 <template>
   <view class="page" :style="themeStore.current.vars">
-    <!-- 个人卡：点击进账号设置 -->
-    <view class="profile" @click="goAccount">
-      <view class="avatar">{{ nickname.slice(0, 1) }}</view>
-      <view class="p-main">
-        <view class="p-name">{{ nickname }} <text class="p-badge">{{ planLabel }}</text></view>
-        <text class="p-sub">管理账号与登录方式</text>
+    <!-- 沉浸式页头：个人卡 + 成就统计条 -->
+    <view class="hero" :style="{ paddingTop: `calc(${statusBarHeight} + 28rpx)` }">
+      <view class="id" @click="goAccount">
+        <view class="avatar">{{ nickname.slice(0, 1) }}</view>
+        <view class="id-main">
+          <view class="id-name">{{ nickname }} <text class="id-badge">{{ planLabel }}</text></view>
+          <text class="id-sub">管理账号与登录方式</text>
+        </view>
+        <text class="id-arrow">›</text>
       </view>
-      <text class="p-arrow">›</text>
-    </view>
-
-    <!-- 快捷宫格 -->
-    <view class="grid">
-      <view v-for="g in grid" :key="g.key" class="g" @click="go(g.url)">
-        <view class="tile"><AppIcon :name="g.icon" :size="44" /></view>
-        <text class="g-t">{{ g.label }}</text>
-      </view>
-    </view>
-
-    <!-- 邀请入口：人数是动态的，故不并入静态 groups -->
-    <view class="sect">邀请</view>
-    <view class="card">
-      <view class="row" @click="go('/pages/invite/invite')">
-        <view class="r-ic t-green"><AppIcon name="members" :size="36" /></view>
-        <text class="r-t">邀请好友</text>
-        <text v-if="invitedCount !== null" class="r-v r-v-invite">已邀请 {{ invitedCount }} 人</text>
-        <text class="arrow">›</text>
+      <view class="stats">
+        <view class="st"><text class="n">{{ statText(statDays) }}</text><text class="l">记账天数</text></view>
+        <view class="st"><text class="n">{{ statText(statCount) }}</text><text class="l">累计笔数</text></view>
+        <view class="st"><text class="n">{{ statText(statStreak) }}</text><text class="l">当前连续</text></view>
       </view>
     </view>
 
-    <!-- 成长入口：等级是动态的，故不并入静态 groups（与邀请入口同构） -->
-    <view class="sect">成长</view>
-    <view class="card">
-      <view class="row" @click="go('/pages/growth/growth')">
-        <view class="r-ic t-green"><AppIcon name="star" :size="36" /></view>
-        <text class="r-t">我的成长</text>
-        <text v-if="growthLevel !== null" class="r-v r-v-invite">Lv {{ growthLevel }}</text>
-        <text class="arrow">›</text>
+    <view class="wrap">
+      <!-- 成长卡：压住页头下沿，单绿点缀 -->
+      <view class="growth" @click="goGrowth">
+        <view class="g-top">
+          <view class="ring" :style="{ background: `conic-gradient(var(--c-brand, #12a150) 0 ${progressPct}, #eef0ea 0)` }">
+            <text class="ring-in">{{ level === null ? 'Lv—' : 'Lv' + level }}</text>
+          </view>
+          <view class="g-mid">
+            <text class="g-title">我的成长</text>
+            <view class="g-bar"><view class="g-bar-in" :style="{ width: progressPct }"></view></view>
+            <text class="g-hint">{{ levelHint }}</text>
+          </view>
+          <text class="g-arrow">›</text>
+        </view>
+        <view class="g-foot">
+          <view class="gf"><text class="n">{{ expText }}</text><text class="l">累计经验</text></view>
+          <view class="gf"><text class="n">{{ badgeText }}</text><text class="l">已点亮徽章</text></view>
+          <view class="gf"><text class="n">{{ totalExpenseText }}</text><text class="l">累计支出</text></view>
+        </view>
       </view>
-    </view>
 
-    <!-- 记账提醒入口 -->
-    <view class="sect">提醒</view>
-    <view class="card">
-      <view class="row" @click="go('/pages/reminder/reminder')">
-        <view class="r-ic t-green"><AppIcon name="bell" :size="36" /></view>
-        <text class="r-t">记账提醒</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <!-- 分组功能列表 -->
-    <template v-for="grp in groups" :key="grp.title">
-      <view class="sect">{{ grp.title }}</view>
+      <!-- 常用 -->
+      <view class="sect">常用</view>
       <view class="card">
-        <view v-for="it in grp.items" :key="it.key" class="row" @click="go(it.url)">
+        <view class="row" @click="go('/pages/invite/invite')">
+          <view class="r-ic on"><AppIcon name="members" :size="36" /></view>
+          <text class="r-t">邀请好友</text>
+          <text v-if="invitedCount !== null" class="r-v r-v-hot">已邀请 {{ invitedCount }} 人</text>
+          <text class="arrow">›</text>
+        </view>
+        <view class="row" @click="go('/pages/reminder/reminder')">
+          <view class="r-ic"><AppIcon name="bell" :size="36" /></view>
+          <text class="r-t">记账提醒</text>
+          <text class="arrow">›</text>
+        </view>
+        <view class="row" @click="go('/pages/sync/sync')">
+          <view class="r-ic"><AppIcon name="import" :size="36" /></view>
+          <text class="r-t">同步中心</text>
+          <text v-if="syncBadge" class="r-v">{{ syncBadge }}</text>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <!-- 数据与工具 -->
+      <view class="sect">数据与工具</view>
+      <view class="card">
+        <view v-for="it in tools" :key="it.key" class="row" @click="go(it.url)">
           <view class="r-ic"><AppIcon :name="it.icon" :size="36" /></view>
           <text class="r-t">{{ it.label }}</text>
           <text v-if="it.desc" class="r-v">{{ it.desc }}</text>
           <text class="arrow">›</text>
         </view>
       </view>
-    </template>
 
-    <!-- 个性化：主题切换 -->
-    <view class="sect">个性化</view>
-    <view class="card">
-      <view class="row" @click="goTheme">
-        <view class="r-ic t-green"><AppIcon name="star" :size="36" /></view>
-        <text class="r-t">主题皮肤</text>
-        <text class="r-v r-v-invite">{{ themeStore.current.name }}</text>
-        <text class="arrow">›</text>
+      <!-- 个性化与关于 -->
+      <view class="sect">个性化与关于</view>
+      <view class="card">
+        <view class="row" @click="goTheme">
+          <view class="r-ic"><AppIcon name="star" :size="36" /></view>
+          <text class="r-t">主题皮肤</text>
+          <text class="r-v r-v-hot">{{ themeStore.current.name }}</text>
+          <text class="arrow">›</text>
+        </view>
+        <view class="row" @click="about">
+          <view class="r-ic"><AppIcon name="info" :size="36" /></view>
+          <text class="r-t">关于有余</text>
+          <text class="r-v">v0.1.0</text>
+          <text class="arrow">›</text>
+        </view>
       </view>
+
+      <view class="logout" @click="logout">退出登录</view>
+
+      <view style="height:180rpx;"></view>
     </view>
-
-    <!-- 关于 -->
-    <view class="sect">关于</view>
-    <view class="card">
-      <view class="row" @click="about">
-        <view class="r-ic"><AppIcon name="info" :size="36" /></view>
-        <text class="r-t">关于有余</text>
-        <text class="r-v">v0.1.0</text>
-        <text class="arrow">›</text>
-      </view>
-    </view>
-
-    <view class="logout" @click="logout">退出登录</view>
-
-    <view style="height:180rpx;"></view>
     <TabBar active="me" />
   </view>
 </template>
@@ -206,18 +246,30 @@ function logout() {
 .page {
   min-height: 100vh;
   background: var(--c-page-bg, #f2f4f6);
-  padding: 24rpx 24rpx 0;
 }
-/* 个人卡 */
-.profile {
+.wrap { padding: 0 24rpx; }
+
+/* 沉浸式页头 */
+.hero {
+  background: var(--c-hero, linear-gradient(135deg, #22c55e, #0f8a45 70%));
+  padding: 30rpx 30rpx 56rpx;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -60rpx; top: -50rpx;
+  width: 300rpx; height: 300rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.id, .stats { position: relative; z-index: 2; }
+.id {
   display: flex;
   align-items: center;
   gap: 24rpx;
-  background: var(--c-hero, linear-gradient(135deg, #22c55e, #0f8a45 70%));
-  border-radius: 24rpx;
-  padding: 34rpx 30rpx;
-  color: #fff;
-  box-shadow: 0 16rpx 34rpx rgba(20, 24, 28, 0.2);
 }
 .avatar {
   width: 92rpx;
@@ -229,61 +281,155 @@ function logout() {
   font-size: 42rpx;
   font-weight: 800;
 }
-.p-main {
-  flex: 1;
-}
-.p-name {
+.id-main { flex: 1; }
+.id-name {
   font-size: 34rpx;
   font-weight: 800;
   display: flex;
   align-items: center;
   gap: 12rpx;
 }
-.p-badge {
+.id-badge {
   font-size: 20rpx;
   font-weight: 600;
   background: rgba(255, 255, 255, 0.22);
   border-radius: 999rpx;
   padding: 3rpx 14rpx;
 }
-.p-sub {
+.id-sub {
   font-size: 24rpx;
   opacity: 0.9;
   margin-top: 8rpx;
 }
-.p-arrow {
+.id-arrow {
   font-size: 40rpx;
   opacity: 0.8;
 }
-/* 快捷宫格 */
-.grid {
+.stats {
   display: flex;
+  margin-top: 34rpx;
+}
+.st {
+  flex: 1;
+  text-align: center;
+  position: relative;
+}
+.st + .st::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8rpx; bottom: 8rpx;
+  width: 1rpx;
+  background: rgba(255, 255, 255, 0.2);
+}
+.st .n {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.st .l {
+  display: block;
+  font-size: 22rpx;
+  opacity: 0.82;
+  margin-top: 4rpx;
+}
+
+/* 成长卡 */
+.growth {
   background: #fff;
   border-radius: 20rpx;
-  padding: 28rpx 8rpx;
-  margin-top: 24rpx;
+  margin-top: -28rpx;
+  position: relative;
+  z-index: 3;
   box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05);
+  padding: 28rpx;
 }
-.g {
-  flex: 1;
+.g-top {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 14rpx;
+  gap: 24rpx;
 }
-.tile {
-  width: 84rpx;
-  height: 84rpx;
-  border-radius: 24rpx;
-  background: #f4f5f7;
+.ring {
+  width: 104rpx;
+  height: 104rpx;
+  flex: 0 0 auto;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.g-t {
-  font-size: 24rpx;
-  color: #4b5563;
+.ring-in {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28rpx;
+  font-weight: 800;
+  color: var(--c-brand, #12a150);
 }
+.g-mid { flex: 1; }
+.g-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #25292e;
+}
+.g-bar {
+  height: 12rpx;
+  background: #eef0f2;
+  border-radius: 999rpx;
+  margin-top: 14rpx;
+  overflow: hidden;
+}
+.g-bar-in {
+  height: 100%;
+  background: var(--c-brand, #12a150);
+  border-radius: 999rpx;
+}
+.g-hint {
+  display: block;
+  font-size: 22rpx;
+  color: #9aa2ad;
+  margin-top: 12rpx;
+}
+.g-arrow {
+  color: #c7ccd2;
+  font-size: 40rpx;
+}
+.g-foot {
+  display: flex;
+  margin-top: 26rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid #eef0f2;
+}
+.gf {
+  flex: 1;
+  text-align: center;
+  position: relative;
+}
+.gf + .gf::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 4rpx; bottom: 4rpx;
+  width: 1rpx;
+  background: #eef0f2;
+}
+.gf .n {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #25292e;
+  font-variant-numeric: tabular-nums;
+}
+.gf .l {
+  display: block;
+  font-size: 22rpx;
+  color: #9aa2ad;
+  margin-top: 4rpx;
+}
+
 /* 分组 */
 .sect {
   font-size: 24rpx;
@@ -316,6 +462,7 @@ function logout() {
   justify-content: center;
   flex: 0 0 auto;
 }
+.r-ic.on { background: var(--c-brand-weak, #e7f7ee); }
 .r-t {
   flex: 1;
   font-size: 30rpx;
@@ -325,7 +472,7 @@ function logout() {
   font-size: 26rpx;
   color: #9aa2ad;
 }
-.r-v-invite {
+.r-v-hot {
   color: var(--c-brand, #12a150);
   font-weight: 700;
 }
@@ -334,14 +481,6 @@ function logout() {
   font-size: 34rpx;
   margin-left: 4rpx;
 }
-/* tile / icon tints */
-.t-green { background: var(--c-brand-weak, #e7f7ee); }
-.t-blue { background: #e8f0fe; }
-.t-orange { background: #fdf0e6; }
-.t-purple { background: #f0ecfe; }
-.t-teal { background: #e4f6f5; }
-.t-pink { background: #fdeaf0; }
-.t-gray { background: #eef1f4; }
 .logout {
   margin-top: 24rpx;
   background: #fff;
