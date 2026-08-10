@@ -3,6 +3,7 @@
   "navigationStyle": "custom",
   "usingComponents": {
     "category-icon": "../../components/CategoryIcon/CategoryIcon",
-    "tab-bar": "../../components/TabBar/TabBar"
+    "tab-bar": "../../components/TabBar/TabBar",
+    "net-banner": "../../components/NetBanner/NetBanner"
   }
 }

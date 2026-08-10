@@ -40,6 +40,7 @@
     "pages/recurring/recurring",
     "pages/recurringedit/recurringedit",
     "pages/recurringpending/recurringpending",
+    "pages/sync/sync",
     "pages/share/share"
   ],
   "window": {

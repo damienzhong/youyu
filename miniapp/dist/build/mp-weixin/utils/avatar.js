@@ -1,0 +1,1 @@
+"use strict";exports.AVATAR_COLORS=["#12a150","#0ea5e9","#f97316","#7c6cf0","#0e9aa7","#b23a4b","#5b7fb0","#b3873a"],exports.avatarColorOf=function(t){return"string"==typeof t&&/^#[0-9a-fA-F]{6}$/.test(t)?t:"#12a150"},exports.avatarInitial=function(t){const a=(null==t?"":String(t)).trim();return a?[...a][0].toUpperCase():"?"};
