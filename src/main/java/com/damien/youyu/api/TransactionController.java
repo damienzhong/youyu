@@ -108,7 +108,8 @@ public class TransactionController {
                 req.note(),
                 createdBy,
                 req.projectId(),
-                req.merchantId());
+                req.merchantId(),
+                req.clientToken());
         tagService.setTransactionTags(tx.getId(), tagIds);
         return ResponseEntity.status(HttpStatus.CREATED).body(TransactionResponse.from(tx, tagIds));
     }

@@ -32,5 +32,6 @@ public record TransactionCreateRequest(
         Long createdBy,
         Long projectId,
         Long merchantId,
-        java.util.List<Long> tagIds) {
+        java.util.List<Long> tagIds,
+        @jakarta.validation.constraints.Size(max = 64) String clientToken) {
 }

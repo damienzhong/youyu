@@ -20,6 +20,8 @@ import { listProjects, createProject } from '../../api/project'
 import { listMerchants, createMerchant } from '../../api/merchant'
 import { listTags, createTag } from '../../api/tag'
 import { useLedgerStore } from '../../stores/ledger'
+import { useNetStore } from '../../stores/net'
+import { refreshSyncState } from '../../utils/offline/sync'
 import { useAuthStore } from '../../stores/auth'
 import { categoryEmoji, formatAmount } from '../../utils/format'
 import {
@@ -42,6 +44,7 @@ import {
 
 const ledgerStore = useLedgerStore()
 const authStore = useAuthStore()
+const net = useNetStore()
 
 // 状态栏高度：与首页/账本/资产页一致用 JS 取值精确避让微信胶囊，
 // 不用 env(safe-area-inset-top)（小程序里常为 0，会让顶栏顶到胶囊下）。
@@ -109,6 +112,7 @@ function tapKey(k) {
 // 按钮随即回到「完成/保存」，用户再点一次才提交。
 const primaryLabel = computed(() => {
   if (submitting.value) return '保存中…'
+  if (!isEditing.value && !isTransfer.value && !isLoan.value && !net.online && !hasOp.value) return '离线保存'
   if (hasOp.value) return '＝'
   return isEditing.value ? '保存' : '完成'
 })
@@ -687,12 +691,16 @@ async function submit(cont) {
 async function run(fn, cont) {
   submitting.value = true
   try {
-    await fn()
+    const res = await fn()
+    // 离线 / 弱网记账时，offline 中间件返回带 __pending 标记的乐观记录（已入本地队列，联网自动同步）。
+    const pending = res && res.__pending
+    if (pending) refreshSyncState()
     // 播报挂载点 ①（成就系统需求 7.1、7.12）：记账请求返回成功后立即触发一次待播报查询，
     // 远快于 1000ms 上限。startAchievementBroadcast 同步返回、**不是 Promise**，
     // 因此下面的结果提示、页面返回、列表与余额刷新一律不等它，播报进行中也不改动已展示的取值。
     // 幂等守卫与编排状态机都在 utils/achievementBroadcast.js 里，「保存再记」连记多笔时
     // 后续几次触发会被直接丢弃（需求 7.14），不会叠出第 2 个弹层。
+    // 离线乐观记录也触发一次：无解锁时静默放弃，不影响。
     startAchievementBroadcast()
     if (isEditing.value) {
       uni.showToast({ title: '已保存', icon: 'success' })
@@ -701,9 +709,9 @@ async function run(fn, cont) {
       expr.value = ''
       note.value = ''
       counterparty.value = ''
-      uni.showToast({ title: '已记 1 笔，继续', icon: 'none' })
+      uni.showToast({ title: pending ? '已离线保存，联网后同步' : '已记 1 笔，继续', icon: 'none' })
     } else {
-      uni.showToast({ title: '已记录', icon: 'success' })
+      uni.showToast({ title: pending ? '已离线保存，联网后自动同步' : '已记录', icon: pending ? 'none' : 'success' })
       setTimeout(() => safeBack('/pages/index/index'), 500)
     }
   } catch (e) {

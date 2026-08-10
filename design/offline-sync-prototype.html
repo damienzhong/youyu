@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 离线缓存 + 弱网记账原型</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#12a150; --warn:#f4a72b; --warn-weak:#fff4e5;
+    --gray:#8b95a1; --gray-weak:#eef0f2;
+    --hero:linear-gradient(155deg,#1fbf63,#0f8a45 78%);
+    --offline:linear-gradient(155deg,#6b7480,#4a525c 80%);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1280px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;}
+  h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:14px 0 10px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:920px;line-height:1.7;margin:0;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:46px 0 16px;}
+
+  /* 原理卡 */
+  .flow{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:8px;}
+  .fc{background:var(--surface);border-radius:16px;padding:16px 18px;box-shadow:0 8px 24px rgba(20,24,28,.05);border-left:4px solid var(--brand);}
+  .fc h4{margin:0 0 8px;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .fc h4 .n{width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .fc p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.6;}
+  .fc.g2{border-left-color:var(--warn);} .fc.g2 h4 .n{background:var(--warn);}
+  .fc.g3{border-left-color:var(--gray);} .fc.g3 h4 .n{background:var(--gray);}
+
+  /* 手机屏 */
+  .screens{display:flex;flex-wrap:wrap;gap:40px 44px;align-items:flex-start;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .capd{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.5;}
+  .phone{width:340px;height:720px;background:#fff;border-radius:44px;padding:11px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:34px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .sb{height:34px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 22px 4px;font-size:12px;font-weight:700;color:#fff;flex:0 0 auto;}
+  .sb.dark{color:var(--ink);}
+  .sb .dots{display:flex;gap:4px;align-items:center;}
+  .body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .pad{padding:0 15px;}
+  .scroll{flex:1;overflow-y:auto;}
+
+  /* 全局离线/同步横幅 */
+  .netbar{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:12.5px;font-weight:700;flex:0 0 auto;}
+  .netbar .ni{width:16px;height:16px;flex:0 0 auto;}
+  .netbar.off{background:#4a525c;color:#fff;}
+  .netbar.syncing{background:#eaf6ee;color:var(--brand-600);}
+  .netbar.done{background:var(--brand);color:#fff;}
+  .netbar.fail{background:#fdece9;color:var(--exp);}
+  .netbar .grow{flex:1;}
+  .netbar .act{font-size:12px;font-weight:800;text-decoration:underline;opacity:.95;}
+  .spin{width:14px;height:14px;border:2px solid rgba(18,161,80,.25);border-top-color:var(--brand);border-radius:50%;display:inline-block;}
+
+  /* hero */
+  .hero{color:#fff;padding:0 18px 40px;position:relative;overflow:hidden;flex:0 0 auto;}
+  .hero.on{background:var(--hero);}
+  .hero.off{background:var(--offline);}
+  .hero::after{content:"";position:absolute;right:-50px;top:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hgreet{display:flex;align-items:center;gap:10px;margin-top:6px;position:relative;z-index:2;}
+  .hg-t{font-size:20px;font-weight:800;}
+  .hsub{font-size:12px;opacity:.85;margin-top:5px;position:relative;z-index:2;}
+
+  .today{background:var(--surface);border-radius:20px;box-shadow:0 12px 30px rgba(20,24,28,.08);margin-top:-28px;position:relative;z-index:3;overflow:hidden;}
+  .t-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0;}
+  .t-date{font-size:13.5px;font-weight:800;}
+  .t-tag{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;}
+  .t-tag.cache{background:var(--gray-weak);color:var(--gray);}
+  .t-io{display:flex;padding:10px 16px 14px;gap:8px;}
+  .t-col{flex:1;}
+  .t-k{font-size:11.5px;color:var(--ink-3);}
+  .t-v{font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:3px;}
+  .t-v.exp{color:var(--exp);} .t-v.inc{color:var(--inc);}
+  .t-div{width:1px;background:#eef0f2;margin:6px 4px;}
+  .cache-note{margin:0 12px 14px;background:var(--surface-2);border-radius:11px;padding:9px 12px;font-size:11.5px;color:var(--ink-2);line-height:1.4;display:flex;gap:8px;align-items:center;}
+  .cache-note .em{font-size:15px;}
+
+  /* 通用列表卡 */
+  .card{background:var(--surface);border-radius:16px;box-shadow:0 8px 24px rgba(20,24,28,.05);margin-top:12px;overflow:hidden;}
+  .list-h{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 6px;}
+  .list-t{font-size:13.5px;font-weight:800;}
+  .list-m{font-size:11.5px;color:var(--ink-3);}
+  .row{display:flex;align-items:center;gap:11px;padding:11px 16px;border-top:1px solid var(--line);}
+  .row:first-child{border-top:0;}
+  .ri{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto;}
+  .ri.food{background:#fff0e8;} .ri.trans{background:#e8f1ff;} .ri.shop{background:#f3ecff;} .ri.pay{background:var(--brand-weak);}
+  .rmid{flex:1;min-width:0;}
+  .rname{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .rsub{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+  .ramt{font-size:15px;font-weight:800;flex:0 0 auto;}
+  .ramt.exp{color:var(--exp);} .ramt.inc{color:var(--inc);}
+
+  /* 待同步/同步中/失败 状态药丸 */
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;}
+  .pill.pending{background:var(--gray-weak);color:var(--gray);}
+  .pill.syncing{background:#eaf6ee;color:var(--brand-600);}
+  .pill.fail{background:#fdece9;color:var(--exp);}
+  .pill .d{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .row.pending{background:#fbfcfd;}
+  .row.fail-row{background:#fef7f5;}
+  .retry{font-size:11px;font-weight:800;color:var(--exp);border:1px solid #f6c5bb;border-radius:8px;padding:4px 10px;flex:0 0 auto;}
+
+  /* 记账页 */
+  .rec-head{padding:14px 16px;font-size:16px;font-weight:800;display:flex;align-items:center;justify-content:space-between;background:#fff;}
+  .rec-close{font-size:22px;color:var(--ink-3);}
+  .amt-box{background:#fff;padding:8px 18px 16px;text-align:right;}
+  .amt-k{font-size:11.5px;color:var(--ink-3);text-align:left;}
+  .amt-v{font-size:40px;font-weight:800;letter-spacing:-.02em;margin-top:2px;}
+  .amt-v .cur{font-size:22px;color:var(--ink-3);margin-right:4px;}
+  .catgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 6px;padding:16px;background:#fff;margin-top:10px;}
+  .cat{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);}
+  .cat .ci{width:46px;height:46px;border-radius:14px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .cat.on .ci{background:var(--brand);}
+  .cat.on{color:var(--brand-600);font-weight:700;}
+  .keypad{background:#f3f4f6;padding:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .key{background:#fff;border-radius:12px;height:46px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.04);}
+  .key.wide{grid-row:span 1;}
+  .savebtn{grid-column:4;grid-row:span 4;background:var(--brand);color:#fff;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:15px;font-weight:800;gap:3px;box-shadow:0 8px 18px rgba(18,161,80,.28);}
+  .savebtn.off{background:#4a525c;box-shadow:0 8px 18px rgba(74,82,92,.28);}
+  .savebtn small{font-size:10px;font-weight:600;opacity:.85;}
+
+  /* toast */
+  .toast{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);background:rgba(22,24,28,.92);color:#fff;font-size:13px;font-weight:600;padding:12px 18px;border-radius:14px;display:flex;align-items:center;gap:8px;max-width:280px;line-height:1.4;box-shadow:0 12px 30px rgba(0,0,0,.25);z-index:20;}
+  .toast .em{font-size:17px;}
+
+  /* 同步中心（设置页） */
+  .sc-hero{background:var(--hero);color:#fff;padding:22px 18px 26px;flex:0 0 auto;}
+  .sc-hero.off{background:var(--offline);}
+  .sc-title{font-size:18px;font-weight:800;}
+  .sc-stat{display:flex;gap:10px;margin-top:14px;}
+  .sc-box{flex:1;background:rgba(255,255,255,.16);border-radius:14px;padding:12px;}
+  .sc-num{font-size:24px;font-weight:800;}
+  .sc-lab{font-size:11px;opacity:.85;margin-top:2px;}
+  .sc-sec{font-size:11.5px;font-weight:800;color:var(--ink-3);letter-spacing:.08em;padding:16px 16px 6px;}
+  .settrow{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border-top:1px solid var(--line);}
+  .settrow:first-of-type{border-top:0;}
+  .st-i{width:34px;height:34px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .st-t{flex:1;}
+  .st-name{font-size:14px;font-weight:600;}
+  .st-sub{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+  .st-r{font-size:12px;color:var(--ink-3);}
+  .bigbtn{margin:16px;height:48px;border-radius:14px;background:var(--brand);color:#fff;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 10px 22px rgba(18,161,80,.26);}
+  .bigbtn.ghost{background:#fff;color:var(--ink-2);border:1.5px solid var(--line);box-shadow:none;}
+
+  /* tabbar */
+  .tabbar{height:56px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;position:relative;flex:0 0 auto;}
+  .tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;color:var(--ink-3);}
+  .tb.on{color:var(--brand);font-weight:700;}
+  .tb .d{font-size:18px;}
+  .center{position:absolute;left:50%;top:-14px;transform:translateX(-50%);width:46px;height:46px;border-radius:50%;background:var(--hero);display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px;box-shadow:0 10px 22px rgba(18,161,80,.4);}
+  .center.off{background:var(--offline);box-shadow:0 10px 22px rgba(74,82,92,.4);}
+
+  .legend{margin-top:20px;font-size:14px;color:var(--ink-2);line-height:1.9;background:var(--surface);border-radius:16px;padding:22px 26px;box-shadow:0 8px 24px rgba(20,24,28,.05);}
+  .legend b{color:var(--ink);}
+  .legend h4{margin:18px 0 6px;font-size:15px;color:var(--ink);}
+  .legend h4:first-child{margin-top:0;}
+  .legend code{background:var(--surface-2);padding:2px 7px;border-radius:6px;font-size:13px;color:var(--brand-600);}
+  .tagrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+  .k{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--surface-2);border-radius:999px;padding:5px 12px;color:var(--ink-2);}
+  .k .sw{width:10px;height:10px;border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">🛰️ 有余 · 体验方案原型</span>
+  <h1>离线缓存 + 弱网记账</h1>
+  <p class="sub">地铁、电梯、地下停车场——记账最高频的场景恰恰常常没信号。本方案让「有余」在弱网/断网下也能<b>打开看数据</b>、<b>照常记一笔</b>，联网后<b>自动、幂等地同步</b>，全程给用户明确、可信的状态反馈。第一阶段仅小程序端，离线只放开「新增收支」这一最高频、最安全的操作。</p>
+</div>
+<div class="doc" style="padding-top:0;">
+  <div class="sec">工作原理 · 四层结构</div>
+  <div class="flow">
+    <div class="fc">
+      <h4><span class="n">1</span>网络感知层</h4>
+      <p>用 <code>uni.onNetworkStatusChange</code> + <code>getNetworkType</code> 维护全局 online / weak / offline 状态；请求层 <code>fail()</code> 抛出的 <code>NETWORK_ERROR</code> 也触发降级。状态变化驱动全局横幅。</p>
+    </div>
+    <div class="fc">
+      <h4><span class="n">2</span>读缓存层</h4>
+      <p>GET 成功响应按「接口+账本」写入本地存储。断网时首页/流水回落到缓存快照并打「缓存」标记，页面永不空白。</p>
+    </div>
+    <div class="fc g2">
+      <h4><span class="n">3</span>写队列（Outbox）</h4>
+      <p>断网或写失败时，把「记一笔」入队并<b>乐观上屏</b>（临时 id + 待同步标记）。联网后按序重放，用服务端返回替换本地临时记录。</p>
+    </div>
+    <div class="fc g3">
+      <h4><span class="n">4</span>幂等去重</h4>
+      <p>每条队列项带客户端生成的 <code>clientToken</code>，后端按它去重。断线重连、重复重放都只会落一笔，杜绝重复记账。</p>
+    </div>
+  </div>
+
+  <div class="sec">界面状态 · 六屏</div>
+  <div class="screens">
+    <!-- ============ 屏 1：离线首页（缓存回落） ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span>离线首页 · 缓存回落</p>
+      <p class="capd">断网时首页照常打开，读取本地缓存快照，顶部灰色横幅告知离线，数据卡打「缓存」标记，不空白、不报错。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb"><span>9:41</span><span class="dots">📶 ✕ 🔋</span></div>
+        <div class="netbar off">
+          <span class="ni">📴</span>
+          <span class="grow">当前离线 · 数据可能不是最新，记账将在联网后自动同步</span>
+        </div>
+        <div class="body"><div class="scroll">
+          <div class="hero off">
+            <div class="hgreet"><span class="hg-t">下午好，Damien</span></div>
+            <div class="hsub">离线模式 · 展示上次同步的数据</div>
+          </div>
+          <div class="pad">
+            <div class="today">
+              <div class="t-head"><span class="t-date">今日 8月10日</span><span class="t-tag cache">🕓 缓存于 08:12</span></div>
+              <div class="t-io">
+                <div class="t-col"><div class="t-k">支出</div><div class="t-v exp">88.50</div></div>
+                <div class="t-div"></div>
+                <div class="t-col"><div class="t-k">收入</div><div class="t-v inc">0.00</div></div>
+              </div>
+              <div class="cache-note"><span class="em">💡</span><span>联网后会自动刷新为最新数据，你现在记的每一笔都会安全保存。</span></div>
+            </div>
+            <div class="card">
+              <div class="list-h"><span class="list-t">最近流水</span><span class="list-m">缓存</span></div>
+              <div class="row"><div class="ri food">🍜</div><div class="rmid"><div class="rname">午餐 · 兰州拉面</div><div class="rsub">12:30 · 微信</div></div><div class="ramt exp">-28.00</div></div>
+              <div class="row"><div class="ri trans">🚇</div><div class="rmid"><div class="rname">地铁</div><div class="rsub">09:05 · 交通</div></div><div class="ramt exp">-6.00</div></div>
+              <div class="row"><div class="ri shop">🛒</div><div class="rmid"><div class="rname">超市</div><div class="rsub">昨天 · 日用</div></div><div class="ramt exp">-54.50</div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="tabbar">
+          <div class="tb on"><span class="d">🏠</span>首页</div>
+          <div class="tb"><span class="d">📊</span>流水</div>
+          <div class="center off">＋</div>
+          <div class="tb"><span class="d">💰</span>资产</div>
+          <div class="tb"><span class="d">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ============ 屏 2：离线记账 ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span>离线记账 · 照常记</p>
+      <p class="capd">记账页在离线下完全可用。保存按钮变为深灰「离线保存」，点击后本地立即入队，弹出确认 toast，无需等待网络。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb dark"><span>9:42</span><span class="dots">📶 ✕ 🔋</span></div>
+        <div class="netbar off"><span class="ni">📴</span><span class="grow">离线记账 · 保存后联网自动同步</span></div>
+        <div class="body">
+          <div class="rec-head"><span>记一笔</span><span class="rec-close">✕</span></div>
+          <div class="amt-box"><div class="amt-k">支出金额</div><div class="amt-v"><span class="cur">¥</span>28.00</div></div>
+          <div class="catgrid">
+            <div class="cat on"><div class="ci">🍜</div>餐饮</div>
+            <div class="cat"><div class="ci">🚕</div>交通</div>
+            <div class="cat"><div class="ci">🛍️</div>购物</div>
+            <div class="cat"><div class="ci">🏠</div>居家</div>
+          </div>
+          <div class="keypad">
+            <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+            <div class="savebtn off">离线保存<small>联网后同步</small></div>
+            <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+            <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+            <div class="key">.</div><div class="key">0</div><div class="key">⌫</div>
+          </div>
+        </div>
+        <div class="toast"><span class="em">✅</span><span>已离线保存，联网后自动同步</span></div>
+      </div></div>
+    </div>
+
+    <!-- ============ 屏 3：流水列表 · 待同步标记 ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">3</span>流水列表 · 待同步标记</p>
+      <p class="capd">离线记的记录立刻出现在流水顶部，带灰色「待同步」药丸，与已同步记录视觉区分，用户对「记进去了没」一目了然。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb dark"><span>9:43</span><span class="dots">📶 ✕ 🔋</span></div>
+        <div class="netbar off"><span class="ni">📴</span><span class="grow">离线中 · 2 笔待同步</span></div>
+        <div class="body"><div class="scroll">
+          <div class="pad">
+            <div class="card" style="margin-top:14px;">
+              <div class="list-h"><span class="list-t">今天 · 8月10日</span><span class="list-m">支出 ¥122.50</span></div>
+              <div class="row pending"><div class="ri food">🍜</div><div class="rmid"><div class="rname">晚餐 · 麻辣烫 <span class="pill pending"><span class="d"></span>待同步</span></div><div class="rsub">刚刚 · 餐饮</div></div><div class="ramt exp">-28.00</div></div>
+              <div class="row pending"><div class="ri trans">⛽</div><div class="rmid"><div class="rname">加油 <span class="pill pending"><span class="d"></span>待同步</span></div><div class="rsub">18:20 · 交通</div></div><div class="ramt exp">-200.00</div></div>
+              <div class="row"><div class="ri food">🍜</div><div class="rmid"><div class="rname">午餐 · 兰州拉面</div><div class="rsub">12:30 · 微信</div></div><div class="ramt exp">-28.00</div></div>
+              <div class="row"><div class="ri trans">🚇</div><div class="rmid"><div class="rname">地铁</div><div class="rsub">09:05 · 交通</div></div><div class="ramt exp">-6.00</div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="tabbar">
+          <div class="tb"><span class="d">🏠</span>首页</div>
+          <div class="tb on"><span class="d">📊</span>流水</div>
+          <div class="center off">＋</div>
+          <div class="tb"><span class="d">💰</span>资产</div>
+          <div class="tb"><span class="d">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+    <!-- ============ 屏 4：联网自动同步中 ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">4</span>联网 · 自动同步中</p>
+      <p class="capd">网络恢复的一刻，顶部横幅变绿并显示进度，待同步记录逐条切换为「同步中」，全程无需用户操作。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb dark"><span>9:45</span><span class="dots">📶 📶 🔋</span></div>
+        <div class="netbar syncing"><span class="spin"></span><span class="grow">正在同步 2 笔记录…</span></div>
+        <div class="body"><div class="scroll">
+          <div class="pad">
+            <div class="card" style="margin-top:14px;">
+              <div class="list-h"><span class="list-t">今天 · 8月10日</span><span class="list-m">支出 ¥122.50</span></div>
+              <div class="row pending"><div class="ri food">🍜</div><div class="rmid"><div class="rname">晚餐 · 麻辣烫 <span class="pill syncing"><span class="spin" style="width:9px;height:9px;border-width:1.5px;"></span>同步中</span></div><div class="rsub">刚刚 · 餐饮</div></div><div class="ramt exp">-28.00</div></div>
+              <div class="row pending"><div class="ri trans">⛽</div><div class="rmid"><div class="rname">加油 <span class="pill syncing"><span class="spin" style="width:9px;height:9px;border-width:1.5px;"></span>同步中</span></div><div class="rsub">18:20 · 交通</div></div><div class="ramt exp">-200.00</div></div>
+              <div class="row"><div class="ri food">🍜</div><div class="rmid"><div class="rname">午餐 · 兰州拉面</div><div class="rsub">12:30 · 微信</div></div><div class="ramt exp">-28.00</div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="tabbar">
+          <div class="tb"><span class="d">🏠</span>首页</div>
+          <div class="tb on"><span class="d">📊</span>流水</div>
+          <div class="center">＋</div>
+          <div class="tb"><span class="d">💰</span>资产</div>
+          <div class="tb"><span class="d">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ============ 屏 5：同步完成 + 单笔失败可重试 ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">5</span>同步结果 · 成功与失败</p>
+      <p class="capd">大部分成功后横幅短暂显示「已同步」并淡出、标记消失。个别失败（如金额校验冲突）单独标红并给「重试」，不影响其他记录。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb dark"><span>9:45</span><span class="dots">📶 📶 🔋</span></div>
+        <div class="netbar fail"><span class="ni">⚠️</span><span class="grow">已同步 1 笔，1 笔需要处理</span><span class="act">查看</span></div>
+        <div class="body"><div class="scroll">
+          <div class="pad">
+            <div class="card" style="margin-top:14px;">
+              <div class="list-h"><span class="list-t">今天 · 8月10日</span><span class="list-m">支出 ¥122.50</span></div>
+              <div class="row fail-row"><div class="ri trans">⛽</div><div class="rmid"><div class="rname">加油 <span class="pill fail"><span class="d"></span>同步失败</span></div><div class="rsub">金额超出账户可用余额</div></div><div class="retry">重试</div></div>
+              <div class="row"><div class="ri food">🍜</div><div class="rmid"><div class="rname">晚餐 · 麻辣烫</div><div class="rsub">刚刚 · 餐饮 · 已同步</div></div><div class="ramt exp">-28.00</div></div>
+              <div class="row"><div class="ri food">🍜</div><div class="rmid"><div class="rname">午餐 · 兰州拉面</div><div class="rsub">12:30 · 微信</div></div><div class="ramt exp">-28.00</div></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="toast" style="bottom:90px;background:var(--brand);"><span class="em">🎉</span><span>已同步 1 笔记录</span></div>
+        <div class="tabbar">
+          <div class="tb"><span class="d">🏠</span>首页</div>
+          <div class="tb on"><span class="d">📊</span>流水</div>
+          <div class="center">＋</div>
+          <div class="tb"><span class="d">💰</span>资产</div>
+          <div class="tb"><span class="d">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- ============ 屏 6：同步中心（我的-设置） ============ -->
+    <div class="pw">
+      <p class="cap"><span class="n">6</span>同步中心 · 可控可信</p>
+      <p class="capd">「我的」里的同步中心：一眼看到待同步数量、上次同步时间，可手动「立即同步」、逐条处理失败项、管理离线缓存。给重度用户掌控感。</p>
+      <div class="phone"><div class="screen">
+        <div class="sb dark"><span>9:46</span><span class="dots">📶 📶 🔋</span></div>
+        <div class="body"><div class="scroll">
+          <div class="sc-hero">
+            <div class="sc-title">🛰️ 同步中心</div>
+            <div class="sc-stat">
+              <div class="sc-box"><div class="sc-num">1</div><div class="sc-lab">待同步</div></div>
+              <div class="sc-box"><div class="sc-num">1</div><div class="sc-lab">需处理</div></div>
+              <div class="sc-box"><div class="sc-num">9:45</div><div class="sc-lab">上次同步</div></div>
+            </div>
+          </div>
+          <div class="sc-sec">待处理</div>
+          <div class="settrow"><div class="st-i">⛽</div><div class="st-t"><div class="st-name">加油 · ¥200.00</div><div class="st-sub" style="color:var(--exp);">金额超出账户可用余额</div></div><span class="retry">重试</span></div>
+          <div class="sc-sec">操作</div>
+          <div class="settrow"><div class="st-i">🔄</div><div class="st-t"><div class="st-name">立即同步</div><div class="st-sub">手动触发一次全量同步</div></div><span class="st-r">›</span></div>
+          <div class="settrow"><div class="st-i">📶</div><div class="st-t"><div class="st-name">仅 Wi-Fi 下同步</div><div class="st-sub">省流量，蜂窝网络下暂缓</div></div><span class="st-r">关闭</span></div>
+          <div class="settrow"><div class="st-i">🗂️</div><div class="st-t"><div class="st-name">离线缓存</div><div class="st-sub">已缓存 3 个月流水 · 占用 1.2 MB</div></div><span class="st-r">清理 ›</span></div>
+          <div class="bigbtn">🔄 立即同步</div>
+        </div></div>
+        <div class="tabbar">
+          <div class="tb"><span class="d">🏠</span>首页</div>
+          <div class="tb"><span class="d">📊</span>流水</div>
+          <div class="center">＋</div>
+          <div class="tb"><span class="d">💰</span>资产</div>
+          <div class="tb on"><span class="d">👤</span>我的</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div><!-- /screens -->
+  <div class="sec">状态色板 · 与主品牌一致</div>
+  <div class="tagrow">
+    <span class="k"><span class="sw" style="background:#4a525c;"></span>离线（深灰）</span>
+    <span class="k"><span class="sw" style="background:#8b95a1;"></span>待同步（中灰）</span>
+    <span class="k"><span class="sw" style="background:#12a150;"></span>同步中/成功（品牌绿）</span>
+    <span class="k"><span class="sw" style="background:#e5563d;"></span>失败/冲突（红）</span>
+  </div>
+
+  <div class="sec">技术要点 · 给工程实现的约束</div>
+  <div class="legend">
+    <h4>1. 在哪拦截</h4>
+    复用现有 <code>utils/request.js</code>：<code>fail()</code> 已统一抛 <code>NETWORK_ERROR</code>，这是离线降级唯一入口。新增一层 <b>offline 中间件</b>包裹 <code>http</code>：GET 走「先网络后缓存」，写操作（POST /transactions、/transactions/adjust）走「入队 + 乐观返回」。
+
+    <h4>2. 存什么（本地存储 key）</h4>
+    <code>youyu_cache_&lt;账本&gt;_&lt;接口&gt;</code> 存 GET 快照 + 时间戳；<code>youyu_outbox</code> 存写队列（每项含 <code>clientToken</code>、payload、ledgerId、本地临时 id、状态、重试次数、失败原因）。全部走 uni 同步存储，与现有 <code>invite.js</code> / <code>theme.js</code> 的用法一致。
+
+    <h4>3. 乐观上屏与临时 id</h4>
+    离线记的记录用 <code>local_&lt;uuid&gt;</code> 作临时 id 插入列表并打「待同步」；同步成功后用服务端真实记录替换（按 clientToken 匹配），避免闪烁与重复。
+
+    <h4>4. 幂等（需要后端配合的唯一改动）</h4>
+    <code>POST /transactions</code> 接受可选 <code>clientToken</code>，后端加唯一约束：同一用户 + clientToken 已存在则直接返回原记录，不重复落账。这是保证「断线重连重放不重复记账」的关键，也是本方案唯一的后端改动点。
+
+    <h4>5. 触发同步的时机</h4>
+    ① <code>onNetworkStatusChange</code> 变为在线；② App onShow / 首页 onLoad；③ 用户在同步中心手动触发。队列按入队顺序串行重放，失败项保留并标红，不阻塞后续项。
+
+    <h4>6. 阶段一范围与保守策略</h4>
+    离线<b>只放开新增收支</b>（覆盖绝大多数记账场景，且不依赖服务端状态）。离线下的<b>编辑/删除服务端已有记录</b>、转账、AA、余额校准暂不入队——弱网下这些操作直接提示「该操作需要联网」，避免复杂的离线冲突。余额展示在有待同步项时标注「含未同步 N 笔」，以服务端为准。
+  </div>
+
+  <p class="sub" style="margin-top:20px;">这是可点开预览的静态原型，用于确认交互与视觉方向。确认后我可以据此产出完整 spec（requirements → design → tasks）并落地实现。</p>
+</div>
+</body>
+</html>

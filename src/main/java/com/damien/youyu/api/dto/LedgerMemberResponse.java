@@ -12,5 +12,5 @@ package com.damien.youyu.api.dto;
  * </ul>
  */
 public record LedgerMemberResponse(
-        Long userId, String displayName, String avatarSeed, String role, boolean owner) {
+        Long userId, String displayName, String avatarSeed, String avatarColor, String role, boolean owner) {
 }

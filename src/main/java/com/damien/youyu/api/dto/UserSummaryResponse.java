@@ -23,7 +23,9 @@ public record UserSummaryResponse(
         String plan,
         String role,
         LocalDateTime planStartedAt,
-        LocalDateTime planExpiresAt) {
+        LocalDateTime planExpiresAt,
+        String gender,
+        String avatarColor) {
 
     public static UserSummaryResponse from(User user) {
         boolean hasEmail = user.getEmail() != null && !user.getEmail().isBlank();
@@ -37,6 +39,8 @@ public record UserSummaryResponse(
                 user.getPlan().getCode(),
                 user.getRole().getCode(),
                 user.getPlanStartedAt(),
-                user.getPlanExpiresAt());
+                user.getPlanExpiresAt(),
+                user.getGender(),
+                user.getAvatarColor());
     }
 }

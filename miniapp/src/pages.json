@@ -115,7 +115,8 @@
     {
       "path": "pages/me/me",
       "style": {
-        "navigationBarTitleText": "我的"
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
       }
     },
     {
@@ -268,6 +269,13 @@
       "path": "pages/recurringpending/recurringpending",
       "style": {
         "navigationBarTitleText": "待确认记账"
+      }
+    },
+    {
+      // 非 tabBar 页面：离线同步中心（待同步/失败项/立即同步/仅 Wi-Fi/缓存清理），从「我的」页入口进入。
+      "path": "pages/sync/sync",
+      "style": {
+        "navigationBarTitleText": "同步中心"
       }
     },
     {

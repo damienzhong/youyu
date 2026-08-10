@@ -4,6 +4,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useLedgerStore } from '../../stores/ledger'
 import { useThemeStore } from '../../stores/theme'
+import NetBanner from '../../components/NetBanner/NetBanner.vue'
 import { fetchGrowthOverview } from '../../api/growth'
 import { fetchStreakOverview, fetchStreakSegments } from '../../api/streak'
 import { fetchAchievements } from '../../api/achievement'
@@ -244,6 +245,9 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
       </view>
       <text class="h-sub">记好每一笔，日子更有余 ✍️</text>
     </view>
+
+    <!-- 离线 / 同步横幅 -->
+    <view class="wrap"><NetBanner /></view>
 
     <!-- 今日收支卡（叠在 hero 底部） -->
     <view class="wrap today-wrap">

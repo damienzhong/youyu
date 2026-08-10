@@ -88,6 +88,15 @@ export function updateNickname(nickname) {
   return http.post('/me/nickname', { nickname })
 }
 
+/**
+ * 更新个性化资料（性别 / 头像颜色），对应后端 POST /api/me/profile，返回用户摘要。
+ * 需登录态；payload 两字段均可选：省略=不改，空串=清空（性别→保密、头像色→默认）。
+ * gender ∈ 'MALE' | 'FEMALE' | ''；avatarColor 为 '#RRGGBB'。
+ */
+export function updateProfile(payload) {
+  return http.post('/me/profile', payload)
+}
+
 /** 获取当前登录用户信息，对应后端 GET /api/me。 */
 export function fetchMe() {
   return http.get('/me')

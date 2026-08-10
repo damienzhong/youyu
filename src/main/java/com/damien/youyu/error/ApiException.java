@@ -135,6 +135,18 @@ public class ApiException extends RuntimeException {
         return new ApiException("UNAUTHENTICATED", HttpStatus.UNAUTHORIZED, "未认证", null);
     }
 
+    /** 性别取值非法（仅接受 MALE/FEMALE/空）。 */
+    public static ApiException genderInvalid() {
+        return new ApiException("GENDER_INVALID", HttpStatus.BAD_REQUEST,
+                "性别取值仅支持 MALE / FEMALE 或留空", "gender");
+    }
+
+    /** 头像颜色非法（需为 #RRGGBB 十六进制或空）。 */
+    public static ApiException avatarColorInvalid() {
+        return new ApiException("AVATAR_COLOR_INVALID", HttpStatus.BAD_REQUEST,
+                "头像颜色需为 #RRGGBB 格式", "avatarColor");
+    }
+
     /** 昵称非法（去空白后为空或长度超过 64）。 */
     public static ApiException nicknameInvalid() {
         return new ApiException("NICKNAME_INVALID", HttpStatus.BAD_REQUEST,

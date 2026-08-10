@@ -374,4 +374,38 @@ public class AuthService {
         user.setUpdatedAt(LocalDateTime.now(clock));
         return userRepository.save(user);
     }
+
+    /** 更新性别：MALE/FEMALE 或留空（保密，落 NULL）；其它取值拒绝。仅展示，不做功能门控。 */
+    @Transactional
+    public User updateGender(Long userId, String rawGender) {
+        User user = userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
+        String g = rawGender == null ? "" : rawGender.trim().toUpperCase();
+        String value;
+        if (g.isEmpty() || g.equals("SECRET") || g.equals("NULL") || g.equals("UNSET")) {
+            value = null;
+        } else if (g.equals("MALE") || g.equals("FEMALE")) {
+            value = g;
+        } else {
+            throw ApiException.genderInvalid();
+        }
+        user.setGender(value);
+        user.setUpdatedAt(LocalDateTime.now(clock));
+        return userRepository.save(user);
+    }
+
+    /** 更新头像颜色：#RRGGBB 十六进制，或留空（落 NULL，前端回退品牌绿）。 */
+    @Transactional
+    public User updateAvatarColor(Long userId, String rawColor) {
+        User user = userRepository.findById(userId).orElseThrow(ApiException::unauthenticated);
+        String c = rawColor == null ? "" : rawColor.trim();
+        if (c.isEmpty()) {
+            user.setAvatarColor(null);
+        } else if (c.matches("^#[0-9a-fA-F]{6}$")) {
+            user.setAvatarColor(c.toLowerCase());
+        } else {
+            throw ApiException.avatarColorInvalid();
+        }
+        user.setUpdatedAt(LocalDateTime.now(clock));
+        return userRepository.save(user);
+    }
 }

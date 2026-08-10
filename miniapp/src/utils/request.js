@@ -1,4 +1,5 @@
 import { API_BASE, STORAGE_KEYS } from './config'
+import { createOfflineHttp } from './offline/offlineHttp'
 
 /**
  * 统一请求封装（基于 uni.request，小程序/H5 通用）。
@@ -70,9 +71,17 @@ export function request(options) {
   })
 }
 
+// 离线中间件：装饰 GET（可缓存接口先网络后缓存）与 POST（收支创建离线入队 + 乐观上屏 + 幂等键）。
+// 在线成功路径行为零改变；PUT / DELETE 不参与离线，直通底层 request。
+// 同步引擎重放用未装饰的 request（见 offline/sync.js），避免「重放失败又入队」。
+const offline = createOfflineHttp({ rawRequest: request })
+
 export const http = {
-  get: (url, opts) => request({ url, method: 'GET', ...opts }),
-  post: (url, data, opts) => request({ url, method: 'POST', data, ...opts }),
+  get: (url, opts) => offline.get(url, opts),
+  post: (url, data, opts) => offline.post(url, data, opts),
   put: (url, data, opts) => request({ url, method: 'PUT', data, ...opts }),
   del: (url, opts) => request({ url, method: 'DELETE', ...opts })
 }
+
+/** 供同步引擎重放使用的离线中间件实例（其 replay 走底层 request）。 */
+export const offlineHttp = offline

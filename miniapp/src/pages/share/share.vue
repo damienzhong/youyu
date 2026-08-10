@@ -469,7 +469,10 @@ onLoad((query) => {
 
 onShow(() => {
   // 开启右上角转发菜单，供 onShareAppMessage 转发（需求 11.2）。
-  uni.showShareMenu({ withShareTicket: false, fail() {} })
+  // showShareMenu 仅微信小程序端存在；H5 下为 undefined，直接调用会抛 TypeError，故先探测再调用。
+  if (typeof uni.showShareMenu === 'function') {
+    uni.showShareMenu({ withShareTicket: false, fail() {} })
+  }
   loadCard()
 })
 

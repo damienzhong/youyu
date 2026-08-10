@@ -61,6 +61,7 @@ const ICON_PATHS = {
   warning: "<path d='M12 4l9 16H3z'/><path d='M12 10v4M12 17h.01'/>",
   bell: "<path d='M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6Z'/><path d='M10 20a2 2 0 0 0 4 0'/>",
   settings: "<circle cx='12' cy='12' r='3.2'/><path d='M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.1 5.1l2.1 2.1M16.8 16.8l2.1 2.1M18.9 5.1L16.8 7.2M7.2 16.8L5.1 18.9'/>",
+  edit: "<path d='M4 20h4L18 10l-4-4L4 16v4Z'/><path d='M13.5 6.5l4 4'/>",
   calendar: "<rect x='4' y='5' width='16' height='16' rx='2'/><path d='M4 10h16M8 3v4M16 3v4'/>",
   // ↓↓↓ 场景分组图标库扩充（来源：design/category-icon-library.html，与既有 key 不重复） ↓↓↓
   breakfast: "<path d='M4 8h13v3a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z'/><path d='M17 9h2a2 2 0 0 1 0 4h-2'/><path d='M4 20h13'/>",

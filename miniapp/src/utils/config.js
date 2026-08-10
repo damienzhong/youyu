@@ -22,5 +22,9 @@ export const STORAGE_KEYS = {
   // 用户选择的主题 id（utils/theme.js 的 THEMES.id），缺省为默认主题。
   themeId: 'youyu_theme_id',
   // 是否已看过首次欢迎页并同意协议：置位后冷启动直达登录，不再展示欢迎页。
-  welcomed: 'youyu_welcomed'
+  welcomed: 'youyu_welcomed',
+  // 离线同步：仅 Wi-Fi 下自动同步开关（'1' 开启）。
+  syncWifiOnly: 'youyu_sync_wifi_only',
+  // 离线同步：上次成功同步时间戳（毫秒）。
+  syncLastAt: 'youyu_sync_last_at'
 }

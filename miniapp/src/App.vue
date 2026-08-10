@@ -1,6 +1,8 @@
 <script setup>
-import { onLaunch } from '@dcloudio/uni-app'
+import { onLaunch, onShow } from '@dcloudio/uni-app'
 import { useThemeStore } from './stores/theme'
+import { useNetStore } from './stores/net'
+import { runSync } from './utils/offline/sync'
 
 onLaunch(() => {
   // 启动即把当前主题的选中色同步到原生 tabBar（CSS 变量管不到原生 tabBar）。
@@ -10,6 +12,22 @@ onLaunch(() => {
   } catch (e) {
     /* ignore */
   }
+
+  // 初始化网络态并订阅变化：网络恢复（离线→在线）时自动触发一次同步（受「仅 Wi-Fi」偏好约束）。
+  try {
+    useNetStore().init((change) => {
+      if (change && !change.wasOnline && change.online) {
+        runSync().catch(() => {})
+      }
+    })
+  } catch (e) {
+    /* ignore */
+  }
+})
+
+onShow(() => {
+  // App 回到前台：若队列非空且在线，尝试补一次同步。
+  runSync().catch(() => {})
 })
 </script>
 

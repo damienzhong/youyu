@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 账号设置重设计 v2</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --blue:#3a7afe; --gold:#c9971f; --purple:#8b5cf6;
+    --hero:linear-gradient(150deg,#22c55e,#12a150 55%,#0b6b34);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1140px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;align-items:center;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:14px 0 10px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:900px;line-height:1.7;margin:0;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:40px 0 16px;}
+
+  .layout{display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start;}
+  .phone{width:360px;height:860px;background:#fff;border-radius:44px;padding:10px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);flex:0 0 auto;}
+  .screen{width:100%;height:100%;border-radius:34px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;}
+  .nav{height:48px;display:flex;align-items:center;justify-content:center;background:#fff;font-size:17px;font-weight:800;position:relative;flex:0 0 auto;}
+  .nav .back{position:absolute;left:18px;font-size:24px;font-weight:400;color:#16181c;}
+  .body{flex:1;overflow-y:auto;}
+
+  .hero{background:var(--hero);color:#fff;padding:22px 20px 20px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-50px;top:-40px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .idrow{display:flex;align-items:center;gap:14px;position:relative;z-index:2;}
+  .avatar{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;flex:0 0 auto;}
+  .idmain{flex:1;min-width:0;}
+  .nameline{display:flex;align-items:center;gap:8px;}
+  .name{font-size:21px;font-weight:800;}
+  .edit{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;}
+  .edit svg{width:13px;height:13px;stroke:#fff;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .planchip{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:12px;font-weight:700;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:3px 11px;}
+  .planchip svg{width:12px;height:12px;stroke:#fff;stroke-width:1.6;fill:none;}
+  /* 身份数据条 */
+  .stat3{display:flex;margin-top:18px;background:rgba(255,255,255,.14);border-radius:16px;padding:14px 0;position:relative;z-index:2;}
+  .st{flex:1;text-align:center;}
+  .st + .st{border-left:1px solid rgba(255,255,255,.22);}
+  .st .v{font-size:20px;font-weight:800;}
+  .st .k{font-size:11px;opacity:.85;margin-top:3px;}
+
+  .pad{padding:4px 16px 20px;}
+  .sect{font-size:12px;font-weight:700;color:var(--ink-3);padding:18px 6px 10px;}
+  .card{background:var(--surface);border-radius:20px;overflow:hidden;box-shadow:0 8px 22px rgba(20,24,28,.05);}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-top:1px solid var(--line);}
+  .card .row:first-child{border-top:none;}
+  .tile{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .tile svg{width:23px;height:23px;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .tile.mail{background:#e8f1ff;} .tile.mail svg{stroke:var(--blue);}
+  .tile.wechat{background:var(--brand-weak);} .tile.wechat svg{stroke:var(--brand);}
+  .tile.id{background:#f0edff;} .tile.id svg{stroke:var(--purple);}
+  .tile.time{background:#fff3e0;} .tile.time svg{stroke:var(--gold);}
+  .tile.doc{background:#eaf0f3;} .tile.doc svg{stroke:#5b6470;}
+  .tile.danger{background:#fdeceb;} .tile.danger svg{stroke:var(--exp);}
+  .rmain{flex:1;min-width:0;}
+  .rt{font-size:16px;font-weight:600;color:#20242a;}
+  .rt.danger{color:var(--exp);}
+  .rsub{font-size:12.5px;color:var(--ink-3);margin-top:3px;}
+  .rright{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+  .rval{font-size:13px;color:var(--ink-3);}
+  .okpill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--brand-600);background:var(--brand-weak);border-radius:999px;padding:4px 10px;}
+  .okpill svg{width:12px;height:12px;stroke:var(--brand-600);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .pill{font-size:12.5px;font-weight:700;padding:6px 16px;border-radius:999px;}
+  .pill.unbind{color:var(--ink-2);border:1px solid #d7dbe0;}
+  .copy{font-size:12px;color:var(--brand-600);border:1px solid var(--brand);border-radius:999px;padding:4px 12px;}
+  .arrow{color:#c7ccd2;font-size:20px;}
+
+  /* 会员卡 */
+  .memcard{margin-top:4px;border-radius:18px;padding:16px 18px;color:#5b4300;background:linear-gradient(135deg,#fff4d6,#ffe6a8);position:relative;overflow:hidden;box-shadow:0 8px 22px rgba(201,151,31,.18);}
+  .memcard::after{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,.35);}
+  .mem-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:2;}
+  .mem-plan{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .mem-plan svg{width:18px;height:18px;stroke:#a9781a;stroke-width:1.7;fill:none;}
+  .mem-cta{font-size:12px;font-weight:700;background:#5b4300;color:#ffe6a8;border-radius:999px;padding:5px 14px;}
+  .mem-sub{font-size:12px;color:#7a5c14;margin-top:8px;position:relative;z-index:2;}
+
+  .logout{margin:22px 0 0;background:#fff;border-radius:16px;padding:16px;text-align:center;font-size:16px;font-weight:700;color:var(--exp);box-shadow:0 8px 22px rgba(20,24,28,.05);display:flex;align-items:center;justify-content:center;gap:8px;}
+  .logout svg{width:18px;height:18px;stroke:var(--exp);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+  .notes{flex:1;min-width:300px;}
+  .notes .n{background:var(--surface);border-radius:16px;padding:15px 18px;box-shadow:0 8px 24px rgba(20,24,28,.05);margin-bottom:12px;border-left:4px solid var(--brand);}
+  .notes .n.warn{border-left-color:var(--gold);}
+  .notes .n h4{margin:0 0 6px;font-size:15px;} .notes .n p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">👤 有余 · 账号设置 v2（适度增信息）</span>
+  <h1>账号设置：补齐"账号该有的信息"，但不抄「我的」</h1>
+  <p class="sub">在 v1 品牌化的基础上，只增加<b>属于账号本身</b>的信息：身份数据条、会员卡、账号信息（ID / 加入时长）、安全与隐私。数据导出、成长、主题等仍留在「我的」，不重复。</p>
+
+  <div class="sec">重设计稿 v2</div>
+  <div class="layout">
+    <div class="phone"><div class="screen">
+      <div class="nav"><span class="back">‹</span>账号设置</div>
+      <div class="body">
+
+        <div class="hero">
+          <div class="idrow">
+            <div class="avatar">D</div>
+            <div class="idmain">
+              <div class="nameline">
+                <span class="name">Damien</span>
+                <span class="edit"><svg viewBox="0 0 24 24"><path d="M4 20h4L18 10l-4-4L4 16v4Z"/><path d="M13.5 6.5l4 4"/></svg></span>
+              </div>
+              <span class="planchip">
+                <svg viewBox="0 0 24 24"><path d="M6 4h12l3 5-9 11L3 9z"/><path d="M3 9h18"/></svg>
+                免费版
+              </span>
+            </div>
+          </div>
+          <!-- 身份数据条（来自 /growth，只读） -->
+          <div class="stat3">
+            <div class="st"><div class="v">128</div><div class="k">记账天数</div></div>
+            <div class="st"><div class="v">1,240</div><div class="k">累计笔数</div></div>
+            <div class="st"><div class="v">Lv.6</div><div class="k">成长等级</div></div>
+          </div>
+        </div>
+
+        <div class="pad">
+          <!-- 会员卡 -->
+          <div class="sect">会员</div>
+          <div class="memcard">
+            <div class="mem-top">
+              <span class="mem-plan"><svg viewBox="0 0 24 24"><path d="M4 7l4 4 4-6 4 6 4-4-1.5 11H5.5Z"/></svg>免费版</span>
+              <span class="mem-cta">了解权益</span>
+            </div>
+            <div class="mem-sub">干净无广告 · 数据随时导出 · 有效期至 2027-07-30</div>
+          </div>
+
+          <!-- 登录方式 -->
+          <div class="sect">登录方式（至少保留一种）</div>
+          <div class="card">
+            <div class="row">
+              <div class="tile mail"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M4 7l8 6 8-6"/></svg></div>
+              <div class="rmain"><div class="rt">邮箱</div><div class="rsub">81165386@qq.com</div></div>
+              <div class="rright"><span class="okpill"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>已绑定</span><span class="pill unbind">解绑</span></div>
+            </div>
+            <div class="row">
+              <div class="tile wechat"><svg viewBox="0 0 24 24"><path d="M5 5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3V7a2 2 0 0 1 0-2Z"/></svg></div>
+              <div class="rmain"><div class="rt">微信</div><div class="rsub">已绑定</div></div>
+              <div class="rright"><span class="okpill"><svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>已绑定</span><span class="pill unbind">解绑</span></div>
+            </div>
+          </div>
+
+          <!-- 账号信息 -->
+          <div class="sect">账号信息</div>
+          <div class="card">
+            <div class="row">
+              <div class="tile id"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></div>
+              <div class="rmain"><div class="rt">用户 ID</div><div class="rsub">反馈问题时提供给客服</div></div>
+              <span class="copy">#100237 复制</span>
+            </div>
+            <div class="row">
+              <div class="tile time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+              <div class="rmain"><div class="rt">加入有余</div></div>
+              <span class="rval">480 天</span>
+            </div>
+          </div>
+
+          <!-- 危险操作 -->
+          <div class="sect">危险操作</div>
+          <div class="card">
+            <div class="row">
+              <div class="tile danger"><svg viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/></svg></div>
+              <div class="rmain"><div class="rt danger">注销账号</div><div class="rsub">永久删除账号与全部数据，不可恢复</div></div>
+              <span class="arrow">›</span>
+            </div>
+          </div>
+
+          <div class="logout">
+            <svg viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5M5 12h11"/></svg>
+            退出登录
+          </div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="notes">
+      <div class="n"><h4>1. 身份数据条（新增）</h4><p>hero 里加「记账天数 / 累计笔数 / 成长等级」——全部取自现有 <code>/growth</code> 概览，只读、不可点，给账号"分量"，不与「我的」的成长入口冲突。</p></div>
+      <div class="n warn"><h4>2. 会员卡（新增）</h4><p>把套餐从一行灰字升级为一张卡：套餐名 + 有效期 + 一句权益（干净无广告 · 数据可导出）。「了解权益」为可选入口，无付费墙时可只做说明页。</p></div>
+      <div class="n"><h4>3. 账号信息（新增）</h4><p>用户 ID（可复制，反馈客服用，取自 <code>/me.id</code>）+ 加入时长。都是账号本身的信息，别处没有。</p></div>
+      <div class="n"><h4>5. 刻意不加的</h4><p>数据导出 / 账单导入 / 回收站 / 主题 / 提醒 / 邀请（已在「我的」）；用户协议 / 隐私政策（按你的意见移除）。账号页不重复、不堆合规入口。</p></div>
+      <div class="n"><h4>6. 数据来源都真实</h4><p>ID / plan / 有效期来自 <code>/me</code>，天数 / 笔数 / 等级来自 <code>/growth</code>；不新造后端字段（「加入时长」如无注册时间，可用会员起始 planStartedAt 近似或先不显示）。</p></div>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:26px;">这版"适度增信息"的方向你觉得如何？确认后我落地到 <code>pages/account/account.vue</code>。如果你觉得会员卡 / 用户ID 某项没必要，或还想加别的账号级信息（比如登录设备、消息通知开关），也可以现在定。</p>
+</div>
+</body>
+</html>

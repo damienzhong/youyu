@@ -159,6 +159,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     boolean existsByLedgerIdAndAccountReferenced(
             @Param("ledgerId") Long ledgerId, @Param("accountId") Long accountId);
 
+    /**
+     * 按「记账人 + 客户端幂等键」定位交易（离线记账幂等去重用）；未命中返回空。
+     * 归属键用 {@code createdBy}（交易创建路径实际写入的记账人列），配合唯一约束
+     * {@code uk_tx_creator_client_token} 保证同一 client_token 至多一笔。
+     */
+    Optional<Transaction> findByCreatedByAndClientToken(Long createdBy, String clientToken);
+
     /** 该账本已存在的第三方账单标识（账单导入去重用）：返回给定候选集中已入库的 external_id。 */
     @Query("SELECT t.externalId FROM Transaction t "
             + "WHERE t.ledgerId = :ledgerId AND t.externalId IN :externalIds")

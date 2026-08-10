@@ -163,13 +163,8 @@ function onAccountSaved() {
 
 <template>
   <view class="page" :style="themeStore.current.vars">
-    <!-- 页面标题（一级 tab：无返回，仅标题）-->
-    <view class="topbar" :style="{ paddingTop: statusBarHeight }">
-      <text class="topbar-title">资产管理</text>
-    </view>
-
-    <!-- 净资产卡 -->
-    <view class="networth">
+    <!-- 沉浸式页头：净资产（渐变延伸到状态栏，与首页/账本/我的一致；净资产本身即标题，无需冗余页名） -->
+    <view class="hero" :style="{ paddingTop: `calc(${statusBarHeight} + 24rpx)` }">
       <view class="nw-top">
         <text class="nw-label">净资产 <text class="eye" @click="hideAmounts = !hideAmounts">{{ hideAmounts ? '🙈' : '👁' }}</text></text>
       </view>
@@ -243,38 +238,24 @@ function onAccountSaved() {
   padding: 0 24rpx 24rpx;
   background: var(--c-page-bg, #eef0f2);
 }
-/* 自定义页面标题（二级页导航，含返回）*/
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20rpx 8rpx;
-  margin: 0 -24rpx 8rpx;
-}
-.topbar-back {
-  width: 72rpx;
-  text-align: center;
-  font-size: 48rpx;
-  line-height: 1;
-  color: #16181c;
-}
-.topbar-back.placeholder { color: transparent; }
-.topbar-title {
-  flex: 1;
-  text-align: center;
-  font-size: 34rpx;
-  font-weight: 800;
-  color: #16181c;
-}
-/* 净资产卡 */
-.networth {
-  border-radius: 26rpx;
-  padding: 36rpx;
-  margin-bottom: 24rpx;
+/* 沉浸式页头：净资产（全宽、渐变延伸到状态栏，与首页/账本/我的一致） */
+.hero {
+  margin: 0 -24rpx 24rpx;
+  padding: 0 30rpx 44rpx;
   color: #fff;
   background: var(--c-hero, linear-gradient(150deg, #1fbf63, #0f8a45 78%));
-  box-shadow: 0 18rpx 40rpx rgba(20, 24, 28, 0.22);
+  position: relative;
+  overflow: hidden;
 }
+.hero::after {
+  content: '';
+  position: absolute;
+  right: -60rpx; top: -50rpx;
+  width: 300rpx; height: 300rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.hero > view, .hero > text { position: relative; z-index: 2; }
 .nw-label { font-size: 24rpx; opacity: 0.85; }
 .eye { font-size: 24rpx; margin-left: 8rpx; }
 .nw-value {

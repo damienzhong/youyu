@@ -85,15 +85,38 @@ public class TransactionService {
                 rawNote, createdByOverride, null, null);
     }
 
+    @Transactional
+    public Transaction create(Long userId, Long ledgerId, String rawType, BigDecimal rawAmount,
+            Long accountId, Long categoryId, LocalDateTime occurredAt, String rawNote,
+            Long createdByOverride, Long projectId, Long merchantId) {
+        return create(userId, ledgerId, rawType, rawAmount, accountId, categoryId, occurredAt,
+                rawNote, createdByOverride, projectId, merchantId, null);
+    }
+
     /**
      * 创建一笔支出/收入交易，并在同一事务内事务性更新账户余额。转账请用 {@link #transfer}。
+     *
+     * <p>{@code clientToken}（离线记账幂等键，可空）：为空时行为与今天逐字节一致。非空时先按
+     * 「记账人（{@code createdByOverride!=null?createdByOverride:userId}）+ clientToken」查重，命中则
+     * <b>直接返回既有交易</b>（不新建、不改余额、不重设标签），保证断线重连、重复重放不产生重复流水；
+     * 数据库唯一约束 {@code uk_tx_creator_client_token} 作为并发下的最后兜底（此时本事务回滚、余额变更随之撤销，
+     * 库中只留一笔、余额只变一次）。</p>
      *
      * @throws ApiException FIELD_REQUIRED / AMOUNT_INVALID / TRANSACTION_TYPE_INVALID / NOT_FOUND
      */
     @Transactional
     public Transaction create(Long userId, Long ledgerId, String rawType, BigDecimal rawAmount,
             Long accountId, Long categoryId, LocalDateTime occurredAt, String rawNote,
-            Long createdByOverride, Long projectId, Long merchantId) {
+            Long createdByOverride, Long projectId, Long merchantId, String clientToken) {
+
+        // 幂等预检：命中既有 client_token 直接返回，绝不二次改动余额（离线记账重放的常规路径）。
+        Long effectiveCreatedBy = createdByOverride != null ? createdByOverride : userId;
+        if (clientToken != null && !clientToken.isBlank()) {
+            var existing = transactionRepository.findByCreatedByAndClientToken(effectiveCreatedBy, clientToken);
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
 
         TransactionType type = validateIncomeExpenseType(rawType);
         BigDecimal amount = validateAmount(rawAmount);
@@ -129,6 +152,9 @@ public class TransactionService {
         tx.setUpdatedAt(now);
         tx.setAccountId(accountId);
         tx.setCategoryId(categoryId);
+        if (clientToken != null && !clientToken.isBlank()) {
+            tx.setClientToken(clientToken);
+        }
         Transaction saved = transactionRepository.save(tx);
 
         // 挂结算：这是唯一产生「有效记账交易」（type ∈ {expense,income} 且 ledger_id 非空）的路径，

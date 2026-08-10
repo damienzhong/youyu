@@ -2,11 +2,62 @@
 import { computed, ref, onUnmounted } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore, getWxLoginCode } from '../../stores/auth'
-import { sendCode, bindEmail, bindWechat, unbind, deleteAccount, updateNickname } from '../../api/auth'
-
+import { sendCode, bindEmail, bindWechat, unbind, deleteAccount, updateNickname, updateProfile } from '../../api/auth'
+import { AVATAR_COLORS, avatarColorOf, avatarInitial } from '../../utils/avatar'
 const auth = useAuthStore()
 
 const nickname = computed(() => auth.user?.nickname || '有余用户')
+const userId = computed(() => auth.user?.id || '')
+
+// 头像颜色（用户自选，回退品牌绿）与性别（MALE/FEMALE/''=保密）。
+const avatarColor = computed(() => avatarColorOf(auth.user?.avatarColor))
+const gender = computed(() => auth.user?.gender || '')
+
+// 头像颜色弹窗：点头像上的编辑标识打开，选色后即保存并关闭。
+const colorSheet = ref(false)
+async function pickAvatarColor(c) {
+  if (c === auth.user?.avatarColor) {
+    colorSheet.value = false
+    return
+  }
+  try {
+    await updateProfile({ avatarColor: c })
+    await auth.refreshUser().catch(() => {})
+  } catch (e) {
+    uni.showToast({ title: e.message || '保存失败', icon: 'none' })
+  } finally {
+    colorSheet.value = false
+  }
+}
+async function setGender(g) {
+  if (g === (auth.user?.gender || '')) return
+  try {
+    await updateProfile({ gender: g })
+    await auth.refreshUser().catch(() => {})
+  } catch (e) {
+    uni.showToast({ title: e.message || '保存失败', icon: 'none' })
+  }
+}
+
+// 加入天数：以套餐起始时间近似（无则不展示）。
+const joinDays = computed(() => {
+  const s = auth.user?.planStartedAt
+  if (!s) return null
+  const start = new Date(String(s).replace(' ', 'T'))
+  if (isNaN(start.getTime())) return null
+  const d = Math.floor((Date.now() - start.getTime()) / 86400000)
+  return d >= 0 ? d : null
+})
+
+function copyUserId() {
+  if (!userId.value) return
+  uni.setClipboardData({
+    data: String(userId.value),
+    success() {
+      uni.showToast({ title: '已复制用户 ID', icon: 'none' })
+    }
+  })
+}
 const plan = computed(() => {
   const p = auth.user?.plan
   return p === 'pro' ? '专业版' : p === 'lifetime' ? '终身版' : '免费版'
@@ -262,207 +313,204 @@ function logout() {
 
 <template>
   <view class="page">
-    <!-- 个人信息 -->
-    <view class="sect">个人信息</view>
-    <view class="card">
-      <view class="row" @click="editNickname">
-        <view class="r-ic"><AppIcon name="user" :size="34" /></view>
-        <text class="r-t">昵称</text>
-        <text class="r-v">{{ nickname }}</text>
-        <text class="arrow">›</text>
-      </view>
-      <view class="row">
-        <view class="r-ic"><AppIcon name="badge" :size="34" /></view>
-        <text class="r-t">套餐</text>
-        <text class="r-v">{{ plan }}<text v-if="planExpires"> · 到期 {{ planExpires }}</text></text>
+    <!-- 身份页头：头像 + 昵称（可改）+ 套餐 + 身份数据条 -->
+    <view class="hero">
+      <view class="idrow">
+        <view class="avatar-wrap" @click="colorSheet = true">
+          <view class="avatar" :style="{ background: avatarColor }">{{ avatarInitial(nickname) }}</view>
+          <view class="avatar-edit"><AppIcon name="edit" :size="22" color="#12a150" /></view>
+        </view>
+        <view class="idmain">
+          <view class="nameline">
+            <text class="name">{{ nickname }}</text>
+            <text class="editbtn" @click="editNickname">修改</text>
+          </view>
+          <text class="planchip">{{ plan }}</text>
+        </view>
       </view>
     </view>
 
-    <!-- 登录方式 -->
-    <view class="sect">登录方式（至少保留一种）</view>
-    <view class="card">
-      <!-- 邮箱 -->
-      <view class="row">
-        <view class="r-ic"><AppIcon name="mail" :size="34" /></view>
-        <view class="r-main">
-          <text class="r-t">邮箱</text>
-          <text class="r-sub">{{ hasEmail ? email : '未绑定' }}</text>
+    <view class="wrap">
+      <!-- 个性化：性别（头像颜色改到头像上的编辑标识 → 弹窗选择） -->
+      <view class="sect">个性化</view>
+      <view class="card">
+        <view class="grow">
+          <text class="rt">性别</text>
+          <view class="gseg">
+            <text :class="{ on: gender === 'MALE' }" @click="setGender('MALE')">男</text>
+            <text :class="{ on: gender === 'FEMALE' }" @click="setGender('FEMALE')">女</text>
+            <text :class="{ on: gender === '' }" @click="setGender('')">保密</text>
+          </view>
         </view>
-        <text v-if="hasEmail && canUnbind" class="act unbind" @click="handleUnbind('email')">解绑</text>
-        <text v-else-if="!hasEmail" class="act bind" @click="toggleBindEmail">绑定</text>
       </view>
-      <!-- 绑定邮箱面板 -->
-      <view v-if="!hasEmail && showBindEmail" class="bind-panel">
-        <input v-model="bindEmailValue" class="field" type="text" placeholder="邮箱" maxlength="128" />
-        <view class="code-row">
-          <input v-model="bindEmailCode" class="field code-field" type="number" placeholder="6 位验证码" maxlength="6" />
-          <button class="code-btn" :disabled="!canSendBindCode || sendingBindCode" @click="handleSendBindCode">
-            {{ sendLabel }}
-          </button>
+
+      <!-- 登录方式 -->
+      <view class="sect">登录方式（至少保留一种）</view>
+      <view class="card">
+        <!-- 邮箱 -->
+        <view class="lrow">
+          <view class="tile mail"><AppIcon name="mail" :size="34" color="#3a7afe" /></view>
+          <view class="rmain">
+            <text class="rt">邮箱</text>
+            <text class="rsub">{{ hasEmail ? email : '未绑定' }}</text>
+          </view>
+          <view class="rright">
+            <text v-if="hasEmail" class="okpill">✓ 已绑定</text>
+            <text v-if="hasEmail && canUnbind" class="pill unbind" @click="handleUnbind('email')">解绑</text>
+            <text v-else-if="!hasEmail" class="pill bind" @click="toggleBindEmail">绑定</text>
+          </view>
         </view>
-        <button class="confirm-btn" :loading="bindEmailLoading" @click="handleBindEmail">确认绑定</button>
-      </view>
-      <!-- 微信 -->
-      <view class="row">
-        <view class="r-ic"><AppIcon name="chat" :size="34" /></view>
-        <view class="r-main">
-          <text class="r-t">微信</text>
-          <text class="r-sub">{{ hasWechat ? '已绑定' : '未绑定' }}</text>
+        <!-- 绑定邮箱面板 -->
+        <view v-if="!hasEmail && showBindEmail" class="bind-panel">
+          <input v-model="bindEmailValue" class="field" type="text" placeholder="邮箱" maxlength="128" />
+          <view class="code-row">
+            <input v-model="bindEmailCode" class="field code-field" type="number" placeholder="6 位验证码" maxlength="6" />
+            <button class="code-btn" :disabled="!canSendBindCode || sendingBindCode" @click="handleSendBindCode">
+              {{ sendLabel }}
+            </button>
+          </view>
+          <button class="confirm-btn" :loading="bindEmailLoading" @click="handleBindEmail">确认绑定</button>
         </view>
-        <text v-if="hasWechat && canUnbind" class="act unbind" @click="handleUnbind('wechat')">解绑</text>
-        <text v-else-if="!hasWechat" class="act bind" @click="handleBindWechat">绑定</text>
+        <!-- 微信 -->
+        <view class="lrow">
+          <view class="tile wechat"><AppIcon name="chat" :size="34" color="#12a150" /></view>
+          <view class="rmain">
+            <text class="rt">微信</text>
+            <text class="rsub">{{ hasWechat ? '已绑定' : '未绑定' }}</text>
+          </view>
+          <view class="rright">
+            <text v-if="hasWechat" class="okpill">✓ 已绑定</text>
+            <text v-if="hasWechat && canUnbind" class="pill unbind" @click="handleUnbind('wechat')">解绑</text>
+            <text v-else-if="!hasWechat" class="pill bind" @click="handleBindWechat">绑定</text>
+          </view>
+        </view>
       </view>
+
+      <!-- 账号信息 -->
+      <view class="sect">账号信息</view>
+      <view class="card">
+        <view class="lrow" @click="copyUserId">
+          <view class="tile id"><AppIcon name="user" :size="34" color="#8b5cf6" /></view>
+          <view class="rmain"><text class="rt">用户 ID</text><text class="rsub">反馈问题时提供给客服</text></view>
+          <text class="copy">#{{ userId }} · 复制</text>
+        </view>
+        <view v-if="joinDays !== null" class="lrow">
+          <view class="tile join"><AppIcon name="calendar" :size="34" color="#c9971f" /></view>
+          <view class="rmain"><text class="rt">加入有余</text></view>
+          <text class="rval">{{ joinDays }} 天</text>
+        </view>
+      </view>
+
+      <!-- 危险操作 -->
+      <view class="sect">危险操作</view>
+      <view class="card">
+        <view class="lrow" @click="handleDeleteAccount">
+          <view class="tile danger"><AppIcon name="warning" :size="34" color="#e5563d" /></view>
+          <view class="rmain"><text class="rt danger">注销账号</text><text class="rsub">永久删除账号与全部数据，不可恢复</text></view>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <view class="logout" @click="logout">退出登录</view>
+      <view style="height:40rpx;"></view>
     </view>
 
-    <!-- 危险操作 -->
-    <view class="sect">危险操作</view>
-    <view class="card">
-      <view class="row danger" @click="handleDeleteAccount">
-        <view class="r-ic danger-ic"><AppIcon name="warning" :size="34" color="#e5484d" /></view>
-        <view class="r-main">
-          <text class="r-t danger-t">注销账号</text>
-          <text class="r-sub">永久删除，不可恢复</text>
+    <!-- 头像颜色选择弹层 -->
+    <view v-if="colorSheet" class="mask" @click="colorSheet = false">
+      <view class="sheet" @click.stop>
+        <view class="sheet-h">
+          <text class="sheet-t">头像颜色</text>
+          <text class="sheet-x" @click="colorSheet = false">✕</text>
         </view>
-        <text class="arrow">›</text>
+        <view class="sheet-prev">
+          <view class="sp-av" :style="{ background: avatarColor }">{{ avatarInitial(nickname) }}</view>
+          <text class="sheet-s">在家庭账本里区分你的记账</text>
+        </view>
+        <view class="dots">
+          <view
+            v-for="c in AVATAR_COLORS"
+            :key="c"
+            class="dot"
+            :class="{ on: c === avatarColor }"
+            :style="{ background: c }"
+            @click="pickAvatarColor(c)"
+          >{{ c === avatarColor ? '✓' : '' }}</view>
+        </view>
       </view>
     </view>
-
-    <view class="logout" @click="logout">退出登录</view>
-    <view style="height:40rpx;"></view>
   </view>
 </template>
 
 <style scoped>
-.page {
-  min-height: 100vh;
-  background: #f2f4f6;
-  padding: 16rpx 24rpx 24rpx;
-}
-.sect {
-  font-size: 24rpx;
-  color: #9aa2ad;
-  padding: 20rpx 8rpx 12rpx;
-}
-.card {
-  background: #fff;
-  border-radius: 24rpx;
-  overflow: hidden;
-  box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05);
-}
-.row {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  padding: 26rpx 28rpx;
-  border-top: 1rpx solid #eef0f2;
-}
-.card .row:first-child {
-  border-top: none;
-}
-.r-ic {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 18rpx;
-  background: #f4f5f7;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-.r-ic.danger-ic { background: #fdeceb; }
-.r-t {
-  font-size: 30rpx;
-  color: #25292e;
-}
-.r-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-}
-.r-v {
-  flex: 1;
-  text-align: right;
-  font-size: 26rpx;
-  color: #9aa2ad;
-}
-.r-sub {
-  font-size: 24rpx;
-  color: #9aa2ad;
-}
-.arrow {
-  color: #c7ccd2;
-  font-size: 34rpx;
-}
-.act {
-  font-size: 26rpx;
-  padding: 8rpx 26rpx;
-  border-radius: 999rpx;
-}
-.act.bind {
-  color: #12a150;
-  border: 1rpx solid #12a150;
-}
-.act.unbind {
-  color: #6b7280;
-  border: 1rpx solid #d1d5db;
-}
-.danger-t {
-  color: #e5484d;
-}
-.bind-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-  padding: 8rpx 28rpx 28rpx;
-  border-top: 1rpx solid #eef0f2;
-}
-.field {
-  background: #f5f6f5;
-  border-radius: 14rpx;
-  padding: 24rpx;
-  font-size: 30rpx;
-}
-.code-row {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-.code-field {
-  flex: 1;
-}
-.code-btn {
-  flex-shrink: 0;
-  width: 200rpx;
-  background: #fff;
-  color: #12a150;
-  border: 1px solid #12a150;
-  border-radius: 14rpx;
-  font-size: 26rpx;
-  padding: 0;
-  line-height: 78rpx;
-  height: 78rpx;
-}
-.code-btn[disabled] {
-  color: #9ca3af;
-  border-color: #e5e7eb;
-  background: #f3f4f6;
-}
-.confirm-btn {
-  background: #12a150;
-  color: #fff;
-  border-radius: 44rpx;
-  font-size: 30rpx;
-}
-.logout {
-  margin-top: 24rpx;
-  background: #fff;
-  border-radius: 18rpx;
-  text-align: center;
-  padding: 28rpx;
-  color: #e5484d;
-  font-size: 30rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05);
-}
+.page { min-height: 100vh; background: #eef0f2; }
+
+/* 身份页头 */
+.hero { background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34)); color: #fff; padding: 30rpx 30rpx 28rpx; position: relative; overflow: hidden; }
+.hero::after { content: ''; position: absolute; right: -80rpx; top: -70rpx; width: 320rpx; height: 320rpx; border-radius: 50%; background: rgba(255,255,255,0.08); }
+.idrow { display: flex; align-items: center; gap: 24rpx; position: relative; z-index: 2; }
+.avatar { width: 108rpx; height: 108rpx; border-radius: 50%; background: rgba(255,255,255,0.22); border: 2rpx solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 48rpx; font-weight: 800; flex: 0 0 auto; }
+.idmain { flex: 1; min-width: 0; }
+.nameline { display: flex; align-items: center; gap: 14rpx; }
+.name { font-size: 40rpx; font-weight: 800; }
+.editbtn { font-size: 22rpx; font-weight: 700; background: rgba(255,255,255,0.2); border: 1rpx solid rgba(255,255,255,0.3); border-radius: 999rpx; padding: 4rpx 18rpx; }
+.planchip { display: inline-block; margin-top: 12rpx; font-size: 22rpx; font-weight: 700; background: rgba(255,255,255,0.18); border: 1rpx solid rgba(255,255,255,0.28); border-radius: 999rpx; padding: 4rpx 18rpx; }
+
+.wrap { padding: 4rpx 24rpx 24rpx; }
+.sect { font-size: 24rpx; font-weight: 700; color: #9aa2ad; padding: 26rpx 8rpx 14rpx; }
+
+/* 头像编辑标识：右下角小圆钮 */
+.avatar-wrap { position: relative; flex: 0 0 auto; }
+.avatar-edit { position: absolute; right: -4rpx; bottom: -4rpx; width: 40rpx; height: 40rpx; border-radius: 50%; background: #fff; border: 2rpx solid rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; box-shadow: 0 4rpx 10rpx rgba(20,24,28,0.18); }
+
+/* 个性化：性别 */
+.grow { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 28rpx; }
+.gseg { display: inline-flex; background: #eef0f2; border-radius: 12rpx; padding: 4rpx; }
+.gseg text { padding: 10rpx 24rpx; font-size: 26rpx; font-weight: 700; color: #5b6470; border-radius: 9rpx; }
+.gseg text.on { background: #fff; color: var(--c-brand-strong, #0e8a44); box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.08); }
+
+/* 头像颜色弹窗（底部弹层） */
+.mask { position: fixed; inset: 0; background: rgba(20,24,28,0.45); z-index: 900; display: flex; align-items: flex-end; }
+.sheet { width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0; padding: 28rpx 30rpx calc(28rpx + env(safe-area-inset-bottom)); }
+.sheet-h { display: flex; align-items: center; justify-content: space-between; }
+.sheet-t { font-size: 32rpx; font-weight: 800; }
+.sheet-x { font-size: 34rpx; color: #9aa2ad; padding: 4rpx 12rpx; }
+.sheet-prev { display: flex; align-items: center; gap: 18rpx; margin: 20rpx 0 8rpx; }
+.sp-av { width: 84rpx; height: 84rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 38rpx; font-weight: 800; flex: 0 0 auto; }
+.sheet-s { font-size: 24rpx; color: #9aa2ad; }
+.dots { display: flex; flex-wrap: wrap; gap: 28rpx; padding: 24rpx 6rpx 12rpx; }
+.dot { width: 88rpx; height: 88rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 38rpx; font-weight: 800; }
+.dot.on { box-shadow: 0 0 0 6rpx #fff, 0 0 0 10rpx var(--c-brand, #12a150); }
+
+.card { background: #fff; border-radius: 24rpx; overflow: hidden; box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05); }
+.lrow { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 28rpx; border-top: 1rpx solid #eef0f2; }
+.card .lrow:first-child { border-top: none; }
+.tile { width: 76rpx; height: 76rpx; border-radius: 22rpx; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.tile.mail { background: #e8f1ff; }
+.tile.wechat { background: #e6f6ec; }
+.tile.id { background: #f0edff; }
+.tile.join { background: #fff3e0; }
+.tile.danger { background: #fdeceb; }
+.rmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
+.rt { font-size: 30rpx; font-weight: 600; color: #25292e; }
+.rt.danger { color: #e5563d; }
+.rsub { font-size: 24rpx; color: #9aa2ad; }
+.rright { display: flex; align-items: center; gap: 16rpx; flex: 0 0 auto; }
+.rval { font-size: 26rpx; color: #9aa2ad; }
+.okpill { font-size: 22rpx; font-weight: 700; color: #0e8a44; background: #e6f6ec; border-radius: 999rpx; padding: 6rpx 16rpx; }
+.pill { font-size: 26rpx; font-weight: 700; padding: 8rpx 28rpx; border-radius: 999rpx; }
+.pill.bind { color: #0e8a44; border: 1rpx solid #12a150; }
+.pill.unbind { color: #6b7280; border: 1rpx solid #d7dbe0; }
+.copy { font-size: 24rpx; color: #0e8a44; border: 1rpx solid #12a150; border-radius: 999rpx; padding: 6rpx 18rpx; flex: 0 0 auto; }
+.arrow { color: #c7ccd2; font-size: 34rpx; }
+
+/* 绑定邮箱面板 */
+.bind-panel { display: flex; flex-direction: column; gap: 20rpx; padding: 8rpx 28rpx 28rpx; border-top: 1rpx solid #eef0f2; }
+.field { background: #f5f6f5; border-radius: 14rpx; padding: 24rpx; font-size: 30rpx; }
+.code-row { display: flex; align-items: center; gap: 20rpx; }
+.code-field { flex: 1; }
+.code-btn { flex-shrink: 0; width: 200rpx; background: #fff; color: #12a150; border: 1px solid #12a150; border-radius: 14rpx; font-size: 26rpx; padding: 0; line-height: 78rpx; height: 78rpx; }
+.code-btn[disabled] { color: #9ca3af; border-color: #e5e7eb; background: #f3f4f6; }
+.confirm-btn { background: #12a150; color: #fff; border-radius: 44rpx; font-size: 30rpx; }
+
+.logout { margin-top: 30rpx; background: #fff; border-radius: 18rpx; text-align: center; padding: 28rpx; color: #e5563d; font-size: 30rpx; font-weight: 700; box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05); }
 </style>

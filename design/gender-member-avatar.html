@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · 头像颜色 + 家庭账本记账人</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --line:#eef0f2;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d;
+    --hero:linear-gradient(150deg,#1fbf63,#0f8a45 78%);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1120px;margin:0 auto;padding:48px 24px 90px;}
+  .badge{display:inline-flex;gap:8px;background:var(--brand-weak);color:var(--brand-600);font-size:13px;font-weight:700;padding:6px 14px;border-radius:999px;}
+  h1{font-size:29px;font-weight:800;margin:14px 0 10px;letter-spacing:-.02em;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:900px;line-height:1.7;margin:0;}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);text-transform:uppercase;margin:42px 0 16px;}
+  .layout{display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start;}
+
+  .pw{width:340px;}
+  .cap{font-size:14px;font-weight:800;margin:0 0 4px;display:flex;gap:8px;align-items:center;}
+  .cap .n{width:20px;height:20px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .capd{font-size:12px;color:var(--ink-2);margin:0 0 12px;line-height:1.5;}
+  .phone{width:340px;height:620px;background:#fff;border-radius:42px;padding:9px;box-shadow:0 30px 60px rgba(20,24,28,.16),0 0 0 1px rgba(0,0,0,.04);}
+  .screen{width:100%;height:100%;border-radius:33px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;}
+  .nav{height:46px;display:flex;align-items:center;justify-content:center;background:#fff;font-size:16px;font-weight:800;position:relative;flex:0 0 auto;}
+  .nav .back{position:absolute;left:16px;font-size:22px;font-weight:400;color:#16181c;}
+  .body{flex:1;overflow-y:auto;}
+
+  /* 账号 hero（沿用绿色页头） */
+  .hero{background:var(--hero);color:#fff;padding:20rpx;padding:20px 18px 18px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-46px;top:-40px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hid{display:flex;align-items:center;gap:14px;position:relative;z-index:2;}
+  .havatar{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;border:2px solid rgba(255,255,255,.6);flex:0 0 auto;}
+  .hname{font-size:20px;font-weight:800;}
+  .hplan{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:3px 10px;}
+
+  .pad{padding:14px 15px;}
+  .sect{font-size:12px;font-weight:700;color:var(--ink-3);padding:8px 4px 10px;}
+  .card{background:#fff;border-radius:18px;box-shadow:0 8px 22px rgba(20,24,28,.05);overflow:hidden;}
+  .row{display:flex;align-items:center;gap:14px;padding:15px 16px;border-top:1px solid var(--line);}
+  .card .row:first-child{border-top:none;}
+  .r-ic{width:44px;height:44px;border-radius:12px;background:#f4f5f7;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .r-ic svg{width:23px;height:23px;stroke:#5b6470;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .r-t{font-size:15px;font-weight:600;color:#25292e;flex:1;}
+  .r-v{font-size:13px;color:var(--ink-3);}
+
+  /* 头像颜色：预览 + 色点选择（沿用主题选择器的选中环样式） */
+  .colorblock{padding:16px;}
+  .cb-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+  .cb-prev{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;flex:0 0 auto;}
+  .cb-t{font-size:15px;font-weight:700;}
+  .cb-s{font-size:12px;color:var(--ink-3);margin-top:3px;}
+  .dots{display:flex;flex-wrap:wrap;gap:14px;}
+  .dot{width:44px;height:44px;border-radius:50%;position:relative;}
+  .dot.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--brand);}
+  .dot.on::before{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:800;}
+
+  /* 性别：中性 segmented（不花哨） */
+  .gseg{display:inline-flex;background:#eef0f2;border-radius:12px;padding:3px;}
+  .gseg text, .gseg span{font-size:13px;font-weight:700;color:#5b6470;padding:7px 16px;border-radius:9px;}
+  .gseg .on{background:#fff;color:var(--brand-600);box-shadow:0 2px 6px rgba(0,0,0,.08);}
+
+  /* 家庭账本明细 */
+  .memsum{background:#fff;border-radius:16px;padding:12px 14px;box-shadow:0 6px 16px rgba(20,24,28,.05);margin-bottom:12px;}
+  .memsum-h{display:flex;justify-content:space-between;font-size:13px;font-weight:800;margin-bottom:10px;}
+  .memsum-h .m{font-size:11.5px;color:var(--ink-3);font-weight:400;}
+  .memrow{display:flex;gap:20px;}
+  .memitem{display:flex;align-items:center;gap:8px;}
+  .memitem .amt{font-size:12px;color:var(--exp);font-weight:700;}
+  .av{border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;flex:0 0 auto;}
+  .av.s26{width:26px;height:26px;font-size:12px;}
+  .av.s22{width:22px;height:22px;font-size:11px;}
+
+  .daygrp{margin-top:12px;}
+  .dayhead{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);padding:0 4px 8px;}
+  .txcard{background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 16px rgba(20,24,28,.05);}
+  .tx{display:flex;align-items:center;gap:12px;padding:13px 14px;border-top:1px solid var(--line);}
+  .txcard .tx:first-child{border-top:none;}
+  .cat{width:44px;height:44px;border-radius:13px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 auto;}
+  .tinfo{flex:1;min-width:0;}
+  .tname{font-size:15px;font-weight:700;}
+  .tsub{display:flex;align-items:center;gap:6px;margin-top:5px;}
+  .who{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2);}
+  .tsub .txt{font-size:12px;color:var(--ink-3);}
+  .tamt{font-size:16px;font-weight:800;color:var(--exp);}
+
+  .notes{flex:1;min-width:300px;}
+  .n{background:#fff;border-radius:16px;padding:15px 18px;box-shadow:0 8px 24px rgba(20,24,28,.05);margin-bottom:12px;border-left:4px solid var(--brand);}
+  .n h4{margin:0 0 6px;font-size:15px;} .n p{margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.6;}
+  code{background:#f4f5f7;padding:2px 6px;border-radius:6px;font-size:12.5px;color:var(--brand-600);}
+</style>
+</head>
+<body>
+<div class="doc">
+  <span class="badge">👤 有余 · 头像颜色（可设置）+ 记账人</span>
+  <h1>头像颜色像主题一样可设置 · 家庭账本一眼区分谁记的</h1>
+  <p class="sub">按现有风格（绿色页头 / 白卡 / 线性图标 / 品牌绿选中）来。头像不再千篇一律：<b>每个人自己选头像颜色</b>（和主题色一样从色板里挑）；家庭账本流水的记账人用各自颜色的首字头像，克制、不花哨。</p>
+
+  <div class="sec">原型</div>
+  <div class="layout">
+
+    <!-- 账号：头像颜色 + 性别 -->
+    <div class="pw">
+      <p class="cap"><span class="n">1</span>账号设置 · 头像颜色 / 性别</p>
+      <p class="capd">头像颜色用色板选择（选中打勾 + 品牌绿环，同主题选择器）；性别用中性分段，男 / 女 / 保密。</p>
+      <div class="phone"><div class="screen">
+        <div class="nav"><span class="back">‹</span>账号设置</div>
+        <div class="body">
+          <div class="hero">
+            <div class="hid">
+              <div class="havatar" style="background:#0ea5e9;">D</div>
+              <div><div class="hname">Damien</div><span class="hplan">免费版</span></div>
+            </div>
+          </div>
+          <div class="pad">
+            <div class="sect">个性化</div>
+            <div class="card">
+              <div class="colorblock">
+                <div class="cb-head">
+                  <div class="cb-prev" style="background:#0ea5e9;">D</div>
+                  <div><div class="cb-t">头像颜色</div><div class="cb-s">在家庭账本里区分你的记账</div></div>
+                </div>
+                <div class="dots">
+                  <span class="dot" style="background:#12a150;"></span>
+                  <span class="dot on" style="background:#0ea5e9;"></span>
+                  <span class="dot" style="background:#f97316;"></span>
+                  <span class="dot" style="background:#7c6cf0;"></span>
+                  <span class="dot" style="background:#0e9aa7;"></span>
+                  <span class="dot" style="background:#b23a4b;"></span>
+                  <span class="dot" style="background:#5b7fb0;"></span>
+                  <span class="dot" style="background:#b3873a;"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="sect">账号信息</div>
+            <div class="card">
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></div>
+                <text class="r-t">性别</text>
+                <div class="gseg"><span class="on">男</span><span>女</span><span>保密</span></div>
+              </div>
+              <div class="row">
+                <div class="r-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></div>
+                <text class="r-t">用户 ID</text>
+                <text class="r-v">#1 · 复制</text>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 家庭账本明细 -->
+    <div class="pw">
+      <p class="cap"><span class="n">2</span>家庭账本 · 记账人</p>
+      <p class="capd">成员支出条与每笔流水记账人，用各自选定颜色的首字头像 + 名字，无多余角标。</p>
+      <div class="phone"><div class="screen">
+        <div class="nav"><span class="back">‹</span>本月明细</div>
+        <div class="body"><div style="padding:14px;">
+          <div class="memsum">
+            <div class="memsum-h"><span>本月成员支出</span><span class="m">共 2 人</span></div>
+            <div class="memrow">
+              <span class="memitem"><span class="av s26" style="background:#0ea5e9;">D</span>Damien <span class="amt">¥12,500</span></span>
+              <span class="memitem"><span class="av s26" style="background:#f97316;">k</span>kiri <span class="amt">¥1,124</span></span>
+            </div>
+          </div>
+
+          <div class="daygrp">
+            <div class="dayhead"><span>8月10日 周一</span><span>支 410.50</span></div>
+            <div class="txcard">
+              <div class="tx">
+                <div class="cat" style="background:#12a150;">🛒</div>
+                <div class="tinfo"><div class="tname">购物 / 日用品</div>
+                  <div class="tsub"><span class="who"><span class="av s22" style="background:#f97316;">k</span>kiri</span></div>
+                </div>
+                <div class="tamt">-29.90</div>
+              </div>
+              <div class="tx">
+                <div class="cat" style="background:#12a150;">🥬</div>
+                <div class="tinfo"><div class="tname">餐饮 / 买菜</div>
+                  <div class="tsub"><span class="who"><span class="av s22" style="background:#f97316;">k</span>kiri</span></div>
+                </div>
+                <div class="tamt">-120.60</div>
+              </div>
+              <div class="tx">
+                <div class="cat" style="background:#12a150;">🍽️</div>
+                <div class="tinfo"><div class="tname">餐饮 / 下馆子</div>
+                  <div class="tsub"><span class="txt">平安银行(0713)</span><span class="who"><span class="av s22" style="background:#0ea5e9;">D</span>Damien</span></div>
+                </div>
+                <div class="tamt">-184.52</div>
+              </div>
+            </div>
+          </div>
+        </div></div>
+      </div></div>
+    </div>
+
+    <div class="notes">
+      <div class="n"><h4>① 头像颜色 = 用户可设置偏好</h4><p>像主题一样从色板里挑（复用主题色板：绿/蓝/橙/紫/青/酒红/灰蓝/金）。后端存 <code>users.avatar_color</code>；账号页「个性化」出色板选择，选中样式与主题选择器一致（打勾 + 品牌绿环）。</p></div>
+      <div class="n"><h4>② 记账人头像 = 各自颜色首字</h4><p>家庭账本里成员支出条、每笔流水记账人、筛选 pill 都用「该成员颜色的首字圆 + 名字」，替换统一的 <code>👤</code>。颜色来自各自设置，天然区分；无性别角标、不花哨。</p></div>
+      <div class="n"><h4>③ 性别（保留、低调）</h4><p>作为独立中性字段：男 / 女 / 保密，纯展示不做功能门控。不参与头像配色，避免同性同色。</p></div>
+      <div class="n"><h4>④ 数据来源</h4><p><code>avatar_color</code> / <code>gender</code> 随 <code>/me</code> 返回并可 <code>POST /me</code> 更新；<code>listMembers</code> 增补每人 <code>avatarColor</code> 用于染色。未设置则回退品牌绿。纯增量迁移 V42，不影响其它。</p></div>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:24px;">这版按现有风格、克制处理。方向 OK 我就落地：后端 V42（<code>avatar_color</code> + <code>gender</code>）、<code>/me</code> 与 <code>/members</code> 返回、账号页「个性化」色板 + 性别、明细页各成员彩色首字头像。</p>
+</div>
+</body>
+</html>

@@ -20,6 +20,7 @@ import com.damien.youyu.api.dto.LedgerJoinRequest;
 import com.damien.youyu.api.dto.LedgerMemberResponse;
 import com.damien.youyu.api.dto.LedgerResponse;
 import com.damien.youyu.domain.Ledger;
+import com.damien.youyu.domain.User;
 import com.damien.youyu.domain.LedgerMember;
 import com.damien.youyu.domain.User;
 import com.damien.youyu.repository.UserRepository;
@@ -130,9 +131,12 @@ public class LedgerController {
         Long userId = currentUser.requireUserId();
         List<LedgerMemberResponse> body = ledgerService.members(userId, id).stream()
                 .map(m -> {
-                    String name = displayName(m.getUserId());
+                    User u = userRepository.findById(m.getUserId()).orElse(null);
+                    String name = u == null ? null
+                            : (u.getNickname() != null ? u.getNickname() : "用户" + u.getId());
+                    String avatarColor = u == null ? null : u.getAvatarColor();
                     return new LedgerMemberResponse(
-                            m.getUserId(), name, avatarSeed(name), m.getRole(), m.isOwner());
+                            m.getUserId(), name, avatarSeed(name), avatarColor, m.getRole(), m.isOwner());
                 })
                 .toList();
         return ResponseEntity.ok(body);
@@ -145,12 +149,6 @@ public class LedgerController {
         Long userId = currentUser.requireUserId();
         ledgerService.removeMember(userId, id, memberUserId);
         return ResponseEntity.noContent().build();
-    }
-
-    private String displayName(Long userId) {
-        return userRepository.findById(userId)
-                .map(u -> u.getNickname() != null ? u.getNickname() : "用户" + u.getId())
-                .orElse(null);
     }
 
     /**

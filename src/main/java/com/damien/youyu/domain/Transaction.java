@@ -97,6 +97,15 @@ public class Transaction {
     @Column(name = "external_id", length = 64)
     private String externalId;
 
+    /**
+     * 客户端幂等键（离线记账去重用，形如 "ct_..."）；在线手动记账为 null。
+     * 由小程序端在离线/弱网记账时生成，随创建请求发往后端；配合唯一约束
+     * {@code uk_tx_creator_client_token (created_by, client_token)} 保证「同一记账人同一 client_token」
+     * 至多落一笔，断线重连、重复重放不产生重复流水。仅参与创建，不进入更新/删除/查询契约。
+     */
+    @Column(name = "client_token", length = 64)
+    private String clientToken;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -237,6 +246,14 @@ public class Transaction {
 
     public void setExternalId(String externalId) {
         this.externalId = externalId;
+    }
+
+    public String getClientToken() {
+        return clientToken;
+    }
+
+    public void setClientToken(String clientToken) {
+        this.clientToken = clientToken;
     }
 
     public LocalDateTime getCreatedAt() {

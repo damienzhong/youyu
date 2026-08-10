@@ -68,6 +68,14 @@ public class User {
     @Column(name = "role", nullable = false, length = 16)
     private Role role = Role.USER;
 
+    /** 性别：'MALE' / 'FEMALE'；NULL 表示保密。仅展示，不做任何功能门控。 */
+    @Column(name = "gender", length = 8)
+    private String gender;
+
+    /** 头像颜色（十六进制，如 #0ea5e9）：用户自选，用于家庭账本中区分记账人。NULL 时前端回退品牌绿。 */
+    @Column(name = "avatar_color", length = 16)
+    private String avatarColor;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -156,6 +164,22 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getAvatarColor() {
+        return avatarColor;
+    }
+
+    public void setAvatarColor(String avatarColor) {
+        this.avatarColor = avatarColor;
     }
 
     public LocalDateTime getCreatedAt() {

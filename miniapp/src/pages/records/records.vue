@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onHide } from '@dcloudio/uni-app'
 import { listAccounts, listRepayReminders, accountDisplayName } from '../../api/account'
 import { listCategories, buildCategoryLabelMap, buildCategoryIconMap, buildCategoryColorMap } from '../../api/category'
 import { resolveIcon } from '../../utils/icons'
@@ -16,6 +16,11 @@ import {
   listAllTransactionsByMonth
 } from '../../api/aggregate'
 import { useLedgerStore } from '../../stores/ledger'
+import { useNetStore } from '../../stores/net'
+import * as outbox from '../../utils/offline/outbox'
+import { runSync } from '../../utils/offline/sync'
+import { avatarColorOf, avatarInitial } from '../../utils/avatar'
+import NetBanner from '../../components/NetBanner/NetBanner.vue'
 import {
   formatAmount,
   categoryEmoji,
@@ -26,6 +31,41 @@ import {
 } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
+const net = useNetStore()
+
+/** 待同步状态中文标签。 */
+function pendStatusLabel(s) {
+  if (s === 'SYNCING') return '同步中'
+  if (s === 'FAILED') return '同步失败'
+  return '待同步'
+}
+
+/** 从本地 Outbox 构造当前账本 + 当前月的乐观待同步流水行（用于列表顶部展示）。 */
+function pendingRows() {
+  const targetLedger = isAll.value ? null : ledgerStore.currentLedgerId
+  let items = []
+  try { items = outbox.list() } catch (e) { items = [] }
+  return items
+    .filter((it) => targetLedger == null || String(it.ledgerId) === String(targetLedger))
+    .map((it) => {
+      const occ = (it.payload && it.payload.occurredAt) || new Date(it.enqueuedAt).toISOString()
+      return {
+        id: it.localId,
+        localId: it.localId,
+        clientToken: it.clientToken,
+        type: it.payload && it.payload.type,
+        amount: it.payload && it.payload.amount,
+        accountId: it.payload && it.payload.accountId,
+        categoryId: it.payload && it.payload.categoryId,
+        note: it.payload && it.payload.note,
+        occurredAt: occ,
+        __pending: true,
+        __local: true,
+        __status: it.status || 'PENDING'
+      }
+    })
+    .filter((r) => String(r.occurredAt).slice(0, 7) === month.value)
+}
 
 // ---------- 视图/周期 ----------
 const viewMode = ref('month') // 'month' | 'year'
@@ -42,6 +82,7 @@ const categoryMap = ref({})
 const categoryIconMap = ref({})
 const categoryColorMap = ref({})
 const memberMap = ref({})
+const memberColor = ref({})
 const tagNameById = ref({})
 const loading = ref(false)
 
@@ -193,15 +234,18 @@ async function load() {
     catOptions.value = [...(cats.expense || []), ...(cats.income || [])].map((c) => ({
       id: c.id, name: c.name, kind: (cats.expense || []).includes(c) ? 'expense' : 'income'
     }))
-    transactions.value = txs
+    // 合并本地待同步项到列表顶部（离线记的账立即可见，带「待同步」标记）。
+    transactions.value = [...pendingRows(), ...txs]
 
     if (isCollab.value) {
       try {
         const ms = await listMembers(ledgerStore.currentLedgerId)
         memberMap.value = Object.fromEntries(ms.map((m) => [m.userId, m.displayName || '用户' + m.userId]))
-      } catch (e) { memberMap.value = {} }
+        memberColor.value = Object.fromEntries(ms.map((m) => [m.userId, avatarColorOf(m.avatarColor)]))
+      } catch (e) { memberMap.value = {}; memberColor.value = {} }
     } else {
       memberMap.value = {}
+      memberColor.value = {}
     }
 
     if (!all) {
@@ -246,6 +290,13 @@ const yearTotals = computed(() => {
 onShow(() => {
   uni.hideTabBar({ animation: false, fail() {} })
   load()
+  // 后台同步完成后自动刷新列表（用服务端记录替换本地临时记录）。
+  uni.$off('offline:sync-done', load)
+  uni.$on('offline:sync-done', load)
+})
+
+onHide(() => {
+  uni.$off('offline:sync-done', load)
 })
 
 // ---------- 月份/年份切换 ----------
@@ -390,8 +441,22 @@ function subtitleOf(t) {
   const tm = timeLabelOf(t.occurredAt)
   if (tm) parts.push(tm)
   if (t.note) parts.push(t.note)
-  if (isCollab.value && t.createdBy != null && memberMap.value[t.createdBy]) parts.push(`👤${memberMap.value[t.createdBy]}`)
+  // 记账人不再拼进备注串，改由独立的彩色首字头像 chip 渲染（见 showRecorder / recorder*）。
   return parts.filter(Boolean).join(' · ')
+}
+
+// ---------- 记账人头像（协作账本）----------
+function showRecorder(t) {
+  return isCollab.value && t && t.createdBy != null && !!memberMap.value[t.createdBy]
+}
+function recorderName(t) {
+  return memberMap.value[t.createdBy] || ''
+}
+function recorderColor(t) {
+  return avatarColorOf(memberColor.value[t.createdBy])
+}
+function recorderInitial(t) {
+  return avatarInitial(memberMap.value[t.createdBy])
 }
 function iconOf(t) {
   if (t.type === 'transfer') return '🔁'
@@ -475,7 +540,32 @@ function toggleSelect(id) {
   s.has(id) ? s.delete(id) : s.add(id)
   selectedIds.value = s
 }
-function txTap(t) { if (selectMode.value) toggleSelect(t.id); else goDetail(t) }
+function txTap(t) {
+  if (selectMode.value) return toggleSelect(t.id)
+  if (t.__local) return onPendingTap(t)
+  goDetail(t)
+}
+
+/** 点击本地待同步记录：失败项可重试/删除，其余提示待同步。 */
+function onPendingTap(t) {
+  if (t.__status === 'FAILED') {
+    uni.showActionSheet({
+      itemList: ['重试', '删除'],
+      success: (r) => {
+        if (r.tapIndex === 0) {
+          outbox.retry(t.clientToken)
+          runSync({ manual: true }).catch(() => {}).finally(load)
+        } else if (r.tapIndex === 1) {
+          outbox.removeByToken(t.clientToken)
+          load()
+        }
+      },
+      fail() {}
+    })
+  } else {
+    uni.showToast({ title: '待同步 · 联网后自动上传', icon: 'none' })
+  }
+}
 function selectAll() { selectedIds.value = new Set(visibleTx.value.map((t) => t.id)) }
 async function batchDelete() {
   const ids = [...selectedIds.value]
@@ -500,6 +590,7 @@ async function batchDelete() {
 
 <template>
   <view class="page">
+    <NetBanner />
     <!-- 顶部栏 -->
     <view class="topbar">
       <view class="tb-row1">
@@ -509,8 +600,8 @@ async function batchDelete() {
           <text :class="{ on: viewMode === 'year' }" @click="setViewMode('year')">年账单</text>
         </view>
         <view class="tb-icons">
-          <text v-if="!isAll && viewMode === 'month'" @click="openCalendar">📅</text>
-          <text v-if="!isAll" @click="openSearch">🔍</text>
+          <view v-if="!isAll && viewMode === 'month'" class="tb-ic" @click="openCalendar"><AppIcon name="calendar" :size="34" color="#ffffff" /></view>
+          <view v-if="!isAll" class="tb-ic" @click="openSearch"><AppIcon name="search" :size="34" color="#ffffff" /></view>
         </view>
       </view>
       <view class="monthnav">
@@ -591,12 +682,12 @@ async function batchDelete() {
             <text class="sum"><text class="i">收 {{ formatAmount(g.income) }}</text><text class="e">支 {{ formatAmount(g.expense) }}</text></text>
           </view>
           <view class="card">
-            <view v-for="t in g.items" :key="t.id" class="tx" @click="txTap(t)" @longpress="enterSelect(t.id)">
-              <text v-if="selectMode" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
+            <view v-for="t in g.items" :key="t.id" class="tx" :class="{ localtx: t.__local }" @click="txTap(t)" @longpress="!t.__local && enterSelect(t.id)">
+              <text v-if="selectMode && !t.__local" class="chk" :class="{ on: selectedIds.has(t.id) }">{{ selectedIds.has(t.id) ? '✓' : '' }}</text>
               <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
-                <text class="tname">{{ titleOf(t) }}</text>
-                <text class="tsub">{{ subtitleOf(t) }}</text>
+                <text class="tname">{{ titleOf(t) }}<text v-if="t.__pending" class="ppill" :class="t.__status">{{ pendStatusLabel(t.__status) }}</text></text>
+                <view class="tsubline"><text class="tsub">{{ subtitleOf(t) }}</text><view v-if="showRecorder(t)" class="rec"><text class="rec-av" :style="{ background: recorderColor(t) }">{{ recorderInitial(t) }}</text>{{ recorderName(t) }}</view></view>
                 <view v-if="tagNamesOf(t).length" class="tags">
                   <text v-for="(tn, i) in tagNamesOf(t)" :key="i" class="tag">{{ tn }}</text>
                 </view>
@@ -639,7 +730,7 @@ async function batchDelete() {
               <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
-                <text class="tsub">{{ subtitleOf(t) }}</text>
+                <view class="tsubline"><text class="tsub">{{ subtitleOf(t) }}</text><view v-if="showRecorder(t)" class="rec"><text class="rec-av" :style="{ background: recorderColor(t) }">{{ recorderInitial(t) }}</text>{{ recorderName(t) }}</view></view>
               </view>
               <text class="tamt" :class="t.type">{{ signedAmount(t) }}</text>
             </view>
@@ -763,7 +854,7 @@ async function batchDelete() {
               <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
-                <text class="tsub">{{ subtitleOf(t) }}</text>
+                <view class="tsubline"><text class="tsub">{{ subtitleOf(t) }}</text><view v-if="showRecorder(t)" class="rec"><text class="rec-av" :style="{ background: recorderColor(t) }">{{ recorderInitial(t) }}</text>{{ recorderName(t) }}</view></view>
               </view>
               <text class="tamt" :class="t.type">{{ signedAmount(t) }}</text>
             </view>
@@ -790,7 +881,7 @@ async function batchDelete() {
               <CategoryIcon :icon="iconKeyOf(t)" :color="catTileColor(t)" :size="35" />
               <view class="tinfo">
                 <text class="tname">{{ titleOf(t) }}</text>
-                <text class="tsub">{{ subtitleOf(t) }}</text>
+                <view class="tsubline"><text class="tsub">{{ subtitleOf(t) }}</text><view v-if="showRecorder(t)" class="rec"><text class="rec-av" :style="{ background: recorderColor(t) }">{{ recorderInitial(t) }}</text>{{ recorderName(t) }}</view></view>
               </view>
               <text class="tamt" :class="t.type">{{ signedAmount(t) }}</text>
             </view>
@@ -812,25 +903,27 @@ async function batchDelete() {
 <style scoped>
 .page { min-height: 100vh; background: #eef0f2; padding-bottom: 40rpx; }
 
-/* 顶部栏 */
-.topbar { background: #fff; padding: 12rpx 24rpx 20rpx; }
+/* 顶部栏：绿色沉浸式页头，与首页/账本/资产/我的一致 */
+.topbar { background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34)); color: #fff; padding: 16rpx 30rpx 26rpx; }
 .tb-row1 { display: flex; align-items: center; justify-content: space-between; height: 64rpx; }
-.ledger { font-size: 32rpx; font-weight: 800; color: #16181c; }
-.seg { display: inline-flex; background: #eef0f2; border-radius: 12rpx; padding: 4rpx; }
-.seg text { padding: 8rpx 22rpx; font-size: 24rpx; font-weight: 700; color: #5b6470; border-radius: 10rpx; }
-.seg text.on { background: #fff; color: #16181c; box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.08); }
-.tb-icons { display: flex; gap: 24rpx; font-size: 34rpx; min-width: 40rpx; justify-content: flex-end; }
+.ledger { font-size: 32rpx; font-weight: 800; color: #fff; }
+.seg { display: inline-flex; background: rgba(255,255,255,0.18); border-radius: 12rpx; padding: 4rpx; }
+.seg text { padding: 8rpx 22rpx; font-size: 24rpx; font-weight: 700; color: rgba(255,255,255,0.85); border-radius: 10rpx; }
+.seg text.on { background: #fff; color: #12a150; box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.08); }
+.tb-icons { display: flex; align-items: center; gap: 22rpx; min-width: 40rpx; justify-content: flex-end; }
+.tb-ic { width: 52rpx; height: 52rpx; border-radius: 50%; background: rgba(255,255,255,0.16); display: flex; align-items: center; justify-content: center; }
 .monthnav { display: flex; align-items: center; justify-content: center; gap: 40rpx; margin-top: 8rpx; }
-.monthnav .arw { color: #9aa2ad; font-size: 40rpx; padding: 4rpx 16rpx; }
-.monthnav .m { font-size: 32rpx; font-weight: 800; }
-.monthnav .caret { font-size: 22rpx; color: #9aa2ad; }
-.kpis { display: flex; margin-top: 18rpx; background: #f6f7f9; border-radius: 16rpx; padding: 20rpx 0; }
+.monthnav .arw { color: rgba(255,255,255,0.9); font-size: 40rpx; padding: 4rpx 16rpx; }
+.monthnav .m { font-size: 32rpx; font-weight: 800; color: #fff; }
+.monthnav .caret { font-size: 22rpx; color: rgba(255,255,255,0.8); }
+/* KPI 统计条：绿色页头上用半透明白卡，数值统一白色（收支由标签区分，与首页/账本口径一致） */
+.kpis { display: flex; margin-top: 18rpx; background: rgba(255,255,255,0.14); border-radius: 16rpx; padding: 20rpx 0; }
 .kpi { flex: 1; text-align: center; }
-.kpi + .kpi { border-left: 1rpx solid #e7eaed; }
-.kpi .k { font-size: 22rpx; color: #9aa2ad; }
-.kpi .v { display: block; font-size: 34rpx; font-weight: 800; margin-top: 4rpx; }
-.kpi .v.exp { color: #f0553d; }
-.kpi .v.inc { color: #12a150; }
+.kpi + .kpi { border-left: 1rpx solid rgba(255,255,255,0.22); }
+.kpi .k { font-size: 22rpx; color: rgba(255,255,255,0.8); }
+.kpi .v { display: block; font-size: 34rpx; font-weight: 800; margin-top: 4rpx; color: #fff; }
+.kpi .v.exp { color: #fff; }
+.kpi .v.inc { color: #fff; }
 
 /* 年视图表 */
 .thead { display: flex; padding: 24rpx 32rpx 8rpx; font-size: 22rpx; color: #9aa2ad; }
@@ -878,7 +971,15 @@ async function batchDelete() {
 .tico { width: 76rpx; height: 76rpx; border-radius: 22rpx; background: #f4f5f7; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
 .tinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .tname { font-size: 29rpx; font-weight: 500; color: #16181c; }
+.localtx { background: #fbfcfd; }
+.ppill { display: inline-block; margin-left: 12rpx; font-size: 19rpx; font-weight: 700; padding: 2rpx 12rpx; border-radius: 999rpx; vertical-align: middle; background: #eef0f2; color: #8b95a1; }
+.ppill.SYNCING { background: #eaf6ee; color: #0e8a44; }
+.ppill.FAILED { background: #fdece9; color: #e5563d; }
 .tsub { font-size: 22rpx; color: #9aa2ad; }
+/* 记账人：备注 + 彩色首字头像 chip 同行 */
+.tsubline { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
+.rec { display: inline-flex; align-items: center; gap: 8rpx; font-size: 22rpx; color: #5b6470; }
+.rec-av { width: 32rpx; height: 32rpx; border-radius: 50%; color: #fff; font-size: 18rpx; font-weight: 800; display: flex; align-items: center; justify-content: center; }
 .tags { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 4rpx; }
 .tag { font-size: 20rpx; color: #0e8a44; background: #e6f6ec; border-radius: 6rpx; padding: 2rpx 12rpx; }
 .tright { text-align: right; }

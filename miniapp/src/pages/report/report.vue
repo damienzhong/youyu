@@ -56,6 +56,13 @@ const members = ref([])
 const trend = ref([])
 const loading = ref(false)
 
+// 页内分段：'stats'（分类统计）/ 'digest'（智能月报）。默认分类统计。
+// 仅当存在月报内容（月报/AI/人格标签任一可见）时才展示切换；否则始终展示分类统计。
+const activeSeg = ref('stats')
+function selectSeg(s) {
+  activeSeg.value = s
+}
+
 // 分类维度：一级分类归并 + 子分类下钻。expandedRootId 记录当前展开的父分类 id（null=全部收起）。
 const isCategoryDim = computed(() => dim.value === 'category')
 const expandedRootId = ref(null)
@@ -87,6 +94,10 @@ const tags = ref(null)
 const tagsVisible = ref(false)
 // 展示映射（白名单抽取 + narrativeText 优先，缺失降级为「标题 + 关键数值」）；空/缺字段安全兜底。
 const tagItems = computed(() => (tags.value?.tags || []).map(tagToDisplay))
+
+// 是否存在「智能月报」分段内容（月报 / AI 趣味分析 / 人格标签任一可见）。
+// 为真时展示分段切换；为假（如「全部账本」聚合或降级）时始终展示分类统计、不显示切换。
+const hasReport = computed(() => digestVisible.value || insightsVisible.value || tagsVisible.value)
 
 // 月报配图（海报，需求 8）：前端 canvas 渲染 → 临时文件 → 保存/分享。
 // posterImage 为出图成功后的临时文件路径；posterVisible 控制预览弹层；
@@ -300,11 +311,18 @@ function sharePoster() {
   }
 }
 
-async function load() {
-  // 月报、AI 趣味分析、趣味人格标签与其它报表相互独立：并行发起、独立降级，不参与下方主 try/catch。
-  loadDigest()
-  loadInsights()
-  loadTags()
+// 给关键请求加超时，避免浏览器并发连接被占满时请求永不 settle 导致页面无限空白。
+function withRequestTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject({ code: 'REQUEST_TIMEOUT', message: '加载超时，请重试' }), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
+async function load(canRetry = true) {
   loading.value = true
   // 重新加载时收起子分类下钻，避免月份/类别切换后残留展开态。
   expandedRootId.value = null
@@ -316,18 +334,21 @@ async function load() {
     } else {
       const { from, to } = monthRange(month.value)
       if (dim.value === 'category') {
-        // 叶子级占比 + 分类树并行取：树用于把子分类归并到父分类、并支持下钻（需求：先看一级、再看次级）。
-        // 分类树请求失败可降级：null → rollup 退化为叶子级平铺，绝不因取树失败而整页空白。
-        const [res, tree] = await Promise.all([
-          categoryReport(from, to, kind.value),
-          listCategories(ledgerStore.currentLedgerId).catch(() => null)
-        ])
+        // 核心：categoryReport 单独 await（带超时，绝不无限挂起），一返回就渲染总额与分类列表。
+        const res = await withRequestTimeout(categoryReport(from, to, kind.value), 8000)
         total.value = res.totalExpense
-        rows.value = rollupCategoryShares(
-          res.categories || [],
-          tree ? flattenAll(tree) : [],
-          res.totalExpense
-        )
+        // 先按叶子级渲染，保证「有数据」；分类树仅用于父子归并，异步补充、不阻塞、失败无副作用。
+        rows.value = rollupCategoryShares(res.categories || [], [], res.totalExpense)
+        const catRes = res
+        listCategories(ledgerStore.currentLedgerId)
+          .then((tree) => {
+            rows.value = rollupCategoryShares(
+              catRes.categories || [],
+              tree ? flattenAll(tree) : [],
+              catRes.totalExpense
+            )
+          })
+          .catch(() => { /* 取分类树失败：保持叶子级展示即可 */ })
       } else {
         const res = await dimensionReport(from, to, dim.value, kind.value)
         total.value = res.total
@@ -351,10 +372,26 @@ async function load() {
       }
     }
   } catch (e) {
-    if (e && e.code !== 'HTTP_401') uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    if (e && e.code === 'HTTP_401') {
+      // 登录态失效由网络层统一跳登录，这里不提示。
+    } else if (canRetry) {
+      // 首个请求偶发失败（远程库空闲连接抖动等瞬时错误）：稍后自动重试一次。
+      loading.value = false
+      await new Promise((r) => setTimeout(r, 400))
+      return load(false)
+    } else {
+      uni.showToast({ title: e.message || '加载失败', icon: 'none' })
+    }
   } finally {
     loading.value = false
   }
+
+  // 重型分析模块（月报 / AI 趣味 / 人格标签）在核心报表之后再发：
+  // 避免它们的并发请求抢占浏览器有限的连接槽，饿死核心 categoryReport 请求（曾导致「总支出一直 0」）。
+  // 三者各自带超时与静默降级，互不影响核心报表。
+  loadDigest()
+  loadInsights()
+  loadTags()
 }
 
 // 全部账本：跨账本客户端聚合分类占比
@@ -389,19 +426,36 @@ async function loadAllAggregate() {
   rows.value = rollupCategoryShares(list, flattenAll(cats), total.value)
 }
 
-onShow(async () => {
-  // 报表已从底部一级 tab 降为账本页快捷入口（navigateTo 进入），普通页有原生返回，无需隐藏/渲染自定义 TabBar。
-  // 开启右上角转发菜单，供月报配图分享（需求 8.4）。
-  uni.showShareMenu({ withShareTicket: false, fail() {} })
-  // 首次进入若账本列表尚未加载，先加载并校正当前账本（load() 会把失效的 currentLedgerId 回退到默认）。
-  // 否则可能带着过期/未就绪的 X-Ledger-Id 发起请求，命中空账本导致「第一次进来没有数据」。
+// 进入/返回时刷新：先确保账本上下文就绪，再拉取报表数据。
+async function refresh() {
+  // 报表已从底部 tab 降为账本页快捷入口（navigateTo 进入）。开启右上角转发菜单，供月报配图分享（需求 8.4）。
+  // showShareMenu 仅微信小程序端存在；H5 下该 API 为 undefined，直接调用会抛 TypeError，故先探测再调用。
+  if (typeof uni.showShareMenu === 'function') {
+    uni.showShareMenu({ withShareTicket: false, fail() {} })
+  }
+  // 首次进入若账本列表尚未加载，先加载并校正当前账本（load() 会把失效的 currentLedgerId 回退到默认），
+  // 避免带着过期/未就绪的 X-Ledger-Id 请求命中空账本。
   try {
     if (!ledgerStore.ledgers.length) await ledgerStore.load()
   } catch (e) {
     /* 账本加载失败不阻断报表：仍按当前账本上下文尝试拉取 */
   }
   load()
+}
+
+// onShow 只负责「返回本页时刷新」；首屏加载由下方 setup 阶段直接触发，避免依赖 uni 生命周期时序
+// （刷新深链/冷启动时 onShow、onMounted 在该页可能不可靠触发，导致首屏零请求、空数据）。
+let firstShow = true
+onShow(() => {
+  if (firstShow) {
+    firstShow = false // 首次显示与 setup 首屏加载重合，跳过以免重复请求
+    return
+  }
+  refresh()
 })
+
+// 首屏加载：setup 阶段同步触发，组件一创建即执行，必定运行、不受页面生命周期时序影响。
+refresh()
 
 function selectKind(k) {
   kind.value = k
@@ -440,28 +494,36 @@ function nextMonth() {
 
 <template>
   <view class="page" :style="themeStore.current.vars">
-    <view class="kinds">
-      <view
-        v-for="k in KINDS"
-        :key="k.value"
-        class="kind"
-        :class="{ active: kind === k.value }"
-        @click="selectKind(k.value)"
-      >
-        {{ k.label }}
-      </view>
-    </view>
-
-    <!-- 概览卡 -->
+    <!-- 概览卡：支出/收入切换 + 月份 + 总额，合并为一张紧凑卡 -->
     <view class="total-card">
-      <view class="month-bar">
-        <text class="nav" @click="prevMonth">‹</text>
-        <text class="month">{{ monthLabel(month) }}</text>
-        <text class="nav" @click="nextMonth">›</text>
+      <view class="tc-top">
+        <view class="kinds">
+          <view
+            v-for="k in KINDS"
+            :key="k.value"
+            class="kind"
+            :class="{ active: kind === k.value }"
+            @click="selectKind(k.value)"
+          >{{ k.label }}</view>
+        </view>
+        <view class="month-bar">
+          <text class="nav" @click="prevMonth">‹</text>
+          <text class="month">{{ monthLabel(month) }}</text>
+          <text class="nav" @click="nextMonth">›</text>
+        </view>
       </view>
       <text class="total-label">{{ kind === 'expense' ? '总支出' : '总收入' }}</text>
       <text class="total-value">¥{{ formatAmount(total) }}</text>
     </view>
+
+    <!-- 页内分段：分类统计 / 智能月报（仅具体账本 + 有月报内容时展示） -->
+    <view v-if="hasReport" class="segbar">
+      <text class="segi" :class="{ on: activeSeg === 'stats' }" @click="selectSeg('stats')">分类统计</text>
+      <text class="segi" :class="{ on: activeSeg === 'digest' }" @click="selectSeg('digest')">智能月报</text>
+    </view>
+
+    <!-- ============ 智能月报分段：月报 + AI 趣味分析 + 人格标签 ============ -->
+    <view v-show="hasReport && activeSeg === 'digest'" class="seg-pane">
 
     <!--
       智能月报区块（任务 9 渲染；任务 10 海报）。
@@ -501,33 +563,7 @@ function nextMonth() {
         </view>
       </view>
 
-      <!-- 消费趋势迷你图（按日收入/支出）；空趋势时显示轻提示 -->
-      <view class="dg-block">
-        <text class="dg-block-title">消费趋势</text>
-        <view v-if="digest.trend && digest.trend.length" class="dg-spark">
-          <view v-for="p in digest.trend" :key="p.date" class="dg-spark-col">
-            <view class="dg-spark-pair">
-              <view class="dg-sbar inc" :style="{ height: digestBarH(p.income) + '%' }"></view>
-              <view class="dg-sbar exp" :style="{ height: digestBarH(p.expense) + '%' }"></view>
-            </view>
-          </view>
-        </view>
-        <text v-else class="dg-empty">本月暂无消费记录</text>
-      </view>
-
-      <!-- 分类排行 Top 5；空排行时显示轻提示 -->
-      <view class="dg-block">
-        <text class="dg-block-title">分类排行</text>
-        <view v-if="digestTop.length" class="dg-rank">
-          <view v-for="(c, i) in digestTop" :key="c.categoryId ?? i" class="dg-rank-row">
-            <text class="dg-rank-no" :style="{ background: colorAt(i) }">{{ i + 1 }}</text>
-            <text class="dg-rank-name">{{ c.categoryName || '未分类' }}</text>
-            <text class="dg-rank-pct">{{ c.percentage }}%</text>
-            <text class="dg-rank-amount">¥{{ formatAmount(c.amount) }}</text>
-          </view>
-        </view>
-        <text v-else class="dg-empty">本月暂无支出分类</text>
-      </view>
+      <!-- 「消费趋势（按日）」与「分类排行 Top5」已并入分类统计分段（近半年趋势 + 完整排行榜），此处不再重复展示，避免冗长。 -->
 
       <!-- 预算情况：已设预算展示明细（含前瞻）；未设预算显示占位 -->
       <view class="dg-block">
@@ -680,6 +716,11 @@ function nextMonth() {
         </view>
       </view>
     </view>
+    </view>
+    <!-- ============ /智能月报分段 ============ -->
+
+    <!-- ============ 分类统计分段：维度切换 + 近半年趋势 + 排行榜（无月报内容时始终展示） ============ -->
+    <view v-show="!hasReport || activeSeg === 'stats'" class="seg-pane">
 
     <!-- 统计维度：分类 / 项目 / 商家 / 标签 -->
     <scroll-view v-if="showDims" scroll-x class="dims" :show-scrollbar="false">
@@ -807,6 +848,8 @@ function nextMonth() {
     </template>
 
     <view style="height:180rpx;"></view>
+    </view>
+    <!-- ============ /分类统计分段 ============ -->
 
     <!--
       月报配图离屏 canvas（需求 8.2）：定位到屏幕外，仅用于绘制出图，不参与页面视觉布局。
@@ -838,47 +881,73 @@ function nextMonth() {
   padding: 24rpx;
   background: var(--c-page-bg, #eef0f2);
 }
+/* 支出/收入切换：并入绿色概览卡，磨砂玻璃分段样式 */
 .kinds {
-  display: flex;
-  background: #fff;
-  border-radius: 20rpx;
-  overflow: hidden;
-  margin-bottom: 24rpx;
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 12rpx;
+  padding: 4rpx;
 }
 .kind {
+  padding: 10rpx 30rpx;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  border-radius: 9rpx;
+}
+/* 页内分段控件（分类统计 / 智能月报）：白底容器 + 品牌绿选中，观感与 .kinds 一致 */
+.segbar {
+  display: flex;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 6rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 4rpx 12rpx rgba(20, 24, 28, 0.04);
+}
+.segi {
   flex: 1;
   text-align: center;
-  padding: 28rpx 0;
-  font-size: 30rpx;
+  padding: 16rpx 0;
+  font-size: 27rpx;
+  font-weight: 700;
   color: #6b7280;
+  border-radius: 12rpx;
 }
-.kind.active {
+.segi.on {
   background: var(--c-brand, #12a150);
   color: #fff;
-  font-weight: 700;
+}
+.kind.active {
+  background: #fff;
+  color: var(--c-brand, #12a150);
 }
 .total-card {
-  border-radius: 28rpx;
-  padding: 32rpx 36rpx 40rpx;
+  border-radius: 26rpx;
+  padding: 22rpx 28rpx 26rpx;
   margin-bottom: 24rpx;
   color: #fff;
   background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34));
   box-shadow: 0 20rpx 44rpx rgba(20, 24, 28, 0.2);
 }
+/* 顶行：支出/收入切换（左） + 月份切换（右） */
+.tc-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+}
 .month-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 40rpx;
-  margin-bottom: 20rpx;
+  gap: 12rpx;
 }
 .nav {
-  font-size: 44rpx;
-  padding: 0 20rpx;
-  opacity: 0.9;
+  font-size: 34rpx;
+  padding: 0 6rpx;
+  opacity: 0.92;
 }
 .month {
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 700;
 }
 .total-label {
@@ -887,8 +956,8 @@ function nextMonth() {
 }
 .total-value {
   display: block;
-  margin-top: 8rpx;
-  font-size: 64rpx;
+  margin-top: 4rpx;
+  font-size: 60rpx;
   font-weight: 800;
 }
 .dims {
