@@ -13,6 +13,8 @@ import { listAllAccounts, listAllCategories, listAllTransactionsByMonth } from '
 import { budgetOverview } from '../../api/budget'
 import { createLedger, joinLedger, renameLedger, listMembers } from '../../api/ledger'
 import { fetchSuggestions } from '../../api/suggestion'
+import { fetchRecurringPendingItems } from '../../api/recurring'
+import { pendingCountOf, pendingBadgeText } from '../../utils/recurring'
 import {
   SUGGEST_TIMEOUT_MS,
   shouldFetchSuggestions,
@@ -43,6 +45,12 @@ const suggestions = ref([])
 const topSuggestions = computed(() => suggestions.value.slice(0, 2))
 // 请求序号：账本切换/多次 onShow 时丢弃过期响应，避免旧账本候选覆盖新账本。
 let suggestSeq = 0
+
+// 周期待确认入口角标：当前账本 PENDING 期数（0 或加载失败 / 未登录 / 聚合视图时隐藏入口）。
+const recurringPendingCount = ref(0)
+const recurringBadgeText = computed(() => pendingBadgeText(recurringPendingCount.value))
+// 请求序号：账本切换/多次 onShow 丢弃过期响应，避免旧账本数量覆盖新账本。
+let recurringSeq = 0
 
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const isAll = computed(() => ledgerStore.isAll)
@@ -220,6 +228,37 @@ function suggestAmt(s) {
   return sign + formatAmount(s.amount)
 }
 
+// ---------- 周期待确认入口 ----------
+// 独立拉取当前账本 PENDING 待确认项，取列表长度为角标数字。GET 会触发后端懒生成，
+// 故数字反映「已到期待确认」期数。聚合视图 / 未登录不请求；任何失败静默降级为 0（隐藏入口），
+// 绝不阻断首页其余模块渲染（需求 5.1）。账本切换 onShow 重跑，据切换后账本重拉。
+function loadRecurringPending() {
+  if (!auth.isLoggedIn || isAll.value) {
+    recurringPendingCount.value = 0
+    return
+  }
+  const seq = ++recurringSeq
+  fetchRecurringPendingItems()
+    .then((items) => {
+      if (seq !== recurringSeq) return // 过期响应（已切账本/已重发）丢弃
+      recurringPendingCount.value = pendingCountOf(items)
+    })
+    .catch(() => {
+      if (seq !== recurringSeq) return
+      recurringPendingCount.value = 0 // 失败 / 未登录静默降级，不弹提示、不影响首页其余模块
+    })
+}
+
+// 点入口进入待确认列表页；跳转失败提示并停留原页。
+function goRecurringPending() {
+  uni.navigateTo({
+    url: '/pages/recurringpending/recurringpending',
+    fail() {
+      uni.showToast({ title: '打开待确认列表失败', icon: 'none' })
+    }
+  })
+}
+
 // 点候选：仅 navigateTo 带预填参数进入记账页，绝不调用任何写接口 / 不创建交易（需求 4.2）。
 // 跳转失败则提示并停留原页（需求 4.7）。
 function pickSuggestion(s) {
@@ -257,6 +296,8 @@ onShow(async () => {
   // 推荐独立拉取：与首页其余模块解耦，任何失败都不影响 load()（需求 7.3）。
   // 账本切换会 reLaunch 首页 → onShow 重跑，据切换后账本重拉（需求 5.2）；记账返回也在此刷新（需求 5.5）。
   loadSuggestions()
+  // 周期待确认角标独立拉取：与首页其余模块解耦，onShow 刷新（从待确认列表返回也在此更新）。
+  loadRecurringPending()
 })
 
 // ---------- 按日分组 ----------
@@ -475,6 +516,19 @@ function goRecords() {
         <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
         <view class="qa" @click="nav('/pages/report/report')"><view class="qa-ic"><AppIcon name="chart" :size="42" /></view><text class="qa-l">报表</text></view>
         <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
+      </view>
+    </view>
+
+    <!-- 周期待确认入口（有待确认项才显示；带数量角标，点击进入待确认列表） -->
+    <view v-if="recurringPendingCount > 0" class="pad">
+      <view class="recurring-nudge" @click="goRecurringPending">
+        <view class="rn-ic"><AppIcon name="calendar" :size="44" /></view>
+        <view class="rn-main">
+          <text class="rn-title">周期待确认</text>
+          <text class="rn-sub">有 {{ recurringPendingCount }} 期待你确认入账</text>
+        </view>
+        <text class="rn-badge">{{ recurringBadgeText }}</text>
+        <text class="rn-arrow">›</text>
       </view>
     </view>
 
@@ -833,6 +887,34 @@ function goRecords() {
 .rn-arrow {
   color: #c0c4cc;
   font-size: 34rpx;
+}
+/* 周期待确认入口卡：复用 rn-* 内部结构，品牌绿左侧条 + 红色数量角标 */
+.recurring-nudge {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  background: #fff;
+  border-radius: 18rpx;
+  padding: 22rpx 26rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
+  border-left: 8rpx solid var(--c-brand, #12a150);
+}
+.recurring-nudge:active {
+  opacity: 0.9;
+}
+.rn-badge {
+  flex: 0 0 auto;
+  min-width: 40rpx;
+  height: 40rpx;
+  padding: 0 12rpx;
+  border-radius: 999rpx;
+  background: #f0553d;
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 700;
+  text-align: center;
+  line-height: 40rpx;
+  font-variant-numeric: tabular-nums;
 }
 .card {
   background: #fff;

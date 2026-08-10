@@ -576,4 +576,54 @@ public class ApiException extends RuntimeException {
         return new ApiException("REMINDER_GRANT_INVALID", HttpStatus.BAD_REQUEST,
                 "授权次数非法：需为 1 到 5 之间的整数", "grantedCount");
     }
+
+    // ---- 常用工厂方法（Recurring 周期记账域） ----
+    // 周期记账（recurring-transactions spec）规则校验 / 生命周期 / 待确认项相关错误码，沿用统一错误体。
+    // 金额越界 / 小数位超限复用 AMOUNT_INVALID、备注超长复用 NOTE_TOO_LONG、越权复用 NOT_FOUND、
+    // 未认证复用 UNAUTHENTICATED；仅语义确为周期记账特有时新增下列码（见 design.md「错误处理策略」）。
+
+    /**
+     * 记账模板字段非法（类型非 expense/income、分类缺失或不属当前账本、账户缺失或不属当前用户在当前账本
+     * 可用的账户），携带具体 {@code field}（需求 1.2、1.4、8）。
+     */
+    public static ApiException recurringRuleInvalid(String field, String message) {
+        return new ApiException("RECURRING_RULE_INVALID", HttpStatus.BAD_REQUEST, message, field);
+    }
+
+    /**
+     * 频率配置非法（枚举外、{@code WEEKLY} 集合为空或含 1–7 之外取值、{@code MONTHLY} 缺指定日、
+     * {@code YEARLY} 缺月与日），{@code field=frequency}（需求 1.8、2.10）。
+     */
+    public static ApiException recurringFrequencyInvalid() {
+        return new ApiException("RECURRING_FREQUENCY_INVALID", HttpStatus.BAD_REQUEST,
+                "频率配置非法", "frequency");
+    }
+
+    /**
+     * 结束条件非法（{@code UNTIL_DATE} 结束日早于开始日期、{@code COUNT} 的 N 不在 1–9999），
+     * {@code field=endCondition}（需求 1.6、1.7）。
+     */
+    public static ApiException recurringEndConditionInvalid() {
+        return new ApiException("RECURRING_END_CONDITION_INVALID", HttpStatus.BAD_REQUEST,
+                "结束条件非法", "endCondition");
+    }
+
+    /**
+     * 待确认项已处理：对已处于 {@code CONFIRMED} / {@code SKIPPED} 的待确认项再次确认 / 跳过，
+     * 或并发 / 重复确认的落败者（需求 4.5、4.9）。拒绝时不重复生成流水、不重复改动账户余额。
+     */
+    public static ApiException recurringItemAlreadyProcessed() {
+        return new ApiException("RECURRING_ITEM_ALREADY_PROCESSED", HttpStatus.CONFLICT,
+                "该待确认项已处理", null);
+    }
+
+    /**
+     * 待确认项目标缺失：确认时其（快照或修改后的）分类或账户在当前账本已不存在 / 不可用，须重新选择
+     * （需求 4.6）。拒绝时待确认项保持 {@code PENDING}、不生成流水、不改动账户余额。{@code field} 为
+     * {@code categoryId} 或 {@code accountId}。
+     */
+    public static ApiException recurringItemTargetMissing(String field) {
+        return new ApiException("RECURRING_ITEM_TARGET_MISSING", HttpStatus.CONFLICT,
+                "分类或账户在当前账本已不存在，请重新选择", field);
+    }
 }

@@ -168,20 +168,28 @@ class RecordSuggestionCompatibilityRegressionTest {
     }
 
     @Test
-    void noMigrationAboveV37() {
+    void recordSuggestionAddsNoMigration() {
         try (Stream<Path> files = Files.list(MIGRATION_DIR)) {
-            List<Integer> versions = files.filter(Files::isRegularFile)
+            List<String> names = files.filter(Files::isRegularFile)
                     .map(p -> p.getFileName().toString())
                     .filter(name -> name.endsWith(".sql"))
-                    .map(RecordSuggestionCompatibilityRegressionTest::versionOf)
                     .toList();
 
-            assertThat(versions).as("迁移目录不应为空").isNotEmpty();
-            // record-suggestion 本身不新增迁移；全局最大版本号随后续 spec 增长，
-            // 目前由 aa-ledger 的 V37__aa_ledger.sql 推进到 37。
+            assertThat(names).as("迁移目录不应为空").isNotEmpty();
+            // record-suggestion 本身不新增迁移（需求 8.2）。全局最大版本号随后续 spec 增长
+            // （aa-ledger 的 V37、recurring-transactions 的 V38…），故不做绝对版本断言，
+            // 而是钉住本 spec 的真实边界：目录内不存在任何以 record-suggestion 命名的迁移脚本。
+            assertThat(names)
+                    .as("record-suggestion 不新增迁移脚本（需求 8.2）")
+                    .noneMatch(name -> name.toLowerCase().contains("suggestion")
+                            || name.toLowerCase().contains("record_suggestion"));
+            // 基线仍须至少推进到 aa-ledger 的 V37，确保迁移目录未被整体倒退。
+            List<Integer> versions = names.stream()
+                    .map(RecordSuggestionCompatibilityRegressionTest::versionOf)
+                    .toList();
             assertThat(versions.stream().mapToInt(Integer::intValue).max().orElseThrow())
-                    .as("record-suggestion 不新增迁移：目录内当前最大版本号为 V37（需求 8.2）")
-                    .isEqualTo(37);
+                    .as("迁移目录最大版本号不应低于 aa-ledger 的 V37 基线")
+                    .isGreaterThanOrEqualTo(37);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

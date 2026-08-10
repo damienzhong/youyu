@@ -248,6 +248,29 @@
       }
     },
     {
+      // 非 tabBar 页面：周期记账规则列表，从「我的」页入口进入。
+      "path": "pages/recurring/recurring",
+      "style": {
+        "navigationBarTitleText": "周期记账"
+      }
+    },
+    {
+      // 非 tabBar 页面：周期规则新建 / 编辑（无 id=新建，带 id=编辑），从周期记账列表页进入。
+      "path": "pages/recurringedit/recurringedit",
+      "style": {
+        "navigationBarTitleText": "周期规则",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      // 非 tabBar 页面：周期记账待确认项列表（单条 / 修改后确认 / 跳过、批量确认 / 跳过），
+      // 从首页「待确认」入口或周期记账列表进入。
+      "path": "pages/recurringpending/recurringpending",
+      "style": {
+        "navigationBarTitleText": "待确认记账"
+      }
+    },
+    {
       // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：分享卡片渲染页，
       // 从报表页 / 连续 / 成长 / 成就页以 cardType（+ 可选周期/编码）跳入。
       "path": "pages/share/share",
