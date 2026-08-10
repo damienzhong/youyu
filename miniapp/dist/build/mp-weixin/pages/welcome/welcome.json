@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "欢迎使用有余",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon"
+  }
+}

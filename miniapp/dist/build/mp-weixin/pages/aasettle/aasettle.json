@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "结算",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "account-badge": "../../components/AccountBadge/AccountBadge"
+  }
+}

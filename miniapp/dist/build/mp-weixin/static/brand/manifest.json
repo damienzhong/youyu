@@ -1,0 +1,34 @@
+{
+  "apps": {
+    "WECHAT":      { "file": "apps/wechat.svg",   "bg": "#07C160", "short": "微", "fit": "tile" },
+    "ALIPAY":      { "file": "apps/alipay.svg",   "bg": "#1677FF", "short": "支", "fit": "tile" },
+    "QQ_WALLET":   { "file": "apps/qq.svg",       "bg": "#1296DB", "short": "Q",  "fit": "tile" },
+    "JD_FINANCE":  { "file": "apps/jd.svg",       "bg": "#E1251B", "short": "京", "fit": "tile" },
+    "HUABEI":      { "file": "apps/huabei.svg",   "bg": "#1677FF", "short": "花", "fit": "tile" },
+    "JD_BAITIAO":  { "file": "apps/baitiao.svg",  "bg": "#E1251B", "short": "白", "fit": "tile" },
+    "DIGITAL_RMB": { "file": "apps/ecny.svg",     "bg": "#C1272D", "short": "¥",  "fit": "plain" },
+    "CRYPTO":      { "file": "apps/bitcoin.svg",  "bg": "#F7931A", "short": "฿",  "fit": "tile" }
+  },
+  "banks": {
+    "工商银行": { "slug": "icbc",  "short": "工", "color": "#c7000b" },
+    "农业银行": { "slug": "abc",   "short": "农", "color": "#00954c" },
+    "中国银行": { "slug": "boc",   "short": "中", "color": "#b01c2e" },
+    "建设银行": { "slug": "ccb",   "short": "建", "color": "#005baa" },
+    "交通银行": { "slug": "bocom", "short": "交", "color": "#004a9f" },
+    "邮储银行": { "slug": "psbc",  "short": "邮", "color": "#00713c" },
+    "招商银行": { "slug": "cmb",   "short": "招", "color": "#c7000b" },
+    "民生银行": { "slug": "cmbc",  "short": "民", "color": "#0a8a3c" },
+    "中信银行": { "slug": "citic", "short": "信", "color": "#c8102e" },
+    "光大银行": { "slug": "ceb",   "short": "光", "color": "#6f2c91" },
+    "浦发银行": { "slug": "spdb",  "short": "浦", "color": "#003a70" },
+    "兴业银行": { "slug": "cib",   "short": "兴", "color": "#1a4f9c" },
+    "平安银行": { "slug": "pab",   "short": "平", "color": "#e60012" },
+    "广发银行": { "slug": "cgb",   "short": "广", "color": "#e60012" },
+    "华夏银行": { "slug": "hxb",   "short": "华", "color": "#c8102e" },
+    "渤海银行": { "slug": "cbhb",  "short": "渤", "color": "#1b4a9c" },
+    "北京银行": { "slug": "bob",   "short": "京", "color": "#c8102e" },
+    "上海银行": { "slug": "bosc",  "short": "沪", "color": "#005ba1" },
+    "宁波银行": { "slug": "nbcb",  "short": "甬", "color": "#d40f2b" },
+    "江苏银行": { "slug": "jsb",   "short": "苏", "color": "#007a4d" }
+  }
+}

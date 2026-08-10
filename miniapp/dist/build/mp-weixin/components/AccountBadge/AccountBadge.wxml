@@ -1,0 +1,1 @@
+<view class="ab data-v-ddb859a3" style="{{i}}"><image wx:if="{{a}}" class="ab-img data-v-ddb859a3" src="{{b}}" mode="aspectFit" binderror="{{c}}"/><text wx:elif="{{d}}" class="ab-ch data-v-ddb859a3" style="{{'font-size:' + f + ';' + ('color:' + g)}}">{{e}}</text><app-icon wx:else class="data-v-ddb859a3" u-i="ddb859a3-0" bind:__l="__l" u-p="{{h||''}}"/></view>
