@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "待确认记账",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon",
+    "account-badge": "../../components/AccountBadge/AccountBadge",
+    "category-icon": "../../components/CategoryIcon/CategoryIcon"
+  }
+}

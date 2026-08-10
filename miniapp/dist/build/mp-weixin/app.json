@@ -37,6 +37,9 @@
     "pages/achievement/achievement",
     "pages/streak/streak",
     "pages/reminder/reminder",
+    "pages/recurring/recurring",
+    "pages/recurringedit/recurringedit",
+    "pages/recurringpending/recurringpending",
     "pages/share/share"
   ],
   "window": {

@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "周期记账",
+  "usingComponents": {
+    "app-icon": "../../components/AppIcon/AppIcon",
+    "account-badge": "../../components/AccountBadge/AccountBadge"
+  }
+}

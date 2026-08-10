@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "周期规则",
+  "navigationStyle": "custom",
+  "usingComponents": {
+    "category-icon": "../../components/CategoryIcon/CategoryIcon",
+    "account-badge": "../../components/AccountBadge/AccountBadge"
+  }
+}
