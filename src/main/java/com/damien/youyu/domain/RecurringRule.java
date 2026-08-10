@@ -90,7 +90,7 @@ public class RecurringRule {
     private boolean monthEnd;
 
     /** YEARLY：月 1–12。 */
-    @Column(name = "year_month")
+    @Column(name = "yearly_month")
     private Integer yearMonth;
 
     /** YEARLY：日 1–31。 */

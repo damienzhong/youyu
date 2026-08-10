@@ -18,7 +18,7 @@ CREATE TABLE recurring_rules (
     weekly_days     VARCHAR(16) NULL,                -- WEEKLY：星期几集合，如 '1,3,5'（1=周一..7=周日）
     month_day       INT NULL,                        -- MONTHLY：指定日 1–31（month_end=0 时必填）
     month_end       TINYINT NOT NULL DEFAULT 0,      -- MONTHLY：1=「月末」标记（此时忽略 month_day）
-    year_month      INT NULL,                        -- YEARLY：月 1–12
+    yearly_month    INT NULL,                        -- YEARLY：月 1–12（避开 MySQL 保留字 year_month）
     year_day        INT NULL,                        -- YEARLY：日 1–31
 
     start_date      DATE NOT NULL,                   -- 开始日期（Asia/Shanghai 自然日）
