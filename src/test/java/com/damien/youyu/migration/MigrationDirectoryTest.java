@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>三件事：
  * <ol>
- *   <li>category-icons 的新脚本 {@code V36__category_icon_color.sql} 存在，且版本号严格大于目录内其余全部版本号；</li>
+ *   <li>aa-ledger 的新脚本 {@code V37__aa_ledger.sql} 存在，且版本号严格大于目录内其余全部版本号；</li>
  *   <li>目录内版本号无重复（Flyway 遇重复版本号会直接启动失败）；</li>
  *   <li>历史迁移文件未被改动 —— 以基线清单
  *       {@code src/test/resources/db/migration-baseline.sha256}（文件名 + sha-256）比对。</li>
@@ -39,19 +39,20 @@ import org.junit.jupiter.api.Test;
  * <p>新脚本落地后即随基线一同纳管：本类每次被新 spec 复用时，只需把上一轮的新脚本连同本轮的新脚本
  * 补进基线清单，并把 {@link #NEW_MIGRATION} 指向本轮的新脚本。
  *
- * <p>本轮（category-icons）即照此办理：上一轮的 {@code V35__custom_reminder.sql} 与本轮的
- * {@code V36__category_icon_color.sql} 同在基线清单内，{@link #NEW_MIGRATION} 指向 V36。
+ * <p>本轮（aa-ledger）即照此办理：上一轮的 {@code V36__category_icon_color.sql} 与本轮的
+ * {@code V37__aa_ledger.sql} 同在基线清单内，{@link #NEW_MIGRATION} 指向 V37。
  *
  * <p>Validates: Requirements 9.1
  */
 class MigrationDirectoryTest {
 
     /**
-     * 本 spec 新增的迁移脚本（设计定为 V36；撰写设计时目录内最大为 V35 即 {@code V35__custom_reminder.sql}，
-     * V30 是历史缺号、由 user-feedback-system spec 预占且文件尚未落地，故不得占用）。
+     * 本 spec 新增的迁移脚本（aa-ledger 定为 V37；撰写设计时目录内最大为 V36 即
+     * {@code V36__category_icon_color.sql}，V30 是历史缺号、由 user-feedback-system spec 预占且
+     * 文件尚未落地，故不得占用）。
      */
-    private static final String NEW_MIGRATION = "V36__category_icon_color.sql";
-    private static final int NEW_MIGRATION_VERSION = 36;
+    private static final String NEW_MIGRATION = "V37__aa_ledger.sql";
+    private static final int NEW_MIGRATION_VERSION = 37;
 
     private static final String BASELINE_RESOURCE = "/db/migration-baseline.sha256";
     private static final Pattern MIGRATION_NAME = Pattern.compile("^V(\\d+)__[A-Za-z0-9_]+\\.sql$");
@@ -122,7 +123,7 @@ class MigrationDirectoryTest {
         List<String> names = migrationFileNames();
 
         assertThat(names)
-                .as("category-icons 的迁移脚本须存在")
+                .as("aa-ledger 的迁移脚本须存在")
                 .contains(NEW_MIGRATION);
         assertThat(versionOf(NEW_MIGRATION)).isEqualTo(NEW_MIGRATION_VERSION);
 

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.LedgerCreateRequest;
@@ -87,6 +88,27 @@ public class LedgerController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 归档 AA 账本（OWNER，置为只读，需求 8.3、8.4）：返回更新后的账本。仍有未结清净额时须带
+     * {@code ?force=true} 二次确认，否则返回 {@code AA_LEDGER_UNSETTLED}（409）。仅 AA 账本支持。
+     */
+    @PostMapping("/{id}/archive")
+    public ResponseEntity<LedgerResponse> archive(
+            @PathVariable Long id,
+            @RequestParam(name = "force", defaultValue = "false") boolean force) {
+        Long userId = currentUser.requireUserId();
+        Ledger ledger = ledgerService.archive(userId, id, force);
+        return ResponseEntity.ok(LedgerResponse.from(ledger, ledgerService.roleOf(userId, id)));
+    }
+
+    /** 解档 AA 账本（OWNER，恢复可编辑，需求 8.5）：返回更新后的账本。仅 AA 账本支持。 */
+    @PostMapping("/{id}/unarchive")
+    public ResponseEntity<LedgerResponse> unarchive(@PathVariable Long id) {
+        Long userId = currentUser.requireUserId();
+        Ledger ledger = ledgerService.unarchive(userId, id);
+        return ResponseEntity.ok(LedgerResponse.from(ledger, ledgerService.roleOf(userId, id)));
+    }
+
     /** OWNER 为协作账本生成邀请码。 */
     @PostMapping("/{id}/invite")
     public ResponseEntity<LedgerInviteResponse> invite(@PathVariable Long id) {
@@ -107,7 +129,11 @@ public class LedgerController {
     public ResponseEntity<List<LedgerMemberResponse>> members(@PathVariable Long id) {
         Long userId = currentUser.requireUserId();
         List<LedgerMemberResponse> body = ledgerService.members(userId, id).stream()
-                .map(m -> new LedgerMemberResponse(m.getUserId(), displayName(m.getUserId()), m.getRole()))
+                .map(m -> {
+                    String name = displayName(m.getUserId());
+                    return new LedgerMemberResponse(
+                            m.getUserId(), name, avatarSeed(name), m.getRole(), m.isOwner());
+                })
                 .toList();
         return ResponseEntity.ok(body);
     }
@@ -125,5 +151,17 @@ public class LedgerController {
         return userRepository.findById(userId)
                 .map(u -> u.getNickname() != null ? u.getNickname() : "用户" + u.getId())
                 .orElse(null);
+    }
+
+    /**
+     * 文字头像种子：取展示名首个 Unicode 码点（与分享卡片头像口径一致）。展示名为空时返回 {@code null}，
+     * 由前端兜底。项目不存储头像图片，头像统一按昵称首字渲染。
+     */
+    private String avatarSeed(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return null;
+        }
+        int firstCodePoint = displayName.codePointAt(0);
+        return new String(Character.toChars(firstCodePoint));
     }
 }

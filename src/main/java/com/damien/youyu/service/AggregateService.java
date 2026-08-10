@@ -75,9 +75,19 @@ public class AggregateService {
     }
 
     private List<Long> ledgerIds(Long userId) {
-        // 「全部」聚合覆盖用户可访问的所有账本（自己拥有的 + 已加入的协作账本）。
-        return memberRepository.findByUserId(userId).stream()
+        // 「全部」聚合覆盖用户可访问的账本（自己拥有的 + 已加入的协作账本），
+        // 但**排除 AA 账本**：AA 支出语义为「个人消费份额」、应收/应付为债权债务，
+        // 与家庭/个人合计口径不同，不纳入「全部账本」聚合与家庭/个人报表
+        // （需求 7.4、10.3；design.md Property 6 特性隔离）。
+        List<Long> memberLedgerIds = memberRepository.findByUserId(userId).stream()
                 .map(com.damien.youyu.domain.LedgerMember::getLedgerId)
+                .toList();
+        if (memberLedgerIds.isEmpty()) {
+            return List.of();
+        }
+        return ledgerRepository.findAllById(memberLedgerIds).stream()
+                .filter(l -> !l.isAa())
+                .map(Ledger::getId)
                 .toList();
     }
 }

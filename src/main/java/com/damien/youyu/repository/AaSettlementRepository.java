@@ -1,6 +1,7 @@
 package com.damien.youyu.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -16,4 +17,7 @@ public interface AaSettlementRepository extends JpaRepository<AaSettlement, Long
 
     /** 某账本未撤销的结算，用于净额计算。 */
     List<AaSettlement> findByLedgerIdAndRevertedAtIsNull(Long ledgerId);
+
+    /** 按主键 + 归属账本定位结算（撤销用，越权/跨账本返回空）。 */
+    Optional<AaSettlement> findByIdAndLedgerId(Long id, Long ledgerId);
 }

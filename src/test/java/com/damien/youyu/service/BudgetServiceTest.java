@@ -136,6 +136,22 @@ class BudgetServiceTest {
     }
 
     @Test
+    void overview_excludesAaExpenseAndSettlement_fromSpent() {
+        // 需求 7.4 / Property 6：即便同一账本查询扫到 AA 类型流水，也仅按 type=expense 计入预算已支出，
+        // aa_expense / aa_settlement 一律不计入（AA 支出为个人消费份额、应收应付为债权债务）。
+        Category food = category(USER, "餐饮", CategoryKind.EXPENSE);
+        service().setTotalBudget(USER, YearMonth.of(2025, 6), new BigDecimal("1000.00"));
+        expense(USER, food.getId(), "100.00", dt("2025-06-05T12:00:00"));
+        aaExpense(USER, food.getId(), "500.00", dt("2025-06-06T12:00:00"));   // 不计入
+        aaSettlement(USER, "300.00", dt("2025-06-07T12:00:00"));              // 不计入
+
+        BudgetOverviewResponse o = service().overview(USER, YearMonth.of(2025, 6));
+
+        assertThat(o.spent()).isEqualByComparingTo("100.00");
+        assertThat(o.remaining()).isEqualByComparingTo("900.00");
+    }
+
+    @Test
     void setTotalBudget_rejectsInvalidAmount() {
         ApiException ex = catchThrowableOfType(
                 () -> service().setTotalBudget(USER, YearMonth.of(2025, 6), new BigDecimal("0.00")),
@@ -190,6 +206,31 @@ class BudgetServiceTest {
         t.setAmount(new BigDecimal(amount));
         t.setSourceAccountId(1L);
         t.setDestinationAccountId(2L);
+        t.setOccurredAt(at);
+        t.setCreatedAt(at);
+        t.setUpdatedAt(at);
+        transactionRepository.save(t);
+    }
+
+    private void aaExpense(long ledgerId, Long categoryId, String amount, LocalDateTime at) {
+        Transaction t = new Transaction();
+        t.setLedgerId(ledgerId);
+        t.setType(TransactionType.AA_EXPENSE);
+        t.setAmount(new BigDecimal(amount));
+        t.setAccountId(1L);
+        t.setCategoryId(categoryId);
+        t.setPayerUserId(USER);
+        t.setOccurredAt(at);
+        t.setCreatedAt(at);
+        t.setUpdatedAt(at);
+        transactionRepository.save(t);
+    }
+
+    private void aaSettlement(long ledgerId, String amount, LocalDateTime at) {
+        Transaction t = new Transaction();
+        t.setLedgerId(ledgerId);
+        t.setType(TransactionType.AA_SETTLEMENT);
+        t.setAmount(new BigDecimal(amount));
         t.setOccurredAt(at);
         t.setCreatedAt(at);
         t.setUpdatedAt(at);

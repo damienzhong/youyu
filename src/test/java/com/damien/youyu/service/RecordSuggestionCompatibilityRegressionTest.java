@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
  *       {@code save/saveAll/delete/deleteAll/persist/merge/remove} 之类写调用；只允许只读事务
  *       与 {@code SELECT}/派生读查询（需求 8.1）。</li>
  *   <li><b>无迁移改动</b>：本 spec 未新增任何迁移脚本、未新建任何表（需求 8.2）。全局最大版本号
- *       随后续 spec 增长，当前为 {@code V36}（category-icons 的 {@code V36__category_icon_color.sql}）。</li>
+ *       随后续 spec 增长，当前为 {@code V37}（aa-ledger 的 {@code V37__aa_ledger.sql}）。</li>
  *   <li><b>不碰记账模板</b>：本 spec 自有源文件及其对既有仓库的两处只读增补，均不引用
  *       {@code transaction_templates}/{@code TransactionTemplate}（需求 2.6、8.3）。</li>
  * </ol>
@@ -168,7 +168,7 @@ class RecordSuggestionCompatibilityRegressionTest {
     }
 
     @Test
-    void noMigrationAboveV36() {
+    void noMigrationAboveV37() {
         try (Stream<Path> files = Files.list(MIGRATION_DIR)) {
             List<Integer> versions = files.filter(Files::isRegularFile)
                     .map(p -> p.getFileName().toString())
@@ -178,10 +178,10 @@ class RecordSuggestionCompatibilityRegressionTest {
 
             assertThat(versions).as("迁移目录不应为空").isNotEmpty();
             // record-suggestion 本身不新增迁移；全局最大版本号随后续 spec 增长，
-            // 目前由 category-icons 的 V36__category_icon_color.sql 推进到 36。
+            // 目前由 aa-ledger 的 V37__aa_ledger.sql 推进到 37。
             assertThat(versions.stream().mapToInt(Integer::intValue).max().orElseThrow())
-                    .as("record-suggestion 不新增迁移：目录内当前最大版本号为 V36（需求 8.2）")
-                    .isEqualTo(36);
+                    .as("record-suggestion 不新增迁移：目录内当前最大版本号为 V37（需求 8.2）")
+                    .isEqualTo(37);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

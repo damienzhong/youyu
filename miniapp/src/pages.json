@@ -48,6 +48,27 @@
       }
     },
     {
+      "path": "pages/aarecord/aarecord",
+      "style": {
+        "navigationBarTitleText": "记一笔（AA）",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/aahome/aahome",
+      "style": {
+        "navigationBarTitleText": "AA 账本",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/aasettle/aasettle",
+      "style": {
+        "navigationBarTitleText": "结算",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/accounts/accounts",
       "style": {
         "navigationBarTitleText": "资产管理",
@@ -131,6 +152,13 @@
       "path": "pages/ledgers/ledgers",
       "style": {
         "navigationBarTitleText": "账本管理"
+      }
+    },
+    {
+      "path": "pages/aamembers/aamembers",
+      "style": {
+        "navigationBarTitleText": "成员",
+        "enablePullDownRefresh": true
       }
     },
     {

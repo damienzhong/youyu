@@ -437,4 +437,61 @@ class TransactionServiceTest {
         assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
         assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
     }
+
+    // ---------------- 余额调整（AA 特性回归：个人/家庭账户级操作不受影响，需求 1.4 / 10.3） ----------------
+
+    @Test
+    void adjustBalance_targetHigher_createsIncomeAdjustmentLedgerless() {
+        // 回归：余额调整把账户校准到更高目标，落一笔 income 补差流水（脱离账本 ledger_id=null）。
+        Account acc = account(USER, "现金", "100.00");
+
+        Transaction tx = service().adjustBalance(USER, USER, acc.getId(),
+                new BigDecimal("150.00"), null, "对账调增");
+
+        assertThat(tx).isNotNull();
+        assertThat(tx.getType()).isEqualTo(TransactionType.INCOME);
+        assertThat(tx.getAmount()).isEqualByComparingTo("50.00");
+        // 补差流水脱离账本（不计入任何账本收支/报表/预算）。
+        assertThat(tx.getLedgerId()).isNull();
+        assertThat(balanceOf(acc.getId())).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    void adjustBalance_targetLower_createsExpenseAdjustmentLedgerless() {
+        // 回归：余额调整把账户校准到更低目标，落一笔 expense 补差流水（脱离账本）。
+        Account acc = account(USER, "现金", "100.00");
+
+        Transaction tx = service().adjustBalance(USER, USER, acc.getId(),
+                new BigDecimal("70.00"), null, null);
+
+        assertThat(tx).isNotNull();
+        assertThat(tx.getType()).isEqualTo(TransactionType.EXPENSE);
+        assertThat(tx.getAmount()).isEqualByComparingTo("30.00");
+        assertThat(tx.getLedgerId()).isNull();
+        assertThat(balanceOf(acc.getId())).isEqualByComparingTo("70.00");
+    }
+
+    @Test
+    void adjustBalance_targetEqual_noOpReturnsNull() {
+        // 回归：目标与当前余额一致时不产生流水、余额不变。
+        Account acc = account(USER, "现金", "100.00");
+
+        Transaction tx = service().adjustBalance(USER, USER, acc.getId(),
+                new BigDecimal("100.00"), null, null);
+
+        assertThat(tx).isNull();
+        assertThat(balanceOf(acc.getId())).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void adjustBalance_otherUsersAccount_rejectedWithNotFoundAndNoSideEffect() {
+        // 回归：越权调整他人账户返回 NOT_FOUND，且无任何余额变动。
+        Account other = account(OTHER_USER, "别人的现金", "100.00");
+
+        ApiException ex = catchThrowableOfType(() -> service().adjustBalance(USER, USER, other.getId(),
+                new BigDecimal("500.00"), null, null), ApiException.class);
+
+        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+        assertThat(balanceOf(other.getId())).isEqualByComparingTo("100.00");
+    }
 }

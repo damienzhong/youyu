@@ -47,6 +47,8 @@ let suggestSeq = 0
 const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
 const isAll = computed(() => ledgerStore.isAll)
 const isCollab = computed(() => !ledgerStore.isAll && ledgerStore.current?.type === 'COLLABORATIVE')
+// AA 账本：多人分摊，不设月预算（需求 1.3）；首页隐藏预算相关入口与进度卡。
+const isAa = computed(() => !ledgerStore.isAll && ledgerStore.current?.type === 'AA')
 const isHistory = computed(() => month.value !== currentMonth())
 
 const heroDateLabel = computed(() => {
@@ -68,9 +70,9 @@ const heroValueText = computed(() => {
   return (n < 0 ? '-¥' : '¥') + formatAmount(Math.abs(n))
 })
 
-// 预算视图（仅具体账本）
+// 预算视图（仅具体账本；AA 账本不设预算，需求 1.3）
 const budgetView = computed(() => {
-  if (isAll.value) return null
+  if (isAll.value || isAa.value) return null
   const ov = budget.value
   if (!ov || !ov.hasBudget) return { hasBudget: false }
   const pct = Number(ov.usedPercent) || 0
@@ -133,7 +135,9 @@ async function load() {
       accounts.value = accs
       accountMap.value = Object.fromEntries(accs.map((a) => [a.id, accountDisplayName(a)]))
       transactions.value = txs
-      loadBudget()
+      // AA 账本不设预算（需求 1.3），跳过预算拉取。
+      if (isAa.value) budget.value = null
+      else loadBudget()
       if (isCollab.value) {
         try {
           const ms = await listMembers(ledgerStore.currentLedgerId)
@@ -243,6 +247,11 @@ onShow(async () => {
     await ledgerStore.load()
   } catch (e) {
     /* ignore */
+  }
+  // AA 账本首页独立（hero 三口径 + 分摊流水，需求 1.2/5.2）：切到 AA 账本时改用专用首页。
+  if (!ledgerStore.isAll && ledgerStore.current?.type === 'AA') {
+    uni.redirectTo({ url: '/pages/aahome/aahome' })
+    return
   }
   load()
   // 推荐独立拉取：与首页其余模块解耦，任何失败都不影响 load()（需求 7.3）。
@@ -462,7 +471,7 @@ function goRecords() {
     <view class="quick-wrap">
       <view class="quick">
         <view class="qa" @click="nav('/pages/categories/categories')"><view class="qa-ic"><AppIcon name="tag" :size="42" /></view><text class="qa-l">分类</text></view>
-        <view class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
+        <view v-if="!isAa" class="qa" @click="nav('/pages/budget/budget')"><view class="qa-ic"><AppIcon name="budget" :size="42" /></view><text class="qa-l">预算</text></view>
         <view class="qa" @click="goRecords"><view class="qa-ic"><AppIcon name="list" :size="42" /></view><text class="qa-l">明细</text></view>
         <view class="qa" @click="nav('/pages/report/report')"><view class="qa-ic"><AppIcon name="chart" :size="42" /></view><text class="qa-l">报表</text></view>
         <view class="qa" @click="showMore = true"><view class="qa-ic"><AppIcon name="more" :size="42" /></view><text class="qa-l">更多</text></view>
@@ -624,7 +633,7 @@ function goRecords() {
           <view class="mi" @click="nav('/pages/billimport/billimport')"><view class="mi-ic"><AppIcon name="import" :size="44" /></view><text class="mi-l">账单导入</text></view>
           <view class="mi" @click="nav('/pages/data/data')"><view class="mi-ic"><AppIcon name="export" :size="44" /></view><text class="mi-l">数据备份</text></view>
           <view class="mi" @click="nav('/pages/categories/categories')"><view class="mi-ic"><AppIcon name="tag" :size="44" /></view><text class="mi-l">分类管理</text></view>
-          <view class="mi" @click="nav('/pages/budget/budget')"><view class="mi-ic"><AppIcon name="budget" :size="44" /></view><text class="mi-l">预算管理</text></view>
+          <view v-if="!isAa" class="mi" @click="nav('/pages/budget/budget')"><view class="mi-ic"><AppIcon name="budget" :size="44" /></view><text class="mi-l">预算管理</text></view>
           <view class="mi" @click="nav('/pages/ledgers/ledgers')"><view class="mi-ic"><AppIcon name="book" :size="44" /></view><text class="mi-l">账本管理</text></view>
         </view>
         <view style="height:calc(20rpx + env(safe-area-inset-bottom));"></view>

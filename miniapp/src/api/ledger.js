@@ -6,7 +6,7 @@ export function listLedgers() {
 }
 
 /**
- * 新建账本。type：PERSONAL（个人，默认）/ COLLABORATIVE（协作）。
+ * 新建账本。type：PERSONAL（个人，默认）/ COLLABORATIVE（家庭协作）/ AA（多人分摊，无月预算）。
  * accountIds：纳入该账本的账户 id 列表（本人账户）；为空/省略表示默认全选当前用户的全部账户。
  */
 export function createLedger(name, type = 'PERSONAL', accountIds) {
@@ -41,4 +41,21 @@ export function listMembers(id) {
 /** 移除成员（OWNER 移除他人）或退出（成员移除自己）。 */
 export function removeMember(id, memberUserId) {
   return http.del(`/ledgers/${id}/members/${memberUserId}`)
+}
+
+/**
+ * 归档 AA 账本（仅 OWNER；仅 AA 账本可归档）。归档后账本只读、移入「已归档」分组，
+ * 历史与导出保留、可随时解档（需求 8.3）。
+ * 若账本仍有未结清净额，后端返回 409 AA_LEDGER_UNSETTLED，需二次确认后带 force=true 重试（需求 8.4）。
+ * @param {number|string} id 账本 id
+ * @param {boolean} force 是否强制归档（未结清时二次确认后传 true）
+ */
+export function archiveLedger(id, force = false) {
+  const path = `/ledgers/${id}/archive${force ? '?force=true' : ''}`
+  return http.post(path)
+}
+
+/** 解档 AA 账本（仅 OWNER），恢复其可编辑状态（需求 8.5）。 */
+export function unarchiveLedger(id) {
+  return http.post(`/ledgers/${id}/unarchive`)
 }

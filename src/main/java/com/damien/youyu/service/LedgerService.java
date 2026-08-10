@@ -34,6 +34,7 @@ import com.damien.youyu.repository.TagRepository;
 import com.damien.youyu.repository.TransactionRepository;
 import com.damien.youyu.repository.TransactionTagRepository;
 import com.damien.youyu.repository.TransactionTemplateRepository;
+import com.damien.youyu.service.aa.AaSettlementService;
 
 /**
  * 账本服务：账本的列出、创建、重命名、删除，以及「默认账本」的惰性保障。
@@ -65,6 +66,13 @@ public class LedgerService {
     private final TransactionTagRepository transactionTagRepository;
     private final AccountService accountService;
     private final InviteCodeGenerator inviteCodeGenerator;
+    /**
+     * AA 账本净额来源（需求 2.6：退出 / 移除前校验净额 = 0）。仅在 AA 账本的成员移除路径使用。
+     *
+     * <p><b>无循环依赖</b>：{@link AaSettlementService} 只依赖 Repository 与 {@link Clock}，不依赖
+     * {@link LedgerService}，故此处构造器注入安全（详见 design.md「事务边界」与本任务说明）。</p>
+     */
+    private final AaSettlementService aaSettlementService;
     private final Clock clock;
 
     /** 邀请码有效期（天）。 */
@@ -89,6 +97,7 @@ public class LedgerService {
             TransactionTagRepository transactionTagRepository,
             AccountService accountService,
             InviteCodeGenerator inviteCodeGenerator,
+            AaSettlementService aaSettlementService,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.categoryRepository = categoryRepository;
@@ -108,6 +117,7 @@ public class LedgerService {
         this.transactionTagRepository = transactionTagRepository;
         this.accountService = accountService;
         this.inviteCodeGenerator = inviteCodeGenerator;
+        this.aaSettlementService = aaSettlementService;
         this.clock = clock;
     }
 
@@ -234,12 +244,90 @@ public class LedgerService {
         }
     }
 
+    /**
+     * 归一化账本类型：COLLABORATIVE（协作）/ AA（多人分摊）原样保留，其余（含旧别名 INDEPENDENT）
+     * 一律回退 PERSONAL（个人）。AA 账本创建后由 {@link #createLedger} 登记创建者为 OWNER 成员
+     * （需求 1.1），并同样预置默认分类（记账需要），归档字段默认为空（未归档）。
+     */
     private String normalizeType(String rawType) {
         if (rawType == null || rawType.isBlank()) {
             return Ledger.TYPE_PERSONAL;
         }
         String t = rawType.trim().toUpperCase();
-        return Ledger.TYPE_COLLABORATIVE.equals(t) ? Ledger.TYPE_COLLABORATIVE : Ledger.TYPE_PERSONAL;
+        if (Ledger.TYPE_COLLABORATIVE.equals(t)) {
+            return Ledger.TYPE_COLLABORATIVE;
+        }
+        if (Ledger.TYPE_AA.equals(t)) {
+            return Ledger.TYPE_AA;
+        }
+        return Ledger.TYPE_PERSONAL;
+    }
+
+    /**
+     * 归档 AA 账本（置 {@code archived_at}，OWNER-only，需求 8.3、8.4）。归档后账本<b>只读</b>——AA 写操作
+     * （记账 / 编辑 / 删除 / 结清 / 撤销）由各 AA 服务的 {@code ledger.isArchived()} 判定拒绝
+     * （{@code AA_LEDGER_ARCHIVED}）；概览 / 结算等只读视图仍可访问、导出保留（需求 8.3）。
+     *
+     * <p><b>范围：</b>仅 AA 账本支持归档（非 AA 抛 {@code AA_ARCHIVE_NOT_SUPPORTED}）。只读判定只在 AA 写
+     * 路径生效，对个人 / 家庭账本置归档态不会真正只读，故直接拒绝、避免半生效归档态。</p>
+     *
+     * <p><b>未结清二次确认（需求 8.4）：</b>归档时仍有成员净额非 0（应收 / 应付未结清）且 {@code force=false}
+     * 时抛 {@code AA_LEDGER_UNSETTLED}，前端据此弹确认框；用户确认后带 {@code force=true} 重试即可归档。
+     * 已全部结清时无需 {@code force}。净额口径复用 {@link AaSettlementService#netCentsByUser}。</p>
+     *
+     * <p>幂等：已归档账本再次归档原样返回（不刷新时间、不再校验），避免重复操作报错。</p>
+     *
+     * @param userId 当前用户（须为 OWNER）
+     * @param id     账本 id
+     * @param force  未结清时是否强制归档（二次确认）
+     * @return 归档后的账本
+     * @throws ApiException NOT_FOUND（非成员）、LEDGER_FORBIDDEN（非 OWNER）、
+     *                      AA_ARCHIVE_NOT_SUPPORTED（非 AA 账本）、AA_LEDGER_UNSETTLED（未结清且未 force）
+     */
+    @Transactional
+    public Ledger archive(Long userId, Long id, boolean force) {
+        Ledger ledger = requireOwner(userId, id);
+        if (!ledger.isAa()) {
+            throw ApiException.aaArchiveNotSupported();
+        }
+        if (ledger.isArchived()) {
+            return ledger; // 幂等：已归档原样返回。
+        }
+        if (!force && hasUnsettledNet(id)) {
+            throw ApiException.aaLedgerUnsettled();
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        ledger.setArchivedAt(now);
+        ledger.setUpdatedAt(now);
+        return ledgerRepository.save(ledger);
+    }
+
+    /**
+     * 解档 AA 账本（清空 {@code archived_at}，OWNER-only，需求 8.5），恢复其可编辑状态（AA 写操作重新放行）。
+     * 仅 AA 账本支持（非 AA 抛 {@code AA_ARCHIVE_NOT_SUPPORTED}）；未归档账本再次解档幂等返回。
+     *
+     * @throws ApiException NOT_FOUND（非成员）、LEDGER_FORBIDDEN（非 OWNER）、
+     *                      AA_ARCHIVE_NOT_SUPPORTED（非 AA 账本）
+     */
+    @Transactional
+    public Ledger unarchive(Long userId, Long id) {
+        Ledger ledger = requireOwner(userId, id);
+        if (!ledger.isAa()) {
+            throw ApiException.aaArchiveNotSupported();
+        }
+        if (!ledger.isArchived()) {
+            return ledger; // 幂等：未归档原样返回。
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        ledger.setArchivedAt(null);
+        ledger.setUpdatedAt(now);
+        return ledgerRepository.save(ledger);
+    }
+
+    /** 账本是否仍有未结清净额（任一成员净额非 0）。净额口径复用 {@link AaSettlementService#netCentsByUser}。 */
+    private boolean hasUnsettledNet(Long ledgerId) {
+        return aaSettlementService.netCentsByUser(ledgerId).values().stream()
+                .anyMatch(cents -> cents != 0L);
     }
 
     /** 重命名账本。 */
@@ -361,11 +449,14 @@ public class LedgerService {
 
     // ---------------- 协作：邀请 / 加入 / 成员管理 ----------------
 
-    /** OWNER 为协作账本生成一个带有效期的邀请码。 */
+    /**
+     * OWNER 为协作账本或 AA 账本生成一个带有效期的邀请码（需求 2.1）。个人账本（PERSONAL）无成员语义，
+     * 拒绝邀请。AA 账本复用同一套邀请码机制，受邀人加入后成为可参与分摊的 EDITOR 成员。
+     */
     @Transactional
     public LedgerInvite createInvite(Long userId, Long ledgerId) {
         Ledger ledger = requireOwner(userId, ledgerId);
-        if (!"COLLABORATIVE".equals(ledger.getType())) {
+        if (!ledger.isCollaborative() && !ledger.isAa()) {
             throw ApiException.ledgerNotCollaborative();
         }
         LocalDateTime now = LocalDateTime.now(clock);
@@ -378,7 +469,14 @@ public class LedgerService {
         return inviteRepository.save(invite);
     }
 
-    /** 凭邀请码加入协作账本为 EDITOR 成员（已是成员则幂等返回）。返回目标账本。 */
+    /**
+     * 凭邀请码加入协作账本或 AA 账本为 EDITOR 成员（已是成员则幂等返回）。返回目标账本。
+     *
+     * <p>加入要求 {@code userId} 为已登录的注册用户——本方法由已鉴权的接口调用，{@code userId} 取自
+     * 当前登录主体（{@link com.damien.youyu.security.CurrentUser}），未登录请求在鉴权层即被拒（401），
+     * 因此不存在「虚拟 / 未注册参与人」（需求 2.2、2.3、2.4）。AA 账本加入者与协作账本一致取
+     * {@link LedgerMember#ROLE_EDITOR}，创建者仍为 OWNER。</p>
+     */
     @Transactional
     public Ledger join(Long userId, String rawCode) {
         String code = rawCode == null ? "" : rawCode.trim().toUpperCase();
@@ -393,7 +491,7 @@ public class LedgerService {
         }
         Ledger ledger = ledgerRepository.findById(invite.getLedgerId())
                 .orElseThrow(ApiException::inviteInvalid);
-        if (!"COLLABORATIVE".equals(ledger.getType())) {
+        if (!ledger.isCollaborative() && !ledger.isAa()) {
             throw ApiException.ledgerNotCollaborative();
         }
         if (!memberRepository.existsByLedgerIdAndUserId(ledger.getId(), userId)) {
@@ -415,7 +513,14 @@ public class LedgerService {
     }
 
     /**
-     * 移除成员：OWNER 可移除任一 EDITOR；成员可移除自己（退出）。不可移除 OWNER。
+     * 移除成员：OWNER 可移除任一 EDITOR；成员可移除自己（退出）。不可移除 OWNER（需求 2.8）。
+     *
+     * <p><b>AA 账本额外约束（需求 2.6、2.7）：</b> 目标成员仍有未结清净额（应收或应付非 0）时，
+     * 阻止退出 / 移除并抛 {@code AA_MEMBER_UNSETTLED}，须先结清（净额 = 0）后再操作。净额口径复用
+     * {@link AaSettlementService#netCentsByUser}（以「分」为单位，未撤销支出与结算派生）。成功移除
+     * <b>仅</b>将其移出成员列表，其全部历史流水与分摊记录保留（不删除），移出后不再是成员即无法参与
+     * 新笔分摊 / 不计入新记账默认参与人（{@code AaExpenseService} 的成员校验会拒绝非成员作为付款人 /
+     * 参与人，见 {@code AaExpenseService.distinctParticipants}）。协作 / 个人账本无此净额约束，行为不变。</p>
      */
     @Transactional
     public void removeMember(Long userId, Long ledgerId, Long targetUserId) {
@@ -425,12 +530,20 @@ public class LedgerService {
             throw ApiException.memberOwnerImmutable();
         }
         boolean isSelfLeave = targetUserId.equals(userId);
+        Ledger ledger;
         if (!isSelfLeave) {
-            requireOwner(userId, ledgerId); // 移除他人须为 OWNER
+            ledger = requireOwner(userId, ledgerId); // 移除他人须为 OWNER
         } else {
-            requireAccessible(userId, ledgerId); // 退出须为成员
+            ledger = requireAccessible(userId, ledgerId); // 退出须为成员
         }
-        // 取消该成员账户在此账本的暴露（未来不可选）；历史流水与余额影响保留（需求 8.3）。
+        // AA 账本：仅净额为 0 才可退出 / 移除（需求 2.6）；否则阻止并提示先结清。
+        if (ledger.isAa()) {
+            long netCents = aaSettlementService.netCentsByUser(ledgerId).getOrDefault(targetUserId, 0L);
+            if (netCents != 0L) {
+                throw ApiException.aaMemberUnsettled();
+            }
+        }
+        // 取消该成员账户在此账本的暴露（未来不可选）；历史流水与余额影响保留（需求 2.7、8.3）。
         java.util.List<Long> memberAccountIds =
                 accountRepository.findByUserIdOrderBySortOrderAscIdAsc(targetUserId).stream()
                         .map(Account::getId)

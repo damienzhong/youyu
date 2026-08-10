@@ -100,10 +100,10 @@ public class ApiException extends RuntimeException {
                 "当前账本不存在或无权访问", null);
     }
 
-    /** 该操作仅适用于协作账本。 */
+    /** 该操作仅适用于协作账本或 AA 账本（个人账本无成员语义）。 */
     public static ApiException ledgerNotCollaborative() {
         return new ApiException("LEDGER_NOT_COLLABORATIVE", HttpStatus.BAD_REQUEST,
-                "只有协作账本可以邀请成员", null);
+                "只有协作账本或 AA 账本可以邀请成员", null);
     }
 
     /** 邀请码无效或已过期。 */
@@ -335,6 +335,15 @@ public class ApiException extends RuntimeException {
                 "月份格式应为 YYYY-MM", "month");
     }
 
+    /**
+     * 当前账本不支持预算（AA 账本不设月预算，需求 1.3）。AA 账本语义为「多人分摊 + 债务清算」，
+     * 支出仅计各人自身份额、应收/应付为债权债务项，不设月预算入口；对 AA 账本调用预算接口一律拒绝。
+     */
+    public static ApiException budgetNotSupportedForAa() {
+        return new ApiException("BUDGET_NOT_SUPPORTED", HttpStatus.BAD_REQUEST,
+                "AA 账本不设预算", null);
+    }
+
     // ---- 常用工厂方法（Loan 借贷域） ----
 
     /** 记账模板字段非法（模板名/类型/金额/备注），携带具体无效字段。 */
@@ -472,6 +481,88 @@ public class ApiException extends RuntimeException {
     public static ApiException reminderDuplicate() {
         return new ApiException("REMINDER_DUPLICATE", HttpStatus.BAD_REQUEST,
                 "已存在相同频率与时间的提醒，请勿重复添加", "frequency");
+    }
+
+    // ---- 常用工厂方法（AA 账本域） ----
+    // AA 账本（aa-ledger spec）分摊记账 / 债务清算相关错误码，均沿用 ApiException 统一错误体。
+    // 越权（非成员）刻意复用 notFound()（对外表现为 NOT_FOUND，不泄漏账本存在性，需求 9.4）。
+
+    /** 自定义分摊各份之和 ≠ 该笔总额（需求 3.4）。 */
+    public static ApiException aaSplitMismatch() {
+        return new ApiException("AA_SPLIT_MISMATCH", HttpStatus.BAD_REQUEST,
+                "各参与人分摊金额之和必须等于该笔总额", "customShares");
+    }
+
+    /** 分摊参与人或付款人非本账本成员（需求 3.1、3.5）。{@code field} 为出错字段。 */
+    public static ApiException aaParticipantInvalid(String field) {
+        return new ApiException("AA_PARTICIPANT_INVALID", HttpStatus.BAD_REQUEST,
+                "付款人与分摊参与人必须是本账本成员", field);
+    }
+
+    /** 分摊方式非法（仅支持 even / custom，需求 3.3、3.4）。 */
+    public static ApiException aaSplitModeInvalid() {
+        return new ApiException("AA_SPLIT_MODE_INVALID", HttpStatus.BAD_REQUEST,
+                "分摊方式仅支持均分或自定义金额", "splitMode");
+    }
+
+    /** 对已归档（只读）AA 账本执行写操作被拒（需求 8.3、9.5）。 */
+    public static ApiException aaLedgerArchived() {
+        return new ApiException("AA_LEDGER_ARCHIVED", HttpStatus.CONFLICT,
+                "账本已归档，为只读状态，无法记账或编辑", null);
+    }
+
+    /**
+     * 归档时账本仍有未结清净额，需二次确认（{@code ?force=true}）方可归档（需求 8.4）。
+     *
+     * <p>与 {@link #aaMemberUnsettled()} 语义不同：成员退出 / 移除的未结清是<b>硬阻止</b>（必须先结清），
+     * 而归档未结清是<b>软阻止</b>——用户 {@code force=true} 二次确认后仍可归档。故单列一码，前端据此弹出
+     * 「仍有未结清金额，确认归档？」确认框，确认后带 {@code force=true} 重试。仅 AA 账本适用。</p>
+     */
+    public static ApiException aaLedgerUnsettled() {
+        return new ApiException("AA_LEDGER_UNSETTLED", HttpStatus.CONFLICT,
+                "账本仍有未结清金额，确认归档请再次操作", null);
+    }
+
+    /**
+     * 归档 / 解档仅适用于 AA 账本（需求 8.3-8.5）。个人 / 家庭账本无归档语义，且其只读判定
+     * （{@code AA_LEDGER_ARCHIVED}）只在 AA 写路径生效，对非 AA 账本置 {@code archived_at} 不会真正只读，
+     * 故直接拒绝，避免半生效的归档态。
+     */
+    public static ApiException aaArchiveNotSupported() {
+        return new ApiException("AA_ARCHIVE_NOT_SUPPORTED", HttpStatus.BAD_REQUEST,
+                "只有 AA 账本支持归档 / 解档", null);
+    }
+
+    /**
+     * 成员仍有未结清净额（应收或应付非 0），不可退出 / 被移除（需求 2.6）。
+     *
+     * <p>AA 账本成员退出 / 移除前须先结清其全部债务（净额 = 0）；否则退出会使既有分摊 / 净额失真。
+     * 仅对 AA 账本生效，协作账本无此限制。历史流水与分摊在成功移除后保留（需求 2.7）。</p>
+     */
+    public static ApiException aaMemberUnsettled() {
+        return new ApiException("AA_MEMBER_UNSETTLED", HttpStatus.CONFLICT,
+                "该成员仍有未结清金额，请先结清后再退出或移除", null);
+    }
+
+    /**
+     * 已涉及结算的 AA 支出不可直接删除 / 编辑（需求 9.2b）。
+     *
+     * <p>MVP 的结算为账本级净额清算（{@code aa_settlements} 不绑定具体某笔支出），一旦存在未撤销结算，
+     * 删除 / 编辑任一支出都会改变净额、使既有结算所依据的债务失真，故须先撤销相关结算再操作。</p>
+     */
+    public static ApiException aaExpenseSettled() {
+        return new ApiException("AA_EXPENSE_SETTLED", HttpStatus.CONFLICT,
+                "该笔已涉及结算，请先撤销相关结算后再删除或编辑", null);
+    }
+
+    /**
+     * 结算金额或对象非法（需求 6.1、6.6）：结算对手非本账本成员 / 与本人相同、结算方向与派生净额不符
+     * （付款方须应付、收款方须应收）、金额非正或小数位超过 2 位、或金额超出可结净额
+     * {@code min(应付, 应收)}。校验失败零副作用（不动账户、不落结算与展示流水）。
+     */
+    public static ApiException aaSettlementInvalid() {
+        return new ApiException("AA_SETTLEMENT_INVALID", HttpStatus.BAD_REQUEST,
+                "结算金额或对象非法", null);
     }
 
     /** 提醒数量已达上限 10 条，拒绝创建第 11 条（需求 1.6）。 */

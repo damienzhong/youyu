@@ -62,6 +62,8 @@ class LedgerServiceTest {
     @Autowired private MerchantRepository merchantRepository;
     @Autowired private TagRepository tagRepository;
     @Autowired private TransactionTagRepository transactionTagRepository;
+    @Autowired private com.damien.youyu.repository.TransactionSplitRepository splitRepository;
+    @Autowired private com.damien.youyu.repository.AaSettlementRepository settlementRepository;
 
     private LedgerService service() {
         return serviceAt(T0);
@@ -72,11 +74,22 @@ class LedgerServiceTest {
         AccountService accountService =
                 new AccountService(accountRepository, accountLedgerRepository, transactionRepository,
                         loanRepository, loanRepaymentRepository, clock);
+        com.damien.youyu.service.aa.AaSettlementService aaSettlementService =
+                new com.damien.youyu.service.aa.AaSettlementService(transactionRepository, splitRepository,
+                        settlementRepository, ledgerRepository, memberRepository, accountRepository, clock);
         return new LedgerService(ledgerRepository, categoryRepository, accountRepository,
                 accountLedgerRepository, transactionRepository, budgetRepository, categoryBudgetRepository,
                 loanRepository, loanRepaymentRepository, memberRepository, inviteRepository, templateRepository,
                 projectRepository, merchantRepository, tagRepository, transactionTagRepository, accountService,
-                new InviteCodeGenerator(), clock);
+                new InviteCodeGenerator(), aaSettlementService, clock);
+    }
+
+    /** AA 记账服务（用于构造非零净额场景）。 */
+    private com.damien.youyu.service.aa.AaExpenseService expenseServiceAt(Instant instant) {
+        Clock clock = Clock.fixed(instant, ZONE);
+        return new com.damien.youyu.service.aa.AaExpenseService(transactionRepository, splitRepository,
+                accountRepository, categoryRepository, ledgerRepository, memberRepository,
+                settlementRepository, clock);
     }
 
     // ---------------- 创建 / 默认分类 / 成员 ----------------
@@ -90,6 +103,30 @@ class LedgerServiceTest {
         assertThat(categoryRepository.countByLedgerId(l.getId())).isEqualTo(expected);
         LedgerMember m = memberRepository.findByLedgerIdAndUserId(l.getId(), ALICE).orElseThrow();
         assertThat(m.isOwner()).isTrue();
+    }
+
+    @Test
+    void create_aaLedger_setsTypeAa_ownerMembership_andSeedsCategories() {
+        // 需求 1.1：新建 type=AA 账本，归属创建者为 owner 并加入成员列表。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+
+        assertThat(l.getType()).isEqualTo(Ledger.TYPE_AA);
+        assertThat(l.isAa()).isTrue();
+        // 未归档（archived_at 为空）。
+        assertThat(l.getArchivedAt()).isNull();
+        // 创建者为 OWNER 成员。
+        LedgerMember m = memberRepository.findByLedgerIdAndUserId(l.getId(), ALICE).orElseThrow();
+        assertThat(m.isOwner()).isTrue();
+        // AA 账本记账仍需分类，故同样预置默认分类。
+        int expected = DefaultCategories.totalCount(DefaultCategories.EXPENSE)
+                + DefaultCategories.totalCount(DefaultCategories.INCOME);
+        assertThat(categoryRepository.countByLedgerId(l.getId())).isEqualTo(expected);
+    }
+
+    @Test
+    void create_typeCaseInsensitive_aa() {
+        Ledger l = service().create(ALICE, "聚餐 AA", "aa");
+        assertThat(l.getType()).isEqualTo(Ledger.TYPE_AA);
     }
 
     @Test
@@ -132,6 +169,41 @@ class LedgerServiceTest {
         ApiException ex = catchThrowableOfType(
                 () -> service().createInvite(ALICE, l.getId()), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("LEDGER_NOT_COLLABORATIVE");
+    }
+
+    @Test
+    void invite_onAaLedger_allowed() {
+        // 需求 2.1：AA 账本复用既有邀请机制，可生成邀请码。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        LedgerInvite inv = service().createInvite(ALICE, l.getId());
+        assertThat(inv.getCode()).isNotBlank();
+        assertThat(inv.getLedgerId()).isEqualTo(l.getId());
+    }
+
+    @Test
+    void invite_onPersonalLedger_rejected() {
+        // 个人账本无成员语义，仍拒绝邀请（只有协作 / AA 可邀请）。
+        Ledger l = service().create(ALICE, "私账", "PERSONAL");
+        ApiException ex = catchThrowableOfType(
+                () -> service().createInvite(ALICE, l.getId()), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("LEDGER_NOT_COLLABORATIVE");
+    }
+
+    @Test
+    void join_aaLedger_addsEditorMembership_andIsIdempotent() {
+        // 需求 2.3：受邀人加入 AA 账本登记为成员（EDITOR，对应注册 user_id）。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        LedgerInvite inv = service().createInvite(ALICE, l.getId());
+
+        service().join(BOB, inv.getCode());
+        service().join(BOB, inv.getCode()); // 幂等
+
+        assertThat(memberRepository.countByLedgerId(l.getId())).isEqualTo(2);
+        assertThat(memberRepository.findByLedgerIdAndUserId(l.getId(), BOB).orElseThrow().getRole())
+                .isEqualTo(LedgerMember.ROLE_EDITOR);
+        // 创建者仍为 OWNER。
+        assertThat(memberRepository.findByLedgerIdAndUserId(l.getId(), ALICE).orElseThrow().isOwner())
+                .isTrue();
     }
 
     @Test
@@ -213,6 +285,268 @@ class LedgerServiceTest {
         ApiException ex = catchThrowableOfType(
                 () -> service().removeMember(BOB, l.getId(), CAROL), ApiException.class);
         assertThat(ex.getCode()).isEqualTo("LEDGER_FORBIDDEN");
+    }
+
+    // ---------------- AA 账本：退出 / 移除（净额 = 0 才可，需求 2.6-2.8） ----------------
+
+    /** 在给定 AA 账本内建一个 EXPENSE 分类（AA 记账需要分类）。 */
+    private com.damien.youyu.domain.Category aaCategory(long ledgerId) {
+        com.damien.youyu.domain.Category c = new com.damien.youyu.domain.Category();
+        c.setLedgerId(ledgerId);
+        c.setKind(com.damien.youyu.domain.CategoryKind.EXPENSE);
+        c.setName("餐饮");
+        c.setCreatedAt(java.time.LocalDateTime.ofInstant(T0, ZONE));
+        c.setUpdatedAt(java.time.LocalDateTime.ofInstant(T0, ZONE));
+        return categoryRepository.save(c);
+    }
+
+    /** 为某用户建一个现金账户（付款账户）。 */
+    private com.damien.youyu.domain.Account aaAccount(long userId, String balance) {
+        com.damien.youyu.domain.Account a = new com.damien.youyu.domain.Account();
+        a.setUserId(userId);
+        a.setName("现金");
+        a.setType(com.damien.youyu.domain.AccountType.CASH);
+        a.setInitialBalance(new java.math.BigDecimal(balance));
+        a.setCurrentBalance(new java.math.BigDecimal(balance));
+        a.setSortOrder(0);
+        a.setCreatedAt(java.time.LocalDateTime.ofInstant(T0, ZONE));
+        a.setUpdatedAt(java.time.LocalDateTime.ofInstant(T0, ZONE));
+        return accountRepository.save(a);
+    }
+
+    @Test
+    void removeMember_aaLedger_nonZeroNet_blocked() {
+        // 需求 2.6：AA 成员仍有未结清净额时，OWNER 移除被阻止（AA_MEMBER_UNSETTLED）。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var aliceAcc = aaAccount(ALICE, "300.00");
+        // Alice 付 90，Alice+Bob 均分（各 45）→ Bob net=-45（应付）。
+        expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("90.00"), cat.getId(),
+                ALICE, aliceAcc.getId(), null, "聚餐",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(ALICE, BOB), null);
+
+        ApiException ex = catchThrowableOfType(
+                () -> service().removeMember(ALICE, l.getId(), BOB), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_MEMBER_UNSETTLED");
+        // 被阻止：仍是成员。
+        assertThat(memberRepository.existsByLedgerIdAndUserId(l.getId(), BOB)).isTrue();
+    }
+
+    @Test
+    void removeMember_aaLedger_nonZeroNet_selfLeaveBlocked() {
+        // 需求 2.6：AA 成员自行退出同样受净额约束（此处付款人 Alice 有应收，退出被阻止）。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var aliceAcc = aaAccount(ALICE, "300.00");
+        // Alice 付 90，Alice+Bob 均分 → Bob 试图退出但 net=-45。
+        expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("90.00"), cat.getId(),
+                ALICE, aliceAcc.getId(), null, null,
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(ALICE, BOB), null);
+
+        ApiException ex = catchThrowableOfType(
+                () -> service().removeMember(BOB, l.getId(), BOB), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_MEMBER_UNSETTLED");
+    }
+
+    @Test
+    void removeMember_aaLedger_zeroNet_removedAndHistoryPreserved() {
+        // 需求 2.6、2.7：净额为 0 的 AA 成员可被移除，且其历史流水与分摊记录保留。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var bobAcc = aaAccount(BOB, "100.00");
+        // Bob 付 50 且仅 Bob 参与分摊 → Bob paid=consumed=50，net=0，但有历史（1 笔支出 + 1 条分摊）。
+        var expense = expenseServiceAt(T0).create(BOB, l.getId(), new java.math.BigDecimal("50.00"),
+                cat.getId(), BOB, bobAcc.getId(), null, "打车",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(BOB), null);
+        // 前置确认 Bob 净额为 0。
+        assertThat(new com.damien.youyu.service.aa.AaSettlementService(transactionRepository, splitRepository,
+                settlementRepository, ledgerRepository, memberRepository, accountRepository,
+                Clock.fixed(T0, ZONE)).netCentsByUser(l.getId()).getOrDefault(BOB, 0L)).isZero();
+
+        service().removeMember(ALICE, l.getId(), BOB);
+
+        // 已移出成员列表。
+        assertThat(memberRepository.existsByLedgerIdAndUserId(l.getId(), BOB)).isFalse();
+        // 历史流水保留：aa_expense 交易仍在（未软删除）。
+        assertThat(transactionRepository.findByIdAndLedgerId(expense.getId(), l.getId())).isPresent();
+        // 分摊记录保留。
+        assertThat(splitRepository.findByTransactionId(expense.getId())).isNotEmpty();
+    }
+
+    @Test
+    void removeMember_aaLedger_noActivity_zeroNet_removable() {
+        // 净额为 0（无任何活动）时，AA 成员可正常移除。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+
+        service().removeMember(ALICE, l.getId(), BOB);
+        assertThat(memberRepository.existsByLedgerIdAndUserId(l.getId(), BOB)).isFalse();
+    }
+
+    @Test
+    void removeMember_aaLedger_ownerStillImmutable() {
+        // 需求 2.8：即便净额为 0，也不可移除 / 退出 AA 账本创建者。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        ApiException ex = catchThrowableOfType(
+                () -> service().removeMember(ALICE, l.getId(), ALICE), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("MEMBER_OWNER_IMMUTABLE");
+    }
+
+    @Test
+    void removeMember_collaborativeLedger_noNetCheck_evenIfActivityWouldExist() {
+        // COLLABORATIVE 账本不做净额校验，移除行为与既有一致（需求：仅 AA 受 2.6 约束）。
+        Ledger l = service().create(ALICE, "合租", "COLLABORATIVE");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+
+        service().removeMember(ALICE, l.getId(), BOB);
+        assertThat(memberRepository.existsByLedgerIdAndUserId(l.getId(), BOB)).isFalse();
+    }
+
+    // ---------------- AA 账本：归档 / 解档（需求 8.3-8.5） ----------------
+
+    @Test
+    void archive_aaLedger_allSettled_noForceNeeded() {
+        // 需求 8.3：全部结清的 AA 账本可直接归档（无需 force），置只读。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var bobAcc = aaAccount(BOB, "100.00");
+        // Bob 付 50 且仅 Bob 参与 → net 全 0（已结清）。
+        expenseServiceAt(T0).create(BOB, l.getId(), new java.math.BigDecimal("50.00"), cat.getId(),
+                BOB, bobAcc.getId(), null, "打车",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(BOB), null);
+
+        Ledger archived = service().archive(ALICE, l.getId(), false);
+
+        assertThat(archived.isArchived()).isTrue();
+        assertThat(archived.getArchivedAt()).isNotNull();
+        assertThat(ledgerRepository.findById(l.getId()).orElseThrow().isArchived()).isTrue();
+    }
+
+    @Test
+    void archive_aaLedger_noActivity_noForceNeeded() {
+        // 无任何活动（净额全 0）也可直接归档。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+
+        Ledger archived = service().archive(ALICE, l.getId(), false);
+        assertThat(archived.isArchived()).isTrue();
+    }
+
+    @Test
+    void archive_aaLedger_unsettled_withoutForce_blocked() {
+        // 需求 8.4：仍有未结清净额时，未带 force 归档被拒（AA_LEDGER_UNSETTLED）。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var aliceAcc = aaAccount(ALICE, "300.00");
+        // Alice 付 90，Alice+Bob 均分 → Bob net=-45（未结清）。
+        expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("90.00"), cat.getId(),
+                ALICE, aliceAcc.getId(), null, "聚餐",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(ALICE, BOB), null);
+
+        ApiException ex = catchThrowableOfType(
+                () -> service().archive(ALICE, l.getId(), false), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_LEDGER_UNSETTLED");
+        // 未归档。
+        assertThat(ledgerRepository.findById(l.getId()).orElseThrow().isArchived()).isFalse();
+    }
+
+    @Test
+    void archive_aaLedger_unsettled_withForce_archives() {
+        // 需求 8.4：二次确认（force=true）后，未结清账本仍可归档。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var aliceAcc = aaAccount(ALICE, "300.00");
+        expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("90.00"), cat.getId(),
+                ALICE, aliceAcc.getId(), null, "聚餐",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(ALICE, BOB), null);
+
+        Ledger archived = service().archive(ALICE, l.getId(), true);
+        assertThat(archived.isArchived()).isTrue();
+    }
+
+    @Test
+    void archive_aaLedger_makesWritesRejected_thenUnarchiveRestores() {
+        // 需求 8.3、8.5、9.5：归档后 AA 写操作被拒（AA_LEDGER_ARCHIVED）；解档后恢复可写。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+        var cat = aaCategory(l.getId());
+        var aliceAcc = aaAccount(ALICE, "300.00");
+
+        service().archive(ALICE, l.getId(), false);
+
+        // 归档后记一笔 AA 支出被拒。
+        ApiException ex = catchThrowableOfType(
+                () -> expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("60.00"),
+                        cat.getId(), ALICE, aliceAcc.getId(), null, "聚餐",
+                        com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN,
+                        List.of(ALICE, BOB), null),
+                ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_LEDGER_ARCHIVED");
+
+        // 解档恢复可写。
+        Ledger restored = service().unarchive(ALICE, l.getId());
+        assertThat(restored.isArchived()).isFalse();
+        var expense = expenseServiceAt(T0).create(ALICE, l.getId(), new java.math.BigDecimal("60.00"),
+                cat.getId(), ALICE, aliceAcc.getId(), null, "聚餐",
+                com.damien.youyu.service.aa.AaExpenseService.SPLIT_EVEN, List.of(ALICE, BOB), null);
+        assertThat(expense.getId()).isNotNull();
+    }
+
+    @Test
+    void archive_isIdempotent() {
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        Ledger first = service().archive(ALICE, l.getId(), false);
+        Ledger second = service().archive(ALICE, l.getId(), false);
+        assertThat(first.getArchivedAt()).isEqualTo(second.getArchivedAt());
+    }
+
+    @Test
+    void unarchive_notArchived_isIdempotent() {
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        Ledger res = service().unarchive(ALICE, l.getId());
+        assertThat(res.isArchived()).isFalse();
+    }
+
+    @Test
+    void archive_nonOwnerEditor_forbidden() {
+        // OWNER-only：EDITOR 归档被拒 LEDGER_FORBIDDEN。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        service().join(BOB, service().createInvite(ALICE, l.getId()).getCode());
+
+        ApiException ex = catchThrowableOfType(
+                () -> service().archive(BOB, l.getId(), false), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("LEDGER_FORBIDDEN");
+    }
+
+    @Test
+    void archive_nonMember_notFound() {
+        // 越权（非成员）→ NOT_FOUND，不泄漏存在性。
+        Ledger l = service().create(ALICE, "旅行 AA", "AA");
+        ApiException ex = catchThrowableOfType(
+                () -> service().archive(CAROL, l.getId(), false), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    void archive_nonAaLedger_rejected() {
+        // 仅 AA 账本支持归档：协作账本归档被拒 AA_ARCHIVE_NOT_SUPPORTED。
+        Ledger l = service().create(ALICE, "合租", "COLLABORATIVE");
+        ApiException ex = catchThrowableOfType(
+                () -> service().archive(ALICE, l.getId(), false), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_ARCHIVE_NOT_SUPPORTED");
+    }
+
+    @Test
+    void unarchive_nonAaLedger_rejected() {
+        Ledger l = service().create(ALICE, "私账", "PERSONAL");
+        ApiException ex = catchThrowableOfType(
+                () -> service().unarchive(ALICE, l.getId()), ApiException.class);
+        assertThat(ex.getCode()).isEqualTo("AA_ARCHIVE_NOT_SUPPORTED");
     }
 
     // ---------------- 列表包含已加入账本 ----------------

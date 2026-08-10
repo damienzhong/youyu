@@ -36,3 +36,39 @@ CREATE TABLE aa_settlements (
     KEY idx_aa_settle_ledger (ledger_id),
     KEY idx_aa_settle_ledger_active (ledger_id, reverted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5) 放宽交易 CHECK 约束以容纳 AA 支出 / 结算流水。
+--    V1 的 ck_tx_type 仅允许 expense/income/transfer，ck_tx_fields 仅约束这三类的字段组合；
+--    不放宽则插入 aa_expense / aa_settlement 会被 MySQL 拒绝。此处 DROP 后重建，纳入两种新语义：
+--      - aa_expense：AA 支出，须带分类（category_id）与付款人（payer_user_id）；付款账户（account_id）
+--        仅付款人为本人时有值，故允许为空；不使用 source/destination。
+--      - aa_settlement：结算展示流水，字段组合较宽松（账户 / 成员语义落 aa_settlements 表），此处仅放行。
+ALTER TABLE transactions DROP CHECK ck_tx_type;
+ALTER TABLE transactions DROP CHECK ck_tx_fields;
+
+ALTER TABLE transactions ADD CONSTRAINT ck_tx_type CHECK (
+    type IN ('expense', 'income', 'transfer', 'aa_expense', 'aa_settlement')
+);
+
+ALTER TABLE transactions ADD CONSTRAINT ck_tx_fields CHECK (
+    (type IN ('expense', 'income')
+        AND account_id IS NOT NULL
+        AND category_id IS NOT NULL
+        AND source_account_id IS NULL
+        AND destination_account_id IS NULL)
+    OR
+    (type = 'transfer'
+        AND source_account_id IS NOT NULL
+        AND destination_account_id IS NOT NULL
+        AND source_account_id <> destination_account_id
+        AND account_id IS NULL
+        AND category_id IS NULL)
+    OR
+    (type = 'aa_expense'
+        AND category_id IS NOT NULL
+        AND payer_user_id IS NOT NULL
+        AND source_account_id IS NULL
+        AND destination_account_id IS NULL)
+    OR
+    (type = 'aa_settlement')
+);

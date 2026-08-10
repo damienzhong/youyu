@@ -82,6 +82,36 @@ class ReportServiceTest {
     }
 
     @Test
+    void monthlyReport_excludesAaExpenseAndSettlement() {
+        // 需求 7.4 / Property 6：报表仅统计 type=income/expense；aa_expense / aa_settlement 一律不计入
+        // 家庭/个人收支报表（AA 支出为个人消费份额、结算为债权债务清偿）。
+        income(USER, "1000.00", dt("2025-06-01T09:00:00"));
+        expense(USER, "100.00", dt("2025-06-02T12:00:00"));
+        aaExpense(USER, "500.00", dt("2025-06-03T12:00:00"));      // 不计入支出
+        aaSettlement(USER, "300.00", dt("2025-06-04T12:00:00"));   // 不计入收支
+
+        MonthlyReportResponse r = service().monthlyReport(USER, YearMonth.of(2025, 6));
+
+        assertThat(r.totalIncome()).isEqualByComparingTo("1000.00");
+        assertThat(r.totalExpense()).isEqualByComparingTo("100.00");
+        assertThat(r.balance()).isEqualByComparingTo("900.00");
+    }
+
+    @Test
+    void categoryReport_excludesAaExpense() {
+        // 需求 7.4：分类占比仅计 type=expense，AA 支出（aa_expense）不进入分类统计。
+        Category food = category(USER, CategoryKind.EXPENSE, "餐饮");
+        expenseWithCategory(USER, "80.00", food.getId(), dt("2025-06-10T12:00:00"));
+        aaExpenseWithCategory(USER, "500.00", food.getId(), dt("2025-06-11T12:00:00")); // 不计入
+
+        CategoryReportResponse r = service().categoryReport(
+                USER, LocalDate.of(2025, 6, 1), LocalDate.of(2025, 6, 30));
+
+        assertThat(r.totalExpense()).isEqualByComparingTo("80.00");
+        assertThat(r.categories()).hasSize(1);
+    }
+
+    @Test
     void monthlyReport_emptyMonth_returnsZero() {
         // 需求 7.7：范围内无计入交易，各项为 0。
         MonthlyReportResponse r = service().monthlyReport(USER, YearMonth.of(2025, 6));
@@ -331,6 +361,18 @@ class ReportServiceTest {
 
     private void transfer(long ledgerId, String amount, LocalDateTime when) {
         save(ledgerId, TransactionType.TRANSFER, amount, when, null, 10L, 11L);
+    }
+
+    private void aaExpense(long ledgerId, String amount, LocalDateTime when) {
+        save(ledgerId, TransactionType.AA_EXPENSE, amount, when, 1L, null, null);
+    }
+
+    private void aaExpenseWithCategory(long ledgerId, String amount, Long categoryId, LocalDateTime when) {
+        save(ledgerId, TransactionType.AA_EXPENSE, amount, when, categoryId, null, null);
+    }
+
+    private void aaSettlement(long ledgerId, String amount, LocalDateTime when) {
+        save(ledgerId, TransactionType.AA_SETTLEMENT, amount, when, 1L, null, null);
     }
 
     private void save(long ledgerId, TransactionType type, String amount, LocalDateTime when,

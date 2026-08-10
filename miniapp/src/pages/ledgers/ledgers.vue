@@ -9,8 +9,11 @@ import {
   createInvite,
   joinLedger,
   listMembers,
-  removeMember
+  removeMember,
+  archiveLedger,
+  unarchiveLedger
 } from '../../api/ledger'
+import { isUnsettledArchiveError } from '../../utils/aa'
 import { listAccounts, accountTypeIcon, accountDisplayName } from '../../api/account'
 import { useAuthStore } from '../../stores/auth'
 
@@ -53,18 +56,31 @@ function switchTo(l) {
   uni.reLaunch({ url: '/pages/index/index' })
 }
 
-// 新建账本：先选类型，再输入名称，最后选择纳入的账户。
+// 账本类型（新建时选择）：个人 / 家庭（协作）/ AA。
+// AA 账本用于多人分摊，自动算「谁欠谁」并给出结算方案；不设月预算。
+const LEDGER_TYPES = [
+  { type: 'PERSONAL', icon: '👤', title: '个人账本', desc: '只有自己记账' },
+  { type: 'COLLABORATIVE', icon: '🏠', title: '家庭账本', desc: '共记一本账，看家庭合计与预算' },
+  { type: 'AA', icon: '🤝', title: 'AA 账本', desc: '多人分摊，自动算「谁欠谁」并给出结算方案' }
+]
+
+function typeTitle(type) {
+  return LEDGER_TYPES.find((t) => t.type === type)?.title || '账本'
+}
+
+// 新建账本：先选类型（卡片），再输入名称，最后选择纳入的账户。
+const typeSel = ref({ visible: false })
 function addLedger() {
-  uni.showActionSheet({
-    itemList: ['个人账本（仅自己记账）', '协作账本（可邀请他人共同记账）'],
-    success: ({ tapIndex }) => {
-      const type = tapIndex === 1 ? 'COLLABORATIVE' : 'PERSONAL'
-      openSheet({
-        title: type === 'COLLABORATIVE' ? '新建协作账本' : '新建账本',
-        placeholder: '账本名称',
-        onConfirm: (name) => openAccountSelect(name, type)
-      })
-    }
+  typeSel.value = { visible: true }
+}
+
+// 选择类型 → 关闭类型卡片 → 输入名称。AA 账本不涉及月预算入口。
+function pickType(type) {
+  typeSel.value.visible = false
+  openSheet({
+    title: `新建${typeTitle(type)}`,
+    placeholder: '账本名称',
+    onConfirm: (name) => openAccountSelect(name, type)
   })
 }
 
@@ -171,6 +187,65 @@ async function invite(l) {
   }
 }
 
+// AA 账本：成员管理（邀请链接 / 二维码、成员列表、退出 / 移除含未结清拦截）走独立页面。
+function openAaMembers(l) {
+  uni.navigateTo({ url: `/pages/aamembers/aamembers?id=${l.id}` })
+}
+
+// AA 账本归档 / 解档（仅 OWNER，需求 8.3–8.5）。归档使账本只读、移入「已归档」分组、可随时解档。
+function archive(l) {
+  uni.showModal({
+    title: '归档账本',
+    content: `归档「${l.name}」后转为只读（不可记账 / 编辑 / 结清），移入「已归档」分组，历史与导出保留，可随时解档。`,
+    confirmText: '归档',
+    confirmColor: '#16a34a',
+    success: (r) => {
+      if (r.confirm) doArchive(l, false)
+    }
+  })
+}
+
+// 未结清时后端返回 AA_LEDGER_UNSETTLED，二次确认后带 force=true 重试（需求 8.4）。
+async function doArchive(l, force) {
+  try {
+    await archiveLedger(l.id, force)
+    await ledgerStore.load()
+    uni.showToast({ title: '已归档', icon: 'success' })
+  } catch (e) {
+    if (isUnsettledArchiveError(e)) {
+      uni.showModal({
+        title: '仍有未结清金额',
+        content: '该账本仍有成员未结清（应收 / 应付非 0）。仍要归档吗？归档后只读，可随时解档后再结清。',
+        confirmText: '仍要归档',
+        confirmColor: '#dc2626',
+        success: (r) => {
+          if (r.confirm) doArchive(l, true)
+        }
+      })
+      return
+    }
+    uni.showToast({ title: e.message || '归档失败', icon: 'none' })
+  }
+}
+
+function unarchive(l) {
+  uni.showModal({
+    title: '解档账本',
+    content: `解档「${l.name}」后恢复可编辑，可继续记账、编辑与结算。`,
+    confirmText: '解档',
+    success: async (r) => {
+      if (!r.confirm) return
+      try {
+        await unarchiveLedger(l.id)
+        await ledgerStore.load()
+        uni.showToast({ title: '已解档', icon: 'success' })
+      } catch (e) {
+        uni.showToast({ title: e.message || '解档失败', icon: 'none' })
+      }
+    }
+  })
+}
+
 // 成员管理弹层
 const showMembers = ref(false)
 const membersOf = ref(null)
@@ -219,14 +294,14 @@ async function mutate(fn) {
 }
 
 function roleLabel(l) {
-  if (l.type !== 'COLLABORATIVE') return ''
-  return l.role === 'OWNER' ? '创建者' : '协作成员'
+  if (l.type !== 'COLLABORATIVE' && l.type !== 'AA') return ''
+  return l.role === 'OWNER' ? '创建者' : l.type === 'AA' ? '参与成员' : '协作成员'
 }
 </script>
 
 <template>
   <view class="page">
-    <text class="hint">点击切换当前账本。个人账本仅自己记账；协作账本可邀请他人共同记账。</text>
+    <text class="hint">点击切换当前账本。个人账本仅自己记账；家庭账本可邀请他人共同记账；AA 账本用于多人分摊，自动算「谁欠谁」并给出结算方案。</text>
 
     <view class="join-row" @click="joinByCode">
       <text class="join-icon">🔗</text>
@@ -245,6 +320,8 @@ function roleLabel(l) {
           <view class="item-main">
             <text class="name">{{ l.name }}</text>
             <text v-if="l.type === 'COLLABORATIVE'" class="tag collab">协作</text>
+            <text v-if="l.type === 'AA'" class="tag aa">AA</text>
+            <text v-if="l.archived" class="tag archived">已归档</text>
             <text v-if="l.isDefault" class="badge">默认</text>
             <text v-if="l.id === currentId" class="cur">当前</text>
           </view>
@@ -258,8 +335,14 @@ function roleLabel(l) {
           <template v-else-if="l.type === 'COLLABORATIVE'">
             <text class="op" @click.stop="openMembers(l)">成员</text>
           </template>
+          <template v-else-if="l.type === 'AA'">
+            <text class="op" @click.stop="openAaMembers(l)">成员</text>
+            <text v-if="l.role === 'OWNER' && !l.archived" class="op" @click.stop="archive(l)">归档</text>
+            <text v-if="l.role === 'OWNER' && l.archived" class="op" @click.stop="unarchive(l)">解档</text>
+          </template>
           <text v-if="l.role === 'OWNER'" class="op" @click.stop="rename(l)">改名</text>
           <text v-if="l.role === 'OWNER'" class="op danger" @click.stop="remove(l)">删除</text>
+          <text v-else-if="l.type === 'AA'" class="op danger" @click.stop="openAaMembers(l)">退出</text>
           <text v-else class="op danger" @click.stop="kick({ userId: myUserId })">退出</text>
         </view>
       </view>
@@ -277,6 +360,28 @@ function roleLabel(l) {
       @update:visible="sheet.visible = $event"
       @confirm="onSheetConfirm"
     />
+
+    <!-- 新建账本：选择类型 -->
+    <view v-if="typeSel.visible" class="mask" @click="typeSel.visible = false">
+      <view class="sheet" @click.stop>
+        <text class="sheet-title">选择账本类型</text>
+        <view class="types">
+          <view
+            v-for="t in LEDGER_TYPES"
+            :key="t.type"
+            class="tcard"
+            @click="pickType(t.type)"
+          >
+            <view class="tc-ic">{{ t.icon }}</view>
+            <view class="tc-main">
+              <text class="tc-title">{{ t.title }}</text>
+              <text class="tc-desc">{{ t.desc }}</text>
+            </view>
+            <text class="tc-go">›</text>
+          </view>
+        </view>
+      </view>
+    </view>
 
     <!-- 新建账本：账户多选 -->
     <view v-if="acctSel.visible" class="mask" @click="acctSel.visible = false">
@@ -382,6 +487,14 @@ function roleLabel(l) {
   color: #b45309;
   background: #fef3c7;
 }
+.tag.aa {
+  color: #0e8a44;
+  background: #e6f6ec;
+}
+.tag.archived {
+  color: #6b7280;
+  background: #eceef1;
+}
 .badge {
   font-size: 20rpx;
   color: #6b7280;
@@ -453,6 +566,57 @@ function roleLabel(l) {
   font-size: 24rpx;
   color: #9ca3af;
   margin-bottom: 12rpx;
+}
+/* 新建账本：类型选择卡片（对齐 design/aa-ledger-prototype.html） */
+.types {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 12rpx;
+}
+.tcard {
+  display: flex;
+  align-items: center;
+  gap: 22rpx;
+  border: 2rpx solid #eef0f2;
+  border-radius: 24rpx;
+  padding: 26rpx 28rpx;
+}
+.tcard:active {
+  border-color: #12a150;
+  background: #f2fbf5;
+}
+.tc-ic {
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 20rpx;
+  background: #eef1f5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38rpx;
+  flex: 0 0 auto;
+}
+.tc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+.tc-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #16181c;
+}
+.tc-desc {
+  font-size: 24rpx;
+  color: #5b6470;
+}
+.tc-go {
+  font-size: 40rpx;
+  color: #c4c9d0;
+  flex: 0 0 auto;
 }
 .as-list {
   max-height: 560rpx;

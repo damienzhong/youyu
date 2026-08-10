@@ -54,7 +54,7 @@ public class BudgetController {
     @GetMapping
     public ResponseEntity<BudgetOverviewResponse> overview(
             @RequestParam(name = "month", required = false) String month) {
-        Long ledgerId = currentLedger.requireLedgerId();
+        Long ledgerId = requireNonAaLedgerId();
         return ResponseEntity.ok(budgetService.overview(ledgerId, resolveMonth(month)));
     }
 
@@ -62,7 +62,7 @@ public class BudgetController {
     public ResponseEntity<BudgetOverviewResponse> setTotal(
             @RequestParam(name = "month", required = false) String month,
             @RequestBody BudgetAmountRequest req) {
-        Long ledgerId = currentLedger.requireLedgerId();
+        Long ledgerId = requireNonAaLedgerId();
         return ResponseEntity.ok(budgetService.setTotalBudget(ledgerId, resolveMonth(month), req.amount()));
     }
 
@@ -70,7 +70,7 @@ public class BudgetController {
     public ResponseEntity<BudgetOverviewResponse> setCategory(
             @RequestParam(name = "month", required = false) String month,
             @RequestBody CategoryBudgetRequest req) {
-        Long ledgerId = currentLedger.requireLedgerId();
+        Long ledgerId = requireNonAaLedgerId();
         return ResponseEntity.ok(
                 budgetService.setCategoryBudget(ledgerId, resolveMonth(month), req.categoryId(), req.amount()));
     }
@@ -79,15 +79,28 @@ public class BudgetController {
     public ResponseEntity<BudgetOverviewResponse> deleteCategory(
             @PathVariable Long categoryId,
             @RequestParam(name = "month", required = false) String month) {
-        Long ledgerId = currentLedger.requireLedgerId();
+        Long ledgerId = requireNonAaLedgerId();
         return ResponseEntity.ok(budgetService.deleteCategoryBudget(ledgerId, resolveMonth(month), categoryId));
     }
 
     @PostMapping("/copy-previous")
     public ResponseEntity<BudgetOverviewResponse> copyPrevious(
             @RequestParam(name = "month", required = false) String month) {
-        Long ledgerId = currentLedger.requireLedgerId();
+        Long ledgerId = requireNonAaLedgerId();
         return ResponseEntity.ok(budgetService.copyFromPreviousMonth(ledgerId, resolveMonth(month)));
+    }
+
+    /**
+     * 解析当前会话账本并拒绝 AA 账本：AA 账本不设月预算入口（需求 1.3），对其调用任一预算接口
+     * 一律返回 {@code BUDGET_NOT_SUPPORTED}。成员可访问校验由 {@link CurrentLedger} 完成
+     * （越权 / 不存在返回 NOT_FOUND）。个人 / 家庭账本行为原样不变（需求 1.4）。
+     */
+    private Long requireNonAaLedgerId() {
+        com.damien.youyu.domain.Ledger ledger = currentLedger.requireLedger();
+        if (ledger.isAa()) {
+            throw ApiException.budgetNotSupportedForAa();
+        }
+        return ledger.getId();
     }
 
     private YearMonth resolveMonth(String raw) {

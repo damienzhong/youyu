@@ -3,11 +3,15 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { useAuthStore } from '../../stores/auth'
 import { useThemeStore } from '../../stores/theme'
+import { useLedgerStore } from '../../stores/ledger'
 import { fetchInviteInfo } from '../../api/invite'
 import { fetchGrowthOverview } from '../../api/growth'
 
 const auth = useAuthStore()
 const themeStore = useThemeStore()
+const ledgerStore = useLedgerStore()
+// AA 账本不设月预算（需求 1.3）：当前账本为 AA 时隐藏「预算」入口。
+const isAaLedger = computed(() => !ledgerStore.isAll && ledgerStore.current?.type === 'AA')
 
 // 已邀请人数：null 表示尚未取到（含请求失败），此时入口只显示标题与箭头（需求 2.6）
 const invitedCount = ref(null)
@@ -51,13 +55,15 @@ onShow(() => {
     })
 })
 
-// 快捷宫格（管理类高频入口）
-const grid = [
-  { key: 'ledgers', icon: 'book', label: '账本', url: '/pages/ledgers/ledgers' },
-  { key: 'budget', icon: 'budget', label: '预算', url: '/pages/budget/budget' },
-  { key: 'categories', icon: 'tag', label: '分类', url: '/pages/categories/categories' },
-  { key: 'loans', icon: 'loan', label: '借贷', url: '/pages/loans/loans' }
-]
+// 快捷宫格（管理类高频入口）；AA 账本隐藏「预算」入口（需求 1.3）。
+const grid = computed(() =>
+  [
+    { key: 'ledgers', icon: 'book', label: '账本', url: '/pages/ledgers/ledgers' },
+    { key: 'budget', icon: 'budget', label: '预算', url: '/pages/budget/budget' },
+    { key: 'categories', icon: 'tag', label: '分类', url: '/pages/categories/categories' },
+    { key: 'loans', icon: 'loan', label: '借贷', url: '/pages/loans/loans' }
+  ].filter((item) => !(item.key === 'budget' && isAaLedger.value))
+)
 
 // 分组列表
 const groups = [
