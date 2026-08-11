@@ -28,3 +28,11 @@ logs/
 node_modules/
 dist/
 .vite/
+
+# 例外：小程序发布产物随代码提交（另一台机器拉取后可直接上传发布小程序）。
+# 根级 dist/ 会排除整个 miniapp/dist，需先逐级打开父目录链，才能放行 mp-weixin；
+# H5 网页产物仍被 miniapp/.gitignore 的 dist/build/* 忽略、不纳入版本库。
+!miniapp/dist/
+!miniapp/dist/build/
+!miniapp/dist/build/mp-weixin/
+!miniapp/dist/build/mp-weixin/**

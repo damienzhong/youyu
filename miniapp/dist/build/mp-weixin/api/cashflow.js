@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.fetchCashflow=function(e){return t.http.get(`/all/cashflow?month=${encodeURIComponent(e)}`,{noLedger:!0})},exports.fetchTodayCashflow=function(){return t.http.get("/all/cashflow/today",{noLedger:!0})};
