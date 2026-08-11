@@ -1,5 +1,7 @@
 package com.damien.youyu.wechat;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -11,7 +13,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.ClientHttpRequestFactory;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -175,10 +177,25 @@ public class WeChatClient {
         this.subscribeRestClient = shared;
     }
 
+    /**
+     * 构造带连接 / 读超时的请求工厂。
+     *
+     * <p><b>刻意用 {@link JdkClientHttpRequestFactory}（{@code java.net.http.HttpClient}）而非
+     * {@code SimpleClientHttpRequestFactory}（JDK {@code HttpURLConnection}）</b>：后者对
+     * {@code POST} 请求会带上一组微信新版网关不接受的默认请求头（如异常的 {@code Accept} /
+     * {@code User-Agent}），导致 {@code wxa/getwxacodeunlimit}、{@code message/subscribe/send} 等
+     * <b>POST 接口</b>在业务层之前就被网关以 {@code HTTP 412 Precondition Failed}（空响应体）挡回——
+     * 表现为「同机 curl 正常 200、Java 端 412」。GET 接口（{@code jscode2session} / {@code cgi-bin/token}）
+     * 不受影响，故此前登录正常、只有小程序码 / 订阅消息失败。{@code java.net.http.HttpClient} 发送干净的
+     * 最小请求头，与 curl 一致，可正常拿到响应。强制 {@code HTTP/1.1} 与 curl 对齐、避免协议协商差异。</p>
+     */
     private static ClientHttpRequestFactory requestFactory(int timeoutMillis) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(timeoutMillis);
-        factory.setReadTimeout(timeoutMillis);
+        HttpClient httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofMillis(timeoutMillis))
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(Duration.ofMillis(timeoutMillis));
         return factory;
     }
 
