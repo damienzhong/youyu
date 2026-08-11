@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import com.damien.youyu.error.ApiException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
@@ -334,7 +335,7 @@ public class WeChatClient {
             response = qrCodeRestClient.post()
                     .uri(QRCODE_UNLIMITED_PATH, token)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
+                    .body(toJsonBytes(payload))
                     .retrieve()
                     .toEntity(byte[].class);
         } catch (RuntimeException ex) {
@@ -455,7 +456,7 @@ public class WeChatClient {
             body = subscribeRestClient.post()
                     .uri(SUBSCRIBE_SEND_PATH, accessToken)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
+                    .body(toJsonBytes(payload))
                     .retrieve()
                     .body(Map.class);
         } catch (RuntimeException ex) {
@@ -502,6 +503,25 @@ public class WeChatClient {
         String errmsg = body.get("errmsg") == null ? null : String.valueOf(body.get("errmsg"));
         log.warn("{}返回错误：errcode={}, errmsg={}", what, errcode, errmsg);
         throw new WeChatApiException((int) parseLong(errcode), errmsg, "获取微信接口凭证失败，请稍后重试");
+    }
+
+    /**
+     * 把请求体 Map 预序列化为 JSON 字节。
+     *
+     * <p><b>为什么必须自己序列化成 {@code byte[]} 再发，而不是直接 {@code .body(map)}</b>：
+     * Spring RestClient 对 {@code Map} 走消息转换器<b>流式写出</b>，长度未知时底层 HTTP 客户端会用
+     * {@code Transfer-Encoding: chunked} 发送。微信网关<b>拒绝 chunked 的 POST</b>，在业务层之前就以
+     * {@code HTTP 412 Precondition Failed}（空响应体）挡回（表现为「同机 curl 正常、Java 端 412」，
+     * 且换任何 HTTP 客户端都无效——chunked 是 Spring 流式写出的结果，与客户端无关）。预序列化成定长
+     * {@code byte[]} 后，请求带 {@code Content-Length}、不再 chunked，与 curl 一致，微信正常返回。</p>
+     */
+    private static byte[] toJsonBytes(Object payload) {
+        try {
+            return OBJECT_MAPPER.writeValueAsBytes(payload);
+        } catch (JsonProcessingException e) {
+            // 请求体全是字符串/数字，正常不会发生；真发生则当作本地失败（调用方按非零 errcode / 异常处置）。
+            throw new IllegalStateException("序列化微信请求体失败", e);
+        }
     }
 
     /** 宽松解析微信返回的数值字段（可能是 Integer/Long/String）；无法解析时返回 0。 */
