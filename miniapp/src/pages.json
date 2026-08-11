@@ -222,7 +222,7 @@
       }
     },
     {
-      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从成长页入口与成就分享卡片进入。
+      // 非 tabBar 页面（tabBar 为 首页 / 账本 / 资产 / 我的 四项）：从成长页入口与成就分享卡片进入。
       // enablePullDownRefresh 同样必须写在页面级 style 里，
       // 写进 globalStyle 会给全部页面打开下拉刷新（需求 9.11）。
       "path": "pages/achievement/achievement",
@@ -232,7 +232,7 @@
       }
     },
     {
-      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从成长页入口进入。
+      // 非 tabBar 页面（tabBar 为 首页 / 账本 / 资产 / 我的 四项）：从成长页入口进入。
       // enablePullDownRefresh 必须写在页面级 style 里，
       // 写进 globalStyle 会给全部页面打开下拉刷新（需求 9.12）。
       "path": "pages/streak/streak",
@@ -242,7 +242,7 @@
       }
     },
     {
-      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：从「我的」页入口进入。
+      // 非 tabBar 页面（tabBar 为 首页 / 账本 / 资产 / 我的 四项）：从「我的」页入口进入。
       "path": "pages/reminder/reminder",
       "style": {
         "navigationBarTitleText": "记账提醒"
@@ -279,7 +279,7 @@
       }
     },
     {
-      // 非 tabBar 页面（tabBar 只有首页 / 报表 / 我的三项）：分享卡片渲染页，
+      // 非 tabBar 页面（tabBar 为 首页 / 账本 / 资产 / 我的 四项）：分享卡片渲染页，
       // 从报表页 / 连续 / 成长 / 成就页以 cardType（+ 可选周期/编码）跳入。
       "path": "pages/share/share",
       "style": {
