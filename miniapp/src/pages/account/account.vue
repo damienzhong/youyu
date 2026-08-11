@@ -313,24 +313,21 @@ function logout() {
 
 <template>
   <view class="page">
-    <!-- 身份页头：头像 + 昵称（可改）+ 套餐 + 身份数据条 -->
-    <view class="hero">
-      <view class="idrow">
+    <view class="wrap">
+      <!-- 身份卡：白底轻量。点头像换头像色、点昵称改名 -->
+      <view class="profile">
         <view class="avatar-wrap" @click="colorSheet = true">
           <view class="avatar" :style="{ background: avatarColor }">{{ avatarInitial(nickname) }}</view>
-          <view class="avatar-edit"><AppIcon name="edit" :size="22" color="#12a150" /></view>
+          <view class="avatar-edit"><AppIcon name="edit" :size="20" color="#5b6470" /></view>
         </view>
-        <view class="idmain">
-          <view class="nameline">
+        <view class="pinfo">
+          <view class="nameline" @click="editNickname">
             <text class="name">{{ nickname }}</text>
-            <text class="editbtn" @click="editNickname">修改</text>
+            <AppIcon name="edit" :size="26" color="#c0c4cc" />
           </view>
-          <text class="planchip">{{ plan }}</text>
+          <text class="planchip" :class="{ pro: plan !== '免费版' }">{{ plan }}</text>
         </view>
       </view>
-    </view>
-
-    <view class="wrap">
       <!-- 个性化：性别（头像颜色改到头像上的编辑标识 → 弹窗选择） -->
       <view class="sect">个性化</view>
       <view class="card">
@@ -349,7 +346,7 @@ function logout() {
       <view class="card">
         <!-- 邮箱 -->
         <view class="lrow">
-          <view class="tile mail"><AppIcon name="mail" :size="34" color="#3a7afe" /></view>
+          <view class="tile mail"><AppIcon name="mail" :size="34" color="#5b6470" /></view>
           <view class="rmain">
             <text class="rt">邮箱</text>
             <text class="rsub">{{ hasEmail ? email : '未绑定' }}</text>
@@ -373,7 +370,7 @@ function logout() {
         </view>
         <!-- 微信 -->
         <view class="lrow">
-          <view class="tile wechat"><AppIcon name="chat" :size="34" color="#12a150" /></view>
+          <view class="tile wechat"><AppIcon name="chat" :size="34" color="#5b6470" /></view>
           <view class="rmain">
             <text class="rt">微信</text>
             <text class="rsub">{{ hasWechat ? '已绑定' : '未绑定' }}</text>
@@ -390,12 +387,12 @@ function logout() {
       <view class="sect">账号信息</view>
       <view class="card">
         <view class="lrow" @click="copyUserId">
-          <view class="tile id"><AppIcon name="user" :size="34" color="#8b5cf6" /></view>
+          <view class="tile id"><AppIcon name="badge" :size="34" color="#5b6470" /></view>
           <view class="rmain"><text class="rt">用户 ID</text><text class="rsub">反馈问题时提供给客服</text></view>
           <text class="copy">#{{ userId }} · 复制</text>
         </view>
         <view v-if="joinDays !== null" class="lrow">
-          <view class="tile join"><AppIcon name="calendar" :size="34" color="#c9971f" /></view>
+          <view class="tile join"><AppIcon name="calendar" :size="34" color="#5b6470" /></view>
           <view class="rmain"><text class="rt">加入有余</text></view>
           <text class="rval">{{ joinDays }} 天</text>
         </view>
@@ -444,16 +441,14 @@ function logout() {
 <style scoped>
 .page { min-height: 100vh; background: #eef0f2; }
 
-/* 身份页头 */
-.hero { background: var(--c-hero, linear-gradient(150deg, #22c55e, #12a150 55%, #0b6b34)); color: #fff; padding: 30rpx 30rpx 28rpx; position: relative; overflow: hidden; }
-.hero::after { content: ''; position: absolute; right: -80rpx; top: -70rpx; width: 320rpx; height: 320rpx; border-radius: 50%; background: rgba(255,255,255,0.08); }
-.idrow { display: flex; align-items: center; gap: 24rpx; position: relative; z-index: 2; }
-.avatar { width: 108rpx; height: 108rpx; border-radius: 50%; background: rgba(255,255,255,0.22); border: 2rpx solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; font-size: 48rpx; font-weight: 800; flex: 0 0 auto; }
-.idmain { flex: 1; min-width: 0; }
-.nameline { display: flex; align-items: center; gap: 14rpx; }
-.name { font-size: 40rpx; font-weight: 800; }
-.editbtn { font-size: 22rpx; font-weight: 700; background: rgba(255,255,255,0.2); border: 1rpx solid rgba(255,255,255,0.3); border-radius: 999rpx; padding: 4rpx 18rpx; }
-.planchip { display: inline-block; margin-top: 12rpx; font-size: 22rpx; font-weight: 700; background: rgba(255,255,255,0.18); border: 1rpx solid rgba(255,255,255,0.28); border-radius: 999rpx; padding: 4rpx 18rpx; }
+/* 身份卡（白底轻量，替代绿色大头块） */
+.profile { display: flex; align-items: center; gap: 22rpx; background: #fff; border-radius: 24rpx; padding: 28rpx 26rpx; margin-top: 24rpx; box-shadow: 0 8rpx 22rpx rgba(20, 24, 28, 0.05); }
+.avatar { width: 104rpx; height: 104rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 44rpx; font-weight: 800; flex: 0 0 auto; }
+.pinfo { flex: 1; min-width: 0; }
+.nameline { display: flex; align-items: center; gap: 10rpx; }
+.name { font-size: 38rpx; font-weight: 800; color: #16181c; max-width: 380rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.planchip { display: inline-block; margin-top: 12rpx; font-size: 22rpx; font-weight: 700; background: #eef0f2; color: #6b7280; border-radius: 999rpx; padding: 4rpx 18rpx; }
+.planchip.pro { background: #fdf3d6; color: #a9791a; }
 
 .wrap { padding: 4rpx 24rpx 24rpx; }
 .sect { font-size: 24rpx; font-weight: 700; color: #9aa2ad; padding: 26rpx 8rpx 14rpx; }
@@ -485,10 +480,7 @@ function logout() {
 .lrow { display: flex; align-items: center; gap: 22rpx; padding: 26rpx 28rpx; border-top: 1rpx solid #eef0f2; }
 .card .lrow:first-child { border-top: none; }
 .tile { width: 76rpx; height: 76rpx; border-radius: 22rpx; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
-.tile.mail { background: #e8f1ff; }
-.tile.wechat { background: #e6f6ec; }
-.tile.id { background: #f0edff; }
-.tile.join { background: #fff3e0; }
+.tile.mail, .tile.wechat, .tile.id, .tile.join { background: #f2f4f6; }
 .tile.danger { background: #fdeceb; }
 .rmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6rpx; }
 .rt { font-size: 30rpx; font-weight: 600; color: #25292e; }
@@ -496,10 +488,10 @@ function logout() {
 .rsub { font-size: 24rpx; color: #9aa2ad; }
 .rright { display: flex; align-items: center; gap: 16rpx; flex: 0 0 auto; }
 .rval { font-size: 26rpx; color: #9aa2ad; }
-.okpill { font-size: 22rpx; font-weight: 700; color: #0e8a44; background: #e6f6ec; border-radius: 999rpx; padding: 6rpx 16rpx; }
-.pill { font-size: 26rpx; font-weight: 700; padding: 8rpx 28rpx; border-radius: 999rpx; }
-.pill.bind { color: #0e8a44; border: 1rpx solid #12a150; }
-.pill.unbind { color: #6b7280; border: 1rpx solid #d7dbe0; }
+.okpill { font-size: 24rpx; font-weight: 600; color: #0e8a44; }
+.pill { font-size: 26rpx; font-weight: 700; padding: 10rpx 30rpx; border-radius: 999rpx; }
+.pill.bind { color: #fff; background: #12a150; }
+.pill.unbind { color: #9aa2ad; padding: 10rpx 12rpx; }
 .copy { font-size: 24rpx; color: #0e8a44; border: 1rpx solid #12a150; border-radius: 999rpx; padding: 6rpx 18rpx; flex: 0 0 auto; }
 .arrow { color: #c7ccd2; font-size: 34rpx; }
 

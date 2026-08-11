@@ -96,6 +96,8 @@ class AccountDeletionCascadeTest {
     @Autowired private com.damien.youyu.repository.ReminderSendLogRepository reminderSendLogRepository;
     @Autowired private com.damien.youyu.repository.CustomReminderRepository customReminderRepository;
     @Autowired private com.damien.youyu.repository.ReminderQuotaRepository reminderQuotaRepository;
+    @Autowired private com.damien.youyu.repository.BudgetReminderSettingRepository budgetReminderSettingRepository;
+    @Autowired private com.damien.youyu.repository.BudgetReminderSendLogRepository budgetReminderSendLogRepository;
 
     private AccountDeletionService service() {
         return new AccountDeletionService(
@@ -108,6 +110,7 @@ class AccountDeletionCascadeTest {
                 growthEventRepository, userGrowthRepository, achievementNoticeRepository,
                 streakSegmentRepository,
                 reminderSendLogRepository, customReminderRepository, reminderQuotaRepository,
+                budgetReminderSettingRepository, budgetReminderSendLogRepository,
                 java.time.Clock.systemDefaultZone());
     }
 

@@ -66,7 +66,8 @@ class AccountRecomputeBalanceTest {
 
     private TransactionService transactionService() {
         return new TransactionService(transactionRepository, accountRepository, categoryRepository,
-                resolver(), clock, new GrowthSettlementTrigger(null, clock));
+                resolver(), clock, new GrowthSettlementTrigger(null, clock),
+                new BudgetReminderTrigger(null));
     }
 
     /** 创建账户并纳入账本 USER，使其可用于该账本记账。 */

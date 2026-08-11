@@ -39,6 +39,9 @@ TRUNCATE TABLE streak_segments;
 TRUNCATE TABLE reminder_send_logs;
 TRUNCATE TABLE custom_reminders;
 TRUNCATE TABLE reminder_quota;
+-- 预算提醒两表：同样无外键（注销时由应用显式删除），清空不依赖 FOREIGN_KEY_CHECKS 取值
+TRUNCATE TABLE budget_reminder_send_logs;
+TRUNCATE TABLE budget_reminder_settings;
 TRUNCATE TABLE users;
 
 SET FOREIGN_KEY_CHECKS = 1;

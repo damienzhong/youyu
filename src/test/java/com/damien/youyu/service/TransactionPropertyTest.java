@@ -83,7 +83,8 @@ class TransactionPropertyTest {
         Clock clock = Clock.fixed(T0, ZONE);
         return new TransactionService(transactionRepository, accountRepository, categoryRepository,
                 new LedgerAccountResolver(accountRepository, accountLedgerRepository), clock,
-                new GrowthSettlementTrigger(null, clock));
+                new GrowthSettlementTrigger(null, clock),
+                new BudgetReminderTrigger(null));
     }
 
     @Autowired

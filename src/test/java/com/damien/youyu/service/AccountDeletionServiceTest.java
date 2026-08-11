@@ -114,6 +114,8 @@ class AccountDeletionServiceTest {
                 growthEventRepository, userGrowthRepository, achievementNoticeRepository,
                 streakSegmentRepository,
                 reminderSendLogRepository, customReminderRepository, reminderQuotaRepository,
+                mock(com.damien.youyu.repository.BudgetReminderSettingRepository.class),
+                mock(com.damien.youyu.repository.BudgetReminderSendLogRepository.class),
                 java.time.Clock.systemDefaultZone());
     }
 

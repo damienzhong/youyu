@@ -60,21 +60,41 @@ public class BudgetReminderService {
     }
 
     /**
-     * 更新本人预算提醒偏好（需求 1.4、1.5）：{@code enabled} 为 {@code null} 或不可解析为布尔 → 抛
+     * 更新本人预算提醒偏好（需求 1.4、1.5）：{@code enabled} 缺失或不可解析为布尔 → 抛
      * {@code BUDGET_REMINDER_PREF_INVALID} 且偏好不变；合法则 UPSERT 偏好并置 {@code updated_at}，
      * 返回最新状态。
      *
+     * <p>以原文接收（{@code String}）并在此解析，避免框架类型转换把「取值非法」提前变成
+     * {@code REQUEST_BODY_INVALID}（另一错误码、且会绕过鉴权校验）——照抄 {@code ReminderController} 取舍。
+     * Jackson 会把 JSON 布尔 {@code true}/{@code false} 强制转为字符串 {@code "true"}/{@code "false"}，
+     * 故 miniapp 传布尔或字符串均可解析。</p>
+     *
      * @param userId     令牌所标识的用户 id
-     * @param enabledRaw 偏好原文（须为布尔值 {@code true} / {@code false}）
+     * @param enabledRaw 偏好原文（{@code "true"} / {@code "false"}，区分大小写不敏感）
      * @return 更新后的预算提醒状态
      */
     @Transactional
-    public BudgetReminderStatus updatePreference(Long userId, Boolean enabledRaw) {
-        if (enabledRaw == null) {
-            throw ApiException.budgetReminderPrefInvalid();
-        }
-        settingRepository.upsertEnabled(userId, enabledRaw ? 1 : 0, LocalDateTime.now(clock));
+    public BudgetReminderStatus updatePreference(Long userId, String enabledRaw) {
+        boolean enabled = parseBoolean(enabledRaw);   // BUDGET_REMINDER_PREF_INVALID
+        settingRepository.upsertEnabled(userId, enabled ? 1 : 0, LocalDateTime.now(clock));
         return getStatus(userId);
+    }
+
+    /**
+     * 解析偏好布尔（需求 1.5）：缺失 / 空白 / 非 {@code true|false}（大小写不敏感）一律
+     * {@code BUDGET_REMINDER_PREF_INVALID}。
+     */
+    private boolean parseBoolean(String raw) {
+        if (raw != null) {
+            String v = raw.trim();
+            if ("true".equalsIgnoreCase(v)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(v)) {
+                return false;
+            }
+        }
+        throw ApiException.budgetReminderPrefInvalid();
     }
 
     /**

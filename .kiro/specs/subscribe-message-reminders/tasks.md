@@ -11,8 +11,8 @@
 
 ## Tasks
 
-- [ ] 1. 数据基座：迁移脚本与领域实体 / 仓库
-  - [ ] 1.1 编写迁移脚本 `V43__budget_reminder.sql`
+- [x] 1. 数据基座：迁移脚本与领域实体 / 仓库
+  - [x] 1.1 编写迁移脚本 `V43__budget_reminder.sql`
     - 在 `src/main/resources/db/migration` 新建 `V43__budget_reminder.sql`，不改任何既有迁移脚本
     - 建 `budget_reminder_settings`（恰 5 列：`user_id` PK / `enabled` TINYINT(1) 缺省 1 / `remaining` INT 缺省 0 / `created_at` / `updated_at`），具名 CHECK `ck_budget_reminder_settings_remaining (remaining >= 0)`
     - 建 `budget_reminder_send_logs`（恰 9 列：`id` 自增 PK / `user_id` / `ledger_id` / `budget_month` VARCHAR(7) / `scope_ref` BIGINT / `level` VARCHAR(8) / `result` VARCHAR(24) / `wx_errcode` INT NULL / `created_at`）
@@ -20,7 +20,7 @@
     - 两表 InnoDB + utf8mb4 + utf8mb4_unicode_ci，每表每列写非空中文注释；不建任何外键；不用窗口函数 / CONVERT_TZ / 存储过程 / 触发器
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.10_
 
-  - [ ] 1.2 定义 `BudgetReminderSetting` 与 `BudgetReminderSendLog` 实体
+  - [x] 1.2 定义 `BudgetReminderSetting` 与 `BudgetReminderSendLog` 实体
     - 在 `domain` 包创建两个 JPA 实体，字段与列一一对应（`BudgetReminderSetting.userId` 为 `@Id` 无 `@GeneratedValue`；`scopeRef` 为 long，`wxErrcode` 可空）
     - 映射与迁移列名 / 类型严格对齐，保证 `ddl-auto=validate` 可通过
     - _Requirements: 8.2, 8.3, 8.12_

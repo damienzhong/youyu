@@ -16,7 +16,12 @@ import {
   REMINDER_TIMEOUT_MS,
   REMINDER_MAX
 } from '../../utils/reminder'
-import { WX_REMINDER_TEMPLATE_ID } from '../../utils/config'
+import {
+  fetchBudgetReminderStatus,
+  updateBudgetReminderPreference,
+  grantBudgetReminderQuota
+} from '../../api/budgetReminder'
+import { WX_REMINDER_TEMPLATE_ID, WX_BUDGET_REMINDER_TEMPLATE_ID } from '../../utils/config'
 import { useAuthStore } from '../../stores/auth'
 
 /**
@@ -47,6 +52,15 @@ let listInFlight = false
 
 // 授权上报进行中：防止连点重复上报。
 const granting = ref(false)
+
+// —— 预算提醒（独立于记账提醒，需求 10.1~10.9）——
+// 状态与记账提醒并列、互不影响：独立的开关、额度、授权入口与请求序号。
+const budgetState = ref('loading') // loading | ready | error
+const budgetEnabled = ref(true)
+const budgetQuota = ref(0)
+const budgetGranting = ref(false)
+let budgetSeq = 0
+let budgetInFlight = false
 
 // —— 新增/编辑表单弹层 ——
 const sheetVisible = ref(false)
@@ -103,6 +117,29 @@ async function loadList() {
   }
 }
 
+/**
+ * 拉取预算提醒状态（需求 10.2）：返回前 loading 占位、返回后以真实取值渲染开关与剩余次数。
+ * 出错只切 error 态、展示重试入口，绝不自动重发（需求 10.7）。独立于记账提醒列表请求。
+ */
+async function loadBudgetStatus() {
+  if (budgetInFlight) return
+  const s = ++budgetSeq
+  budgetInFlight = true
+  budgetState.value = 'loading'
+  try {
+    const res = await withTimeout(fetchBudgetReminderStatus(), REMINDER_TIMEOUT_MS)
+    if (s !== budgetSeq) return
+    budgetEnabled.value = res?.enabled !== false
+    budgetQuota.value = normalizeQuota(res?.remainingQuota)
+    budgetState.value = 'ready'
+  } catch (e) {
+    if (s !== budgetSeq) return
+    budgetState.value = 'error'
+  } finally {
+    if (s === budgetSeq) budgetInFlight = false
+  }
+}
+
 onShow(() => {
   if (!auth.isLoggedIn) {
     // 未登录：不发任何请求，展示登录入口（需求 10.10）。
@@ -111,11 +148,72 @@ onShow(() => {
   }
   guest.value = false
   loadList()
+  loadBudgetStatus()
 })
 
 function retryList() {
   if (listInFlight) return
   loadList()
+}
+
+function retryBudget() {
+  if (budgetInFlight) return
+  loadBudgetStatus()
+}
+
+/** 切换预算提醒开关（需求 10.3）：调更新偏好接口，成功后就地更新开关。 */
+async function toggleBudgetEnabled(e) {
+  const next = e && e.detail ? !!e.detail.value : !budgetEnabled.value
+  const prev = budgetEnabled.value
+  try {
+    const res = await withTimeout(
+      updateBudgetReminderPreference(next),
+      REMINDER_TIMEOUT_MS
+    )
+    budgetEnabled.value = res?.enabled != null ? res.enabled : next
+    if (res?.remainingQuota != null) budgetQuota.value = normalizeQuota(res.remainingQuota)
+  } catch (err) {
+    budgetEnabled.value = prev // 失败回滚开关视图，不进错误态（需求 10.7）
+    toastError(err)
+  }
+}
+
+/**
+ * 请求预算提醒订阅授权（需求 10.4~10.6）：wx.requestSubscribeMessage 请求预算提醒模板，
+ * 用户点「允许」才上报；拒绝 / 失败不上报、提示未授权 + 再次授权入口、页面不进错误态。
+ */
+function requestBudgetGrant() {
+  if (budgetGranting.value) return
+  if (typeof wx === 'undefined' || typeof wx.requestSubscribeMessage !== 'function') {
+    uni.showToast({ title: '请在微信小程序内开启提醒', icon: 'none' })
+    return
+  }
+  if (!WX_BUDGET_REMINDER_TEMPLATE_ID) {
+    uni.showToast({ title: '预算提醒模板未配置', icon: 'none' })
+    return
+  }
+  budgetGranting.value = true
+  wx.requestSubscribeMessage({
+    tmplIds: [WX_BUDGET_REMINDER_TEMPLATE_ID],
+    success: async (res) => {
+      if (res && res[WX_BUDGET_REMINDER_TEMPLATE_ID] === 'accept') {
+        try {
+          const r = await withTimeout(grantBudgetReminderQuota(1), REMINDER_TIMEOUT_MS)
+          budgetQuota.value = normalizeQuota(r?.remainingQuota)
+          uni.showToast({ title: '已开启预算提醒', icon: 'success' })
+        } catch (e) {
+          toastError(e)
+        }
+      } else {
+        uni.showToast({ title: '未授权，暂时无法收到预算提醒', icon: 'none' })
+      }
+      budgetGranting.value = false
+    },
+    fail: () => {
+      uni.showToast({ title: '未授权，暂时无法收到预算提醒', icon: 'none' })
+      budgetGranting.value = false
+    }
+  })
 }
 
 function goLogin() {
@@ -278,6 +376,7 @@ function requestGrant() {
 // 频率标签在模板里用 frequencyLabel 直接映射。
 const list = computed(() => reminders.value)
 const quotaZero = computed(() => quota.value <= 0)
+const budgetQuotaZero = computed(() => budgetQuota.value <= 0)
 </script>
 
 <template>
@@ -342,6 +441,52 @@ const quotaZero = computed(() => quota.value <= 0)
         </view>
 
         <view class="add-btn" @click="openAdd">＋ 添加提醒</view>
+      </template>
+
+      <!-- 预算提醒区块（独立于记账提醒，需求 10.1~10.9） -->
+      <view class="sect">预算提醒</view>
+
+      <!-- 加载中：占位（需求 10.2） -->
+      <view v-if="budgetState === 'loading'" class="fail-card slim">
+        <text class="f-d">正在加载预算提醒…</text>
+      </view>
+
+      <!-- 出错：失败提示 + 重试入口（需求 10.7） -->
+      <view v-else-if="budgetState === 'error'" class="fail-card slim">
+        <AppIcon name="warning" :size="52" color="#c7ccd2" />
+        <text class="f-t">预算提醒没能加载出来</text>
+        <text class="f-d">网络不太顺畅，稍后再试一次</text>
+        <text class="retry" @click="retryBudget">重试</text>
+      </view>
+
+      <!-- 就绪：开关 + 剩余次数 + 授权入口（需求 10.1、10.3、10.4、10.6） -->
+      <template v-else>
+        <view class="card">
+          <view class="row">
+            <view class="r-main col">
+              <text class="r-t2">预算超支提醒</text>
+              <text class="r-d2">预算超支或接近上限时提醒你</text>
+            </view>
+            <switch
+              class="r-switch"
+              color="#12a150"
+              :checked="budgetEnabled"
+              @change="toggleBudgetEnabled"
+            />
+          </view>
+        </view>
+
+        <view class="quota-card" :class="{ warn: budgetQuotaZero }">
+          <view class="q-main">
+            <text class="q-k">剩余可提醒次数</text>
+            <text class="q-v">{{ budgetQuota }}</text>
+          </view>
+          <text v-if="budgetQuotaZero" class="q-tip">授权后才能继续收到预算提醒</text>
+          <text v-else class="q-tip">每收到一次预算提醒消耗一次授权</text>
+          <text class="q-btn" @click="requestBudgetGrant">
+            {{ budgetQuotaZero ? '去授权' : '再次授权' }}
+          </text>
+        </view>
       </template>
     </template>
 
@@ -515,6 +660,21 @@ const quotaZero = computed(() => quota.value <= 0)
   font-size: 26rpx;
   color: #12a150;
   font-weight: 600;
+}
+/* 预算提醒行：标题 + 说明（列布局，与记账提醒行的时间+频率并列观感一致） */
+.r-main.col {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6rpx;
+}
+.r-t2 {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #25292e;
+}
+.r-d2 {
+  font-size: 24rpx;
+  color: #9aa2ad;
 }
 .r-switch {
   transform: scale(0.85);

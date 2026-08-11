@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -52,6 +53,7 @@ public class TransactionService {
     private final LedgerAccountResolver accountResolver;
     private final Clock clock;
     private final GrowthSettlementTrigger growthSettlementTrigger;
+    private final BudgetReminderTrigger budgetReminderTrigger;
 
     public TransactionService(
             TransactionRepository transactionRepository,
@@ -59,13 +61,27 @@ public class TransactionService {
             CategoryRepository categoryRepository,
             LedgerAccountResolver accountResolver,
             Clock clock,
-            GrowthSettlementTrigger growthSettlementTrigger) {
+            GrowthSettlementTrigger growthSettlementTrigger,
+            BudgetReminderTrigger budgetReminderTrigger) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.categoryRepository = categoryRepository;
         this.accountResolver = accountResolver;
         this.clock = clock;
         this.growthSettlementTrigger = growthSettlementTrigger;
+        this.budgetReminderTrigger = budgetReminderTrigger;
+    }
+
+    /**
+     * 请求一次预算提醒评估（subscribe-message-reminders 需求 2.1）：仅当交易属账本（{@code ledgerId != null}，
+     * 即收支记账，而非脱离账本的转账 / 余额调整）时触发，传发生月的 {@link YearMonth}。挂在交易写事务的
+     * afterCommit 阶段执行、异常就地隔离，绝不改变交易接口的响应字段集 / 取值 / 状态码 / 错误码（需求 2.8、9.4）。
+     */
+    private void requestBudgetReminder(Long ledgerId, LocalDateTime occurredAt) {
+        if (ledgerId == null || occurredAt == null) {
+            return;
+        }
+        budgetReminderTrigger.requestEvaluation(ledgerId, YearMonth.from(occurredAt));
     }
 
     // ---------------- 收支记账 ----------------
@@ -164,6 +180,9 @@ public class TransactionService {
         // 「不触发路径天然满足」，无需额外判定：transfer 与 adjustBalance 各自建行且 ledger_id 为 null，
         // update / delete / restore / purge 不新增行，因此都不构成「新增有效记账交易」。
         growthSettlementTrigger.requestSettlement(saved.getCreatedBy());
+
+        // 预算提醒评估（需求 2.1）：收支记账（ledger_id 非空）成功后按发生月触发；afterCommit 就地隔离。
+        requestBudgetReminder(saved.getLedgerId(), saved.getOccurredAt());
         return saved;
     }
 
@@ -410,7 +429,11 @@ public class TransactionService {
         tx.setCategoryId(categoryId);
         tx.setSourceAccountId(null);
         tx.setDestinationAccountId(null);
-        return transactionRepository.save(tx);
+        Transaction saved = transactionRepository.save(tx);
+
+        // 预算提醒评估（需求 2.1）：修改收支记账后按其发生月触发。
+        requestBudgetReminder(saved.getLedgerId(), saved.getOccurredAt());
+        return saved;
     }
 
     // ---------------- 删除 / 回收站 ----------------
@@ -433,6 +456,10 @@ public class TransactionService {
         tx.setDeletedAt(now);
         tx.setUpdatedAt(now);
         transactionRepository.save(tx);
+
+        // 预算提醒评估（需求 2.1）：删除收支记账（ledger_id 非空）后按其发生月触发；
+        // 转账 / 余额调整 ledger_id 为空，天然不触发。
+        requestBudgetReminder(tx.getLedgerId(), tx.getOccurredAt());
     }
 
     /** 回滚加锁：账本内交易按账本可用性加锁，账户级记录（脱离账本）按本人拥有加锁。 */
@@ -465,7 +492,11 @@ public class TransactionService {
 
         tx.setDeletedAt(null);
         tx.setUpdatedAt(now);
-        return transactionRepository.save(tx);
+        Transaction saved = transactionRepository.save(tx);
+
+        // 预算提醒评估（需求 2.1）：从回收站恢复收支记账后按其发生月触发。
+        requestBudgetReminder(saved.getLedgerId(), saved.getOccurredAt());
+        return saved;
     }
 
     /** 彻底删除回收站中的一笔交易（物理删行）。余额已在软删时回滚，此处不再变动余额。 */

@@ -17,6 +17,8 @@ import com.damien.youyu.error.ApiException;
 import com.damien.youyu.repository.AccountLedgerRepository;
 import com.damien.youyu.repository.AccountRepository;
 import com.damien.youyu.repository.AchievementNoticeRepository;
+import com.damien.youyu.repository.BudgetReminderSendLogRepository;
+import com.damien.youyu.repository.BudgetReminderSettingRepository;
 import com.damien.youyu.repository.BudgetRepository;
 import com.damien.youyu.repository.CategoryBudgetRepository;
 import com.damien.youyu.repository.CategoryRepository;
@@ -117,6 +119,12 @@ public class AccountDeletionService {
     private final CustomReminderRepository customReminderRepository;
     private final ReminderQuotaRepository reminderQuotaRepository;
 
+    // 预算提醒两表（subscribe-message-reminders 任务 9.1，需求 8.8/8.9）：注销时在删 users 行之前硬删该
+    // 用户的预算提醒偏好/额度与发送记录。两表均无指向 users(id) 的外键（与 custom_reminders 等同一取舍），
+    // 故由服务层在同一注销事务内显式删除。
+    private final BudgetReminderSettingRepository budgetReminderSettingRepository;
+    private final BudgetReminderSendLogRepository budgetReminderSendLogRepository;
+
     public AccountDeletionService(
             LedgerRepository ledgerRepository,
             LedgerMemberRepository memberRepository,
@@ -146,6 +154,8 @@ public class AccountDeletionService {
             ReminderSendLogRepository reminderSendLogRepository,
             CustomReminderRepository customReminderRepository,
             ReminderQuotaRepository reminderQuotaRepository,
+            BudgetReminderSettingRepository budgetReminderSettingRepository,
+            BudgetReminderSendLogRepository budgetReminderSendLogRepository,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
@@ -175,6 +185,8 @@ public class AccountDeletionService {
         this.reminderSendLogRepository = reminderSendLogRepository;
         this.customReminderRepository = customReminderRepository;
         this.reminderQuotaRepository = reminderQuotaRepository;
+        this.budgetReminderSettingRepository = budgetReminderSettingRepository;
+        this.budgetReminderSendLogRepository = budgetReminderSendLogRepository;
         this.clock = clock;
     }
 
@@ -424,6 +436,18 @@ public class AccountDeletionService {
         reminderSendLogRepository.deleteByUserId(userId);
         customReminderRepository.deleteByUserId(userId);
         reminderQuotaRepository.deleteByUserId(userId);
+
+        // 12.9) 预算提醒两表硬删（subscribe-message-reminders 需求 8.8、8.9）：置于第 12.8 步（自定义提醒
+        //     三表硬删）之后、第 13 步（删 users 行）之前，且不改变既有各步骤的相对顺序、过滤条件与影响行数。
+        //     budget_reminder_settings / budget_reminder_send_logs 两表均无指向 users(id) 的外键（与
+        //     custom_reminders 等同一取舍），删除顺序在数据库层没有约束；这里固定「先 send_logs、再 settings」
+        //     只为使删除步骤可逐语句断言。两表均以 user_id 等于该用户 id 为唯一过滤条件的硬删除语句：无行时
+        //     影响行数 0 即视为成功，不返回错误标识、不中止注销事务；删除前不做任何存在性预查询，也不写软删除
+        //     标记或归档副本。整个 deleteAccount 是单个事务：这两步中任一步失败则整体回滚，users 与两表全列
+        //     还原（需求 8.9），注销接口的响应字段集、HTTP 状态码与既有错误码不变。两表无跨用户引用，删除不
+        //     触及其它用户，也只写这两张新表、不触及既有体系任何表。
+        budgetReminderSendLogRepository.deleteByUserId(userId);
+        budgetReminderSettingRepository.deleteByUserId(userId);
 
         // 13) 用户行本身：删除即释放 email 与 wx_openid 唯一键，供重新注册复用（需求 8.4、8.5）；
         //     同时随该行释放 users.invite_code，后续新用户可重新抽到同一个码——邀请关系的归属判定用的是
