@@ -39,6 +39,15 @@ async function setGender(g) {
   }
 }
 
+// 性别挪到头卡，用 ♂/♀ 图标表示男女、保密用文字；点开底部选择。
+const genderSheet = ref(false)
+const genderText = computed(() => (gender.value === 'MALE' ? '♂' : gender.value === 'FEMALE' ? '♀' : '保密'))
+const genderClass = computed(() => (gender.value === 'MALE' ? 'male' : gender.value === 'FEMALE' ? 'female' : 'secret'))
+function chooseGender(g) {
+  genderSheet.value = false
+  setGender(g)
+}
+
 // 加入天数：以套餐起始时间近似（无则不展示）。
 const joinDays = computed(() => {
   const s = auth.user?.planStartedAt
@@ -321,26 +330,14 @@ function logout() {
           <view class="avatar-edit"><AppIcon name="edit" :size="20" color="#5b6470" /></view>
         </view>
         <view class="pinfo">
-          <view class="nameline" @click="editNickname">
-            <text class="name">{{ nickname }}</text>
-            <AppIcon name="edit" :size="26" color="#c0c4cc" />
+          <view class="nameline">
+            <text class="name" @click="editNickname">{{ nickname }}</text>
+            <AppIcon name="edit" :size="26" color="#c0c4cc" @click="editNickname" />
+            <view class="gchip" :class="genderClass" @click="genderSheet = true">{{ genderText }}</view>
           </view>
           <text class="planchip" :class="{ pro: plan !== '免费版' }">{{ plan }}</text>
         </view>
       </view>
-      <!-- 个性化：性别（头像颜色改到头像上的编辑标识 → 弹窗选择） -->
-      <view class="sect">个性化</view>
-      <view class="card">
-        <view class="grow">
-          <text class="rt">性别</text>
-          <view class="gseg">
-            <text :class="{ on: gender === 'MALE' }" @click="setGender('MALE')">男</text>
-            <text :class="{ on: gender === 'FEMALE' }" @click="setGender('FEMALE')">女</text>
-            <text :class="{ on: gender === '' }" @click="setGender('')">保密</text>
-          </view>
-        </view>
-      </view>
-
       <!-- 登录方式 -->
       <view class="sect">登录方式（至少保留一种）</view>
       <view class="card">
@@ -412,6 +409,27 @@ function logout() {
       <view style="height:40rpx;"></view>
     </view>
 
+    <!-- 性别选择弹层 -->
+    <view v-if="genderSheet" class="mask" @click="genderSheet = false">
+      <view class="sheet" @click.stop>
+        <view class="sheet-h">
+          <text class="sheet-t">性别</text>
+          <text class="sheet-x" @click="genderSheet = false">✕</text>
+        </view>
+        <view class="gopts">
+          <view class="gopt" :class="{ on: gender === 'MALE' }" @click="chooseGender('MALE')">
+            <text class="gsym male">♂</text><text class="glabel">男</text>
+          </view>
+          <view class="gopt" :class="{ on: gender === 'FEMALE' }" @click="chooseGender('FEMALE')">
+            <text class="gsym female">♀</text><text class="glabel">女</text>
+          </view>
+          <view class="gopt" :class="{ on: gender === '' }" @click="chooseGender('')">
+            <text class="gsym secret">–</text><text class="glabel">保密</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
     <!-- 头像颜色选择弹层 -->
     <view v-if="colorSheet" class="mask" @click="colorSheet = false">
       <view class="sheet" @click.stop>
@@ -457,11 +475,21 @@ function logout() {
 .avatar-wrap { position: relative; flex: 0 0 auto; }
 .avatar-edit { position: absolute; right: -4rpx; bottom: -4rpx; width: 40rpx; height: 40rpx; border-radius: 50%; background: #fff; border: 2rpx solid rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; box-shadow: 0 4rpx 10rpx rgba(20,24,28,0.18); }
 
-/* 个性化：性别 */
-.grow { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 28rpx; }
-.gseg { display: inline-flex; background: #eef0f2; border-radius: 12rpx; padding: 4rpx; }
-.gseg text { padding: 10rpx 24rpx; font-size: 26rpx; font-weight: 700; color: #5b6470; border-radius: 9rpx; }
-.gseg text.on { background: #fff; color: var(--c-brand-strong, #0e8a44); box-shadow: 0 2rpx 6rpx rgba(0,0,0,0.08); }
+/* 头卡性别 chip */
+.gchip { min-width: 40rpx; height: 40rpx; padding: 0 14rpx; border-radius: 999rpx; display: inline-flex; align-items: center; justify-content: center; font-size: 28rpx; font-weight: 800; line-height: 1; }
+.gchip.male { background: #e8f1ff; color: #3a7afe; }
+.gchip.female { background: #fdecf3; color: #e0609a; }
+.gchip.secret { background: #f2f4f6; color: #9aa2ad; font-size: 22rpx; font-weight: 600; }
+
+/* 性别选择弹层 */
+.gopts { display: flex; gap: 20rpx; padding: 20rpx 6rpx 12rpx; }
+.gopt { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10rpx; padding: 24rpx 0; border-radius: 18rpx; background: #f6f7f9; border: 2rpx solid transparent; }
+.gopt.on { border-color: #12a150; background: #e6f6ec; }
+.gsym { font-size: 48rpx; font-weight: 800; line-height: 1; }
+.gsym.male { color: #3a7afe; }
+.gsym.female { color: #e0609a; }
+.gsym.secret { color: #9aa2ad; }
+.glabel { font-size: 26rpx; color: #5b6470; font-weight: 700; }
 
 /* 头像颜色弹窗（底部弹层） */
 .mask { position: fixed; inset: 0; background: rgba(20,24,28,0.45); z-index: 900; display: flex; align-items: flex-end; }
