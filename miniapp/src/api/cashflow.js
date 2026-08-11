@@ -15,3 +15,13 @@ import { http } from '../utils/request'
 export function fetchCashflow(month) {
   return http.get(`/all/cashflow?month=${encodeURIComponent(month)}`, { noLedger: true })
 }
+
+/**
+ * 首页「今日」账户维度快照：对应后端 GET /api/all/cashflow/today。
+ * 与会话账本无关（noLedger），归属只认登录令牌用户。
+ * @returns {Promise<{todayOutflow:string, todayInflow:string,
+ *   yesterdayOutflow:string, yesterdayInflow:string}>} 均为两位小数字符串
+ */
+export function fetchTodayCashflow() {
+  return http.get('/all/cashflow/today', { noLedger: true })
+}

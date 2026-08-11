@@ -10,10 +10,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.damien.youyu.api.dto.CashflowResponse;
+import com.damien.youyu.api.dto.TodayCashflowResponse;
 import com.damien.youyu.error.ApiException;
 import com.damien.youyu.security.CurrentUser;
 import com.damien.youyu.service.AssetsCashflowService;
 import com.damien.youyu.service.AssetsCashflowService.CashflowResult;
+import com.damien.youyu.service.AssetsCashflowService.TodaySnapshot;
 
 /**
  * 资产现金流（Assets_Cashflow_System）只读接口：按<b>账户维度</b>返回当前用户某自然月的
@@ -57,6 +59,21 @@ public class AssetsCashflowController {
         CashflowResult r = assetsCashflowService.cashflow(userId, ym);
         CashflowResponse body = CashflowResponse.of(
                 ym, r.outflow(), r.inflow(), r.netInflow(), r.todayOutflow(), r.todayInflow());
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * 首页「今日」账户维度快照：今日 + 昨日各自的实际流出/流入（需求：首页今日应为资产口径而非账本）。
+     *
+     * <p>鉴权与归属同 {@link #cashflow}：先 {@link CurrentUser#requireUserId()}，数据只认令牌 userId，
+     * 与会话账本无关、不要求 {@code X-Ledger-Id}。</p>
+     */
+    @GetMapping("/cashflow/today")
+    public ResponseEntity<TodayCashflowResponse> today() {
+        Long userId = currentUser.requireUserId();
+        TodaySnapshot s = assetsCashflowService.todaySnapshot(userId);
+        TodayCashflowResponse body = TodayCashflowResponse.of(
+                s.todayOutflow(), s.todayInflow(), s.yesterdayOutflow(), s.yesterdayInflow());
         return ResponseEntity.ok(body);
     }
 

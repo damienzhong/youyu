@@ -132,6 +132,71 @@ public class AssetsCashflowService {
                 scale(todayInflow));
     }
 
+    /**
+     * 首页「今日」用的账户维度快照：今日与昨日各自的实际流出/流入。
+     *
+     * <p>与月度聚合同口径（仅本人拥有账户、未软删、按 {@link CashflowClassifier} 归类、排除转账），
+     * 但查询窗口为 {@code [昨日 00:00, 明日 00:00)} 两天，跨月边界（今天为 1 号时昨天落上月）也正确。
+     * 金额均为两位小数、HALF_UP。</p>
+     *
+     * @param userId 令牌解析出的当前用户 id
+     * @return 今日/昨日的流出与流入；无账户或无计入交易时各项为 {@code 0.00}
+     */
+    @Transactional(readOnly = true)
+    public TodaySnapshot todaySnapshot(Long userId) {
+        Set<Long> accountIds = accountRepository.findByUserIdOrderBySortOrderAscIdAsc(userId).stream()
+                .map(Account::getId)
+                .collect(Collectors.toSet());
+        BigDecimal zero = scale(BigDecimal.ZERO);
+        if (accountIds.isEmpty()) {
+            return new TodaySnapshot(zero, zero, zero, zero);
+        }
+
+        LocalDate today = LocalDate.now(clock);
+        LocalDate yesterday = today.minusDays(1);
+        LocalDateTime from = yesterday.atStartOfDay();
+        LocalDateTime to = today.plusDays(1).atStartOfDay();
+
+        List<Transaction> transactions = transactionRepository
+                .findByAccountIdInAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(accountIds, from, to);
+
+        BigDecimal todayOut = BigDecimal.ZERO;
+        BigDecimal todayIn = BigDecimal.ZERO;
+        BigDecimal yestOut = BigDecimal.ZERO;
+        BigDecimal yestIn = BigDecimal.ZERO;
+        for (Transaction tx : transactions) {
+            if (tx.getOccurredAt() == null) {
+                continue;
+            }
+            CashflowContribution c = CashflowClassifier.classify(
+                    tx.getType(), tx.getAmount(), tx.getPayerUserId(), tx.getCreatedBy());
+            LocalDate d = tx.getOccurredAt().toLocalDate();
+            if (d.isEqual(today)) {
+                todayOut = todayOut.add(c.outflow());
+                todayIn = todayIn.add(c.inflow());
+            } else if (d.isEqual(yesterday)) {
+                yestOut = yestOut.add(c.outflow());
+                yestIn = yestIn.add(c.inflow());
+            }
+        }
+        return new TodaySnapshot(scale(todayOut), scale(todayIn), scale(yestOut), scale(yestIn));
+    }
+
+    /**
+     * 今日快照结果值对象（账户维度）；金额均为两位小数、HALF_UP。
+     *
+     * @param todayOutflow     今日实际流出
+     * @param todayInflow      今日实际流入
+     * @param yesterdayOutflow 昨日实际流出（供「今天比昨天少花」同口径对比）
+     * @param yesterdayInflow  昨日实际流入
+     */
+    public record TodaySnapshot(
+            BigDecimal todayOutflow,
+            BigDecimal todayInflow,
+            BigDecimal yesterdayOutflow,
+            BigDecimal yesterdayInflow) {
+    }
+
     /** 五项均为 {@code 0.00} 的空结果（需求 2.7）。 */
     private static CashflowResult zero() {
         BigDecimal z = scale(BigDecimal.ZERO);

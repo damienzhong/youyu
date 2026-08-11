@@ -11,6 +11,7 @@ import { fetchAchievements } from '../../api/achievement'
 import { fetchSuggestions } from '../../api/suggestion'
 import { listTransactionsByMonth } from '../../api/transaction'
 import { listAllTransactionsByMonth } from '../../api/aggregate'
+import { fetchTodayCashflow } from '../../api/cashflow'
 import { levelProgress } from '../../utils/growth'
 import { milestoneText, checkinCells } from '../../utils/streak'
 import {
@@ -89,31 +90,32 @@ const nudgeText = computed(() => {
   return `今天已记 ${todayCount.value} 笔，继续保持 🎉`
 })
 async function loadToday() {
+  // 今日笔数（记账活动口径）：统计今日记账条数，用于「已记 N 笔」与连续记账「今日已记」判断，
+  // 与金额口径刻意不同——笔数看的是记账行为，金额看的是钱包实际收支。
   try {
     const month = currentMonth()
     const txs = ledgerStore.isAll
       ? await listAllTransactionsByMonth(month)
       : await listTransactionsByMonth(month, ledgerStore.currentLedgerId)
     const tk = todayKey()
-    const yk = yesterdayKey()
-    let te = 0, ti = 0, tc = 0, ye = 0
+    let tc = 0
     for (const t of txs || []) {
-      const k = dayKeyOf(t.occurredAt)
-      const amt = Number(t.amount) || 0
-      if (k === tk) {
-        tc += 1
-        if (t.type === 'expense') te += amt
-        else if (t.type === 'income') ti += amt
-      } else if (k === yk && t.type === 'expense') {
-        ye += amt
-      }
+      if (dayKeyOf(t.occurredAt) === tk) tc += 1
     }
-    todayExpense.value = te
-    todayIncome.value = ti
     todayCount.value = tc
-    yesterdayExpense.value = ye
   } catch (e) {
-    /* 今日收支加载失败静默降级，保持 0 */
+    /* 笔数加载失败静默降级，保持 0 */
+  }
+
+  // 今日收支金额（资产口径）：所有账户实际流出/流入，含 AA 实付、排除账户间转账，与资产页现金流一致；
+  // 昨日流出用于「今天比昨天少花」同口径对比。与当前选中账本无关（钱包维度）。
+  try {
+    const s = await fetchTodayCashflow()
+    todayExpense.value = Number(s?.todayOutflow ?? 0)
+    todayIncome.value = Number(s?.todayInflow ?? 0)
+    yesterdayExpense.value = Number(s?.yesterdayOutflow ?? 0)
+  } catch (e) {
+    /* 今日收支金额加载失败静默降级，保持 0 */
   }
 }
 

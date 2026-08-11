@@ -307,16 +307,11 @@ function onAccountSaved() {
           </view>
         </view>
 
-        <!-- 净额 + 今日合并为一行：左净额、右今日（历史月隐藏今日） -->
+        <!-- 净额一行（今日收支已移至首页，资产卡只保留本月口径） -->
         <view class="flow-sum">
           <text class="fs-net">
             {{ flowNetLabel }}
             <text class="net-v" :class="flowNetNegative ? 'neg' : 'pos'">{{ flowNetMoney() }}</text>
-          </text>
-          <text v-if="!isFlowHistory" class="fs-today">
-            今日 <text class="t-out">{{ flowMoney(flow.todayOutflow) }}</text>
-            <text class="t-sep">/</text>
-            <text class="t-in">{{ flowMoney(flow.todayInflow) }}</text>
           </text>
         </view>
       </template>
@@ -481,11 +476,7 @@ function onAccountSaved() {
 .net-v { font-size: 28rpx; font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 6rpx; }
 .net-v.pos { color: #12a150; }
 .net-v.neg { color: #e5484d; }
-/* 今日收支：标签加深、金额用收支语义色，靠颜色提亮而非放大，不与月度大数字抢 */
-.fs-today { font-size: 24rpx; color: #5b6470; font-variant-numeric: tabular-nums; }
-.fs-today .t-out { color: #e8663d; font-weight: 600; }
-.fs-today .t-in { color: #12a150; font-weight: 600; }
-.fs-today .t-sep { color: #c7ccd2; margin: 0 4rpx; }
+
 /* 标题旁 ⓘ：点击弹口径说明，省去常驻说明行 */
 .fh-i {
   width: 30rpx; height: 30rpx;
