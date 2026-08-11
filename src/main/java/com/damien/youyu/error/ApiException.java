@@ -589,6 +589,27 @@ public class ApiException extends RuntimeException {
                 "授权次数非法：需为 1 到 5 之间的整数", "grantedCount");
     }
 
+    // ---- 常用工厂方法（Budget Reminder 预算提醒域） ----
+    // 预算提醒系统（subscribe-message-reminders spec）只新增下面这 2 个错误码，均为 400 BAD_REQUEST，
+    // 复用既有 UNAUTHENTICATED（令牌无效/过期/用户已注销），不重命名任何既有码、不与 custom-reminder 的
+    // REMINDER_* 混用（两套提醒各自独立，需求 9.3、9.6）。message 均为中文、≤100 字符，
+    // 且不含用户 id / 邮箱 / 令牌。
+
+    /** 更新预算提醒偏好时 {@code enabled} 缺失或无法解析为布尔值（需求 1.5）；拒绝更新且偏好不变。 */
+    public static ApiException budgetReminderPrefInvalid() {
+        return new ApiException("BUDGET_REMINDER_PREF_INVALID", HttpStatus.BAD_REQUEST,
+                "预算提醒开关取值非法：需为 true 或 false", "enabled");
+    }
+
+    /**
+     * 上报预算提醒订阅授权时 {@code grantedCount} 缺失、无法解析为整数、小于 1 或大于 5（需求 6.4）；
+     * 拒绝上报且剩余订阅次数不变。
+     */
+    public static ApiException budgetReminderGrantInvalid() {
+        return new ApiException("BUDGET_REMINDER_GRANT_INVALID", HttpStatus.BAD_REQUEST,
+                "授权次数非法：需为 1 到 5 之间的整数", "grantedCount");
+    }
+
     // ---- 常用工厂方法（Recurring 周期记账域） ----
     // 周期记账（recurring-transactions spec）规则校验 / 生命周期 / 待确认项相关错误码，沿用统一错误体。
     // 金额越界 / 小数位超限复用 AMOUNT_INVALID、备注超长复用 NOTE_TOO_LONG、越权复用 NOT_FOUND、

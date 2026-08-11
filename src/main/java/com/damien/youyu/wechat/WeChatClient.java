@@ -84,6 +84,13 @@ public class WeChatClient {
     /** 订阅消息模板 id（{@code app.wechat.subscribe.reminder-template-id}）；未配置时发送安全降级为失败。 */
     private final String subscribeTemplateId;
 
+    /**
+     * 预算提醒订阅消息模板 id（{@code app.wechat.subscribe.budget-template-id}）；<b>独立于</b>记账提醒模板。
+     * 未配置时 {@link #sendBudgetSubscribeMessage} 安全降级为失败（返回哨兵），既不外呼微信、也不影响主路径
+     * （subscribe-message-reminders 需求 4.8）。
+     */
+    private final String budgetTemplateId;
+
     /** 订阅消息模板中承载提醒文案的字段名（{@code app.wechat.subscribe.message-field}，如 {@code thing1}）。 */
     private final String subscribeMessageField;
 
@@ -101,11 +108,13 @@ public class WeChatClient {
             @Value("${app.wechat.miniapp.secret:}") String appSecret,
             @Value("${app.wechat.api-base-url:https://api.weixin.qq.com}") String apiBaseUrl,
             @Value("${app.wechat.subscribe.reminder-template-id:}") String subscribeTemplateId,
+            @Value("${app.wechat.subscribe.budget-template-id:}") String budgetTemplateId,
             @Value("${app.wechat.subscribe.message-field:thing1}") String subscribeMessageField,
             @Lazy WeChatAccessTokenProvider accessTokenProvider) {
         this.appId = appId;
         this.appSecret = appSecret;
         this.subscribeTemplateId = subscribeTemplateId;
+        this.budgetTemplateId = budgetTemplateId;
         this.subscribeMessageField = subscribeMessageField;
         this.accessTokenProvider = accessTokenProvider;
         this.restClient = RestClient.builder().baseUrl(apiBaseUrl).build();
@@ -142,9 +151,21 @@ public class WeChatClient {
     WeChatClient(String appId, String appSecret, RestClient.Builder builder,
             String subscribeTemplateId, String subscribeMessageField,
             WeChatAccessTokenProvider accessTokenProvider) {
+        this(appId, appSecret, builder, subscribeTemplateId, null, subscribeMessageField, accessTokenProvider);
+    }
+
+    /**
+     * 仅供测试：在共享 {@link RestClient.Builder} 的基础上另行注入记账提醒与<b>预算提醒</b>两个订阅模板配置
+     * 与凭证提供者，使 {@code sendBudgetSubscribeMessage} 的协议层与 40001 重试路径可被
+     * {@code MockRestServiceServer} 覆盖。同样不覆盖请求工厂（保留 mock 的那个），因此不带超时配置。
+     */
+    WeChatClient(String appId, String appSecret, RestClient.Builder builder,
+            String subscribeTemplateId, String budgetTemplateId, String subscribeMessageField,
+            WeChatAccessTokenProvider accessTokenProvider) {
         this.appId = appId;
         this.appSecret = appSecret;
         this.subscribeTemplateId = subscribeTemplateId;
+        this.budgetTemplateId = budgetTemplateId;
         this.subscribeMessageField = subscribeMessageField;
         this.accessTokenProvider = accessTokenProvider;
         RestClient shared = builder.build();
@@ -341,8 +362,39 @@ public class WeChatClient {
      * @return 微信 {@code errcode}（{@code 0} 成功），或本地失败时的 {@link #ERRCODE_LOCAL_FAILURE}
      */
     public int sendSubscribeMessage(String accessToken, String openid, String message) {
-        if (subscribeTemplateId == null || subscribeTemplateId.isBlank()) {
-            log.warn("未配置 app.wechat.subscribe.reminder-template-id，订阅消息发送安全降级为失败");
+        return sendWithTemplate(subscribeTemplateId, "app.wechat.subscribe.reminder-template-id",
+                accessToken, openid, message);
+    }
+
+    /**
+     * 下发一次性<b>预算提醒</b>订阅消息，使用<b>独立于记账提醒</b>的预算提醒模板
+     * （{@code app.wechat.subscribe.budget-template-id}），语义与 {@link #sendSubscribeMessage} 完全一致：
+     * 返回微信 {@code errcode}（{@code 0} 成功），本地失败（模板未配置 / 凭证为空 / 网络异常 / 响应无法解析）
+     * 返回哨兵 {@link #ERRCODE_LOCAL_FAILURE}；识别 {@code errcode=40001} 后经
+     * {@link WeChatAccessTokenProvider#forceRefresh(String)} 强制刷新凭证并重试一次；<b>不抛异常</b>。
+     *
+     * <p>复用全项目唯一的凭证网关（{@code WeChatAccessTokenProvider}），不新建第二套凭证获取
+     * （subscribe-message-reminders 需求 4.7）。模板 id 未配置时安全降级为失败，既不外呼微信、也不影响
+     * 记账等任何主路径（需求 4.8）。请求体结构与文案字段名与记账提醒一致，仅模板 id 不同。</p>
+     *
+     * @param accessToken 由 {@link WeChatAccessTokenProvider} 提供的接口调用凭证
+     * @param openid      收件用户的 {@code wx_openid}
+     * @param message     预算提醒文案（在模板字段长度限制内）
+     * @return 微信 {@code errcode}（{@code 0} 成功），或本地失败时的 {@link #ERRCODE_LOCAL_FAILURE}
+     */
+    public int sendBudgetSubscribeMessage(String accessToken, String openid, String message) {
+        return sendWithTemplate(budgetTemplateId, "app.wechat.subscribe.budget-template-id",
+                accessToken, openid, message);
+    }
+
+    /**
+     * 用指定模板下发一次性订阅消息（记账提醒与预算提醒共用此实现，仅模板 id 不同）。
+     * 模板未配置 / 凭证为空一律安全降级为 {@link #ERRCODE_LOCAL_FAILURE}；{@code errcode=40001} 强制刷新重试一次。
+     */
+    private int sendWithTemplate(String templateId, String templateConfigKey,
+            String accessToken, String openid, String message) {
+        if (templateId == null || templateId.isBlank()) {
+            log.warn("未配置 {}，订阅消息发送安全降级为失败", templateConfigKey);
             return ERRCODE_LOCAL_FAILURE;
         }
         if (accessToken == null || accessToken.isBlank()) {
@@ -350,7 +402,7 @@ public class WeChatClient {
             return ERRCODE_LOCAL_FAILURE;
         }
 
-        int errcode = postSubscribeMessage(accessToken, openid, message);
+        int errcode = postSubscribeMessage(templateId, accessToken, openid, message);
         if (errcode == WeChatApiException.ERRCODE_INVALID_CREDENTIAL) {
             log.warn("微信订阅消息接口返回 errcode=40001 凭证无效，强制刷新凭证后重试一次");
             String freshToken;
@@ -360,7 +412,7 @@ public class WeChatClient {
                 log.warn("强制刷新微信凭证失败，订阅消息发送安全降级为失败：{}", ex.toString());
                 return ERRCODE_LOCAL_FAILURE;
             }
-            errcode = postSubscribeMessage(freshToken, openid, message);
+            errcode = postSubscribeMessage(templateId, freshToken, openid, message);
         }
         return errcode;
     }
@@ -370,7 +422,7 @@ public class WeChatClient {
      * 网络异常、空响应体一律归一为 {@link #ERRCODE_LOCAL_FAILURE}（记告警日志，不抛异常）。
      */
     @SuppressWarnings("unchecked")
-    private int postSubscribeMessage(String accessToken, String openid, String message) {
+    private int postSubscribeMessage(String templateId, String accessToken, String openid, String message) {
         // LinkedHashMap 而非 Map.of：固定字段顺序让抓包与日志比对更直观。
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("value", message);
@@ -378,7 +430,7 @@ public class WeChatClient {
         data.put(subscribeMessageField, field);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("touser", openid);
-        payload.put("template_id", subscribeTemplateId);
+        payload.put("template_id", templateId);
         payload.put("data", data);
 
         Map<String, Object> body;

@@ -2,8 +2,8 @@
   "name": "有余",
   "appid": "",
   "description": "记好每一笔，日子更有余",
-  "versionName": "0.1.1",
-  "versionCode": "101",
+  "versionName": "0.1.2",
+  "versionCode": "102",
   "vueVersion": "3",
   "mp-weixin": {
     "appid": "wx58eeb3784f3d644f",

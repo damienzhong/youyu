@@ -132,7 +132,7 @@ function goAccount() {
   uni.navigateTo({ url: '/pages/account/account' })
 }
 function about() {
-  uni.showModal({ title: '有余', content: '记好每一笔，日子更有余\n版本 v0.1.0', showCancel: false })
+  uni.showModal({ title: '有余', content: '记好每一笔，日子更有余\n版本 v0.1.2', showCancel: false })
 }
 function logout() {
   uni.showModal({
@@ -241,7 +241,7 @@ function logout() {
         <view class="row" @click="about">
           <view class="r-ic"><AppIcon name="info" :size="36" /></view>
           <text class="r-t">关于有余</text>
-          <text class="r-v">v0.1.0</text>
+          <text class="r-v">v0.1.2</text>
           <text class="arrow">›</text>
         </view>
       </view>

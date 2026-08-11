@@ -113,6 +113,10 @@ app:
     # （随模板而定，如 thing1），文案两条均在字段长度限制内。
     subscribe:
       reminder-template-id: ${YOUYU_WX_SUBSCRIBE_TEMPLATE_ID:}
+      # 预算提醒（subscribe-message-reminders）使用独立于记账提醒的订阅模板：模板 id 由运营在微信后台
+      # 另行申请「预算提醒」订阅模板后填入。未配置（占位为空）时预算提醒发送安全降级为失败——既不外呼
+      # 微信、也不影响记账等任何主路径（需求 4.8）。与 reminder-template-id 互不影响、各自计额度。
+      budget-template-id: ${YOUYU_WX_BUDGET_TEMPLATE_ID:}
       message-field: ${YOUYU_WX_SUBSCRIBE_MESSAGE_FIELD:thing1}
 
 # 健康检查端点
