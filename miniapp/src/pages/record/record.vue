@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { onLoad, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onShow, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import {
   listSelectableAccounts,
   getDefaultAccount,
@@ -505,6 +505,42 @@ onLoad(async (q) => {
   }
   load()
 })
+
+// 从「分类管理/账户」等子页 navigateBack 回来时只触发 onShow（不触发 onLoad）：
+// 首次显示由 onLoad 的 load() 负责，跳过；之后每次返回刷新分类/账户等列表，
+// 但保留用户当前正在填的金额/类型/备注/已选项，避免打断记账。
+let firstShow = true
+onShow(() => {
+  if (firstShow) {
+    firstShow = false
+    return
+  }
+  refreshLists()
+})
+
+// 轻量刷新：重新拉取分类/账户/项目/商家/标签，不重置表单选择。
+async function refreshLists() {
+  try {
+    const [accs, cats] = await Promise.all([
+      listSelectableAccounts(targetLedgerId.value),
+      listCategories(targetLedgerId.value)
+    ])
+    accounts.value = accs
+    tree.value = cats
+    // 所选账户若已不在可选集，回退第一个；转入账户同理。
+    if (!accountsHasId(accs, accountId.value)) accountId.value = accs[0]?.id ?? null
+    if (destId.value != null && !accountsHasId(accs, destId.value)) {
+      destId.value = accs.find((a) => a.id !== accountId.value)?.id ?? null
+    }
+    // 所选分类若已被删除则清空，避免提交时 404。
+    if (categoryId.value != null && !categoryExists(categoryId.value)) categoryId.value = null
+    loadProjects()
+    loadMerchants()
+    loadTags()
+  } catch (e) {
+    /* 刷新失败不打断当前输入 */
+  }
+}
 
 async function load() {
   try {
