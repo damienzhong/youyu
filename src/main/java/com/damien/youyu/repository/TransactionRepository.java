@@ -116,6 +116,19 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             Collection<Long> ledgerIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);
 
     /**
+     * 跨多个账户、在半开区间 {@code [fromInclusive, toExclusive)} 内的交易
+     * （资产现金流「账户维度」只读聚合用，assets-monthly-cashflow 需求 1.9、1.11）。
+     *
+     * <p>按 {@code account_id ∈ (:accountIds)} 过滤——只取落在「本人拥有账户 id 集合」上的交易，
+     * 天然满足「只计本人账户变动」，并使 AA 他人实付（{@code account_id} 为空或他人账户）被排除。
+     * 软删除交易（{@code deleted_at} 非空）由 {@link Transaction} 的
+     * {@code @SQLRestriction("deleted_at is null")} 自动排除，故此处无需显式写 {@code deleted_at IS NULL}
+     * （需求 1.9）。纯只读，不写任何表。</p>
+     */
+    List<Transaction> findByAccountIdInAndOccurredAtGreaterThanEqualAndOccurredAtLessThan(
+            Collection<Long> accountIds, LocalDateTime fromInclusive, LocalDateTime toExclusive);
+
+    /**
      * 某账户是否被任一交易引用（作为普通账户、转账源或转账目标）。账户为用户级，其流水可跨账本，
      * 故按 accountId 判断（accountId 全局唯一，仅其自身流水引用）。用于「有交易的账户不可删除」（需求 3.7）。
      */

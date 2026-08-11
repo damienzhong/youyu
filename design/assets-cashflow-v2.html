@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 资产页现金流卡 refine v2</title>
+<style>
+  :root{
+    --green:#12a150; --green-d:#0e8a44; --ink:#1f2429; --muted:#8b939c;
+    --bg:#eef0f2; --line:#f0f2f4; --tint:#f6f8fa;
+    --income:#12a150; --expense:#e8663d; --danger:#e5484d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#e9ebee;color:var(--ink);padding:34px 20px 70px}
+  h1{text-align:center;font-size:21px;margin-bottom:6px}
+  .sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:26px;line-height:1.6}
+  .stage{display:flex;gap:44px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .col{width:360px}
+  .cap{text-align:center;font-weight:700;font-size:15px;margin-bottom:4px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:600;color:#fff;border-radius:999px;padding:2px 9px;margin-left:6px}
+  .cap .tag.n{background:var(--green)} .cap .tag.o{background:#9aa2ad}
+  .note{text-align:center;color:#6b7280;font-size:12px;margin-bottom:14px}
+
+  .phone{width:360px;background:var(--bg);border-radius:34px;border:6px solid #111827;box-shadow:0 20px 56px rgba(0,0,0,.18);overflow:hidden}
+  .scr{padding-bottom:14px}
+
+  /* 净资产 hero */
+  .hero{color:#fff;background:linear-gradient(150deg,#1fbf63,#0f8a45 78%);padding:40px 22px 40px;position:relative;overflow:hidden}
+  .hero::after{content:'';position:absolute;right:-46px;top:-46px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.09)}
+  .nw-l{font-size:13px;opacity:.88;position:relative;z-index:2}
+  .nw-v{font-size:40px;font-weight:800;letter-spacing:-.5px;margin:4px 0 14px;position:relative;z-index:2}
+  .nw-v small{font-size:22px;font-weight:700;opacity:.85;margin-right:3px}
+  .nw-foot{display:flex;justify-content:space-between;font-size:12.5px;opacity:.9;position:relative;z-index:2}
+
+  /* 通用卡 */
+  .card{background:#fff;border-radius:18px;box-shadow:0 6px 20px rgba(20,24,28,.05);}
+  .flow{margin:-24px 16px 0;padding:18px 18px 16px;position:relative;z-index:3}
+  .flow-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .flow-t{font-size:15px;font-weight:700}
+  .per{display:flex;align-items:center;gap:12px;color:#5b6470}
+  .per .a{font-size:17px;color:#b7bec6}
+  .per .m{font-size:13px;min-width:82px;text-align:center}
+
+  /* 流出/流入：右对齐、语义色、统一 ¥ */
+  .io{display:flex}
+  .io-c{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .io-c.r{text-align:right;padding-left:20px;border-left:1px solid var(--line)}
+  .io-l{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px}
+  .io-c.r .io-l{justify-content:flex-end}
+  .io-dot{width:7px;height:7px;border-radius:50%}
+  .io-dot.out{background:var(--expense)} .io-dot.in{background:var(--income)}
+  .io-v{font-size:26px;font-weight:750;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .io-v small{font-size:15px;font-weight:600;opacity:.7;margin-right:1px}
+  .io-v.out{color:var(--expense)} .io-v.in{color:var(--income)}
+
+  /* 净额：弱化为一行普通文字（不再做重高亮条）*/
+  .net{display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px dashed #eceef0}
+  .net-l{font-size:13px;color:#5b6470}
+  .net-v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .net-v.pos{color:var(--income)} .net-v.neg{color:var(--danger)}
+  .net-v small{font-size:12px;opacity:.7;margin-right:1px}
+
+  /* 今日 + 说明：可读的浅灰，说明降为 ⓘ 单行 */
+  .today{margin-top:12px;font-size:12.5px;color:#8b939c;display:flex;gap:10px;align-items:center}
+  .today b{color:#4b5560;font-weight:600}
+  .hint{display:flex;align-items:center;gap:5px;margin-top:12px;font-size:11.5px;color:#9aa2ad}
+  .hint .i{width:14px;height:14px;border-radius:50%;border:1px solid #c7ccd2;color:#a7adb5;font-size:9px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+
+  /* 借贷卡：统一 ¥、金额右对齐 */
+  .loans{display:flex;gap:14px;margin:14px 16px 0}
+  .loan{flex:1;background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);padding:15px 16px;display:flex;justify-content:space-between;align-items:baseline}
+  .loan .k{font-size:12.5px;color:var(--muted)}
+  .loan .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+  .loan .v small{font-size:11px;opacity:.6;margin-right:1px}
+
+  /* 账户分组 */
+  .grp{margin:16px 16px 0}
+  .grp-h{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px}
+  .grp-t{font-size:12.5px;color:var(--muted)}
+  .grp-s{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+  .grp-s small{font-size:11px;opacity:.6;margin-right:1px}
+  .alist{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);overflow:hidden}
+  .acc{display:flex;align-items:center;gap:14px;padding:15px 16px;border-top:1px solid var(--line)}
+  .acc:first-child{border-top:none}
+  .acc-ic{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:17px;flex:0 0 auto;font-weight:700;color:#fff}
+  .b-wx{background:#2eb85c}.b-ali{background:#1678ff}.b-ms{background:#e7f0e9;color:#3a7d4f}.b-zs{background:#fdeceb;color:#c0392b}
+  .acc-n{flex:1;font-size:14.5px}
+  .acc-v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+  .acc-v small{font-size:11px;opacity:.6;margin-right:1px}
+
+  .legend{max-width:820px;margin:28px auto 0;font-size:12.5px;color:#4b5563;line-height:1.9}
+  .legend .p{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:middle}
+  .p1{background:var(--expense)}.p2{background:var(--income)}
+</style>
+</head>
+<body>
+  <h1>有余 · 资产页现金流卡 refine v2</h1>
+  <p class="sub">应用修正：<b>暂不带货币符号</b>（多币种时再加）· <b>流出用语义暖色</b> · <b>金额一律右对齐</b> · <b>说明降为可读浅灰 / ⓘ</b></p>
+
+  <div class="stage">
+
+    <!-- 新版 -->
+    <div class="col">
+      <div class="cap">refine 后<span class="tag n">NEW</span></div>
+      <div class="note">收支语义色 · 右对齐 · 净额弱化为一行</div>
+      <div class="phone">
+        <div class="scr">
+          <div class="hero">
+            <div class="nw-l">净资产 👁</div>
+            <div class="nw-v">1,078,970.55</div>
+            <div class="nw-foot"><span>总资产 1,094,748.71</span><span>总负债 15,778.16</span></div>
+          </div>
+
+          <div class="card flow">
+            <div class="flow-hd">
+              <text class="flow-t">本月现金流</text>
+              <div class="per"><span class="a">‹</span><span class="m">2026年8月</span><span class="a">›</span></div>
+            </div>
+
+            <div class="io">
+              <div class="io-c">
+                <div class="io-l"><span class="io-dot out"></span>流出</div>
+                <div class="io-v out">15,536.74</div>
+              </div>
+              <div class="io-c r">
+                <div class="io-l"><span class="io-dot in"></span>流入</div>
+                <div class="io-v in">29,295.50</div>
+              </div>
+            </div>
+
+            <div class="net">
+              <span class="net-l">本月净流入</span>
+              <span class="net-v pos">+13,758.76</span>
+            </div>
+
+            <div class="today">
+              <span>今日流出 <b>43.25</b></span><span>·</span><span>今日流入 <b>0.00</b></span>
+            </div>
+            <div class="hint"><span class="i">i</span>账户实际收支，含 AA 实付、不含转账，与「账本」口径不同</div>
+          </div>
+
+          <div class="loans">
+            <div class="loan"><span class="k">借入/待还</span><span class="v">0.00</span></div>
+            <div class="loan"><span class="k">借出/待收</span><span class="v">15,000.00</span></div>
+          </div>
+
+          <div class="grp">
+            <div class="grp-h"><span class="grp-t">资金账户</span><span class="grp-s">387,644.42</span></div>
+            <div class="alist">
+              <div class="acc"><div class="acc-ic b-wx">微</div><div class="acc-n">微信</div><div class="acc-v">2,097.74</div></div>
+              <div class="acc"><div class="acc-ic b-ali">支</div><div class="acc-n">支付宝</div><div class="acc-v">2,479.83</div></div>
+              <div class="acc"><div class="acc-ic b-ms">民</div><div class="acc-n">民生银行储蓄卡（3590）</div><div class="acc-v">15,466.14</div></div>
+              <div class="acc"><div class="acc-ic b-zs">招</div><div class="acc-n">招商银行储蓄卡（1429）</div><div class="acc-v">2,495.70</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 旧版对照 -->
+    <div class="col">
+      <div class="cap">当前<span class="tag o">OLD</span></div>
+      <div class="note">满屏绿 · 左对齐 · 净额重高亮 · 说明过淡</div>
+      <div class="phone">
+        <div class="scr">
+          <div class="hero">
+            <div class="nw-l">净资产 👁</div>
+            <div class="nw-v"><small>¥</small>1,078,970.55</div>
+            <div class="nw-foot"><span>总资产 1,094,748.71</span><span>总负债 15,778.16</span></div>
+          </div>
+
+          <div class="card flow">
+            <div class="flow-hd">
+              <text class="flow-t">本月现金流</text>
+              <div class="per"><span class="a">‹</span><span class="m">2026年8月</span><span class="a">›</span></div>
+            </div>
+            <div class="io">
+              <div class="io-c">
+                <div class="io-l" style="color:#9aa2ad">流出</div>
+                <div class="io-v" style="color:#16181c">15,536.74</div>
+              </div>
+              <div class="io-c" style="padding-left:20px;border-left:1px solid #f0f2f4">
+                <div class="io-l" style="color:#9aa2ad">流入</div>
+                <div class="io-v" style="color:#12a150">29,295.50</div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:16px;padding:12px 16px;background:#f6f8f7;border-radius:11px">
+              <span style="font-size:13px;color:#5b6470;font-weight:600">净流入</span>
+              <span style="font-size:19px;font-weight:800;color:#12a150">+13,758.76</span>
+            </div>
+            <div style="margin-top:14px;text-align:center;font-size:12px;color:#9aa2ad">今日流出 43.25 · 今日流入 0.00</div>
+            <div style="margin-top:10px;font-size:11px;color:#c2c8cf">账户实际收支，含 AA 实付、不含转账，与「账本」口径不同</div>
+          </div>
+
+          <div class="loans">
+            <div class="loan"><span class="k">借入/待还</span><span class="v" style="font-weight:400">¥0.00</span></div>
+            <div class="loan"><span class="k">借出/待收</span><span class="v" style="font-weight:400">¥15,000.00</span></div>
+          </div>
+
+          <div class="grp">
+            <div class="grp-h"><span class="grp-t">资金账户</span><span class="grp-s">387,644.42</span></div>
+            <div class="alist">
+              <div class="acc"><div class="acc-ic b-wx">微</div><div class="acc-n">微信</div><div class="acc-v">2,097.74</div></div>
+              <div class="acc"><div class="acc-ic b-ali">支</div><div class="acc-n">支付宝</div><div class="acc-v">2,479.83</div></div>
+              <div class="acc"><div class="acc-ic b-ms">民</div><div class="acc-n">民生银行储蓄卡（3590）</div><div class="acc-v">15,466.14</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <div><span class="p p1"></span><b>流出</b>用暖橙 <code>#e8663d</code>：与流入绿明确区分，收支方向一眼可辨（不再全屏同色相）。</div>
+    <div><span class="p p2"></span><b>流入 / 净流入</b>保留品牌绿；净额从「重高亮条」降为一行普通文字（可推导，不喧宾夺主）。</div>
+    <div>金额<b>暂不带货币符号</b>（留待多币种时统一加），全部 <b>右对齐 + tabular 等宽数字</b>，竖向扫读小数点对齐；说明文字提到可读浅灰并加 ⓘ。</div>
+  </div>
+</body>
+</html>

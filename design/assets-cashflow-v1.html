@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>有余 · 资产 tab 新增「本月现金流」原型</title>
+<style>
+  :root{
+    --green:#12a150; --green-d:#0e8a44; --ink:#25292e; --muted:#9aa2ad;
+    --bg:#eef0f2; --line:#eef0f2; --tint:#f4f5f7; --green-weak:#e7f7ee;
+    --danger:#e5484d; --income:#2f9e6f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#eceef1;color:var(--ink);padding:36px 20px 80px}
+  h1{text-align:center;font-size:22px;margin-bottom:6px}
+  .sub{text-align:center;color:#6b7280;font-size:13px;margin-bottom:14px;line-height:1.6}
+  .rule{max-width:600px;margin:0 auto 30px;background:#fff;border-radius:14px;padding:14px 18px;font-size:12.5px;color:#4b5563;line-height:1.75;box-shadow:0 6px 18px rgba(20,24,28,.05)}
+  .rule b{color:var(--ink)}
+  .rule code{background:var(--tint);border-radius:5px;padding:1px 6px;font-size:12px}
+  .stage{display:flex;justify-content:center}
+  .col{width:352px}
+  .cap{text-align:center;font-weight:700;font-size:16px;margin-bottom:4px}
+  .cap .tag{display:inline-block;font-size:11px;font-weight:600;color:#fff;background:var(--green);border-radius:999px;padding:2px 10px;margin-left:6px}
+  .note{text-align:center;color:#6b7280;font-size:12px;margin-bottom:16px}
+
+  .phone{width:352px;height:748px;background:var(--bg);border-radius:40px;border:6px solid #111827;box-shadow:0 22px 64px rgba(0,0,0,.20);overflow:hidden;position:relative}
+  .scroll{position:absolute;inset:0 0 62px 0;overflow-y:auto;overflow-x:hidden}
+  .scroll::-webkit-scrollbar{width:0}
+
+  /* 净资产页头（还原现有资产页） */
+  .hero{color:#fff;background:linear-gradient(150deg,#1fbf63,#0f8a45 78%);padding:52px 22px 40px;position:relative;overflow:hidden}
+  .hero::after{content:'';position:absolute;right:-46px;top:-46px;width:190px;height:190px;border-radius:50%;background:rgba(255,255,255,.08)}
+  .nw-label{font-size:12px;opacity:.85;position:relative;z-index:2}
+  .nw-value{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:6px;position:relative;z-index:2;display:block}
+  .nw-foot{display:flex;gap:20px;margin-top:12px;font-size:12px;opacity:.9;position:relative;z-index:2}
+
+  /* ===== 新增：本月现金流卡 ===== */
+  .flow{background:#fff;border-radius:20px;margin:-20px 16px 0;position:relative;z-index:3;box-shadow:0 8px 22px rgba(20,24,28,.06);padding:16px}
+  .flow-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .flow-t{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+  .flow-per{font-size:12px;color:var(--muted)}
+  .flow-row{display:flex}
+  .fc{flex:1;text-align:center;position:relative}
+  .fc + .fc::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--line)}
+  .fc .l{font-size:11px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:3px}
+  .fc .n{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:6px}
+  .fc .n.out{color:var(--ink)} .fc .n.in{color:var(--income)} .fc .n.net{color:var(--green)}
+  .fc .n.net.neg{color:var(--danger)}
+  .flow-note{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5;display:flex;align-items:flex-start;gap:6px}
+  .flow-note .q{flex:0 0 auto}
+  /* 今日小行 */
+  .flow-today{display:flex;justify-content:center;gap:16px;margin-top:11px;font-size:12px;color:#4b5563}
+  .flow-today b{color:var(--ink);font-weight:700}
+
+  /* 借贷卡（还原） */
+  .loan-cards{display:flex;gap:12px;margin:14px 16px 0}
+  .loan-card{flex:1;background:#fff;border-radius:16px;box-shadow:0 8px 22px rgba(20,24,28,.06);padding:14px}
+  .lc-k{font-size:12px;color:var(--muted)}
+  .lc-v{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:6px;display:block}
+
+  /* 账户分组（还原） */
+  .group{margin:16px 16px 0}
+  .group-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px}
+  .gh-title{font-size:12px;color:var(--muted)}
+  .gh-sum{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+  .acc-list{background:#fff;border-radius:18px;box-shadow:0 8px 22px rgba(20,24,28,.06);overflow:hidden}
+  .acc{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line)}
+  .acc:first-child{border-top:none}
+  .acc-ic{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;flex:0 0 auto}
+  .b1{background:#e7f0ff} .b2{background:#e9f8ef} .b3{background:#fdeef0}
+  .acc-main{flex:1}
+  .acc-name{font-size:14px}
+  .acc-sub{font-size:11px;color:var(--muted);margin-top:2px;display:block}
+  .acc-bal{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .acc-bal.neg{color:var(--danger)}
+
+  /* tabbar */
+  .tabbar{position:absolute;left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:flex-end;padding-bottom:8px}
+  .tb{flex:1;text-align:center;font-size:11px;color:var(--muted)}
+  .tb .e{display:block;font-size:20px;filter:grayscale(35%);opacity:.55;margin-bottom:2px}
+  .tb.on{color:var(--green)} .tb.on .e{filter:none;opacity:1}
+  .tb.mid .e{opacity:0}
+  .cadd{position:absolute;left:50%;transform:translateX(-50%);bottom:34px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;border:4px solid #fff;box-shadow:0 8px 18px rgba(18,161,80,.45)}
+
+  .legend{max-width:600px;margin:26px auto 0;font-size:12.5px;color:#4b5563;line-height:1.9}
+  .legend .p{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px;vertical-align:middle}
+  .p-new{background:var(--green)} .p-old{background:#c7ccd2}
+</style>
+</head>
+<body>
+  <h1>有余 · 资产 tab 新增「本月现金流」</h1>
+  <p class="sub">口径：<b>所有账户本月实际流出 / 流入（含 AA 个人实付、扣除账户间转账）</b>，放在净资产下方。</p>
+  <div class="rule">
+    <b>本月现金流口径（钱包视角，与账本收支不同）：</b><br/>
+    · <b>流出</b> = 本月所有账户的真实支出（<code>expense</code>，跨所有账本，<b>含 AA 账本里你实付的份额</b>）<br/>
+    · <b>流入</b> = 本月所有账户的真实收入（<code>income</code>，跨所有账本）<br/>
+    · <b>不计入账户间转账</b>（同一人两账户互转，钱没离开你的钱包）<br/>
+    · 与「账本」tab 的本月收支<b>刻意不同</b>：账本是记账视角、且“全部”排除 AA；这里是钱包视角、含 AA 实付
+  </div>
+
+  <div class="stage">
+    <div class="col">
+      <div class="cap">资产 tab<span class="tag">+ 本月现金流</span></div>
+      <div class="note">净资产（存量） + 本月现金流（流量）一屏看全</div>
+      <div class="phone">
+        <div class="scroll">
+          <!-- 净资产页头（原有） -->
+          <div class="hero">
+            <div class="nw-label">净资产 👁</div>
+            <span class="nw-value">¥128,640.50</span>
+            <div class="nw-foot"><span>总资产 ¥129,920</span><span>总负债 ¥1,280</span></div>
+          </div>
+
+          <!-- 新增：本月现金流 -->
+          <div class="flow">
+            <div class="flow-hd"><div class="flow-t">💸 本月现金流</div><div class="flow-per">2026年8月 ▾</div></div>
+            <div class="flow-row">
+              <div class="fc"><div class="l">流出</div><div class="n out">7,932.30</div></div>
+              <div class="fc"><div class="l">流入</div><div class="n in">15,200.00</div></div>
+              <div class="fc"><div class="l">净流入</div><div class="n net">+7,267.70</div></div>
+            </div>
+            <div class="flow-today">今日流出 <b>¥59.50</b> · 今日流入 <b>¥200</b></div>
+            <div class="flow-note"><span class="q">ℹ️</span><span>含所有账本的真实收支与 AA 账本你实付的份额，已扣除账户间转账；与「账本」页按账本统计的收支口径不同。</span></div>
+          </div>
+
+          <!-- 借贷卡（原有） -->
+          <div class="loan-cards">
+            <div class="loan-card"><span class="lc-k">借入/待还</span><span class="lc-v">¥1,280</span></div>
+            <div class="loan-card"><span class="lc-k">借出/待收</span><span class="lc-v">¥3,000</span></div>
+          </div>
+
+          <!-- 账户分组（原有） -->
+          <div class="group">
+            <div class="group-head"><span class="gh-title">资金账户</span><span class="gh-sum">¥88,640</span></div>
+            <div class="acc-list">
+              <div class="acc"><div class="acc-ic b1">💳</div><div class="acc-main"><div class="acc-name">招商银行卡</div><span class="acc-sub">储蓄卡</span></div><span class="acc-bal">¥86,200</span></div>
+              <div class="acc"><div class="acc-ic b2">💚</div><div class="acc-main"><div class="acc-name">微信钱包</div><span class="acc-sub">零钱</span></div><span class="acc-bal">¥2,440</span></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="group-head"><span class="gh-title">信贷账户</span><span class="gh-sum neg">-¥1,280</span></div>
+            <div class="acc-list">
+              <div class="acc"><div class="acc-ic b3">💠</div><div class="acc-main"><div class="acc-name">花呗</div><span class="acc-sub">可用 ¥8,720</span></div><span class="acc-bal neg">-¥1,280</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tb"><span class="e">🏠</span>首页</div>
+          <div class="tb"><span class="e">📒</span>账本</div>
+          <div class="tb mid"><span class="e">＋</span></div>
+          <div class="tb on"><span class="e">💰</span>资产</div>
+          <div class="tb"><span class="e">👤</span>我的</div>
+        </div>
+        <div class="cadd">＋</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><span class="p p-new"></span><b>新增</b>：净资产下方的「本月现金流」卡（流出 / 流入 / 净流入 + 今日小行 + 口径说明）</div>
+    <div><span class="p p-old"></span><b>原有</b>：净资产页头、借贷卡、分组账户列表，保持不变</div>
+  </div>
+</body>
+</html>

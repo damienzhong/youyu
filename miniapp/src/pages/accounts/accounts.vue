@@ -10,9 +10,10 @@ import {
   ACCOUNT_GROUPS
 } from '../../api/account'
 import { listLoans } from '../../api/loan'
+import { fetchCashflow } from '../../api/cashflow'
 import { useLedgerStore } from '../../stores/ledger'
 import { useThemeStore } from '../../stores/theme'
-import { formatAmount } from '../../utils/format'
+import { formatAmount, currentMonth, monthLabel } from '../../utils/format'
 
 const ledgerStore = useLedgerStore()
 const themeStore = useThemeStore()
@@ -22,6 +23,96 @@ const accounts = ref([])
 const loading = ref(false)
 const hideAmounts = ref(false)
 const collapsed = ref({})
+
+// —— 本月现金流（账户维度，独立于账本）——
+// 与净资产（存量）互补的钱包流量视图：展示选定自然月的实际流出/流入/净流入 + 今日流出/流入。
+// 请求范式照抄提醒页：seq 请求序号 + withTimeout 3000ms 客户端超时守卫，
+// 底层请求仍会跑完，靠序号忽略迟到结果；出错或超时只切失败态 + 重试入口，自动重试 0 次（需求 5.8）。
+const CASHFLOW_TIMEOUT_MS = 3000
+const flowMonth = ref(currentMonth())
+const flowState = ref('loading') // loading | ready | error
+const flow = ref({ outflow: '0.00', inflow: '0.00', netInflow: '0.00', todayOutflow: '0.00', todayInflow: '0.00' })
+let flowSeq = 0
+let flowInFlight = false
+
+// 选定自然月是否为历史月：历史月今日不落在其中，今日流出/流入无意义，隐藏今日小行（需求 5.4）。
+const isFlowHistory = computed(() => flowMonth.value !== currentMonth())
+const flowMonthLabel = computed(() => monthLabel(flowMonth.value))
+// 净流入可为负：负值以「净流出」语义 + 红色区分（需求 5.5）。
+const flowNetNegative = computed(() => Number(flow.value.netInflow) < 0)
+const flowNetLabel = computed(() => (flowNetNegative.value ? '净流出' : '净流入'))
+// 金额隐藏与净资产一致：开启隐藏时统一展示 ****（需求 5.6）。
+function flowMoney(v) {
+  return hideAmounts.value ? '****' : formatAmount(v)
+}
+// 净流入带符号展示：正数前置 +，负数取绝对值（标签已标「净流出」）；隐藏时同样 ****。
+function flowNetMoney() {
+  if (hideAmounts.value) return '****'
+  const n = Number(flow.value.netInflow)
+  return (n < 0 ? '' : '+') + formatAmount(Math.abs(n))
+}
+
+/** 客户端单请求超时守卫（需求 5.8）：底层请求仍会跑完，靠 seq 忽略其迟到结果。 */
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject({ code: 'TIMEOUT', message: '请求超时' }), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) }
+    )
+  })
+}
+
+/**
+ * 拉取选定自然月现金流（需求 5.2、5.3）：返回前 loading 占位，返回后渲染真实取值。
+ * 出错或 3000ms 超时只切 error 态、展示重试入口，绝不自动重发；不影响净资产/借贷/账户列表（需求 5.8）。
+ */
+async function loadCashflow() {
+  if (flowInFlight) return
+  const s = ++flowSeq
+  flowInFlight = true
+  flowState.value = 'loading'
+  try {
+    const res = await withTimeout(fetchCashflow(flowMonth.value), CASHFLOW_TIMEOUT_MS)
+    if (s !== flowSeq) return
+    flow.value = {
+      outflow: res?.outflow ?? '0.00',
+      inflow: res?.inflow ?? '0.00',
+      netInflow: res?.netInflow ?? '0.00',
+      todayOutflow: res?.todayOutflow ?? '0.00',
+      todayInflow: res?.todayInflow ?? '0.00'
+    }
+    flowState.value = 'ready'
+  } catch (e) {
+    if (s !== flowSeq) return
+    flowState.value = 'error'
+  } finally {
+    if (s === flowSeq) flowInFlight = false
+  }
+}
+
+function retryCashflow() {
+  if (flowInFlight) return
+  loadCashflow()
+}
+
+// 口径说明改为点击 ⓘ 弹出，省去常驻一行说明文字（需求 5.7）。
+function showFlowHint() {
+  uni.showModal({
+    title: '本月现金流',
+    content: '账户实际收支：含 AA 实付、不含账户间转账，与「账本」页按账本统计的收支口径不同。',
+    showCancel: false,
+    confirmText: '知道了'
+  })
+}
+
+// 左右切月：复用账本页交互范式（上一月/下一月），切月后以新选定月重新请求（需求 5.3）。
+function shiftFlowMonth(delta) {
+  const [y, m] = flowMonth.value.split('-').map(Number)
+  const d = new Date(y, m - 1 + delta, 1)
+  flowMonth.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  loadCashflow()
+}
 
 // 借贷汇总（仅具体账本显示；借贷为账本级台账）
 const borrowOutstanding = ref('0.00')
@@ -125,6 +216,8 @@ onShow(() => {
   // 资产已升为一级 tab：隐藏原生 tabBar，仅显示自定义 <TabBar>（与首页/报表/我的一致）。
   uni.hideTabBar({ animation: false, fail() {} })
   load()
+  // 现金流独立拉取：与净资产/借贷/账户列表解耦，任何失败/超时都不影响 load()（需求 5.8）。
+  loadCashflow()
 })
 
 // 中间凸起键在资产页触发「添加账户」（TabBar.onCenter 广播），打开账户类型选择。
@@ -173,6 +266,60 @@ function onAccountSaved() {
         <text>总资产 {{ money(totalAssets) }}</text>
         <text>总负债 {{ money(Math.abs(totalLiab)) }}</text>
       </view>
+    </view>
+
+    <!-- 本月现金流：净资产（存量）之下、账户列表之上的钱包流量视图（账户维度，含 AA 实付、不含转账，需求 5.1） -->
+    <view class="flow">
+      <view class="flow-hd">
+        <view class="flow-title">
+          <text class="flow-t">本月现金流</text>
+          <text class="fh-i" @click="showFlowHint">i</text>
+        </view>
+        <view class="flow-per">
+          <text class="fp-arrow" @click="shiftFlowMonth(-1)">‹</text>
+          <text class="fp-label">{{ flowMonthLabel }}</text>
+          <text class="fp-arrow" @click="shiftFlowMonth(1)">›</text>
+        </view>
+      </view>
+
+      <!-- 加载中：占位，不渲染真实取值（需求 5.2） -->
+      <view v-if="flowState === 'loading'" class="flow-ph">
+        <text class="fph-t">正在加载现金流…</text>
+      </view>
+
+      <!-- 出错 / 超时：失败提示 + 重试入口，自动重试 0 次，不影响页面其余内容（需求 5.8） -->
+      <view v-else-if="flowState === 'error'" class="flow-err">
+        <text class="fe-t">现金流没能加载出来</text>
+        <text class="fe-d">网络不太顺畅，稍后再试一次</text>
+        <text class="fe-retry" @click="retryCashflow">重试</text>
+      </view>
+
+      <!-- 就绪：流出（暖橙）/ 流入（绿）两列 + 净额与今日合并一行（紧凑，需求 5.4、5.5） -->
+      <template v-else>
+        <view class="flow-io">
+          <view class="io-col">
+            <text class="io-l"><text class="io-dot out"></text>流出</text>
+            <text class="io-v out">{{ flowMoney(flow.outflow) }}</text>
+          </view>
+          <view class="io-col r">
+            <text class="io-l"><text class="io-dot in"></text>流入</text>
+            <text class="io-v in">{{ flowMoney(flow.inflow) }}</text>
+          </view>
+        </view>
+
+        <!-- 净额 + 今日合并为一行：左净额、右今日（历史月隐藏今日） -->
+        <view class="flow-sum">
+          <text class="fs-net">
+            {{ flowNetLabel }}
+            <text class="net-v" :class="flowNetNegative ? 'neg' : 'pos'">{{ flowNetMoney() }}</text>
+          </text>
+          <text v-if="!isFlowHistory" class="fs-today">
+            今日 <text class="t-out">{{ flowMoney(flow.todayOutflow) }}</text>
+            <text class="t-sep">/</text>
+            <text class="t-in">{{ flowMoney(flow.todayInflow) }}</text>
+          </text>
+        </view>
+      </template>
     </view>
 
     <!-- 借贷往来：对齐竞品，两张独立卡片并排；每张卡片简洁单行（标签左 + 金额右） -->
@@ -265,16 +412,98 @@ function onAccountSaved() {
   letter-spacing: -0.02em;
   margin: 8rpx 0 20rpx;
 }
-.nw-value::before { content: '¥'; font-size: 36rpx; opacity: 0.8; margin-right: 6rpx; }
+/* 暂不带货币符号，留待多币种时统一加。 */
 .nw-value.neg { color: #fecaca; }
 .nw-foot { display: flex; justify-content: space-between; font-size: 24rpx; opacity: 0.9; }
+/* 本月现金流卡：白卡上浮至净资产页头底部（存量 + 流量一屏看全），与原型一致 */
+.flow {
+  background: #fff;
+  border-radius: 22rpx;
+  margin: -36rpx 0 20rpx;
+  padding: 22rpx 26rpx 20rpx;
+  position: relative;
+  z-index: 3;
+  box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.06);
+}
+.flow-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16rpx; }
+.flow-title { display: flex; align-items: center; gap: 10rpx; }
+.flow-t { font-size: 28rpx; font-weight: 700; color: #16181c; }
+.flow-per { display: flex; align-items: center; gap: 10rpx; }
+.fp-arrow {
+  font-size: 34rpx;
+  color: #9aa2ad;
+  padding: 0 12rpx;
+  line-height: 1;
+}
+.fp-arrow:active { color: var(--c-brand, #12a150); }
+.fp-label { font-size: 24rpx; color: #5b6470; min-width: 132rpx; text-align: center; }
+/* 占位 / 失败态：轻量、居中，不干扰其余区块 */
+.flow-ph { padding: 24rpx 0; text-align: center; }
+.fph-t { font-size: 24rpx; color: #9aa2ad; }
+.flow-err { padding: 18rpx 0 6rpx; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8rpx; }
+.fe-t { font-size: 26rpx; font-weight: 700; color: #25292e; }
+.fe-d { font-size: 22rpx; color: #9aa2ad; }
+.fe-retry {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: var(--c-brand, #12a150);
+  font-weight: 600;
+  border: 1rpx solid var(--c-brand, #12a150);
+  border-radius: 999rpx;
+  padding: 6rpx 32rpx;
+}
+/* 流出 / 流入：两列外沿对齐（流出左、流入右），语义色 + 等宽数字 */
+.flow-io { display: flex; }
+.io-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10rpx; }
+.io-col.r { text-align: right; padding-left: 24rpx; border-left: 1rpx solid #f0f2f4; }
+.io-l { font-size: 22rpx; color: #8b939c; }
+.io-dot { display: inline-block; width: 12rpx; height: 12rpx; border-radius: 50%; margin-right: 8rpx; vertical-align: middle; }
+.io-dot.out { background: #e8663d; }
+.io-dot.in { background: #12a150; }
+.io-v {
+  font-size: 36rpx;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.io-v.out { color: #e8663d; }
+.io-v.in { color: #12a150; }
+/* 净额 + 今日合并为一行：紧凑，虚线分隔，不再占两行 */
+.flow-sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 16rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx dashed #eceef0;
+}
+.fs-net { font-size: 24rpx; color: #5b6470; }
+.net-v { font-size: 28rpx; font-weight: 700; font-variant-numeric: tabular-nums; margin-left: 6rpx; }
+.net-v.pos { color: #12a150; }
+.net-v.neg { color: #e5484d; }
+/* 今日收支：标签加深、金额用收支语义色，靠颜色提亮而非放大，不与月度大数字抢 */
+.fs-today { font-size: 24rpx; color: #5b6470; font-variant-numeric: tabular-nums; }
+.fs-today .t-out { color: #e8663d; font-weight: 600; }
+.fs-today .t-in { color: #12a150; font-weight: 600; }
+.fs-today .t-sep { color: #c7ccd2; margin: 0 4rpx; }
+/* 标题旁 ⓘ：点击弹口径说明，省去常驻说明行 */
+.fh-i {
+  width: 30rpx; height: 30rpx;
+  border-radius: 50%;
+  border: 1rpx solid #c7ccd2;
+  color: #a7adb5;
+  font-size: 20rpx;
+  line-height: 28rpx;
+  text-align: center;
+}
 /* 借贷卡片：对齐竞品，两张独立卡片并排；每张卡片简洁单行（标签左 + 金额右，小字不抢眼） */
-.loan-cards { display: flex; gap: 20rpx; margin-bottom: 24rpx; }
+.loan-cards { display: flex; gap: 20rpx; margin-bottom: 20rpx; }
+/* 与现金流卡 / 账户列表统一的白卡语言（不再染底色，保持整页协调） */
 .loan-card {
   flex: 1;
   background: #fff;
-  border-radius: 18rpx;
-  padding: 24rpx 24rpx;
+  border-radius: 16rpx;
+  padding: 20rpx 22rpx;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -282,10 +511,9 @@ function onAccountSaved() {
   min-width: 0;
   box-shadow: 0 8rpx 24rpx rgba(20, 24, 28, 0.05);
 }
-.lc-k { font-size: 24rpx; color: #9aa2ad; }
-/* 金额统一用中性深色、常规字重，不再区分红/绿，也不加粗（对齐竞品） */
-.lc-v { font-size: 30rpx; font-weight: 400; color: #16181c; }
-.lc-v::before { content: '¥'; font-size: 20rpx; opacity: 0.7; margin-right: 2rpx; }
+.lc-k { font-size: 24rpx; color: #8b939c; }
+/* 借贷为次要信息：金额用中性深色、常规字重，不抢现金流/账户的主视觉，暂不带货币符号 */
+.lc-v { font-size: 30rpx; font-weight: 500; color: #16181c; font-variant-numeric: tabular-nums; }
 .repay {
   background: #fff;
   border-radius: 22rpx;
