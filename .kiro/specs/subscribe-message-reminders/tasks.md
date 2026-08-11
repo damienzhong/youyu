@@ -25,22 +25,22 @@
     - 映射与迁移列名 / 类型严格对齐，保证 `ddl-auto=validate` 可通过
     - _Requirements: 8.2, 8.3, 8.12_
 
-  - [ ] 1.3 创建 `BudgetReminderSettingRepository` 与原子额度更新方法
+  - [x] 1.3 创建 `BudgetReminderSettingRepository` 与原子额度更新方法
     - 镜像 `ReminderQuotaRepository`：`addCapped(userId, delta, now)` 走 `INSERT ... ON DUPLICATE KEY UPDATE remaining = LEAST(remaining + delta, 50)`；`decrementFloorZero(userId)` 走 `remaining = remaining - 1 WHERE remaining > 0`；`zeroOut(userId)` 归零
     - 提供按 `userId` 查询设置的方法（供 getStatus / 收件人筛选复用）
     - _Requirements: 6.3, 6.5, 4.2, 4.6_
 
-  - [ ] 1.4 创建 `BudgetReminderSendLogRepository`
+  - [x] 1.4 创建 `BudgetReminderSendLogRepository`
     - 提供按唯一键 `(userId, ledgerId, budgetMonth, scopeRef, level)` 存在性查询（幂等预检）、按 `(userId, ledgerId, budgetMonth, scopeRef, 'OVER')` 存在性查询（超支已推判定）、按 `userId` 删除（注销用）
     - _Requirements: 3.2, 3.3, 8.8_
 
-- [ ] 2. 无状态基础件：错误码、文案、微信独立模板通道
-  - [ ] 2.1 新增两个本域错误码
+- [x] 2. 无状态基础件：错误码、文案、微信独立模板通道
+  - [x] 2.1 新增两个本域错误码
     - 在 `ApiException` / `error` 包以工厂方法加入 `BUDGET_REMINDER_PREF_INVALID`（field=`enabled`）与 `BUDGET_REMINDER_GRANT_INVALID`（field=`grantedCount`），HTTP 400，`message` 为 ≤100 字符中文且不含 id / 邮箱 / 令牌
     - 复用既有 `UNAUTHENTICATED`，不新增第三个错误码、不重命名任何既有码；确认经 `GlobalExceptionHandler` 输出 `{code, message, field}`
     - _Requirements: 7.5, 7.6, 9.3_
 
-  - [ ] 2.2 实现 `BudgetReminderMessageResolver.pick(level, scopeRef, categoryNameOrNull)`
+  - [x] 2.2 实现 `BudgetReminderMessageResolver.pick(level, scopeRef, categoryNameOrNull)`
     - 范围表述：`scopeRef == 0` → 「月度总预算」；否则用分类当前名称；名称为空 / 不可得 → 「该分类」占位
     - 级别文案：`OVER` → 「{范围}本月已超支」；`WARN` → 「{范围}本月已接近预算上限」；按级别恰好选一条
     - 文案长度落入微信模板字段限制内，不含邮箱 / 令牌 / 他人信息
@@ -52,14 +52,14 @@
     - **Property 12: 文案长度与隐私约束** — **Validates: Requirements 5.5**
     - jqwik ≥100 次迭代，生成 (level, scope, 分类名含 null/超长)；每个属性单独一个 `@Property`，注释标注 `// Feature: subscribe-message-reminders, Property N: ...`
 
-  - [ ] 2.4 扩展 `WeChatClient` 支持独立预算提醒模板
+  - [x] 2.4 扩展 `WeChatClient` 支持独立预算提醒模板
     - 新增 `int sendBudgetSubscribeMessage(accessToken, openid, message)`（或带模板参数的重载并保留旧签名），使用新配置项 `app.wechat.subscribe.budget-template-id`
     - 复用同一 `WeChatAccessTokenProvider` 凭证网关与 40001 强制刷新重试一次逻辑；本地失败（模板未配置 / 凭证空 / 网络异常 / 响应不可解析）返回哨兵 `ERRCODE_LOCAL_FAILURE(-1)`，本方法不抛异常
     - 在配置类 / `application.yml` 增加 `app.wechat.subscribe.budget-template-id` 配置项（可空）
     - _Requirements: 4.7, 4.8_
 
-- [ ] 3. 链路 A：同步接口（偏好 / 额度）
-  - [ ] 3.1 实现 `BudgetReminderService`
+- [x] 3. 链路 A：同步接口（偏好 / 额度）
+  - [x] 3.1 实现 `BudgetReminderService`
     - `getStatus(userId)`：读设置，无记录返回缺省 `{enabled=true, remainingQuota=0}`，不建行
     - `updatePreference(userId, enabledRaw)`：`enabled` 为 null / 不可解析布尔 → 抛 `BUDGET_REMINDER_PREF_INVALID` 且偏好不变；合法则 UPSERT 偏好、置 `updated_at` 为服务端当前时刻，返回最新 `{enabled, remainingQuota}`
     - `grantQuota(userId, grantedCountRaw)`：解析 + 校验 1..5，非整数 / <1 / >5 → `BUDGET_REMINDER_GRANT_INVALID` 且额度不变；合法走 `addCapped` 原子上限累加（封顶 50），返回增加后的 remainingQuota
@@ -72,7 +72,7 @@
     - **Property 16: 授权非法输入拒绝且零副作用** — **Validates: Requirements 6.4**
     - jqwik ≥100 次迭代，生成随机布尔 / 非法原文 / grantedCount 越界 + 授权/扣减操作序列（含 0/1/50 边界与并发净和）
 
-  - [ ] 3.3 实现 `BudgetReminderController`（`/api/budget-reminders`）
+  - [x] 3.3 实现 `BudgetReminderController`（`/api/budget-reminders`）
     - `GET /api/budget-reminders` → 状态 `{enabled, remainingQuota}`；`PUT /api/budget-reminders/preference` 接收 `{enabled}` 原文；`POST /api/budget-reminders/quota:grant` 接收 `{grantedCount}` 原文
     - 每端点首步 `requireExistingUserId()`：令牌无效 / 用户已注销 → `UNAUTHENTICATED`（先于任何字段校验），零副作用，响应不含任何偏好 / 额度字段值
     - 数据归属只认令牌用户 id，忽略任何指定目标身份的查询参数 / 路径参数 / 请求体字段 / 自定义头；三端点均 `noLedger`、不要求 `X-Ledger-Id`
@@ -88,11 +88,11 @@
     - EXAMPLE 单测：状态响应恰含 `{enabled, remainingQuota}`、无记录默认 `{true, 0}`、偏好更新返回最新值、授权上限累加至 50（需求 1.1、1.2、6.1）
     - _Requirements: 1.1, 1.2, 1.3, 6.1_
 
-- [ ] 4. Checkpoint - 链路 A 与基础件通过
+- [x] 4. Checkpoint - 链路 A 与基础件通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. 链路 B：单次发送尝试（DispatchService）
-  - [ ] 5.1 实现 `BudgetReminderDispatchService.dispatch(...)`
+- [x] 5. 链路 B：单次发送尝试（DispatchService）
+  - [x] 5.1 实现 `BudgetReminderDispatchService.dispatch(...)`
     - `@Transactional`：先幂等预检唯一键已有记录 → 直接返回；调 `MessageResolver.pick` 选文案
     - `remaining <= 0` → 写 `SKIPPED_NO_QUOTA`、不发、不扣额度；`openid` 空 → 写 `SKIPPED_NO_OPENID`、不发、不扣、不报错
     - 发微信：`WeChatAccessTokenProvider.getToken()` → `sendBudgetSubscribeMessage`；`errcode==0` → 写 `SENT`（撞唯一键则作废不扣额度）后 `decrementFloorZero`；`errcode==43101` → 写 `FAILED` 记 errcode 且额度归零；其它非零 / 本地降级 / 抛异常 → 写 `FAILED`、额度不动、不外抛，记含 userId 不含金额 / 邮箱 / 令牌的告警日志
@@ -103,8 +103,8 @@
     - **Property 6: 发送尝试的结果与额度变化状态机** — **Validates: Requirements 4.2, 4.3, 4.4, 4.5, 4.6, 4.8**
     - jqwik ≥100 次迭代，随机 remaining（0/1/50 边界）/ openid（空/非空）/ 模板是否配置 / errcode（0/43101/其它非零）/ 抛异常；`WeChatClient` 与 `WeChatAccessTokenProvider` 一律 mock；断言 remaining 恒落 [0,50]
 
-- [ ] 6. 链路 B：评估 + 收件人筛选 + 去重（EvaluationService）
-  - [ ] 6.1 实现 `BudgetReminderEvaluationService.evaluate(ledgerId, occurredMonth)`（求范围级别）
+- [x] 6. 链路 B：评估 + 收件人筛选 + 去重（EvaluationService）
+  - [x] 6.1 实现 `BudgetReminderEvaluationService.evaluate(ledgerId, occurredMonth)`（求范围级别）
     - `@Transactional(REQUIRES_NEW)` 独立事务；用注入的 `Clock`（`Asia/Shanghai`）判定当前月与发生月，不依赖 JVM / DB / OS 默认时区
     - 月份闸门：`occurredMonth != 当前月` → 直接返回；账本类型闸门：AA 账本 → 直接返回，仅个人 / 协作账本继续
     - 调 `budgetService.overview(ledgerId, 当前月)`：总预算 `hasTotalBudget && status ∈ {WARN,OVER}` → `scopeRef=0`；每个 `CategoryBudgetItem.status ∈ {WARN,OVER}` → `scopeRef=categoryId`；未设 / <=0 预算不出现（OVER 优先 WARN 天然由 status 保证）
@@ -117,7 +117,7 @@
     - **Property 4: AA 账本与非当前月零发送尝试** — **Validates: Requirements 2.2, 2.3**
     - jqwik ≥100 次迭代，生成随机 (spent, budget) 在 80%/100% 阈值附近、随机预算配置、随机账本类型与发生月
 
-  - [ ] 6.3 实现收件人筛选
+  - [x] 6.3 实现收件人筛选
     - 该账本 `ledger_members`（只读 `LedgerMemberRepository`）∩「`budget_reminder_settings.enabled` 为真（无记录视真）且 `users.wx_openid` 非空且 `remaining > 0」`；每名收件人恰生成一次发送尝试
     - _Requirements: 1.6, 4.1_
 
@@ -125,7 +125,7 @@
     - **Property 5: 收件人恰为三谓词交集（含偏好为假被排除）** — **Validates: Requirements 1.6, 4.1**
     - jqwik ≥100 次迭代，随机成员集合及各成员 (enabled, openid, remaining)
 
-  - [ ] 6.5 实现逐 (收件人 × 范围) 去重派发
+  - [x] 6.5 实现逐 (收件人 × 范围) 去重派发
     - `OVER`：该收件人该账本该月该范围已有任一 `OVER` 记录 → 跳过；否则派发 `OVER`
     - `WARN`：同范围同月已有 `OVER` 记录 → 跳过（不补预警）；已有该 `WARN` 记录 → 跳过；否则派发 `WARN`
     - 调用 `DispatchService.dispatch`，每项独立不互相影响
@@ -137,12 +137,12 @@
     - **Property 9: 跨自然月独立计次** — **Validates: Requirements 3.5**
     - jqwik ≥100 次迭代，生成随机重复触发序列与跨月边界序列；微信 mock
 
-- [ ] 7. 链路 B：触发器接入交易写路径
-  - [ ] 7.1 实现 `BudgetReminderTrigger.requestEvaluation(ledgerId, occurredMonth)`
+- [x] 7. 链路 B：触发器接入交易写路径
+  - [x] 7.1 实现 `BudgetReminderTrigger.requestEvaluation(ledgerId, occurredMonth)`
     - 照抄 `GrowthSettlementTrigger` afterCommit 范式：同一事务只注册一次回调、待评估 `(ledgerId, occurredMonth)` 去重合并为一轮、只携带不可变值、afterCommit 内逐项 try-catch 调 `evaluationService.evaluate`，异常绝不穿出回调
     - _Requirements: 2.1, 2.8_
 
-  - [ ] 7.2 在 `TransactionService` create/update/delete/restore 成功路径接入触发
+  - [x] 7.2 在 `TransactionService` create/update/delete/restore 成功路径接入触发
     - 仅当交易属账本（`ledgerId != null`）时调 `requestEvaluation`，传发生月的 `YearMonth`；不改交易接口的响应字段集 / 取值 / 状态码 / 错误码
     - _Requirements: 2.1, 2.8, 9.4_
 
@@ -154,11 +154,11 @@
     - **Property 22: 既有表只读不变量** — **Validates: Requirements 9.1**
     - jqwik ≥100 次迭代，接口调用 / 评估执行前后对 `budgets`/`category_budgets`/`transactions`/`ledgers`/`ledger_members`/`categories`/`users.wx_openid` 快照逐项比对不变
 
-- [ ] 8. Checkpoint - 链路 B 端到端通过
+- [x] 8. Checkpoint - 链路 B 端到端通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. 注销集成与清库脚本
-  - [ ] 9.1 在 `AccountDeletionService` 追加两表删除
+- [x] 9. 注销集成与清库脚本
+  - [x] 9.1 在 `AccountDeletionService` 追加两表删除
     - 在既有单注销事务内、删 `users` 行之前，按 `user_id` 先删 `budget_reminder_send_logs`、再删 `budget_reminder_settings`；任一步失败整个事务回滚，经既有错误码返回失败；不改注销响应字段集 / 状态码 / 错误码
     - _Requirements: 8.8, 8.9_
 
@@ -166,7 +166,7 @@
     - **Property 23: 注销级联删除且注销响应不变** — **Validates: Requirements 8.8**
     - jqwik ≥100 次迭代，对两表有任意行的用户注销后断言两表行数为 0 且注销响应不变
 
-  - [ ] 9.3 在 `deploy/reset-db.sql` 追加清空两表
+  - [x] 9.3 在 `deploy/reset-db.sql` 追加清空两表
     - 在 `SET FOREIGN_KEY_CHECKS = 0/1` 之间、`TRUNCATE TABLE users` 之前清空 `budget_reminder_settings` 与 `budget_reminder_send_logs`；保留表结构与 `flyway_schema_history`
     - _Requirements: 8.11_
 
@@ -176,12 +176,12 @@
     - INTEGRATION：删两表全部行后既有记账 / 预算 / 登录 / 注销 / 成长 / 成就 / 连续记账 / custom-reminder 代表性请求响应不变（需求 9.2、9.5）
     - _Requirements: 6.6, 9.6, 9.2_
 
-- [ ] 10. miniapp：提醒设置页预算提醒区块
-  - [ ] 10.1 新增 `miniapp/src/api/budgetReminder.js`
+- [x] 10. miniapp：提醒设置页预算提醒区块
+  - [x] 10.1 新增 `miniapp/src/api/budgetReminder.js`
     - `fetchBudgetReminderStatus()` / `updateBudgetReminderPreference(enabled)` / `grantBudgetReminderQuota(count)`，全部 `noLedger:true`，复用既有 `http` 封装
     - _Requirements: 10.9_
 
-  - [ ] 10.2 在 `pages/reminder/reminder.vue` 新增「预算提醒」区块
+  - [x] 10.2 在 `pages/reminder/reminder.vue` 新增「预算提醒」区块
     - 与既有记账提醒区块并列、不改其行为；展示预算提醒开关 `enabled` 与剩余订阅次数；不展示任何金额 / 账本名 / 邮箱 / 邀请码
     - onShow：已登录则请求一次状态，返回前占位、返回后渲染；未登录不发请求、展示登录入口
     - 切换开关调更新偏好、成功后就地更新；授权入口调 `wx.requestSubscribeMessage`（新增 `WX_BUDGET_REMINDER_TEMPLATE_ID`），点「允许」后上报；拒绝 / 失败不上报、展示未授权与再授权入口、不进入错误态；剩余为 0 展示再授权引导文案
@@ -192,7 +192,7 @@
     - EXAMPLE 单测（mock `wx` 与假计时器）：占位 → 渲染、开关切换、授权成功上报 / 拒绝不上报、剩余为 0 引导、超时失败态 + 重试、未登录不发请求
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 11. Final checkpoint - 全量测试通过
+- [x] 11. Final checkpoint - 全量测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes
