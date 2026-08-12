@@ -80,6 +80,8 @@ class RecurringPendingItemServiceTest {
         // 确认入账协作者对懒生成失败隔离用例无影响，用桩注入以满足构造签名。
         service = new RecurringPendingItemService(
                 ruleRepository, pendingItemRepository, generator,
+                mock(RecurringAutoPoster.class),
+                mock(RecurringAutoPostNotifier.class),
                 mock(com.damien.youyu.service.TransactionService.class),
                 mock(com.damien.youyu.repository.CategoryRepository.class),
                 mock(com.damien.youyu.service.LedgerAccountResolver.class),

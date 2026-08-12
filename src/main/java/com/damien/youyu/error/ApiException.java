@@ -659,4 +659,13 @@ public class ApiException extends RuntimeException {
         return new ApiException("RECURRING_ITEM_TARGET_MISSING", HttpStatus.CONFLICT,
                 "分类或账户在当前账本已不存在，请重新选择", field);
     }
+
+    /**
+     * 入账方式非法：创建 / 编辑周期规则时提交的入账方式取值不在 {@code CONFIRM}/{@code AUTO} 内
+     * （recurring-auto-post 需求 1.4），{@code field=postMode}。拒绝时不改动任何数据。
+     */
+    public static ApiException recurringPostModeInvalid() {
+        return new ApiException("RECURRING_POST_MODE_INVALID", HttpStatus.BAD_REQUEST,
+                "入账方式非法", "postMode");
+    }
 }

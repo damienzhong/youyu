@@ -16,6 +16,7 @@ import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.EndCondition;
 import com.damien.youyu.domain.Frequency;
 import com.damien.youyu.domain.PendingStatus;
+import com.damien.youyu.domain.PostMode;
 import com.damien.youyu.domain.RecurringRule;
 import com.damien.youyu.domain.RuleStatus;
 import com.damien.youyu.error.ApiException;
@@ -136,6 +137,26 @@ public class RecurringRuleService {
             Set<Integer> weeklyDays, Integer monthDay, boolean monthEnd, Integer yearMonth,
             Integer yearDay, LocalDate startDate, EndCondition endCondition, LocalDate untilDate,
             Integer countN) {
+        // 兼容既有签名（recurring-transactions）：不指定入账方式即默认 CONFIRM（recurring-auto-post 需求 1.2）。
+        return create(userId, ledgerId, rawType, rawAmount, categoryId, accountId, rawNote,
+                frequency, weeklyDays, monthDay, monthEnd, yearMonth, yearDay, startDate,
+                endCondition, untilDate, countN, null);
+    }
+
+    /**
+     * 创建一条周期规则（含入账方式，recurring-auto-post 需求 1.1、1.2、1.4）。语义与既有无入账方式重载完全
+     * 一致，仅额外接收入账方式原文：{@code rawPostMode} 为 {@code null} / 空白取默认 {@link PostMode#CONFIRM}，
+     * {@code CONFIRM} / {@code AUTO} 解析为对应值，其余取值 → {@code RECURRING_POST_MODE_INVALID} 且零副作用。
+     *
+     * @param rawPostMode 入账方式原文（{@code CONFIRM} / {@code AUTO}，为空取 {@code CONFIRM}）
+     * @see #create(Long, Long, String, BigDecimal, Long, Long, String, Frequency, Set, Integer, boolean, Integer, Integer, LocalDate, EndCondition, LocalDate, Integer)
+     */
+    @Transactional
+    public RecurringRule create(Long userId, Long ledgerId, String rawType, BigDecimal rawAmount,
+            Long categoryId, Long accountId, String rawNote, Frequency frequency,
+            Set<Integer> weeklyDays, Integer monthDay, boolean monthEnd, Integer yearMonth,
+            Integer yearDay, LocalDate startDate, EndCondition endCondition, LocalDate untilDate,
+            Integer countN, String rawPostMode) {
 
         // 归属先行落定：初始状态 ACTIVE、创建时间戳（需求 1.1）。归属确定后校验 / 装配下沉到共享逻辑。
         LocalDateTime now = LocalDateTime.now(clock);
@@ -151,7 +172,7 @@ public class RecurringRuleService {
         // 全部字段校验 + 装配（校验前置于任何写入，失败即零副作用；见 validateAndApply）。
         validateAndApply(rule, rawType, rawAmount, categoryId, accountId, rawNote, frequency,
                 weeklyDays, monthDay, monthEnd, yearMonth, yearDay, effectiveStart, endCondition,
-                untilDate, countN, now);
+                untilDate, countN, rawPostMode, now);
         return ruleRepository.save(rule);
     }
 
@@ -232,6 +253,27 @@ public class RecurringRuleService {
             Frequency frequency, Set<Integer> weeklyDays, Integer monthDay, boolean monthEnd,
             Integer yearMonth, Integer yearDay, LocalDate startDate, EndCondition endCondition,
             LocalDate untilDate, Integer countN) {
+        // 兼容既有签名（recurring-transactions）：不指定入账方式即默认 CONFIRM（recurring-auto-post 需求 1.2）。
+        return update(userId, ledgerId, ruleId, rawType, rawAmount, categoryId, accountId, rawNote,
+                frequency, weeklyDays, monthDay, monthEnd, yearMonth, yearDay, startDate,
+                endCondition, untilDate, countN, null);
+    }
+
+    /**
+     * 编辑一条周期规则（含入账方式，recurring-auto-post 需求 1.1、1.4、1.5）。语义与既有无入账方式重载完全
+     * 一致，仅额外接收入账方式原文并按 {@link #validatePostMode} 校验落库。改入账方式只对编辑时刻之后新处理的
+     * 期次生效，不回滚编辑前已 {@code CONFIRMED}（含自动入账）/ {@code SKIPPED} 的期次与历史流水（需求 1.5）——
+     * 本方法只更新规则行本身，不触碰 {@code recurring_pending_items}。
+     *
+     * @param rawPostMode 入账方式原文（{@code CONFIRM} / {@code AUTO}，为空取 {@code CONFIRM}）
+     * @see #update(Long, Long, Long, String, BigDecimal, Long, Long, String, Frequency, Set, Integer, boolean, Integer, Integer, LocalDate, EndCondition, LocalDate, Integer)
+     */
+    @Transactional
+    public RecurringRule update(Long userId, Long ledgerId, Long ruleId, String rawType,
+            BigDecimal rawAmount, Long categoryId, Long accountId, String rawNote,
+            Frequency frequency, Set<Integer> weeklyDays, Integer monthDay, boolean monthEnd,
+            Integer yearMonth, Integer yearDay, LocalDate startDate, EndCondition endCondition,
+            LocalDate untilDate, Integer countN, String rawPostMode) {
 
         // 归属定位：不存在或越权（跨用户 / 跨账本）→ NOT_FOUND，零副作用（需求 6.7、8.5）。
         RecurringRule rule = ruleRepository.findByIdAndUserIdAndLedgerId(ruleId, userId, ledgerId)
@@ -241,11 +283,11 @@ public class RecurringRuleService {
         LocalDate effectiveStart = startDate != null ? startDate : rule.getStartDate();
 
         // 复用与创建完全一致的校验 + 装配；校验前置于任何写入，失败即不改动任何字段（需求 6.4）。
-        // 仅更新规则行本身，不触碰 recurring_pending_items——既有快照 / 历史流水不受影响（需求 6.3、6.4）。
+        // 仅更新规则行本身，不触碰 recurring_pending_items——既有快照 / 历史流水不受影响（需求 6.3、6.4、1.5）。
         LocalDateTime now = LocalDateTime.now(clock);
         validateAndApply(rule, rawType, rawAmount, categoryId, accountId, rawNote, frequency,
                 weeklyDays, monthDay, monthEnd, yearMonth, yearDay, effectiveStart, endCondition,
-                untilDate, countN, now);
+                untilDate, countN, rawPostMode, now);
         return ruleRepository.save(rule);
     }
 
@@ -378,7 +420,7 @@ public class RecurringRuleService {
             Long categoryId, Long accountId, String rawNote, Frequency frequency,
             Set<Integer> weeklyDays, Integer monthDay, boolean monthEnd, Integer yearMonth,
             Integer yearDay, LocalDate effectiveStart, EndCondition endCondition,
-            LocalDate untilDate, Integer countN, LocalDateTime now) {
+            LocalDate untilDate, Integer countN, String rawPostMode, LocalDateTime now) {
 
         // 1) 模板字段校验（类型 / 金额 / 备注 / 分类 / 账户），全部前置于持久化（需求 1.2–1.4）。
         String type = validateType(rawType);
@@ -394,7 +436,10 @@ public class RecurringRuleService {
         // 3) 结束条件校验（依赖开始日期，需求 1.6、1.7）。
         validateEndCondition(endCondition, effectiveStart, untilDate, countN);
 
-        // 4) 装配（全部校验通过后才写入 rule）。
+        // 4) 入账方式校验（recurring-auto-post 需求 1.1、1.2、1.4）：null / 空白 → CONFIRM，非法 → 报错。
+        PostMode postMode = validatePostMode(rawPostMode);
+
+        // 5) 装配（全部校验通过后才写入 rule）。
         rule.setType(type);
         rule.setAmount(amount);
         rule.setCategoryId(categoryId);
@@ -410,7 +455,25 @@ public class RecurringRuleService {
         rule.setEndCondition(endCondition);
         rule.setUntilDate(endCondition == EndCondition.UNTIL_DATE ? untilDate : null);
         rule.setCountN(endCondition == EndCondition.COUNT ? countN : null);
+        rule.setPostMode(postMode);
         rule.setUpdatedAt(now);
+    }
+
+    /**
+     * 入账方式校验（recurring-auto-post 需求 1.1、1.2、1.4）：{@code null} / 空白视为默认
+     * {@link PostMode#CONFIRM}（向后兼容，行为与现状一致）；{@code CONFIRM} / {@code AUTO}（区分大小写，
+     * 允许两端空白）解析为对应枚举；其余任意取值 → {@code RECURRING_POST_MODE_INVALID}（{@code field=postMode}），
+     * 拒绝且不改动任何数据。
+     */
+    private PostMode validatePostMode(String rawPostMode) {
+        if (rawPostMode == null || rawPostMode.isBlank()) {
+            return PostMode.CONFIRM;
+        }
+        try {
+            return PostMode.valueOf(rawPostMode.trim());
+        } catch (IllegalArgumentException ex) {
+            throw ApiException.recurringPostModeInvalid();
+        }
     }
 
     // ---------------- 模板字段校验 ----------------

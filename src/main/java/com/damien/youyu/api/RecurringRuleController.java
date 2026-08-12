@@ -82,7 +82,8 @@ public class RecurringRuleController {
                 req.startDate(),
                 parseEndCondition(req.endCondition()),
                 req.untilDate(),
-                req.countN());
+                req.countN(),
+                req.postMode());
         return ResponseEntity.status(HttpStatus.CREATED).body(RecurringRuleResponse.from(rule));
     }
 
@@ -130,7 +131,8 @@ public class RecurringRuleController {
                 req.startDate(),
                 parseEndCondition(req.endCondition()),
                 req.untilDate(),
-                req.countN());
+                req.countN(),
+                req.postMode());
         return ResponseEntity.ok(RecurringRuleResponse.from(rule));
     }
 

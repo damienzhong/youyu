@@ -15,6 +15,8 @@ import {
   FREQUENCY_OPTIONS,
   END_CONDITION_OPTIONS,
   WEEKDAY_OPTIONS,
+  POST_MODE_OPTIONS,
+  POST_MODE_HINTS,
   validateRuleForm,
   buildRulePayload,
   mapRuleError,
@@ -56,8 +58,13 @@ const form = ref({
   startDate: '',
   endCondition: 'NEVER',
   untilDate: '',
-  countN: ''
+  countN: '',
+  // 入账方式：默认「待确认」，与后端默认 CONFIRM 一致（recurring-auto-post 需求 7.2）。
+  postMode: 'CONFIRM'
 })
+
+// 当前入账方式的说明文案。
+const postModeHint = computed(() => POST_MODE_HINTS[form.value.postMode] || '')
 
 // 分类树 / 账户可选集。
 const tree = ref({ expense: [], income: [] })
@@ -179,6 +186,9 @@ function clearStartDate() {
 }
 function setEndCondition(cond) {
   form.value.endCondition = cond
+}
+function setPostMode(mode) {
+  form.value.postMode = mode
 }
 function onUntilDateChange(e) {
   form.value.untilDate = e.detail.value
@@ -384,6 +394,19 @@ function goBack() {
         </view>
       </view>
 
+      <!-- 入账方式 -->
+      <view class="sec-hd">入账方式</view>
+      <view class="seg">
+        <text
+          v-for="opt in POST_MODE_OPTIONS"
+          :key="opt.value"
+          class="s"
+          :class="{ on: form.postMode === opt.value }"
+          @click="setPostMode(opt.value)"
+        >{{ opt.label }}</text>
+      </view>
+      <view class="pm-hint">{{ postModeHint }}</view>
+
       <!-- 摘要预览 -->
       <view class="preview">
         <text class="pv-hd">规则预览</text>
@@ -489,6 +512,8 @@ function goBack() {
 .pv-hd { font-size: 24rpx; color: #8a94a6; }
 .pv-sum { font-size: 30rpx; color: #1f2329; font-weight: 600; }
 .pv-end { font-size: 24rpx; color: #8a94a6; }
+
+.pm-hint { font-size: 22rpx; color: #8a94a6; margin: 10rpx 4rpx 0; line-height: 1.5; }
 
 .pad { height: 40rpx; }
 

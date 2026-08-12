@@ -48,11 +48,11 @@ import org.junit.jupiter.api.Test;
 class MigrationDirectoryTest {
 
     /**
-     * 本 spec 新增的迁移脚本（offline-sync 定为 V41；撰写设计时目录内最大为 V40 即
-     * {@code V40__fix_recurring_month_end_bit.sql}）。
+     * 本 spec 新增的迁移脚本（recurring-auto-post 定为 V44；撰写设计时目录内最大为 V43 即
+     * {@code V43__budget_reminder.sql}）。
      */
-    private static final String NEW_MIGRATION = "V43__budget_reminder.sql";
-    private static final int NEW_MIGRATION_VERSION = 43;
+    private static final String NEW_MIGRATION = "V44__recurring_rule_post_mode.sql";
+    private static final int NEW_MIGRATION_VERSION = 44;
 
     private static final String BASELINE_RESOURCE = "/db/migration-baseline.sha256";
     private static final Pattern MIGRATION_NAME = Pattern.compile("^V(\\d+)__[A-Za-z0-9_]+\\.sql$");

@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.damien.youyu.domain.Account;
 import com.damien.youyu.domain.PendingStatus;
+import com.damien.youyu.domain.PostMode;
 import com.damien.youyu.domain.RecurringPendingItem;
 import com.damien.youyu.domain.RecurringRule;
 import com.damien.youyu.domain.RuleStatus;
@@ -91,6 +92,8 @@ public class RecurringPendingItemService {
     private final RecurringRuleRepository ruleRepository;
     private final RecurringPendingItemRepository pendingItemRepository;
     private final RecurringPendingItemGenerator generator;
+    private final RecurringAutoPoster autoPoster;
+    private final RecurringAutoPostNotifier autoPostNotifier;
     private final TransactionService transactionService;
     private final CategoryRepository categoryRepository;
     private final LedgerAccountResolver accountResolver;
@@ -123,6 +126,8 @@ public class RecurringPendingItemService {
             RecurringRuleRepository ruleRepository,
             RecurringPendingItemRepository pendingItemRepository,
             RecurringPendingItemGenerator generator,
+            RecurringAutoPoster autoPoster,
+            RecurringAutoPostNotifier autoPostNotifier,
             TransactionService transactionService,
             CategoryRepository categoryRepository,
             LedgerAccountResolver accountResolver,
@@ -131,6 +136,8 @@ public class RecurringPendingItemService {
         this.ruleRepository = ruleRepository;
         this.pendingItemRepository = pendingItemRepository;
         this.generator = generator;
+        this.autoPoster = autoPoster;
+        this.autoPostNotifier = autoPostNotifier;
         this.transactionService = transactionService;
         this.categoryRepository = categoryRepository;
         this.accountResolver = accountResolver;
@@ -510,6 +517,8 @@ public class RecurringPendingItemService {
     private void generateForRule(RecurringRule rule, LocalDate today) {
         RuleSpec spec = toRuleSpec(rule);
         LocalDate lowerBound = generationLowerBound(rule);
+        // 入账方式分流（recurring-auto-post 需求 2.7、4.1）：AUTO 走自动入账 / 降级，CONFIRM 维持既有行为。
+        boolean auto = rule.getPostMode() == PostMode.AUTO;
         for (LocalDate occurrenceDate : calculator.occurrencesUpTo(spec, today)) {
             // 恢复 / 暂停不回补：跳过早于生成下界的期次（需求 6.2）。
             if (occurrenceDate.isBefore(lowerBound)) {
@@ -519,14 +528,51 @@ public class RecurringPendingItemService {
             if (pendingItemRepository.existsByRuleIdAndOccurrenceDate(rule.getId(), occurrenceDate)) {
                 continue;
             }
-            try {
-                generator.generate(rule, occurrenceDate);
-            } catch (DataIntegrityViolationException duplicate) {
-                // 并发 / 重复生成撞唯一键 uk_recurring_pending_rule_date：视为该期次已生成，静默放弃本条，
-                // 不新增第二条、不向查询等主路径返回错误（需求 3.4、9.4）。
-                log.debug("周期待确认项已存在（唯一键幂等），ruleId={}, occurrenceDate={}",
-                        rule.getId(), occurrenceDate);
+            if (auto) {
+                autoPostOccurrence(rule, occurrenceDate);
+            } else {
+                try {
+                    generator.generate(rule, occurrenceDate);
+                } catch (DataIntegrityViolationException duplicate) {
+                    // 并发 / 重复生成撞唯一键 uk_recurring_pending_rule_date：视为该期次已生成，静默放弃本条，
+                    // 不新增第二条、不向查询等主路径返回错误（需求 3.4、9.4）。
+                    log.debug("周期待确认项已存在（唯一键幂等），ruleId={}, occurrenceDate={}",
+                            rule.getId(), occurrenceDate);
+                }
             }
+        }
+    }
+
+    /**
+     * 对一条 {@code AUTO} 规则的单个到期期次执行自动入账（recurring-auto-post 需求 2、3、4.1、4.3、5.3）。
+     * 走 {@link RecurringAutoPoster#autoPost}（{@code REQUIRES_NEW} 独立事务）：
+     * <ul>
+     *   <li>{@link AutoPostResult.Outcome#AUTO_POSTED}：入账事务已提交，在其<b>事务边界之外</b>调
+     *       {@link RecurringAutoPostNotifier#notifyAutoPosted} 告知用户（需求 5.3）；告知失败已被 notifier
+     *       内部就地隔离，不影响入账。</li>
+     *   <li>{@link AutoPostResult.Outcome#DEGRADED_TO_PENDING}：目标失效 / 金额非法已降级为一条 {@code PENDING}
+     *       待确认项，无需告知（需求 3）。</li>
+     *   <li>撞唯一键 {@link DataIntegrityViolationException}：并发 / 重复触发同一期次，另一路径已处理，静默
+     *       （需求 2.4、3.4、4.3）。</li>
+     *   <li>其它非预期运行时异常：<b>期次级就地隔离</b>，仅记 {@code [RECURRING_AUTOPOST_FAILED]} 告警，
+     *       不阻断同规则其它期次、同账本其它规则（需求 3.5）。</li>
+     * </ul>
+     */
+    private void autoPostOccurrence(RecurringRule rule, LocalDate occurrenceDate) {
+        try {
+            AutoPostResult result = autoPoster.autoPost(rule, occurrenceDate);
+            if (result.autoPosted()) {
+                // 入账事务已提交，事务边界外发告知（需求 5.3）；notifier 内部已就地隔离失败（需求 5.2）。
+                autoPostNotifier.notifyAutoPosted(rule.getUserId(), result.transaction());
+            }
+        } catch (DataIntegrityViolationException duplicate) {
+            // 并发 / 重复触发撞唯一键：另一路径已处理该期次，静默（需求 2.4、3.4、4.3）。
+            log.debug("周期自动入账期次已处理（唯一键幂等），ruleId={}, occurrenceDate={}",
+                    rule.getId(), occurrenceDate);
+        } catch (Exception e) {
+            // 期次级失败就地隔离：不阻断同规则其它期次、同账本其它规则（需求 3.5）。
+            log.warn("[RECURRING_AUTOPOST_FAILED] ruleId={}, occurrenceDate={}",
+                    rule.getId(), occurrenceDate, e);
         }
     }
 

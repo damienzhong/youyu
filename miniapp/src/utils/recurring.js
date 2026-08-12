@@ -113,6 +113,21 @@ export const END_CONDITION_OPTIONS = [
   { value: 'COUNT', label: '共 N 次' }
 ]
 
+/**
+ * 入账方式选项（分段控件，recurring-auto-post 需求 7.1、7.2）：
+ * 默认「待确认」，与后端默认 CONFIRM 一致。
+ */
+export const POST_MODE_OPTIONS = [
+  { value: 'CONFIRM', label: '待确认' },
+  { value: 'AUTO', label: '自动入账' }
+]
+
+/** 入账方式说明文案：仅「自动入账」需给出（到期自动记账并通知；目标失效会转为待确认）。 */
+export const POST_MODE_HINTS = {
+  AUTO: '到期自动记账并通知你；若分类 / 账户已删除会自动转为待确认。',
+  CONFIRM: '到期生成一条待确认记账，需你手动确认后才入账。'
+}
+
 /** 星期几选项（1=周一 … 7=周日），供每周多选。 */
 export const WEEKDAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ value: n, label: weekdayLabel(n) }))
 
@@ -236,7 +251,9 @@ export function buildRulePayload(form) {
     categoryId: f.categoryId,
     accountId: f.accountId,
     frequency: f.frequency,
-    endCondition: f.endCondition
+    endCondition: f.endCondition,
+    // 入账方式：默认 CONFIRM（待确认），与后端默认一致（recurring-auto-post 需求 1.2、7.2）。
+    postMode: f.postMode === 'AUTO' ? 'AUTO' : 'CONFIRM'
   }
   const note = f.note != null ? String(f.note).trim() : ''
   if (note) payload.note = note
@@ -295,6 +312,8 @@ export function mapRuleError(err) {
       return { field: 'frequency', message: message || '频率配置有误，请重新选择' }
     case 'RECURRING_END_CONDITION_INVALID':
       return { field: 'endCondition', message: message || '结束条件有误，请重新选择' }
+    case 'RECURRING_POST_MODE_INVALID':
+      return { field: 'postMode', message: message || '入账方式有误，请重新选择' }
     default:
       return { field: null, message: message || '保存失败，请稍后重试' }
   }
@@ -321,7 +340,8 @@ export function ruleToForm(rule) {
     startDate: r.startDate ? String(r.startDate).slice(0, 10) : '',
     endCondition: r.endCondition || 'NEVER',
     untilDate: r.untilDate ? String(r.untilDate).slice(0, 10) : '',
-    countN: r.countN != null ? r.countN : ''
+    countN: r.countN != null ? r.countN : '',
+    postMode: r.postMode === 'AUTO' ? 'AUTO' : 'CONFIRM'
   }
 }
 

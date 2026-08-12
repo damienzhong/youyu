@@ -36,6 +36,7 @@ public record RecurringRuleResponse(
         LocalDate untilDate,
         Integer countN,
         String status,
+        String postMode,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
@@ -59,6 +60,7 @@ public record RecurringRuleResponse(
                 rule.getUntilDate(),
                 rule.getCountN(),
                 rule.getStatus() == null ? null : rule.getStatus().name(),
+                rule.getPostMode() == null ? null : rule.getPostMode().name(),
                 rule.getCreatedAt(),
                 rule.getUpdatedAt());
     }

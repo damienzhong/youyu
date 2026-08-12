@@ -119,6 +119,15 @@ public class RecurringRule {
     @Column(name = "status", nullable = false, length = 16)
     private RuleStatus status;
 
+    /**
+     * 入账方式：{@code CONFIRM}（待确认，默认）/ {@code AUTO}（自动入账），以枚举名存储
+     * （迁移 {@code V44__recurring_rule_post_mode.sql}）。字段初始值 + 服务层显式赋值双重保证默认
+     * {@code CONFIRM}，与列默认值一致（需求 1.2、1.3）。Feature: recurring-auto-post。
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "post_mode", nullable = false, length = 16)
+    private PostMode postMode = PostMode.CONFIRM;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -279,6 +288,14 @@ public class RecurringRule {
 
     public void setStatus(RuleStatus status) {
         this.status = status;
+    }
+
+    public PostMode getPostMode() {
+        return postMode;
+    }
+
+    public void setPostMode(PostMode postMode) {
+        this.postMode = postMode;
     }
 
     public LocalDateTime getCreatedAt() {

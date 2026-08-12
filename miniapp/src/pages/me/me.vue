@@ -210,6 +210,11 @@ function logout() {
           <text class="r-t">记账提醒</text>
           <text class="arrow">›</text>
         </view>
+        <view class="row" @click="go('/pages/recurring/recurring')">
+          <view class="r-ic"><AppIcon name="calendar" :size="36" /></view>
+          <text class="r-t">周期记账</text>
+          <text class="arrow">›</text>
+        </view>
         <view class="row" @click="go('/pages/sync/sync')">
           <view class="r-ic"><AppIcon name="import" :size="36" /></view>
           <text class="r-t">同步中心</text>

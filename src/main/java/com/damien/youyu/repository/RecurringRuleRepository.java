@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import com.damien.youyu.domain.PostMode;
 import com.damien.youyu.domain.RecurringRule;
 import com.damien.youyu.domain.RuleStatus;
 
@@ -42,4 +43,13 @@ public interface RecurringRuleRepository extends JpaRepository<RecurringRule, Lo
      * 不泄漏他人或他账本规则的存在性。</p>
      */
     Optional<RecurringRule> findByIdAndUserIdAndLedgerId(Long id, Long userId, Long ledgerId);
+
+    /**
+     * 每日定时自动入账任务扫描（recurring-auto-post 需求 4.2）：<b>跨全部账本</b>按状态 + 入账方式查询规则。
+     * 传入 {@code (RuleStatus.ACTIVE, PostMode.AUTO)} 即得全部启用且自动入账的规则，供
+     * {@link com.damien.youyu.service.recurring.RecurringAutoPostScheduler} 对其到期未处理期次自动入账。
+     * 命中索引 {@code idx_recurring_rules_ledger_status} 的 status 前缀不完整，规则总量有限，全表按
+     * status/post_mode 过滤可接受。
+     */
+    List<RecurringRule> findByStatusAndPostMode(RuleStatus status, PostMode postMode);
 }

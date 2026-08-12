@@ -24,6 +24,9 @@ import java.util.Set;
  *   <li>{@code endCondition}：结束条件，取值 {@code NEVER} / {@code UNTIL_DATE} / {@code COUNT}。</li>
  *   <li>{@code untilDate}：{@code UNTIL_DATE} 结束日期（不早于开始日期，含端点）。</li>
  *   <li>{@code countN}：{@code COUNT} 总期次数（1–9999）。</li>
+ *   <li>{@code postMode}：入账方式，取值 {@code CONFIRM}（待确认，默认）/ {@code AUTO}（自动入账）；
+ *       为空取 {@code CONFIRM}，非法取值由服务层映射为 {@code RECURRING_POST_MODE_INVALID}
+ *       （recurring-auto-post 需求 1.1、1.2、1.4）。</li>
  * </ul>
  *
  * <p>请求体不承载 userId / ledgerId：身份由 {@code CurrentUser} 解析、账本按请求头 {@code X-Ledger-Id}
@@ -46,5 +49,6 @@ public record RecurringRuleRequest(
         LocalDate startDate,
         String endCondition,
         LocalDate untilDate,
-        Integer countN) {
+        Integer countN,
+        String postMode) {
 }
