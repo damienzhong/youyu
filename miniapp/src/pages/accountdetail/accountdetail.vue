@@ -200,15 +200,18 @@ function goTransfer() {
 
 <template>
   <view class="page">
-    <!-- 头部：返回 / 标题 / 编辑 -->
+    <!-- 头部：返回 / 标题。右上角留空给微信胶囊（不放操作按钮，遵循 record/home 页约定）。 -->
     <view class="hero" :style="{ paddingTop: statusBarHeight }">
       <view class="hero-nav">
         <text class="hn-back" @click="goBack">‹</text>
         <text class="hn-title">{{ acc ? accountDisplayName(acc) : '账户明细' }}</text>
-        <text class="hn-more" @click="goEdit">•••</text>
+        <text class="hn-spacer"></text>
       </view>
       <view class="hero-body">
-        <AccountBadge v-if="acc" class="h-badge" :account="acc" :size="72" />
+        <view class="hb-top">
+          <AccountBadge v-if="acc" class="h-badge" :account="acc" :size="72" />
+          <text class="h-edit" @click="goEdit">编辑</text>
+        </view>
         <text class="h-label">账户余额（元）</text>
         <text class="h-bal" :class="{ neg: acc && Number(acc.currentBalance) < 0 }">{{ acc ? formatAmount(acc.currentBalance) : '0.00' }}</text>
         <view class="h-foot">
@@ -294,8 +297,21 @@ function goTransfer() {
 }
 .hn-back { font-size: 48rpx; line-height: 1; width: 60rpx; }
 .hn-title { font-size: 32rpx; font-weight: 700; }
-.hn-more { font-size: 30rpx; width: 60rpx; text-align: right; letter-spacing: 1rpx; }
+/* 右上角占位：与返回键等宽保持标题居中，空间留给微信胶囊 */
+.hn-spacer { width: 60rpx; }
 .hero-body { padding: 8rpx 34rpx 0; }
+.hb-top { display: flex; align-items: flex-start; justify-content: space-between; }
+/* 「编辑」入口移至卡片内（在胶囊下方，安全避让）：半透明胶囊按钮 */
+.h-edit {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 24rpx;
+  padding: 8rpx 24rpx;
+  border-radius: 999rpx;
+  line-height: 1.6;
+}
+.h-edit:active { background: rgba(255, 255, 255, 0.28); }
 .h-badge { margin-bottom: 12rpx; }
 .h-label { font-size: 24rpx; opacity: 0.85; }
 .h-bal { display: block; font-size: 66rpx; font-weight: 800; letter-spacing: -0.02em; margin: 6rpx 0 18rpx; }

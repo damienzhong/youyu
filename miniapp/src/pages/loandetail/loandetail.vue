@@ -286,9 +286,10 @@ async function submitEdit() {
       <view class="hero-nav" :style="{ paddingTop: statusBarHeight }">
         <text class="hn-back" @click="goBack">‹</text>
         <text class="hn-title">{{ loan ? loan.counterparty : '借贷详情' }}</text>
-        <text class="hn-more" @click="openMore">•••</text>
+        <text class="hn-spacer"></text>
       </view>
       <view class="hero-body" v-if="loan">
+        <view class="hb-actions"><text class="h-more" @click="openMore">•••</text></view>
         <text class="h-k">{{ L.remaining }}（元）</text>
         <text class="h-v">{{ formatAmount(remaining) }}</text>
         <view class="h-foot">
@@ -452,8 +453,13 @@ async function submitEdit() {
 .hero-nav { display: flex; align-items: center; justify-content: space-between; padding: 12rpx 24rpx 4rpx; }
 .hn-back { font-size: 48rpx; line-height: 1; width: 60rpx; }
 .hn-title { font-size: 32rpx; font-weight: 700; max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.hn-more { font-size: 30rpx; width: 60rpx; text-align: right; }
-.hero-body { padding: 18rpx 40rpx 0; text-align: center; }
+/* 右上角占位：与返回键等宽保持标题居中，空间留给微信胶囊 */
+.hn-spacer { width: 60rpx; }
+.hero-body { padding: 8rpx 40rpx 0; text-align: center; }
+/* 「•••」更多入口移至卡片内（胶囊下方，安全避让） */
+.hb-actions { display: flex; justify-content: flex-end; }
+.h-more { background: rgba(255, 255, 255, 0.18); color: #fff; font-size: 28rpx; line-height: 1.4; padding: 6rpx 22rpx; border-radius: 999rpx; letter-spacing: 2rpx; }
+.h-more:active { background: rgba(255, 255, 255, 0.3); }
 .h-k { font-size: 24rpx; opacity: 0.9; }
 .h-v { display: block; font-size: 68rpx; font-weight: 800; letter-spacing: -0.02em; margin: 8rpx 0 18rpx; }
 .h-foot { display: flex; justify-content: space-between; font-size: 24rpx; opacity: 0.92; }

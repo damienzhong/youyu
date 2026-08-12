@@ -8,6 +8,9 @@ import { seedDefaultCategories } from '../../api/category'
 const ONBOARDED_KEY = 'youyu_onboarded'
 const ledgerStore = useLedgerStore()
 
+// 自定义导航页：顶部让出状态栏 + 胶囊高度，避免「跳过」被微信胶囊遮挡。
+const statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 'px'
+
 const step = ref(1)
 const busy = ref(false)
 
@@ -81,7 +84,7 @@ function skip() {
 </script>
 
 <template>
-  <view class="ob">
+  <view class="ob" :style="{ paddingTop: `calc(${statusBarHeight} + 88rpx)` }">
     <!-- 进度 -->
     <view class="top">
       <text class="step-k">第 {{ step }} / 3 步 · {{ step === 1 ? '选择记账场景' : step === 2 ? '选常用账户' : '完成' }}</text>
