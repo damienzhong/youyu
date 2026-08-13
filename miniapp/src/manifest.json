@@ -7,6 +7,7 @@
   "vueVersion": "3",
   "mp-weixin": {
     "appid": "wx58eeb3784f3d644f",
+    "__usePrivacyCheck__": true,
     "setting": {
       "urlCheck": true,
       "es6": true,

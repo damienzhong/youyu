@@ -26,11 +26,20 @@ const FEATS = [
 ]
 
 onLoad(() => {
+  // #ifdef MP-WEIXIN
+  // 小程序走静默登录方案：欢迎页不作为强制同意入口，直接转发到登录页（由其静默 wx.login 进应用）。
+  // 隐私接口的同意交给微信系统隐私弹窗（manifest 已开 __usePrivacyCheck__）。
+  uni.reLaunch({ url: '/pages/login/login' })
+  return
+  // #endif
+  // #ifdef H5
+  // H5：保留原欢迎页 + 主动勾选同意协议。
   if (uni.getStorageSync(STORAGE_KEYS.welcomed)) {
     uni.reLaunch({ url: '/pages/login/login' })
     return
   }
   ready.value = true
+  // #endif
 })
 
 function markWelcomed() {

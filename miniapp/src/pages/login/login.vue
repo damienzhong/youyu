@@ -5,18 +5,32 @@ import { useAuthStore } from '../../stores/auth'
 import { sendCode } from '../../api/auth'
 import { listAccounts } from '../../api/account'
 import { takePendingAchievementCode } from '../../utils/achievement'
+// #ifdef MP-WEIXIN
+import { STORAGE_KEYS } from '../../utils/config'
+// #endif
 
 const auth = useAuthStore()
 const loading = ref(false)
-// 协议同意：默认**未勾选**，用户必须主动勾选后才能登录（微信审核合规：不得默认/强制同意，
-// 也不得在未同意前静默登录）。
+// 平台分流：
+//  - 微信小程序：进入即静默 wx.login 直接进应用（认证不涉及个人信息，合规）；隐私接口（相册/文件/
+//    剪贴板）的同意交给微信系统隐私弹窗（manifest 已开 __usePrivacyCheck__）。不做协议默认/强制同意。
+//  - H5 网页：不受微信审核约束，保留原「主动勾选同意协议」的登录页。
+// 因此协议勾选框与其校验仅在 H5 生效。
 const agreed = ref(false)
+// #ifdef MP-WEIXIN
+// 小程序静默登录仅尝试一次，避免失败时死循环。
+const autoTried = ref(false)
+// #endif
 
-// 登录前校验是否已勾选同意协议；未勾选给出提示并中断，绝不自动同意。
+// 登录前校验（仅 H5）：未勾选同意协议则提示并中断；小程序端不设此门槛（见上）。
 function ensureAgreed() {
-  if (agreed.value) return true
-  uni.showToast({ title: '请先阅读并勾选同意《用户协议》和《隐私政策》', icon: 'none' })
-  return false
+  // #ifdef H5
+  if (!agreed.value) {
+    uni.showToast({ title: '请先阅读并勾选同意《用户协议》和《隐私政策》', icon: 'none' })
+    return false
+  }
+  // #endif
+  return true
 }
 
 // 登录后路由：无账户且未走过引导的新用户 → 新手引导；否则进首页。
@@ -76,8 +90,20 @@ onShow(() => {
     routeAfterLogin()
     return
   }
-  // 未登录：不做任何静默/自动登录（微信合规：登录必须由用户主动点击并已勾选同意协议后发起）。
-  // 停留在登录页，等待用户主动操作。
+  // #ifdef MP-WEIXIN
+  // 微信小程序：静默 wx.login 直接登录进应用（认证不采集个人信息，合规）。
+  // 除非用户此前主动退出；静默失败则安静停留在登录页，由用户手动选择，不弹错、不重试。
+  if (autoTried.value || loading.value) return
+  if (uni.getStorageSync(STORAGE_KEYS.signedOut)) return
+  autoTried.value = true
+  loading.value = true
+  auth
+    .loginWithWeixin()
+    .then(routeAfterLogin)
+    .catch(() => { /* 静默失败：留在登录页，等待用户手动登录 */ })
+    .finally(() => { loading.value = false })
+  // #endif
+  // H5：不自动登录，展示带「主动勾选同意协议」的登录页（见模板）。
 })
 
 // 邮箱验证码登录/注册合一（默认折叠，微信一键为主路径，需要时展开）
@@ -168,7 +194,8 @@ async function handleEmailLogin() {
       <text class="slogan">记好每一笔，日子更有余</text>
     </view>
 
-    <!-- 协议勾选：默认未勾选，必须用户主动勾选（微信合规要求，不得默认/强制同意） -->
+    <!-- #ifdef H5 -->
+    <!-- 协议勾选（仅 H5）：默认未勾选，用户主动勾选后才能登录 -->
     <view class="agree" @click="agreed = !agreed">
       <view class="cbox" :class="{ on: agreed }">
         <text v-if="agreed" class="tick">✓</text>
@@ -179,6 +206,7 @@ async function handleEmailLogin() {
         <text class="tips-link" @click.stop="openLegal('privacy')">《隐私政策》</text>
       </text>
     </view>
+    <!-- #endif -->
 
     <button class="wx-btn" :loading="loading" @click="handleWxLogin">微信一键登录</button>
 
