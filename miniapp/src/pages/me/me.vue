@@ -134,6 +134,18 @@ function goAccount() {
 function about() {
   uni.showModal({ title: '有余', content: '记好每一笔，日子更有余\n版本 v0.1.2', showCancel: false })
 }
+// 常驻「添加到桌面 / 我的小程序」教程入口（retention-nudges 需求 1.6）：
+// 微信无一键添加 API，这里只做操作路径说明，随时可主动查看（关了首页自动提示的用户也能找到）。
+function showAddGuide() {
+  uni.showModal({
+    title: '把有余放到手边',
+    content:
+      '添加到「我的小程序」：点右上角「···」→「添加到我的小程序」，下拉微信即可秒开。\n\n' +
+      '添加到手机桌面：点右上角「···」→「添加到桌面」（部分机型支持），像 App 一样点开。',
+    showCancel: false,
+    confirmText: '知道了'
+  })
+}
 function logout() {
   uni.showModal({
     title: '退出登录',
@@ -241,6 +253,12 @@ function logout() {
           <view class="r-ic"><AppIcon name="star" :size="36" /></view>
           <text class="r-t">主题皮肤</text>
           <text class="r-v r-v-hot">{{ themeStore.current.name }}</text>
+          <text class="arrow">›</text>
+        </view>
+        <view class="row" @click="showAddGuide">
+          <view class="r-ic"><AppIcon name="star" :size="36" /></view>
+          <text class="r-t">添加到桌面 / 我的小程序</text>
+          <text class="r-v">更快打开</text>
           <text class="arrow">›</text>
         </view>
         <view class="row" @click="about">

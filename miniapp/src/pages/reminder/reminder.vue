@@ -5,8 +5,7 @@ import {
   fetchReminders,
   createReminder,
   updateReminder,
-  deleteReminder,
-  grantReminderQuota
+  deleteReminder
 } from '../../api/reminder'
 import {
   FREQUENCY_OPTIONS,
@@ -18,10 +17,10 @@ import {
 } from '../../utils/reminder'
 import {
   fetchBudgetReminderStatus,
-  updateBudgetReminderPreference,
-  grantBudgetReminderQuota
+  updateBudgetReminderPreference
 } from '../../api/budgetReminder'
 import { WX_REMINDER_TEMPLATE_ID, WX_BUDGET_REMINDER_TEMPLATE_ID } from '../../utils/config'
+import { requestSubscribe } from '../../utils/subscribe'
 import { useAuthStore } from '../../stores/auth'
 
 /**
@@ -182,7 +181,7 @@ async function toggleBudgetEnabled(e) {
  * 请求预算提醒订阅授权（需求 10.4~10.6）：wx.requestSubscribeMessage 请求预算提醒模板，
  * 用户点「允许」才上报；拒绝 / 失败不上报、提示未授权 + 再次授权入口、页面不进错误态。
  */
-function requestBudgetGrant() {
+async function requestBudgetGrant() {
   if (budgetGranting.value) return
   if (typeof wx === 'undefined' || typeof wx.requestSubscribeMessage !== 'function') {
     uni.showToast({ title: '请在微信小程序内开启提醒', icon: 'none' })
@@ -193,27 +192,18 @@ function requestBudgetGrant() {
     return
   }
   budgetGranting.value = true
-  wx.requestSubscribeMessage({
-    tmplIds: [WX_BUDGET_REMINDER_TEMPLATE_ID],
-    success: async (res) => {
-      if (res && res[WX_BUDGET_REMINDER_TEMPLATE_ID] === 'accept') {
-        try {
-          const r = await withTimeout(grantBudgetReminderQuota(1), REMINDER_TIMEOUT_MS)
-          budgetQuota.value = normalizeQuota(r?.remainingQuota)
-          uni.showToast({ title: '已开启预算提醒', icon: 'success' })
-        } catch (e) {
-          toastError(e)
-        }
-      } else {
-        uni.showToast({ title: '未授权，暂时无法收到预算提醒', icon: 'none' })
-      }
-      budgetGranting.value = false
-    },
-    fail: () => {
+  try {
+    // 复用统一编排：只请求预算提醒模板，保留预算提醒区块语义（需求 4.2）。
+    const { accepted } = await requestSubscribe([WX_BUDGET_REMINDER_TEMPLATE_ID])
+    if (accepted.includes(WX_BUDGET_REMINDER_TEMPLATE_ID)) {
+      await loadBudgetStatus() // 上报后从服务端刷新最新剩余次数
+      uni.showToast({ title: '已开启预算提醒', icon: 'success' })
+    } else {
       uni.showToast({ title: '未授权，暂时无法收到预算提醒', icon: 'none' })
-      budgetGranting.value = false
     }
-  })
+  } finally {
+    budgetGranting.value = false
+  }
 }
 
 function goLogin() {
@@ -336,7 +326,7 @@ function removeReminder(item) {
  * 请求一次性订阅授权：wx.requestSubscribeMessage → 用户点「允许」才上报（需求 10.5）。
  * 拒绝 / 调用失败 → 不上报、提示未授权 + 再次授权入口、页面不进错误态（需求 10.6）。
  */
-function requestGrant() {
+async function requestGrant() {
   if (granting.value) return
   // H5 / 非微信环境或未配置模板 id：无法发起订阅授权，给出提示，页面不进错误态。
   if (typeof wx === 'undefined' || typeof wx.requestSubscribeMessage !== 'function') {
@@ -348,29 +338,18 @@ function requestGrant() {
     return
   }
   granting.value = true
-  wx.requestSubscribeMessage({
-    tmplIds: [WX_REMINDER_TEMPLATE_ID],
-    success: async (res) => {
-      // 用户点「允许」时该模板项取值为 'accept'；'reject' / 'ban' 均视为未授权，不上报。
-      if (res && res[WX_REMINDER_TEMPLATE_ID] === 'accept') {
-        try {
-          const r = await withTimeout(grantReminderQuota(1), REMINDER_TIMEOUT_MS)
-          quota.value = normalizeQuota(r?.remainingQuota)
-          uni.showToast({ title: '已开启提醒', icon: 'success' })
-        } catch (e) {
-          toastError(e)
-        }
-      } else {
-        uni.showToast({ title: '未授权，暂时无法收到提醒', icon: 'none' })
-      }
-      granting.value = false
-    },
-    fail: () => {
-      // 调用失败：不上报、不进错误态，提示可再次授权（需求 10.6）。
+  try {
+    // 复用统一编排（retention-nudges）：批量请求 + 按模板上报 accept；此处只请求记账提醒模板。
+    const { accepted } = await requestSubscribe([WX_REMINDER_TEMPLATE_ID])
+    if (accepted.includes(WX_REMINDER_TEMPLATE_ID)) {
+      await loadList() // 上报后从服务端刷新最新剩余次数（需求 10.5）
+      uni.showToast({ title: '已开启提醒', icon: 'success' })
+    } else {
       uni.showToast({ title: '未授权，暂时无法收到提醒', icon: 'none' })
-      granting.value = false
     }
-  })
+  } finally {
+    granting.value = false
+  }
 }
 
 // 频率标签在模板里用 frequencyLabel 直接映射。

@@ -31,5 +31,9 @@ export const STORAGE_KEYS = {
   // 离线同步：仅 Wi-Fi 下自动同步开关（'1' 开启）。
   syncWifiOnly: 'youyu_sync_wifi_only',
   // 离线同步：上次成功同步时间戳（毫秒）。
-  syncLastAt: 'youyu_sync_last_at'
+  syncLastAt: 'youyu_sync_last_at',
+  // 留存轻触达（retention-nudges）：添加入口引导的本地记忆 { dismissed, lastShownAt }。
+  addGuideState: 'youyu_add_guide_state',
+  // 留存轻触达：高意愿时刻订阅授权入口的节流记忆 { lastRejectAt, dismissed }。
+  grantPromptState: 'youyu_grant_prompt_state'
 }

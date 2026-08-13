@@ -11,11 +11,48 @@ import {
 import { listCategories, flattenCategories } from '../../api/category'
 import { formatAmount, currentMonth, monthLabel } from '../../utils/format'
 import { shiftMonth } from '../../api/report'
+import { WX_BUDGET_REMINDER_TEMPLATE_ID, WX_REMINDER_TEMPLATE_ID } from '../../utils/config'
+import { requestSubscribe } from '../../utils/subscribe'
+import { shouldShowGrantPrompt, readNudgeState, writeNudgeState, GRANT_PROMPT_KEY } from '../../utils/nudge'
 
 const month = ref(currentMonth())
 const ov = ref(null)
 const loading = ref(false)
 const expenseCats = ref([])
+
+// 高意愿授权入口（retention-nudges 需求 2）：设完预算是开启预算超支提醒的高意愿时刻。
+// 仅微信环境、未在拒绝冷却内时，设置成功后展示一个「由用户点击触发」的开启入口。
+const showGrantEntry = ref(false)
+const granting = ref(false)
+function maybeShowGrantEntry() {
+  if (typeof wx === 'undefined' || typeof wx.requestSubscribeMessage !== 'function') return
+  if (!WX_BUDGET_REMINDER_TEMPLATE_ID) return
+  if (shouldShowGrantPrompt(readNudgeState(GRANT_PROMPT_KEY), Date.now())) {
+    showGrantEntry.value = true
+  }
+}
+async function enableBudgetReminder() {
+  if (granting.value) return
+  granting.value = true
+  try {
+    // 一次批量申请预算提醒 + 记账提醒两个模板（≤3 个上限），accept 的按模板各自上报（需求 2.3、2.4）。
+    const { accepted } = await requestSubscribe([WX_BUDGET_REMINDER_TEMPLATE_ID, WX_REMINDER_TEMPLATE_ID])
+    if (accepted.length > 0) {
+      uni.showToast({ title: '已开启提醒', icon: 'success' })
+    } else {
+      // 拒绝 / 未允许：写冷却、轻提示、不进错误态（需求 2.5、2.6）。
+      writeNudgeState(GRANT_PROMPT_KEY, { lastRejectAt: Date.now() })
+      uni.showToast({ title: '未授权，可稍后在「记账提醒」里开启', icon: 'none' })
+    }
+  } finally {
+    showGrantEntry.value = false
+    granting.value = false
+  }
+}
+function dismissGrantEntry() {
+  showGrantEntry.value = false
+  writeNudgeState(GRANT_PROMPT_KEY, { lastRejectAt: Date.now() })
+}
 
 // 弹层：'total' 设总预算 | 'category' 设分类预算 | null
 const sheet = ref(null)
@@ -104,6 +141,7 @@ async function submitSheet() {
     }
     sheet.value = null
     await load()
+    maybeShowGrantEntry() // 设完预算的高意愿时刻，按节流展示开启提醒入口（需求 2.1）
   } catch (e) {
     uni.showToast({ title: e.message || '保存失败', icon: 'none' })
   }
@@ -146,6 +184,16 @@ function pct(v) {
       <view class="nav" @click="prevMonth"><text>‹</text></view>
       <text class="month">{{ monthLabel(month) }}</text>
       <view class="nav" @click="nextMonth"><text>›</text></view>
+    </view>
+
+    <!-- 高意愿授权入口（设完预算后按节流展示；点击才发起订阅授权，需求 2.1、2.2） -->
+    <view v-if="showGrantEntry" class="grant-entry">
+      <view class="ge-main">
+        <text class="ge-t">开启预算超支提醒</text>
+        <text class="ge-d">预算快超 / 已超时，微信第一时间通知你</text>
+      </view>
+      <view class="ge-btn" @click="enableBudgetReminder">开启</view>
+      <text class="ge-x" @click="dismissGrantEntry">✕</text>
     </view>
 
     <!-- 总预算卡（中性卡 + 语义色进度条） -->
@@ -581,5 +629,46 @@ function pct(v) {
 }
 .submit {
   margin-top: 8rpx;
+}
+</style>
+
+<style scoped>
+/* 高意愿授权入口：设完预算后的轻提示条，点「开启」才发起订阅授权 */
+.grant-entry {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 0 0 20rpx;
+  padding: 20rpx 24rpx;
+  background: linear-gradient(135deg, #fff4e5, #ffe9cc);
+  border-radius: 18rpx;
+}
+.grant-entry .ge-main { flex: 1; min-width: 0; }
+.grant-entry .ge-t {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #8a5300;
+}
+.grant-entry .ge-d {
+  display: block;
+  font-size: 22rpx;
+  color: #a9781a;
+  margin-top: 4rpx;
+}
+.grant-entry .ge-btn {
+  flex: 0 0 auto;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #fff;
+  background: #f0913a;
+  border-radius: 999rpx;
+  padding: 12rpx 34rpx;
+}
+.grant-entry .ge-x {
+  flex: 0 0 auto;
+  font-size: 26rpx;
+  color: #b58a4a;
+  padding: 4rpx 6rpx;
 }
 </style>

@@ -21,6 +21,7 @@ import {
   buildRecordUrl
 } from '../../utils/suggestion'
 import { formatAmount, currentMonth, dayKeyOf, dayLabel } from '../../utils/format'
+import { shouldShowAddGuide, readNudgeState, writeNudgeState, ADD_GUIDE_KEY } from '../../utils/nudge'
 
 /**
  * 首页（总览/情绪价值）：精简为「一屏看完」。
@@ -210,6 +211,35 @@ function loadGrowthStreak() {
   fetchAchievements().then((r) => { achv.value = r }).catch(() => {})
 }
 
+// —— 添加入口引导（retention-nudges 需求 1）：低打扰、仅微信环境、按节流展示 ——
+const addGuide = ref(false)
+function maybeShowAddGuide() {
+  // 仅微信小程序环境展示；H5 无「我的小程序 / 添加到桌面」语义（需求 1.2）。
+  if (typeof wx === 'undefined') {
+    addGuide.value = false
+    return
+  }
+  if (shouldShowAddGuide(readNudgeState(ADD_GUIDE_KEY), Date.now())) {
+    addGuide.value = true
+    // 记录本次自动展示时间，下次自动展示须间隔最短天数（需求 1.4）。
+    writeNudgeState(ADD_GUIDE_KEY, { lastShownAt: Date.now() })
+  }
+}
+function openAddGuideHelp() {
+  uni.showModal({
+    title: '把有余放到手边',
+    content:
+      '添加到「我的小程序」：点右上角「···」→「添加到我的小程序」，下拉微信即可秒开。\n\n' +
+      '添加到手机桌面：点右上角「···」→「添加到桌面」（部分机型支持），像 App 一样点开。',
+    showCancel: false,
+    confirmText: '知道了'
+  })
+}
+function dismissAddGuide(forever) {
+  addGuide.value = false
+  if (forever) writeNudgeState(ADD_GUIDE_KEY, { dismissed: true }) // 「不再提示」永久关闭自动弹出（需求 1.3）
+}
+
 onShow(async () => {
   uni.hideTabBar({ animation: false, fail() {} })
   if (!auth.isLoggedIn) {
@@ -220,6 +250,7 @@ onShow(async () => {
   loadToday()
   loadGrowthStreak()
   loadSuggestions()
+  maybeShowAddGuide()
 })
 
 function goReminder() { uni.navigateTo({ url: '/pages/reminder/reminder' }) }
@@ -235,6 +266,15 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
 
 <template>
   <view class="page" :style="themeStore.current.vars">
+    <!-- 添加入口引导（低打扰、可关闭；仅微信环境按节流展示，需求 1） -->
+    <view v-if="addGuide" class="addguide">
+      <text class="ag-t">把有余添加到「我的小程序」，下拉微信秒开</text>
+      <view class="ag-ops">
+        <text class="ag-how" @click="openAddGuideHelp">怎么加</text>
+        <text class="ag-x" @click="dismissAddGuide(true)">不再提示</text>
+      </view>
+    </view>
+
     <!-- 欢迎 hero：图标在左上（避开右上微信胶囊） -->
     <view class="hero" :style="{ paddingTop: `calc(${statusBarHeight} + 12rpx)` }">
       <view class="h-top">
@@ -483,4 +523,40 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
 .cand-name { font-size: 30rpx; font-weight: 600; color: #16181c; }
 .cand-meta { font-size: 22rpx; color: #9aa2ad; }
 .disc-go { flex: 0 0 auto; font-size: 24rpx; font-weight: 700; color: var(--c-brand-ink, #0e8a44); }
+</style>
+
+<style scoped>
+/* 添加入口引导：低打扰细条，压在首页最上方 */
+.addguide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin: 12rpx 24rpx 0;
+  padding: 16rpx 22rpx;
+  background: rgba(18, 161, 80, 0.08);
+  border: 1rpx solid rgba(18, 161, 80, 0.2);
+  border-radius: 16rpx;
+}
+.addguide .ag-t {
+  flex: 1;
+  min-width: 0;
+  font-size: 24rpx;
+  color: #0f8a45;
+}
+.addguide .ag-ops {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  flex: 0 0 auto;
+}
+.addguide .ag-how {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #12a150;
+}
+.addguide .ag-x {
+  font-size: 24rpx;
+  color: #9aa2ad;
+}
 </style>
