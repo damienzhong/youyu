@@ -5,13 +5,19 @@ import { useAuthStore } from '../../stores/auth'
 import { sendCode } from '../../api/auth'
 import { listAccounts } from '../../api/account'
 import { takePendingAchievementCode } from '../../utils/achievement'
-import { STORAGE_KEYS } from '../../utils/config'
 
 const auth = useAuthStore()
 const loading = ref(false)
-// 小程序端自动静默登录：微信 wx.login 无需用户交互即可拿 code，
-// 因此被踢回登录页时可直接静默换取令牌、免去手动点按。仅试一次，避免失败时死循环。
-const autoTried = ref(false)
+// 协议同意：默认**未勾选**，用户必须主动勾选后才能登录（微信审核合规：不得默认/强制同意，
+// 也不得在未同意前静默登录）。
+const agreed = ref(false)
+
+// 登录前校验是否已勾选同意协议；未勾选给出提示并中断，绝不自动同意。
+function ensureAgreed() {
+  if (agreed.value) return true
+  uni.showToast({ title: '请先阅读并勾选同意《用户协议》和《隐私政策》', icon: 'none' })
+  return false
+}
 
 // 登录后路由：无账户且未走过引导的新用户 → 新手引导；否则进首页。
 async function routeAfterLogin() {
@@ -49,6 +55,7 @@ async function routeAfterLogin() {
 
 async function handleWxLogin() {
   if (loading.value) return
+  if (!ensureAgreed()) return
   loading.value = true
   try {
     await auth.loginWithWeixin()
@@ -64,28 +71,13 @@ async function handleWxLogin() {
 // 已登录（本地有令牌）就直接转发进应用——修复「登录后重新进入小程序又回到登录页」：
 // 根因是入口页从不为已登录用户转发，而非令牌未持久化。
 onShow(() => {
+  // 已登录（本地有令牌）直接进应用。
   if (auth.isLoggedIn) {
     routeAfterLogin()
     return
   }
-  // 未登录且未看过欢迎页：先去欢迎页完成协议同意（必须早于任何静默登录）。
-  if (!uni.getStorageSync(STORAGE_KEYS.welcomed)) {
-    uni.reLaunch({ url: '/pages/welcome/welcome' })
-    return
-  }
-  // 未登录：小程序端尝试一次静默微信登录（除非用户此前主动退出）。
-  // 静默失败则安静停留在登录页，由用户手动选择登录方式，不弹错、不重试。
-  // #ifdef MP-WEIXIN
-  if (autoTried.value || loading.value) return
-  if (uni.getStorageSync(STORAGE_KEYS.signedOut)) return
-  autoTried.value = true
-  loading.value = true
-  auth
-    .loginWithWeixin()
-    .then(routeAfterLogin)
-    .catch(() => { /* 静默失败：留在登录页，等待用户手动登录 */ })
-    .finally(() => { loading.value = false })
-  // #endif
+  // 未登录：不做任何静默/自动登录（微信合规：登录必须由用户主动点击并已勾选同意协议后发起）。
+  // 停留在登录页，等待用户主动操作。
 })
 
 // 邮箱验证码登录/注册合一（默认折叠，微信一键为主路径，需要时展开）
@@ -145,6 +137,7 @@ async function handleSendCode() {
 
 async function handleEmailLogin() {
   if (emailLoading.value) return
+  if (!ensureAgreed()) return
   const e = email.value.trim()
   const c = code.value.trim()
   if (!EMAIL_RE.test(e)) {
@@ -173,6 +166,18 @@ async function handleEmailLogin() {
       <view class="brand-mk">¥</view>
       <text class="title">有余</text>
       <text class="slogan">记好每一笔，日子更有余</text>
+    </view>
+
+    <!-- 协议勾选：默认未勾选，必须用户主动勾选（微信合规要求，不得默认/强制同意） -->
+    <view class="agree" @click="agreed = !agreed">
+      <view class="cbox" :class="{ on: agreed }">
+        <text v-if="agreed" class="tick">✓</text>
+      </view>
+      <text class="agree-text">我已阅读并同意
+        <text class="tips-link" @click.stop="openLegal('user')">《用户协议》</text>
+        与
+        <text class="tips-link" @click.stop="openLegal('privacy')">《隐私政策》</text>
+      </text>
     </view>
 
     <button class="wx-btn" :loading="loading" @click="handleWxLogin">微信一键登录</button>
@@ -212,11 +217,6 @@ async function handleEmailLogin() {
       </button>
     </view>
 
-    <text class="tips">登录即表示同意
-      <text class="tips-link" @click="openLegal('user')">《用户协议》</text>
-      与
-      <text class="tips-link" @click="openLegal('privacy')">《隐私政策》</text>
-    </text>
   </view>
 </template>
 
@@ -258,6 +258,39 @@ async function handleEmailLogin() {
   margin-top: 14rpx;
   font-size: 28rpx;
   color: #6b7280;
+}
+/* 协议勾选行：置于登录按钮上方，默认未勾选 */
+.agree {
+  width: 560rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-bottom: 28rpx;
+}
+.cbox {
+  flex: 0 0 auto;
+  width: 36rpx;
+  height: 36rpx;
+  border: 2rpx solid #c0c4cc;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+.cbox.on {
+  background: #07c160;
+  border-color: #07c160;
+}
+.cbox .tick {
+  color: #fff;
+  font-size: 24rpx;
+  line-height: 1;
+}
+.agree-text {
+  font-size: 24rpx;
+  color: #6b7280;
+  line-height: 1.5;
 }
 .wx-btn {
   width: 560rpx;
