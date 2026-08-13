@@ -2,7 +2,7 @@ package com.damien.youyu.service;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ class ReminderDispatchServiceFaultTest {
     private static final long REMINDER_ID = 7L;
     private static final String OPENID = "o-user-openid";
     private static final String TOKEN = "tk-123";
+    private static final String TEMPLATE_ID = "tmpl-reminder";
 
     @Mock private ReminderSendLogRepository sendLogRepository;
     @Mock private ReminderQuotaRepository quotaRepository;
@@ -68,6 +70,7 @@ class ReminderDispatchServiceFaultTest {
     @Mock private UserRepository userRepository;
     @Mock private WeChatAccessTokenProvider accessTokenProvider;
     @Mock private WeChatClient weChatClient;
+    @Mock private SubscribeTemplateProvider templateProvider;
 
     private ReminderDispatchService service;
 
@@ -75,7 +78,7 @@ class ReminderDispatchServiceFaultTest {
     void setUp() {
         Clock clock = Clock.fixed(FIXED_NOW.atZone(ZONE).toInstant(), ZONE);
         service = new ReminderDispatchService(sendLogRepository, quotaRepository, userGrowthRepository,
-                userRepository, accessTokenProvider, weChatClient, clock);
+                userRepository, accessTokenProvider, weChatClient, templateProvider, clock);
     }
 
     private CustomReminder reminder() {
@@ -101,14 +104,17 @@ class ReminderDispatchServiceFaultTest {
                 .thenThrow(new RuntimeException("db read failed"));
         when(quotaRepository.findRemaining(USER_ID)).thenReturn(Optional.of(3));
         when(userRepository.findWxOpenid(USER_ID)).thenReturn(Optional.of(OPENID));
+        when(templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER))
+                .thenReturn(Optional.of(TEMPLATE_ID));
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(ReminderMessageResolver.MSG_NOT_YET)))
-                .thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_NOT_YET))).thenReturn(0);
 
         assertThatCode(() -> service.dispatch(reminder(), TODAY, NOW)).doesNotThrowAnyException();
 
-        // 兜底选了 NOT_YET 文案且发送成功，记录写 NOT_YET 变体、扣一次额度。
-        verify(weChatClient).sendSubscribeMessage(TOKEN, OPENID, ReminderMessageResolver.MSG_NOT_YET);
+        // 兜底选了 NOT_YET 文案且发送成功，thing4 填 NOT_YET 文案，记录写 NOT_YET 变体、扣一次额度。
+        verify(weChatClient).sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_NOT_YET));
         verify(sendLogRepository).saveAndFlush(argThatVariant(ReminderDispatchService.VARIANT_NOT_YET));
         verify(quotaRepository).decrementFloorZero(eq(USER_ID), any(LocalDateTime.class));
         // 绝不写 user_growth。
@@ -125,8 +131,10 @@ class ReminderDispatchServiceFaultTest {
         when(userGrowthRepository.findLastRecordDate(USER_ID)).thenReturn(Optional.empty());
         when(quotaRepository.findRemaining(USER_ID)).thenReturn(Optional.of(3));
         when(userRepository.findWxOpenid(USER_ID)).thenReturn(Optional.of(OPENID));
+        when(templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER))
+                .thenReturn(Optional.of(TEMPLATE_ID));
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString())).thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap())).thenReturn(0);
         // 并发：另一线程已为同 (reminderId, today) 写入 → 本次写入撞唯一键。
         when(sendLogRepository.saveAndFlush(any(ReminderSendLog.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
@@ -134,7 +142,7 @@ class ReminderDispatchServiceFaultTest {
         assertThatCode(() -> service.dispatch(reminder(), TODAY, NOW)).doesNotThrowAnyException();
 
         // 微信只被调一次；唯一键冲突后不扣额度（写入未成功）。
-        verify(weChatClient, times(1)).sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString());
+        verify(weChatClient, times(1)).sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap());
         verify(quotaRepository, never()).decrementFloorZero(any(), any());
         verify(quotaRepository, never()).zero(any(), any());
     }
@@ -143,5 +151,11 @@ class ReminderDispatchServiceFaultTest {
     private static ReminderSendLog argThatVariant(String expectedVariant) {
         return org.mockito.ArgumentMatchers.argThat(
                 log -> log != null && expectedVariant.equals(log.getMessageVariant()));
+    }
+
+    /** Mockito 参数匹配器：断言字段 map 的 thing4（温馨提示）等于期望文案。 */
+    private static Map<String, String> argThatThing4(String expectedThing4) {
+        return org.mockito.ArgumentMatchers.argThat(
+                fields -> fields != null && expectedThing4.equals(fields.get("thing4")));
     }
 }

@@ -406,6 +406,67 @@ public class WeChatClient {
     }
 
     /**
+     * 下发一次性订阅消息，<b>模板 id 与字段填值均由调用方显式给定</b>（重载版本，新方案主入口）。
+     * 与 {@link #sendSubscribeMessage(String, String, String)} 语义一致：返回微信 {@code errcode}
+     * （{@code 0} 成功）；本地失败（模板未配置 / 凭证为空 / 网络异常 / 响应无法解析）返回哨兵
+     * {@link #ERRCODE_LOCAL_FAILURE}；识别 {@code errcode=40001}（凭证无效）后经
+     * {@link WeChatAccessTokenProvider#forceRefresh(String)} 强制刷新凭证并重试一次；<b>不抛异常</b>，
+     * 任何故障就地吞掉并记不含敏感信息的告警日志，绝不冒泡到调度 / 评估 / 主路径。
+     *
+     * <p>模板 id 由 {@code SubscribeTemplateProvider} 从数据库配置读入（替代旧的环境变量来源）；
+     * {@code fields} 为「模板字段名 → 填值」的有序映射（如 {@code time1 → "2026-01-01 09:00"}、
+     * {@code thing3 → "记得记账哦"}、{@code amount2 → "10.00"}），按每个 key 组装成
+     * {@code data:{<key>:{value:<填值>}}}。{@code templateId} 为空 / 空白时安全降级为
+     * {@link #ERRCODE_LOCAL_FAILURE} 并记告警日志（不含收件人 / 令牌等敏感信息），既不外呼微信、
+     * 也不影响任何主路径。</p>
+     *
+     * @param accessToken 由 {@link WeChatAccessTokenProvider} 提供的接口调用凭证
+     * @param openid      收件用户的 {@code wx_openid}
+     * @param templateId  订阅消息模板 id（由数据库配置提供）
+     * @param fields      模板字段名 → 填值的映射（各字段填值须在模板字段长度限制内）
+     * @return 微信 {@code errcode}（{@code 0} 成功），或本地失败时的 {@link #ERRCODE_LOCAL_FAILURE}
+     */
+    public int sendSubscribeMessage(String accessToken, String openid, String templateId,
+            Map<String, String> fields) {
+        if (templateId == null || templateId.isBlank()) {
+            log.warn("未配置微信订阅消息模板 id，订阅消息发送安全降级为失败");
+            return ERRCODE_LOCAL_FAILURE;
+        }
+        if (accessToken == null || accessToken.isBlank()) {
+            log.warn("订阅消息接口凭证为空，发送安全降级为失败");
+            return ERRCODE_LOCAL_FAILURE;
+        }
+
+        Map<String, Object> data = buildData(fields);
+        int errcode = postSubscribeMessageData(templateId, accessToken, openid, data);
+        if (errcode == WeChatApiException.ERRCODE_INVALID_CREDENTIAL) {
+            log.warn("微信订阅消息接口返回 errcode=40001 凭证无效，强制刷新凭证后重试一次");
+            String freshToken;
+            try {
+                freshToken = accessTokenProvider.forceRefresh(accessToken);
+            } catch (RuntimeException ex) {
+                log.warn("强制刷新微信凭证失败，订阅消息发送安全降级为失败：{}", ex.toString());
+                return ERRCODE_LOCAL_FAILURE;
+            }
+            errcode = postSubscribeMessageData(templateId, freshToken, openid, data);
+        }
+        return errcode;
+    }
+
+    /** 把「字段名 → 填值」映射组装成微信订阅消息的 {@code data:{<key>:{value:<填值>}}} 结构。 */
+    private static Map<String, Object> buildData(Map<String, String> fields) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        if (fields != null) {
+            for (Map.Entry<String, String> entry : fields.entrySet()) {
+                Map<String, Object> field = new LinkedHashMap<>();
+                field.put("value", entry.getValue());
+                data.put(entry.getKey(), field);
+            }
+        }
+        return data;
+    }
+
+    /**
      * 用指定模板下发一次性订阅消息（记账提醒与预算提醒共用此实现，仅模板 id 不同）。
      * 模板未配置 / 凭证为空一律安全降级为 {@link #ERRCODE_LOCAL_FAILURE}；{@code errcode=40001} 强制刷新重试一次。
      */
@@ -439,13 +500,22 @@ public class WeChatClient {
      * 执行一次 {@code subscribeMessage.send} 调用并解析 {@code errcode}。
      * 网络异常、空响应体一律归一为 {@link #ERRCODE_LOCAL_FAILURE}（记告警日志，不抛异常）。
      */
-    @SuppressWarnings("unchecked")
     private int postSubscribeMessage(String templateId, String accessToken, String openid, String message) {
         // LinkedHashMap 而非 Map.of：固定字段顺序让抓包与日志比对更直观。
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("value", message);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put(subscribeMessageField, field);
+        return postSubscribeMessageData(templateId, accessToken, openid, data);
+    }
+
+    /**
+     * 执行一次 {@code subscribeMessage.send} 调用并解析 {@code errcode}（{@code data} 由调用方组装好）。
+     * 网络异常、空响应体一律归一为 {@link #ERRCODE_LOCAL_FAILURE}（记告警日志，不抛异常）。
+     */
+    @SuppressWarnings("unchecked")
+    private int postSubscribeMessageData(String templateId, String accessToken, String openid,
+            Map<String, Object> data) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("touser", openid);
         payload.put("template_id", templateId);

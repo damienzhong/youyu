@@ -2,6 +2,7 @@ package com.damien.youyu.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
@@ -124,6 +125,9 @@ class ReminderCorrectnessPropertyTest {
     /** 凭证网关替身：dispatch 发送分支取 token 用。 */
     @MockitoBean
     private WeChatAccessTokenProvider accessTokenProvider;
+    /** 模板配置替身：测试环境 Flyway 关闭（无 V45 seed），故替身返回启用中的记账提醒模板 id。 */
+    @MockitoBean
+    private SubscribeTemplateProvider templateProvider;
 
     @BeforeTry
     void prepare() throws Exception {
@@ -132,9 +136,13 @@ class ReminderCorrectnessPropertyTest {
 
         WECHAT_CALLS.set(0);
         wechatErrcode = 0;
-        reset(weChatClient, accessTokenProvider);
+        reset(weChatClient, accessTokenProvider, templateProvider);
+        when(templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER))
+                .thenReturn(java.util.Optional.of("tmpl-test"));
         when(accessTokenProvider.getToken()).thenReturn("token");
-        when(weChatClient.sendSubscribeMessage(anyString(), anyString(), anyString()))
+        // dispatch 改走「按模板多字段填值」的新重载 sendSubscribeMessage(token, openid, templateId, fields)；
+        // 模板 id 由真实 SubscribeTemplateProvider 从 H2 里的 V45 seed（REMINDER 行）读取。
+        when(weChatClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap()))
                 .thenAnswer(inv -> {
                     WECHAT_CALLS.incrementAndGet();
                     return wechatErrcode;

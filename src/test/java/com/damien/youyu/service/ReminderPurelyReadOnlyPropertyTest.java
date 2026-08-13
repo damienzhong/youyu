@@ -1,6 +1,7 @@
 package com.damien.youyu.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -113,6 +114,7 @@ class ReminderPurelyReadOnlyPropertyTest {
     @Autowired private UserGrowthRepository userGrowthRepository;
     @Autowired private WeChatClient weChatClient;
     @Autowired private WeChatAccessTokenProvider accessTokenProvider;
+    @Autowired private SubscribeTemplateProvider templateProvider;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     /** 本次迭代创建的提醒 id（供 UPDATE/DELETE/DISPATCH 命令引用），每 try 复位。 */
@@ -123,9 +125,13 @@ class ReminderPurelyReadOnlyPropertyTest {
         new TestContextManager(ReminderPurelyReadOnlyPropertyTest.class).prepareTestInstance(this);
         reminderIds.clear();
         ERRCODE.set(0);
-        reset(weChatClient, accessTokenProvider);
+        reset(weChatClient, accessTokenProvider, templateProvider);
         when(accessTokenProvider.getToken()).thenReturn("tk-fixed");
-        when(weChatClient.sendSubscribeMessage(anyString(), anyString(), anyString()))
+        // 测试环境 Flyway 关闭（无 V45 seed），模板配置替身返回启用中的记账提醒模板 id。
+        when(templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER))
+                .thenReturn(java.util.Optional.of("tmpl-test"));
+        // dispatch 改走「按模板多字段填值」的新重载 sendSubscribeMessage(token, openid, templateId, fields)。
+        when(weChatClient.sendSubscribeMessage(anyString(), anyString(), anyString(), anyMap()))
                 .thenAnswer(inv -> ERRCODE.get());
     }
 
@@ -431,6 +437,12 @@ class ReminderPurelyReadOnlyPropertyTest {
         @Primary
         WeChatAccessTokenProvider mockWeChatAccessTokenProvider() {
             return mock(WeChatAccessTokenProvider.class);
+        }
+
+        @Bean
+        @Primary
+        SubscribeTemplateProvider mockSubscribeTemplateProvider() {
+            return mock(SubscribeTemplateProvider.class);
         }
     }
 }

@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -73,12 +76,22 @@ public class ReminderDispatchService {
     static final String VARIANT_DONE = "DONE";
     static final String VARIANT_NOT_YET = "NOT_YET";
 
+    /** 时区一律 {@code Asia/Shanghai}（经注入的 {@link Clock} 保证），此处只负责格式化。 */
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    /** 微信订阅消息 {@code thing} 型字段字符上限（超出则截断）。 */
+    private static final int THING_MAX_CHARS = 20;
+
+    /** 记账提醒模板「提醒内容」字段（thing3）固定短语。 */
+    static final String REMINDER_THING_CONTENT = "记得记账哦";
+
     private final ReminderSendLogRepository sendLogRepository;
     private final ReminderQuotaRepository quotaRepository;
     private final UserGrowthRepository userGrowthRepository;
     private final UserRepository userRepository;
     private final WeChatAccessTokenProvider accessTokenProvider;
     private final WeChatClient weChatClient;
+    private final SubscribeTemplateProvider templateProvider;
     private final Clock clock;
 
     public ReminderDispatchService(ReminderSendLogRepository sendLogRepository,
@@ -87,6 +100,7 @@ public class ReminderDispatchService {
                                    UserRepository userRepository,
                                    WeChatAccessTokenProvider accessTokenProvider,
                                    WeChatClient weChatClient,
+                                   SubscribeTemplateProvider templateProvider,
                                    Clock clock) {
         this.sendLogRepository = sendLogRepository;
         this.quotaRepository = quotaRepository;
@@ -94,6 +108,7 @@ public class ReminderDispatchService {
         this.userRepository = userRepository;
         this.accessTokenProvider = accessTokenProvider;
         this.weChatClient = weChatClient;
+        this.templateProvider = templateProvider;
         this.clock = clock;
     }
 
@@ -161,9 +176,22 @@ public class ReminderDispatchService {
      */
     private void sendAndRecord(Long reminderId, Long userId, LocalDate today,
                                String variant, String openid, String message) {
+        // 模板 id 从数据库配置读取（替代旧的环境变量来源）；未配置 / 未启用 → 视为发送失败，
+        // 写 FAILED（errcode 空）、不扣额度、不外抛，与微信调用异常分支一致（需求 6.4）。
+        Optional<String> templateId = templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER);
+        if (templateId.isEmpty()) {
+            writeLog(reminderId, userId, today, ReminderSendResult.FAILED, variant, null);
+            log.warn("记账提醒模板未配置，发送安全降级为失败, reminderId={}, userId={}", reminderId, userId);
+            return;
+        }
         try {
             String token = accessTokenProvider.getToken();
-            int errcode = weChatClient.sendSubscribeMessage(token, openid, message);
+            // 按模板字段填值：time1=当前时刻(Asia/Shanghai)、thing3=固定提醒内容、thing4=已记账/未记账文案。
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("time1", LocalDateTime.now(clock).format(TIME_FORMAT));
+            fields.put("thing3", truncateThing(REMINDER_THING_CONTENT));
+            fields.put("thing4", truncateThing(message));
+            int errcode = weChatClient.sendSubscribeMessage(token, openid, templateId.get(), fields);
             if (errcode == 0) {
                 // 成功：先写 SENT（唯一键冲突则本次作废、不扣额度），再扣额度（需求 6.1、5.5）。
                 boolean written = writeLog(reminderId, userId, today, ReminderSendResult.SENT, variant, 0);
@@ -183,6 +211,14 @@ public class ReminderDispatchService {
             writeLog(reminderId, userId, today, ReminderSendResult.FAILED, variant, null);
             log.warn("提醒发送异常, reminderId={}, userId={}", reminderId, userId, ex);
         }
+    }
+
+    /** 微信 {@code thing} 型字段上限 20 字符：超长截断，保证落入模板字段限制内。 */
+    private static String truncateThing(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() > THING_MAX_CHARS ? text.substring(0, THING_MAX_CHARS) : text;
     }
 
     /**

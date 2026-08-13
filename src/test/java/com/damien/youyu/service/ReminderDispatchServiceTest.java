@@ -2,7 +2,9 @@ package com.damien.youyu.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -17,6 +19,8 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,12 +88,14 @@ class ReminderDispatchServiceTest {
 
     private static final String OPENID = "o-user-openid";
     private static final String TOKEN = "tk-123";
+    private static final String TEMPLATE_ID = "tmpl-reminder";
 
     @Autowired private ReminderDispatchService service;
     @Autowired private ReminderSendLogRepository sendLogRepository;
     @Autowired private ReminderQuotaRepository quotaRepository;
     @Autowired private WeChatClient weChatClient;
     @Autowired private WeChatAccessTokenProvider accessTokenProvider;
+    @Autowired private SubscribeTemplateProvider templateProvider;
     @Autowired private TestEntityManager em;
 
     /**
@@ -98,7 +104,10 @@ class ReminderDispatchServiceTest {
      */
     @BeforeEach
     void resetMocks() {
-        reset(weChatClient, accessTokenProvider);
+        reset(weChatClient, accessTokenProvider, templateProvider);
+        // 模板 id 从数据库配置读取（新方案）；此处默认已配置启用，各发送分支据此走新重载。
+        when(templateProvider.templateId(SubscribeTemplateProvider.BIZ_REMINDER))
+                .thenReturn(Optional.of(TEMPLATE_ID));
     }
 
     @TestConfiguration
@@ -117,6 +126,11 @@ class ReminderDispatchServiceTest {
         WeChatAccessTokenProvider weChatAccessTokenProvider() {
             return mock(WeChatAccessTokenProvider.class);
         }
+
+        @Bean
+        SubscribeTemplateProvider subscribeTemplateProvider() {
+            return mock(SubscribeTemplateProvider.class);
+        }
     }
 
     // ============================================================ 幂等（需求 6.5、6.6）
@@ -128,13 +142,13 @@ class ReminderDispatchServiceTest {
         CustomReminder reminder = newReminder(userId, IN_WINDOW);
         quotaRepository.addCapped(userId, 3, FIXED_NOW);
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(anyString(), eq(OPENID), anyString())).thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(anyString(), eq(OPENID), anyString(), anyMap())).thenReturn(0);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
         service.dispatch(reminder, TODAY, NOW);   // 第二次应被幂等预检短路
 
-        verify(weChatClient, times(1)).sendSubscribeMessage(anyString(), eq(OPENID), anyString());
+        verify(weChatClient, times(1)).sendSubscribeMessage(anyString(), eq(OPENID), anyString(), anyMap());
         List<ReminderSendLog> logs = sendLogRepository.findAll();
         assertThat(logs).hasSize(1);
         assertThat(logs.get(0).getResult()).isEqualTo(ReminderSendResult.SENT);
@@ -199,12 +213,12 @@ class ReminderDispatchServiceTest {
         CustomReminder reminder = newReminder(userId, IN_WINDOW);
         quotaRepository.addCapped(userId, 3, FIXED_NOW);
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString())).thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap())).thenReturn(0);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
 
-        verify(weChatClient, times(1)).sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString());
+        verify(weChatClient, times(1)).sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap());
         assertSingleLog(ReminderSendResult.SENT, 0);
         assertThat(remaining(userId)).isEqualTo(2);
     }
@@ -218,7 +232,7 @@ class ReminderDispatchServiceTest {
         CustomReminder reminder = newReminder(userId, IN_WINDOW);
         quotaRepository.addCapped(userId, 3, FIXED_NOW);
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString())).thenReturn(40003);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap())).thenReturn(40003);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
@@ -236,7 +250,7 @@ class ReminderDispatchServiceTest {
         CustomReminder reminder = newReminder(userId, IN_WINDOW);
         quotaRepository.addCapped(userId, 5, FIXED_NOW);
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), anyString())).thenReturn(43101);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID), anyMap())).thenReturn(43101);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
@@ -255,13 +269,15 @@ class ReminderDispatchServiceTest {
         quotaRepository.addCapped(userId, 3, FIXED_NOW);
         seedGrowth(userId, TODAY);                          // 今日已记账
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(ReminderMessageResolver.MSG_DONE)))
-                .thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_DONE))).thenReturn(0);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
 
-        verify(weChatClient).sendSubscribeMessage(TOKEN, OPENID, ReminderMessageResolver.MSG_DONE);
+        // 新重载：thing4 承载「已记账」文案（time1/thing3 亦已填充，此处断言关键字段）。
+        verify(weChatClient).sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_DONE));
         assertSingleLog(ReminderSendResult.SENT, 0);
         assertThat(sendLogRepository.findAll().get(0).getMessageVariant())
                 .isEqualTo(ReminderDispatchService.VARIANT_DONE);
@@ -274,18 +290,24 @@ class ReminderDispatchServiceTest {
         CustomReminder reminder = newReminder(userId, IN_WINDOW);
         quotaRepository.addCapped(userId, 3, FIXED_NOW);   // 不建 user_growth 行
         when(accessTokenProvider.getToken()).thenReturn(TOKEN);
-        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(ReminderMessageResolver.MSG_NOT_YET)))
-                .thenReturn(0);
+        when(weChatClient.sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_NOT_YET))).thenReturn(0);
         clearContext();
 
         service.dispatch(reminder, TODAY, NOW);
 
-        verify(weChatClient).sendSubscribeMessage(TOKEN, OPENID, ReminderMessageResolver.MSG_NOT_YET);
+        verify(weChatClient).sendSubscribeMessage(eq(TOKEN), eq(OPENID), eq(TEMPLATE_ID),
+                argThatThing4(ReminderMessageResolver.MSG_NOT_YET));
         assertThat(sendLogRepository.findAll().get(0).getMessageVariant())
                 .isEqualTo(ReminderDispatchService.VARIANT_NOT_YET);
     }
 
     // ---------------------------------------------------------------- 辅助
+
+    /** Mockito 参数匹配器：断言字段 map 的 thing4（温馨提示）等于期望文案。 */
+    private static Map<String, String> argThatThing4(String expectedThing4) {
+        return argThat(fields -> fields != null && expectedThing4.equals(fields.get("thing4")));
+    }
 
     /** 断言恰有一条发送记录且结果/errcode 符合预期。 */
     private void assertSingleLog(ReminderSendResult expectedResult, Integer expectedErrcode) {

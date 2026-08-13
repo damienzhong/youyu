@@ -1,8 +1,13 @@
 package com.damien.youyu.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,21 +64,30 @@ public class BudgetReminderDispatchService {
     static final String RESULT_SKIPPED_NO_OPENID = "SKIPPED_NO_OPENID";
     static final String RESULT_FAILED = "FAILED";
 
+    /** 时区一律 {@code Asia/Shanghai}（经注入的 {@link Clock} 保证），此处只负责格式化。 */
+    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+
+    /** 微信订阅消息 {@code thing} 型字段字符上限（超出则截断）。 */
+    private static final int THING_MAX_CHARS = 20;
+
     private final BudgetReminderSendLogRepository sendLogRepository;
     private final BudgetReminderSettingRepository settingRepository;
     private final WeChatAccessTokenProvider accessTokenProvider;
     private final WeChatClient weChatClient;
+    private final SubscribeTemplateProvider templateProvider;
     private final Clock clock;
 
     public BudgetReminderDispatchService(BudgetReminderSendLogRepository sendLogRepository,
                                          BudgetReminderSettingRepository settingRepository,
                                          WeChatAccessTokenProvider accessTokenProvider,
                                          WeChatClient weChatClient,
+                                         SubscribeTemplateProvider templateProvider,
                                          Clock clock) {
         this.sendLogRepository = sendLogRepository;
         this.settingRepository = settingRepository;
         this.accessTokenProvider = accessTokenProvider;
         this.weChatClient = weChatClient;
+        this.templateProvider = templateProvider;
         this.clock = clock;
     }
 
@@ -86,12 +100,15 @@ public class BudgetReminderDispatchService {
      * @param scopeRef           预算范围：{@code 0} 表示月度总预算，大于 {@code 0} 表示分类 id
      * @param level              级别：{@code WARN} / {@code OVER}
      * @param categoryNameOrNull 分类当前名称（范围为总预算或名称不可得时可为 {@code null}）
+     * @param overAmount         超预算金额（{@code BigDecimal}，{@code OVER} 为已支出-预算、{@code WARN} 为 0），
+     *                           用于填充预算超支通知模板的 {@code amount2} 字段
      * @param openid             收件人 {@code wx_openid}（可空）
      * @param remaining          收件人当前预算提醒剩余订阅次数（由评估侧读入，避免重复查询）
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void dispatch(Long userId, Long ledgerId, YearMonth month, long scopeRef,
-                         String level, String categoryNameOrNull, String openid, int remaining) {
+                         String level, String categoryNameOrNull, BigDecimal overAmount,
+                         String openid, int remaining) {
         String monthKey = month.toString();
 
         // ① 幂等预检（需求 3.2）：同键已有记录 → 不重复发。
@@ -114,7 +131,7 @@ public class BudgetReminderDispatchService {
         }
 
         // ④ 发微信（需求 4.2、4.5、4.6、4.8）。
-        sendAndRecord(userId, ledgerId, monthKey, scopeRef, level, openid, message);
+        sendAndRecord(userId, ledgerId, monthKey, scopeRef, level, overAmount, openid, message);
     }
 
     /**
@@ -124,10 +141,24 @@ public class BudgetReminderDispatchService {
      * 其中 {@code 43101} 额外归零对齐；任何异常 → {@code FAILED}（errcode 空）、额度不动、不外抛。</p>
      */
     private void sendAndRecord(Long userId, Long ledgerId, String monthKey, long scopeRef,
-                               String level, String openid, String message) {
+                               String level, BigDecimal overAmount, String openid, String message) {
+        // 模板 id 从数据库配置读取（替代旧的环境变量来源）；未配置 / 未启用 → 视为发送失败，
+        // 写 FAILED（errcode 空）、不扣额度、不外抛，与微信调用异常分支一致（需求 4.5）。
+        java.util.Optional<String> templateId = templateProvider.templateId(SubscribeTemplateProvider.BIZ_BUDGET);
+        if (templateId.isEmpty()) {
+            writeLog(userId, ledgerId, monthKey, scopeRef, level, RESULT_FAILED, null);
+            log.warn("预算提醒模板未配置，发送安全降级为失败, userId={}, ledgerId={}, scopeRef={}, level={}",
+                    userId, ledgerId, scopeRef, level);
+            return;
+        }
         try {
             String token = accessTokenProvider.getToken();
-            int errcode = weChatClient.sendBudgetSubscribeMessage(token, openid, message);
+            // 按模板字段填值：amount2=超预算金额(保留2位纯数字)、time3=当前时刻(Asia/Shanghai)、thing4=文案。
+            Map<String, String> fields = new LinkedHashMap<>();
+            fields.put("amount2", formatAmount(overAmount));
+            fields.put("time3", LocalDateTime.now(clock).format(TIME_FORMAT));
+            fields.put("thing4", truncateThing(message));
+            int errcode = weChatClient.sendSubscribeMessage(token, openid, templateId.get(), fields);
             if (errcode == 0) {
                 // 成功：先写 SENT（唯一键冲突则本次作废、不扣额度），再扣额度（需求 4.2）。
                 boolean written = writeLog(userId, ledgerId, monthKey, scopeRef, level, RESULT_SENT, 0);
@@ -149,6 +180,20 @@ public class BudgetReminderDispatchService {
             log.warn("预算提醒发送异常, userId={}, ledgerId={}, scopeRef={}, level={}",
                     userId, ledgerId, scopeRef, level, ex);
         }
+    }
+
+    /** 超预算金额格式化为保留 2 位小数的纯数字字符串（如 {@code "10.00"}）；空值兜底为 {@code "0.00"}。 */
+    private static String formatAmount(BigDecimal amount) {
+        BigDecimal value = amount == null ? BigDecimal.ZERO : amount;
+        return value.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** 微信 {@code thing} 型字段上限 20 字符：超长截断，保证落入模板字段限制内。 */
+    private static String truncateThing(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.length() > THING_MAX_CHARS ? text.substring(0, THING_MAX_CHARS) : text;
     }
 
     /**

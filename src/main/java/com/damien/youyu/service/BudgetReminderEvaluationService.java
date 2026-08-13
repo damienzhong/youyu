@@ -1,5 +1,6 @@
 package com.damien.youyu.service;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -84,8 +85,13 @@ public class BudgetReminderEvaluationService {
         this.clock = clock;
     }
 
-    /** 一个达到预警 / 超支级别的预算范围。 */
-    private record ScopeLevel(long scopeRef, String level, String categoryNameOrNull) { }
+    /**
+     * 一个达到预警 / 超支级别的预算范围。
+     *
+     * @param overAmount 超预算金额（{@code BigDecimal}，保留 2 位小数）：{@code OVER} 级别 = 已支出-预算（为正），
+     *                   {@code WARN} 级别恒为 {@code 0}。用于填充预算超支通知模板的 {@code amount2} 字段。
+     */
+    private record ScopeLevel(long scopeRef, String level, String categoryNameOrNull, BigDecimal overAmount) { }
 
     /** 一名合格收件人及其发送所需的 openid 与剩余额度。 */
     private record Recipient(Long userId, String openid, int remaining) { }
@@ -134,7 +140,7 @@ public class BudgetReminderEvaluationService {
                     continue;
                 }
                 dispatchService.dispatch(r.userId(), ledgerId, currentMonth, s.scopeRef(),
-                        s.level(), s.categoryNameOrNull(), r.openid(), r.remaining());
+                        s.level(), s.categoryNameOrNull(), s.overAmount(), r.openid(), r.remaining());
             }
         }
     }
@@ -145,13 +151,16 @@ public class BudgetReminderEvaluationService {
         List<ScopeLevel> scopes = new ArrayList<>();
         // 月度总预算范围（scopeRef=0）：仅当已设总预算且状态为 WARN/OVER。
         if (overview.hasBudget() && isReminderLevel(overview.status())) {
-            scopes.add(new ScopeLevel(0L, overview.status(), null));
+            // OVER 超预算金额 = 已支出 - 总预算（为正）；WARN 恒 0（金额一律 BigDecimal，保留 2 位）。
+            BigDecimal over = overAmount(overview.status(), overview.spent(), overview.totalBudget());
+            scopes.add(new ScopeLevel(0L, overview.status(), null, over));
         }
         // 分类预算范围（scopeRef=categoryId）：overview 只列出已设(>0)的分类预算。
         if (overview.categories() != null) {
             for (CategoryBudgetItem item : overview.categories()) {
                 if (isReminderLevel(item.status())) {
-                    scopes.add(new ScopeLevel(item.categoryId(), item.status(), item.name()));
+                    BigDecimal over = overAmount(item.status(), item.spent(), item.budget());
+                    scopes.add(new ScopeLevel(item.categoryId(), item.status(), item.name(), over));
                 }
             }
         }
@@ -184,6 +193,21 @@ public class BudgetReminderEvaluationService {
 
     private boolean isReminderLevel(String status) {
         return LEVEL_WARN.equals(status) || LEVEL_OVER.equals(status);
+    }
+
+    /**
+     * 超预算金额（{@code BigDecimal}，保留 2 位小数）：{@code OVER} 级别 = {@code spent - budget}（下限 0，
+     * 防浮动为负），{@code WARN} 级别恒为 {@code 0}。金额一律 {@code BigDecimal}，不用 double。
+     */
+    private static BigDecimal overAmount(String level, BigDecimal spent, BigDecimal budget) {
+        if (!LEVEL_OVER.equals(level) || spent == null || budget == null) {
+            return BigDecimal.ZERO.setScale(2);
+        }
+        BigDecimal over = spent.subtract(budget);
+        if (over.signum() < 0) {
+            over = BigDecimal.ZERO;
+        }
+        return over.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     /** 记一条不含金额 / 邮箱 / 令牌的告警日志（评估异常由触发器在事务边界外吞掉，此处仅供内部调用点使用）。 */
