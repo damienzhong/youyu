@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  有余 PWA 应用图标（maskable 变体，矢量源）。
+  与 icon.svg 的唯一区别：背景满幅、不带圆角。
+  Android 会按厂商形状（圆形/水滴/方形）裁切 maskable 图标，满幅背景才不会露出透明边角。
+  ¥ 字徽的外接半径约 165px < safe zone 半径 204.8px（512 画布的 80% 内切圆），裁切不会切到字。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0.25" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#22c55e"/>
+      <stop offset="0.6" stop-color="#16a34a"/>
+      <stop offset="1" stop-color="#0b6b34"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <g fill="#ffffff">
+    <path d="M150 132 L196 132 L268 236 L240 268 Z"/>
+    <path d="M362 132 L316 132 L244 236 L272 268 Z"/>
+    <rect x="236" y="238" width="40" height="146" rx="6"/>
+    <rect x="164" y="268" width="184" height="36" rx="6"/>
+    <rect x="164" y="330" width="184" height="36" rx="6"/>
+  </g>
+</svg>

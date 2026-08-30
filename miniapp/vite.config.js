@@ -8,7 +8,14 @@ import uni from '@dcloudio/vite-plugin-uni'
 // 打到一个残留的旧进程上会得到「接口存在但报 500」这种最难判断的现象。
 const apiPort = process.env.YOUYU_API_PORT || '8090'
 
+// PWA 静态资源（manifest.webmanifest / sw.js / icons）放在 miniapp/public/，
+// 由 vite 原样拷贝到 H5 产物根目录（线上即 /app/ 下），不参与打包与指纹重写。
+// 小程序端不需要这些文件，且小程序有主包体积限制，故编译到 mp-* 平台时关掉 publicDir。
+// 取值刻意「默认开启、仅小程序关闭」：万一 UNI_PLATFORM 未注入，也不会让 H5 端悄悄丢掉 PWA 文件。
+const isMiniProgram = (process.env.UNI_PLATFORM || '').startsWith('mp-')
+
 export default defineConfig({
+  publicDir: isMiniProgram ? false : 'public',
   plugins: [uni()],
   server: {
     proxy: {

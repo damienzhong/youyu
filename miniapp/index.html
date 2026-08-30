@@ -7,9 +7,59 @@
       content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"
     />
     <title>有余</title>
+
+    <!--
+      PWA 元信息：让 https://youyuji.com/app/ 能被「添加到主屏幕 / 安装」成独立应用。
+      路径一律写成不带前导斜杠的相对路径：文档 URL 恒为 /app/（hash 路由不影响相对路径基准），
+      因此会解析到 /app/manifest.json、/app/icons/*，与 manifest 里的 scope 保持一致。
+      资源本体放在 miniapp/public/，由 vite 原样拷贝到 H5 产物根，不参与打包指纹。
+
+      刻意用 .json 而非规范推荐的 .webmanifest：线上 nginx 为 1.18.0，其 mime.types 尚无
+      webmanifest 条目（1.21.5 才加入），.webmanifest 会以 application/octet-stream 返回；
+      用 .json 可直接命中 application/json，省掉在生产 nginx 上改 MIME 的一步。
+    -->
+    <link rel="manifest" href="manifest.json" />
+
+    <!-- 状态栏 / 地址栏着色。取品牌绿（= tabBar selectedColor #12a150），与首页 hero 绿色渐变衔接。 -->
+    <meta name="theme-color" content="#12a150" />
+
+    <!-- iOS：以独立应用方式启动（隐藏 Safari 地址栏与工具栏） -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!--
+      状态栏用 default（不透明、系统为其留出空间）。
+      刻意不用 black-translucent：那会让页面内容顶到状态栏下方，而各页顶部内边距依赖
+      uni.getSystemInfoSync().statusBarHeight，该值在 H5 端为 0，会导致内容被状态栏压住。
+    -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="有余" />
+
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+
     <script>
       // uni-app H5 端占位，运行时注入
       window.__uniConfig = Object.assign({}, window.__uniConfig)
+    </script>
+    <script>
+      /*
+       * 注册 Service Worker（离线打开 + 可安装）。
+       * 'sw.js' 用相对路径 → /app/sw.js，作用域随之限定为 /app/，不会影响根路径的落地站。
+       * 本地开发（localhost/127.0.0.1）跳过注册：SW 缓存会干扰 vite 热更新。
+       */
+      ;(function () {
+        var host = location.hostname
+        if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return
+        if (!('serviceWorker' in navigator)) return
+        window.addEventListener('load', function () {
+          // updateViaCache: 'none' —— SW 脚本本身绕过 HTTP 缓存去校验更新。
+          // 这样「发版后拿到的还是旧 SW」不再依赖 nginx 给 /app/sw.js 配 no-cache。
+          navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(function () {
+            /* 注册失败不影响正常访问，静默忽略 */
+          })
+        })
+      })()
     </script>
   </head>
   <body>

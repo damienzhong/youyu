@@ -6,6 +6,9 @@ dist/*
 dist/build/*
 !dist/build/mp-weixin/
 unpackage/
+# 微信开发者工具的本地私有配置（libVersion、本地调试开关等），
+# 每次用工具打开或重新构建都会变，属个人环境配置，不入库。
+dist/build/mp-weixin/project.private.config.json
 .env
 .env.local
 *.log
