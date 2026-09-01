@@ -228,18 +228,29 @@ public class TransactionController {
     }
 
     /** 修改交易：回滚原影响后应用新影响，成功返回 200 与最新交易信息（需求 4.6、4.7）。 */
+    /**
+     * 修改一笔流水；{@code req.ledgerId()} 非空且不同于会话账本时，同时把它迁到该账本。
+     *
+     * <p>会话账本（{@code X-Ledger-Id}）始终是<b>源</b>账本，用于定位这笔流水；目标账本来自请求体。
+     * 项目 / 商家 / 标签这些账本级实体一律按<b>生效</b>账本校验，因此迁移时必须提交目标账本里的值
+     * （前端在切换账本时已清空重选）。</p>
+     */
     @PutMapping("/{id}")
     public ResponseEntity<TransactionResponse> update(
             @PathVariable Long id, @RequestBody TransactionUpdateRequest req) {
         Ledger ledger = currentLedger.requireLedger();
         Long userId = currentUser.requireUserId();
-        // 校验所属项目/商家/标签归属本账本（不存在则 404）；null 表示无。
-        projectService.requireInLedgerOrNull(ledger.getId(), req.projectId());
-        merchantService.requireInLedgerOrNull(ledger.getId(), req.merchantId());
-        List<Long> tagIds = tagService.validateTagIds(ledger.getId(), req.tagIds());
+        // 目标账本：null / 与当前账本相同表示不迁移。须为当前用户可访问且能接收普通收支。
+        Ledger targetLedger = resolveTargetLedger(userId, ledger, req.ledgerId());
+        Long effectiveLedgerId = targetLedger != null ? targetLedger.getId() : ledger.getId();
+        // 校验所属项目/商家/标签归属生效账本（不存在则 404）；null 表示无。
+        projectService.requireInLedgerOrNull(effectiveLedgerId, req.projectId());
+        merchantService.requireInLedgerOrNull(effectiveLedgerId, req.merchantId());
+        List<Long> tagIds = tagService.validateTagIds(effectiveLedgerId, req.tagIds());
         Transaction tx = transactionService.update(
                 userId,
                 ledger.getId(),
+                targetLedger != null ? targetLedger.getId() : null,
                 id,
                 req.type(),
                 req.amount(),
@@ -251,6 +262,25 @@ public class TransactionController {
                 req.merchantId());
         tagService.setTransactionTags(tx.getId(), tagIds);
         return ResponseEntity.ok(TransactionResponse.from(tx, tagIds));
+    }
+
+    /**
+     * 解析并校验「变更流水归属账本」的目标账本。
+     *
+     * @return 目标账本；{@code null} 表示不迁移（未指定或与当前账本相同）
+     * @throws ApiException LEDGER_NOT_ACCESSIBLE（非成员）、
+     *                      LEDGER_CANNOT_RECEIVE_TRANSACTION（AA 账本或已归档）
+     */
+    private Ledger resolveTargetLedger(Long userId, Ledger currentLedgerEntity, Long requestedLedgerId) {
+        if (requestedLedgerId == null || requestedLedgerId.equals(currentLedgerEntity.getId())) {
+            return null;
+        }
+        Ledger target = ledgerService.requireAccessible(userId, requestedLedgerId);
+        // AA 账本只接收 AA 分摊流水（且不设预算）；已归档账本为只读。
+        if (target.isAa() || target.isArchived()) {
+            throw ApiException.ledgerCannotReceiveTransaction();
+        }
+        return target;
     }
 
     /** 删除交易：回滚原影响后删除，成功返回 204（需求 4.6、4.7）。 */

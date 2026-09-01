@@ -388,9 +388,58 @@ public class TransactionService {
     public Transaction update(Long userId, Long ledgerId, Long id, String rawType, BigDecimal rawAmount,
             Long accountId, Long categoryId, LocalDateTime occurredAt, String rawNote,
             Long projectId, Long merchantId) {
+        return update(userId, ledgerId, null, id, rawType, rawAmount, accountId, categoryId,
+                occurredAt, rawNote, projectId, merchantId);
+    }
 
-        Transaction tx = transactionRepository.findByIdAndLedgerId(id, ledgerId)
+    /**
+     * 修改一笔已有收支交易，并可同时把它迁到另一个账本。
+     *
+     * <p>账本参数刻意拆成两个，因为原先的单个 {@code ledgerId} 在这条路径上承担了三种互不相同的职责：
+     * ① 定位（这笔流水是否属于当前会话账本）；② 归属（落库的 {@code ledger_id}）；
+     * ③ 校验作用域（分类 / 账户须属于哪个账本）。迁移账本时后两者要换成目标账本，而定位仍须用源账本，
+     * 否则「用新账本的身份去找一笔还在旧账本的流水」永远找不到。</p>
+     *
+     * <p><b>迁移的前置约束</b>（{@code targetLedgerId} 非空且不等于 {@code sourceLedgerId} 时生效）。
+     * 一律前置拒绝，不留「改完才发现引用悬空」的中间态：</p>
+     * <ul>
+     *   <li>原流水类型须为 expense/income：转账与余额调整本就脱离账本；AA 流水带
+     *       {@code transaction_splits} 与结算净额，迁出会让分摊行成孤儿并使 AA 退出 / 归档的净额闸门失效。</li>
+     *   <li>分类须属<b>目标</b>账本（分类是账本级实体）。否则这笔流水迁过去后
+     *       {@link #validateCategoryExists} 将永远不通过，再也改不动。</li>
+     *   <li>新账户须在<b>目标</b>账本可用（账户经 {@code account_ledger} 关联账本）。否则迁移后它的
+     *       修改 / 删除 / 恢复都会在账户加锁阶段失败，余额再也回滚不掉。</li>
+     * </ul>
+     *
+     * <p>项目 / 商家 / 标签同为账本级实体，其归属校验在 Controller 层按<b>生效</b>账本进行。</p>
+     *
+     * <p>账户余额不受迁移影响：余额是账户上的全局单值、与账本无关，金额与方向没变时净增量为零。</p>
+     *
+     * @param sourceLedgerId 当前会话账本，用于定位这笔流水
+     * @param targetLedgerId 目标账本；{@code null} 或与源相同表示不迁移。调用方须已校验其可访问性与可接收性
+     */
+    @Transactional
+    public Transaction update(Long userId, Long sourceLedgerId, Long targetLedgerId, Long id,
+            String rawType, BigDecimal rawAmount, Long accountId, Long categoryId,
+            LocalDateTime occurredAt, String rawNote, Long projectId, Long merchantId) {
+
+        Transaction tx = transactionRepository.findByIdAndLedgerId(id, sourceLedgerId)
                 .orElseThrow(() -> ApiException.notFound("交易不存在"));
+
+        boolean movingLedger = targetLedgerId != null && !targetLedgerId.equals(sourceLedgerId);
+        if (movingLedger) {
+            if (!isIncomeOrExpense(tx.getType())) {
+                // AA 流水（及理论上的转账）不得换账本：其派生数据按原账本聚合，迁走即不一致。
+                throw ApiException.transactionLedgerChangeNotSupported();
+            }
+            if (!userId.equals(tx.getCreatedBy())) {
+                // 协作账本成员之间可互相编辑流水，但迁移能把流水移出协作账本、搬进操作者的私人账本，
+                // 其余成员从此看不到这笔账。故迁移收紧到记账人本人，其余字段的编辑权限不变。
+                throw ApiException.transactionLedgerChangeForbidden();
+            }
+        }
+        // 归属与校验作用域用生效账本；定位已在上面用源账本完成。
+        Long effectiveLedgerId = movingLedger ? targetLedgerId : sourceLedgerId;
 
         TransactionType type = validateIncomeExpenseType(rawType);
         BigDecimal amount = validateAmount(rawAmount);
@@ -401,7 +450,7 @@ public class TransactionService {
         if (categoryId == null) {
             throw ApiException.fieldRequired("categoryId");
         }
-        validateCategoryExists(ledgerId, categoryId);
+        validateCategoryExists(effectiveLedgerId, categoryId);
 
         LocalDateTime now = LocalDateTime.now(clock);
         LocalDateTime when = occurredAt == null ? now : occurredAt;
@@ -415,7 +464,9 @@ public class TransactionService {
         BigDecimal delta = type == TransactionType.INCOME ? amount : amount.negate();
         net.merge(accountId, delta, BigDecimal::add);
 
-        Map<Long, Account> locked = lockUsableAccounts(net.keySet(), userId, ledgerId);
+        Map<Long, Account> locked = movingLedger
+                ? lockAccountsForLedgerMove(net.keySet(), userId, accountId, targetLedgerId, sourceLedgerId)
+                : lockUsableAccounts(net.keySet(), userId, sourceLedgerId);
         applyDeltas(locked, net, now);
 
         tx.setProjectId(projectId);
@@ -429,11 +480,52 @@ public class TransactionService {
         tx.setCategoryId(categoryId);
         tx.setSourceAccountId(null);
         tx.setDestinationAccountId(null);
+        if (movingLedger) {
+            tx.setLedgerId(targetLedgerId);
+        }
         Transaction saved = transactionRepository.save(tx);
 
         // 预算提醒评估（需求 2.1）：修改收支记账后按其发生月触发。
+        // 迁移时源账本也要评估——这笔支出从它身上移走，其本月使用率会回落，
+        // 只评估目标账本会让源账本停留在旧口径上。
+        if (movingLedger) {
+            requestBudgetReminder(sourceLedgerId, saved.getOccurredAt());
+        }
         requestBudgetReminder(saved.getLedgerId(), saved.getOccurredAt());
         return saved;
+    }
+
+    /** 是否普通收支（可换账本的唯一类型）。 */
+    private static boolean isIncomeOrExpense(TransactionType type) {
+        return type == TransactionType.EXPENSE || type == TransactionType.INCOME;
+    }
+
+    /**
+     * 迁移账本时的账户加锁：新账户按<b>目标</b>账本校验可用性，被换掉的旧账户按<b>源</b>账本校验。
+     *
+     * <p>两种作用域缺一不可：新账户须在目标账本可用，否则迁移后这笔流水的删除 / 恢复会卡在加锁上；
+     * 而旧账户只是要回滚它身上的余额影响，它本就挂在源账本的这笔流水上，用目标账本去校验它会
+     * 无谓地拒掉「顺手换个账户」的正常操作。</p>
+     *
+     * <p>仍按 id 升序逐个加锁，与 {@link #lockUsableAccounts} 一致，避免与并发写互相死锁。</p>
+     */
+    private Map<Long, Account> lockAccountsForLedgerMove(Collection<Long> accountIds, Long userId,
+            Long newAccountId, Long targetLedgerId, Long sourceLedgerId) {
+        Map<Long, Account> locked = new LinkedHashMap<>();
+        accountIds.stream().sorted().forEach(accId -> {
+            boolean isNewAccount = accId.equals(newAccountId);
+            Long scope = isNewAccount ? targetLedgerId : sourceLedgerId;
+            try {
+                locked.put(accId, accountResolver.lockUsableAccount(userId, scope, accId));
+            } catch (ApiException ex) {
+                // 新账户不在目标账本是用户可修正的常见情形，给出可操作的提示而非笼统的「账户不存在」。
+                if (isNewAccount) {
+                    throw ApiException.accountNotInLedger();
+                }
+                throw ex;
+            }
+        });
+        return locked;
     }
 
     // ---------------- 删除 / 回收站 ----------------

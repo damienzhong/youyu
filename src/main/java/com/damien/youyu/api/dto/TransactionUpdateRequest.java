@@ -16,6 +16,11 @@ import java.time.LocalDateTime;
  *
  * <p>{@code occurredAt} 缺省取当前时间；{@code note} 可选（<=200）。任何请求体传入的 user_id
  * 一律被忽略，落库以会话用户为准（需求 2.2）。</p>
+ *
+ * <p>{@code ledgerId} 是<b>目标</b>账本，用于把这笔流水迁到另一个账本：为空或与会话账本
+ * （{@code X-Ledger-Id}）相同表示不迁移。这里与创建请求刻意不同——创建时账本一律取会话账本、
+ * 请求体无从指定；而修改时会话账本是「去哪找这笔流水」的源账本，目标账本只能另给一个字段。
+ * 迁移时分类 / 项目 / 商家 / 标签都必须提交目标账本里的值（它们都是账本级实体）。</p>
  */
 public record TransactionUpdateRequest(
         String type,
@@ -28,5 +33,6 @@ public record TransactionUpdateRequest(
         String note,
         Long projectId,
         Long merchantId,
-        java.util.List<Long> tagIds) {
+        java.util.List<Long> tagIds,
+        Long ledgerId) {
 }

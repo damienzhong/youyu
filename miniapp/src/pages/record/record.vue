@@ -212,7 +212,12 @@ function occurredAtIso() {
 const editingId = ref(null)
 const isEditing = computed(() => editingId.value !== null)
 const targetLedgerId = ref(null)
-const showLedgerPicker = computed(() => !isEditing.value && ledgerStore.isAll)
+// 编辑态的「源账本」：这笔流水现在在哪个账本，用于定位（请求头 X-Ledger-Id）。
+// 与 targetLedgerId 分开：后者被用户改成目标账本后，仍要用源账本才找得到这笔流水。
+// 为 null 表示按全局当前账本定位（从未带 ?ledgerId 的入口进来时）。
+const originalLedgerId = ref(null)
+// 编辑态是否已把账本改到别处：决定提交时是否随 payload 带上目标 ledgerId。
+const ledgerMoved = ref(false)
 // 标题栏账本名：已选目标账本则用之，否则用当前账本（对齐竞品：标题常驻账本切换）。
 const headerLedgerName = computed(() => {
   if (targetLedgerId.value) {
@@ -225,17 +230,59 @@ const targetLedgerName = computed(() => {
   const l = (ledgerStore.ledgers || []).find((x) => x.id === targetLedgerId.value)
   return l ? l.name : '默认账本'
 })
+// 这笔流水原本所在的账本（编辑态判断能否迁移用）。
+const originalLedger = computed(() => {
+  const id = originalLedgerId.value != null ? originalLedgerId.value : ledgerStore.currentLedgerId
+  return (ledgerStore.ledgers || []).find((l) => l.id === id) || null
+})
+// 这笔流水的记账人（编辑态由 prefill 从详情写入）；协作账本里可能不是自己。
+const editingCreatedBy = ref(null)
+/**
+ * 标题栏账本 pill 是否可点开切换。
+ * 新建态沿用既有行为（恒可点）；编辑态额外要求这笔流水本身可迁移：
+ *   - 转账 / 余额调整脱离账本（ledger_id 为空），无账本可谈
+ *   - 借贷走独立台账，不是账本流水
+ *   - AA 账本的流水带分摊明细与结算净额，迁走会让分摊行成孤儿（后端亦拒）
+ *   - 他人记的流水不可迁移：迁移会把它移出协作账本，其余成员再也看不到（后端亦拒）
+ */
+const canPickLedger = computed(() => {
+  if (!isEditing.value) return true
+  if (isTransfer.value || isLoan.value) return false
+  if (originalLedger.value?.type === 'AA') return false
+  return editingCreatedBy.value == null || editingCreatedBy.value === selfId.value
+})
+// 可选目标账本：编辑态排除 AA（只接收分摊流水；归档也只发生在 AA 账本，故一并排除）。
+const pickableLedgers = computed(() => {
+  const all = ledgerStore.ledgers || []
+  if (!isEditing.value) return all
+  return all.filter((l) => l.type !== 'AA')
+})
 const showLedgerSheet = ref(false)
-function pickTargetLedger(id) {
+async function pickTargetLedger(id) {
+  const changed = id !== (targetLedgerId.value ?? ledgerStore.current?.id)
   targetLedgerId.value = id
   showLedgerSheet.value = false
+  if (!changed) return
+  // 分类 / 项目 / 商家 / 标签都是账本级实体，换账本后旧值在新账本里不存在，一律清空重选。
   categoryId.value = null
   expandedId.value = null
   createdBy.value = null
   projectId.value = null
   merchantId.value = null
   tagIds.value = []
-  load()
+  if (isEditing.value) {
+    // 是否真的迁到了别处：切回源账本等于没迁（后端也会据此判定为不迁移）。
+    const src = originalLedgerId.value != null ? originalLedgerId.value : ledgerStore.current?.id
+    ledgerMoved.value = id !== src
+    // 明确告知，否则用户会以为分类是自己弄丢的。
+    uni.showToast({ title: '已换账本，请重新选择分类', icon: 'none' })
+    // 刻意用 refreshLists 而非 load：load 在编辑态会走 prefill()，
+    // 那会把用户此刻已经改过的金额 / 备注 / 日期一并还原成原值。
+    // refreshLists 只重拉候选并回退掉已失效的账户 / 分类选择，不动正在填的内容。
+    await refreshLists()
+    return
+  }
+  await load()
 }
 
 // ---------- 协作代记（记账人）----------
@@ -503,6 +550,9 @@ onLoad(async (q) => {
     const def = ledgerStore.ledgers.find((l) => l.isDefault) || ledgerStore.ledgers[0]
     targetLedgerId.value = def ? def.id : null
   }
+  // 编辑态记下源账本：后续用户若把账本改到别处，读取与提交仍须用源账本定位这笔流水。
+  // 入口未带 ?ledgerId 时留 null，由请求层回退到全局当前账本。
+  if (isEditing.value) originalLedgerId.value = q && q.ledgerId ? Number(q.ledgerId) : null
   load()
 })
 
@@ -609,20 +659,28 @@ function applySuggestPrefill() {
 }
 
 async function prefill() {
-  const tx = await getTransaction(editingId.value, targetLedgerId.value)
+  // 用源账本读取：用户可能已把目标账本改到别处，那时按目标账本去查这笔流水会 404。
+  const tx = await getTransaction(editingId.value, originalLedgerId.value)
+  // 记账人：协作账本里他人记的流水不可迁移账本（见 canPickLedger）。
+  editingCreatedBy.value = tx.createdBy != null ? tx.createdBy : null
   type.value = tx.type
   expr.value = String(tx.amount)
   note.value = tx.note || ''
-  projectId.value = tx.projectId != null ? tx.projectId : null
-  merchantId.value = tx.merchantId != null ? tx.merchantId : null
-  tagIds.value = Array.isArray(tx.tagIds) ? tx.tagIds.slice() : []
   if (tx.occurredAt) occurredDate.value = tx.occurredAt.slice(0, 10)
   if (tx.type === 'transfer') {
     accountId.value = tx.sourceAccountId
     destId.value = tx.destinationAccountId
-  } else {
-    accountId.value = tx.accountId
-    categoryId.value = tx.categoryId
+    return
+  }
+  accountId.value = tx.accountId
+  projectId.value = tx.projectId != null ? tx.projectId : null
+  merchantId.value = tx.merchantId != null ? tx.merchantId : null
+  tagIds.value = Array.isArray(tx.tagIds) ? tx.tagIds.slice() : []
+  categoryId.value = tx.categoryId
+  // 原账户若已不在本账本可选集内（被移出账本），回退到可选集第一个，
+  // 免得提交时才被后端以「账户不存在 / 未加入账本」拒绝。
+  if (!accountsHasId(accounts.value, accountId.value)) {
+    accountId.value = accounts.value[0]?.id ?? null
   }
 }
 
@@ -718,7 +776,12 @@ async function submit(cont) {
   payload.categoryId = categoryId.value
 
   if (isEditing.value) {
-    await run(() => updateTransaction(editingId.value, payload, targetLedgerId.value), false)
+    // 变更归属账本：目标账本随 payload 走，请求头仍用源账本——后端以会话账本定位这笔流水，
+    // 用目标账本当头会找不到它（它此刻还在源账本里）。
+    if (ledgerMoved.value && targetLedgerId.value != null) {
+      payload.ledgerId = targetLedgerId.value
+    }
+    await run(() => updateTransaction(editingId.value, payload, originalLedgerId.value), false)
   } else {
     await run(() => createTransaction(payload, targetLedgerId.value), cont)
   }
@@ -794,9 +857,13 @@ function goAddCategory() {
     <view class="statusbar" :style="{ height: statusBarHeight }"></view>
     <view class="rnav">
       <text class="nb back" @click="goBack">‹</text>
-      <view class="ledgersw" :class="{ dis: isEditing }" @click="!isEditing && (showLedgerSheet = true)">
-        <text class="ls-name">{{ isEditing ? '编辑记录' : headerLedgerName }}</text>
-        <text v-if="!isEditing" class="ls-caret">▾</text>
+      <!--
+        账本 pill：新建态是「记到哪个账本」，编辑态是「移到哪个账本」（变更流水归属）。
+        转账 / 借贷 / AA 流水不可迁移，此时退回纯标题、不可点（见 canPickLedger）。
+      -->
+      <view class="ledgersw" :class="{ dis: !canPickLedger }" @click="canPickLedger && (showLedgerSheet = true)">
+        <text class="ls-name">{{ canPickLedger ? headerLedgerName : '编辑记录' }}</text>
+        <text v-if="canPickLedger" class="ls-caret">▾</text>
       </view>
       <!-- 占位：与左侧返回键等宽，保证标题居中；右上角空出给胶囊 -->
       <view class="nb spacer"></view>
@@ -930,11 +997,11 @@ function goAddCategory() {
       </view>
     </view>
 
-    <!-- 目标账本选择 -->
+    <!-- 目标账本选择（新建=记到哪个账本；编辑=把这笔移到哪个账本） -->
     <view v-if="showLedgerSheet" class="mask" @click="showLedgerSheet = false">
       <view class="sheet" @click.stop>
-        <text class="sheet-title">记到哪个账本</text>
-        <view v-for="l in ledgerStore.ledgers" :key="l.id" class="sitem" @click="pickTargetLedger(l.id)">
+        <text class="sheet-title">{{ isEditing ? '移到哪个账本' : '记到哪个账本' }}</text>
+        <view v-for="l in pickableLedgers" :key="l.id" class="sitem" @click="pickTargetLedger(l.id)">
           <view class="si-ic"><AppIcon name="book" :size="34" /></view>
           <view class="si-name"><text>{{ l.name }}</text></view>
           <text class="radio" :class="{ on: (targetLedgerId ? l.id === targetLedgerId : l.id === (ledgerStore.current && ledgerStore.current.id)) }"></text>

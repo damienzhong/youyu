@@ -291,6 +291,51 @@ public class ApiException extends RuntimeException {
                 "转账失败，未产生任何余额变更", null);
     }
 
+    // ---- 变更流水归属账本 ----
+    // 三条约束都是「宁可拒绝也不留跨账本悬空引用」：分类 / 项目 / 商家 / 标签均为账本级实体，
+    // 账户经 account_ledger 挂到账本，AA 流水还带 transaction_splits 与净额口径。
+    // 分类不属目标账本的情形复用既有 NOT_FOUND（"分类不存在"），不另设码。
+
+    /**
+     * 该流水的类型不支持更换账本：仅普通收支（expense/income）可换。
+     * 转账与余额调整本就脱离账本（{@code ledger_id} 为空）；AA 流水（aa_expense/aa_settlement）
+     * 带分摊明细与结算净额，迁出会让分摊行成孤儿并使 AA 退出 / 归档的净额闸门失效。
+     */
+    public static ApiException transactionLedgerChangeNotSupported() {
+        return new ApiException("TRANSACTION_LEDGER_CHANGE_NOT_SUPPORTED", HttpStatus.CONFLICT,
+                "只有普通收支可以更换账本", "ledgerId");
+    }
+
+    /**
+     * 目标账本不能接收流水：AA 账本只接收 AA 分摊流水（且不设预算），已归档账本为只读。
+     */
+    public static ApiException ledgerCannotReceiveTransaction() {
+        return new ApiException("LEDGER_CANNOT_RECEIVE_TRANSACTION", HttpStatus.BAD_REQUEST,
+                "目标账本无法接收这笔流水（AA 账本或已归档账本）", "ledgerId");
+    }
+
+    /**
+     * 所选账户未加入目标账本。刻意拒绝而非放行：账户经 {@code account_ledger} 与账本关联，
+     * 若流水迁到未纳入该账户的账本，此后它的修改 / 删除 / 恢复都会在账户加锁阶段失败，
+     * 余额将再也无法回滚。提示用户先把账户加入目标账本，或改选目标账本里的账户。
+     */
+    public static ApiException accountNotInLedger() {
+        return new ApiException("ACCOUNT_NOT_IN_LEDGER", HttpStatus.BAD_REQUEST,
+                "所选账户未加入目标账本，请先在账本设置里加入该账户，或改选目标账本中的账户", "accountId");
+    }
+
+    /**
+     * 只能变更自己记录的流水所属账本。
+     *
+     * <p>协作账本的成员之间本就可以互相编辑流水，但「换账本」比「编辑」更强：它能把一笔流水
+     * 移出协作账本、搬进操作者的私人账本，其余成员从此再也看不到这笔账。因此迁移这一动作
+     * 收紧到记账人本人，编辑其余字段的既有权限不变。</p>
+     */
+    public static ApiException transactionLedgerChangeForbidden() {
+        return new ApiException("TRANSACTION_LEDGER_CHANGE_FORBIDDEN", HttpStatus.FORBIDDEN,
+                "只能变更自己记录的流水所属账本", "ledgerId");
+    }
+
     // ---- 常用工厂方法（Report 域） ----
 
     /** 报表月份区间非法（跨度超过 24 个自然月，或起始月份晚于结束月份，需求 7.6）。 */
