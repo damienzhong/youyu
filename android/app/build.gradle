@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.damien.youyu'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.damien.youyu'
+        // minSdk 29（Android 10）：用 MediaStore.Downloads 写导出文件即可免申请存储权限。
+        // 低于 29 需要 WRITE_EXTERNAL_STORAGE，自用场景不值得为此增加权限面。
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // 自用安装包：沿用 debug 签名，省掉自建 keystore 的管理成本。
+            // 若日后要分发给他人，应换成独立的 release keystore。
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

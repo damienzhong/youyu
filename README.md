@@ -37,6 +37,28 @@
 - `GET /api/health` —— 返回服务状态与 `Asia/Shanghai` 时间
 - `GET /actuator/health` —— Actuator 探活端点
 
+## 客户端
+
+`miniapp/` 一套 uni-app 代码产出三种形态：
+
+| 形态 | 产出方式 | 说明 |
+| --- | --- | --- |
+| 微信小程序 | `cd miniapp && npm run build:mp-weixin` | 用微信开发者工具打开 `miniapp/dist/build/mp-weixin` 上传 |
+| H5 / PWA | 部署在 <https://youyuji.com/app/> | 可「添加到主屏幕」装成独立应用，详见 `miniapp/README.md` |
+| Android apk | `bash android/build-apk.sh` | WebView 外壳，见下 |
+
+`android/` 是一层极薄的 WebView 外壳（纯 framework API，无 androidx 依赖，apk 约 24KB），
+加载线上的 `/app/`。这样选是因为：与站点同源，请求 `/api` 无跨域问题、后端不必开 CORS；
+直接继承站点已有的 Service Worker，离线能力不用在原生侧重做；改前端只要部署，apk 不用重新分发。
+代价是首次启动必须联网（要先装上 Service Worker）。
+
+构建全程在 docker 里完成，不需要本机安装 JDK 或 Android SDK：
+
+```bash
+bash android/build-apk.sh          # 产物 android/app/build/outputs/apk/release/app-release.apk
+docker volume rm youyu-android-sdk # 需要时清理工具链缓存
+```
+
 ## 目录结构
 
 ```

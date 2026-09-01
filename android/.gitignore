@@ -1,0 +1,8 @@
+.gradle/
+build/
+app/build/
+# Android SDK 路径是每台机器各自的，不入库（构建脚本用 ANDROID_HOME 环境变量注入）
+local.properties
+*.iml
+.idea/
+captures/

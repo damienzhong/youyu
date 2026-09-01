@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      与 miniapp 主题保持一致：
+        brand   = tabBar 的 selectedColor
+        page_bg = 页面底色（miniapp 里 CSS 变量 c-page-bg 的回退值）
+        icon_bg = 应用图标背景
+    -->
+    <color name="brand">#12a150</color>
+    <color name="page_bg">#eef0f2</color>
+    <color name="icon_bg">#16a34a</color>
+</resources>
