@@ -16,7 +16,11 @@
  * 【逃生阀】页面可 postMessage({ type: 'YOUYU_SW_UNREGISTER' }) 让本 SW 清缓存并自注销。
  */
 
-const VERSION = 'youyu-app-v1';
+// v2：修「发版后客户端仍加载旧版」。根因是 nginx 的 `location = /app/index.html` 精确匹配
+// 按请求 URI 判定，而客户端请求的是目录形式 `/app/`，命中的是前缀块 `location /app/`，
+// 于是 HTML 没有任何 Cache-Control，被 WebView / 浏览器按 Last-Modified 启发式缓存住，
+// 旧 HTML 又引用旧的带指纹 chunk。升版本号同时会让 activate 清掉 v1 里缓存的旧 shell。
+const VERSION = 'youyu-app-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
@@ -55,12 +59,20 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
-      await Promise.all(
-        keys
-          .filter((k) => k.startsWith(CACHE_PREFIX) && k !== SHELL_CACHE && k !== RUNTIME_CACHE)
-          .map((k) => caches.delete(k))
+      const stale = keys.filter(
+        (k) => k.startsWith(CACHE_PREFIX) && k !== SHELL_CACHE && k !== RUNTIME_CACHE
       );
+      await Promise.all(stale.map((k) => caches.delete(k)));
       await self.clients.claim();
+
+      // 从旧版本升级上来（清掉了旧版缓存）时，让已打开的页面重新导航一次：
+      // 此刻页面还是旧 SW 交付的旧 HTML，不重新导航的话用户得手动杀进程重开才能看到新版。
+      // 只在升级时做，首次安装（stale 为空）不打扰；而 activate 仅在 sw.js 内容变化时触发，
+      // 前端日常发版（只有带指纹的 assets 变化）不会走到这里，故不会反复刷新用户页面。
+      if (stale.length > 0) {
+        const windows = await self.clients.matchAll({ type: 'window' });
+        windows.forEach((client) => client.navigate(client.url));
+      }
     })()
   );
 });
@@ -78,11 +90,22 @@ self.addEventListener('message', (event) => {
   );
 });
 
-/** 联网优先，成功则顺手更新缓存；失败（离线）回退缓存。用于 HTML 导航。 */
-async function networkFirst(request, cacheName, fallbackUrl) {
+/**
+ * 联网优先，成功则顺手更新缓存；失败（离线）回退缓存。用于 HTML 导航。
+ *
+ * @param bypassHttpCache 是否绕过 HTTP 缓存层。HTML 必须绕过：服务端没给 `/app/` 声明
+ *        no-cache，普通 fetch 会命中 WebView / 浏览器的 HTTP 缓存直接返回旧 HTML，
+ *        "联网优先" 就名存实亡了。
+ *        刻意用 `fetch(request.url, ...)` 而非 `fetch(request, { cache })`：导航请求的
+ *        mode 为 'navigate'，经 Request 构造器会被改写成 'same-origin'，行为不可靠。
+ *        导航必为 GET，用 url 重新发起是等价的。
+ */
+async function networkFirst(request, cacheName, fallbackUrl, bypassHttpCache) {
   const cache = await caches.open(cacheName);
   try {
-    const fresh = await fetch(request);
+    const fresh = bypassHttpCache
+      ? await fetch(request.url, { cache: 'no-store', credentials: 'same-origin' })
+      : await fetch(request);
     // 只缓存成功的基本响应；opaque/错误响应缓存了会污染离线回退。
     if (fresh && fresh.ok && fresh.type === 'basic') {
       cache.put(fallbackUrl || request, fresh.clone()).catch(() => {});
@@ -147,9 +170,10 @@ self.addEventListener('fetch', (event) => {
   // 只管自己作用域内的东西，落地站（根路径）不碰。
   if (!url.pathname.startsWith(BASE)) return;
 
-  // SPA 导航：network-first，离线回退到 app shell，保证 hash 路由的任意深链都能开。
+  // SPA 导航：network-first 且绕过 HTTP 缓存，离线回退到 app shell，
+  // 保证 hash 路由的任意深链都能开、且联网时拿到的一定是最新 HTML。
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, SHELL_CACHE, SHELL_URL));
+    event.respondWith(networkFirst(request, SHELL_CACHE, SHELL_URL, true));
     return;
   }
 
@@ -166,5 +190,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   // /app/ 下的其余 GET（manifest 等）：联网优先、离线兜底。
-  event.respondWith(networkFirst(request, RUNTIME_CACHE));
+  // 同样绕过 HTTP 缓存——这些文件名不带指纹，靠 HTTP 缓存会拿到旧版。
+  event.respondWith(networkFirst(request, RUNTIME_CACHE, null, true));
 });
