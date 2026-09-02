@@ -46,6 +46,42 @@ if [ "$ok" != "1" ]; then
   exit 1
 fi
 
+# 同步 nginx 应用配置片段（location / 缓存策略 / 反向代理 / gzip）。
+#
+# 只同步这个片段，刻意不碰 /etc/nginx/conf.d/youyu.conf —— 那个文件由 certbot
+# 管理（listen 443 / ssl_* / 301 跳转），整文件覆盖会把 HTTPS 弄掉。
+# 加这一步的原因：在此之前部署只 reload nginx、从不同步配置，仓库里的 nginx 配置
+# 沦为纯文档并与线上漂移，导致线上长期停留在没有 /app/ 块的旧版本，HTML 因此缺少
+# no-cache、被客户端（尤其 Android WebView）启发式缓存住，表现为「已发版但一直
+# 加载旧版」。
+#
+# 本机可能同时跑着其他站点，故 nginx -t 不通过必须立刻回滚，绝不让 reload 带着坏配置执行。
+SNIPPET_SRC=/tmp/youyu-nginx-locations.conf
+SNIPPET_DST=/etc/nginx/snippets/youyu-locations.conf
+if [ -f "$SNIPPET_SRC" ]; then
+  mkdir -p /etc/nginx/snippets
+  SNIPPET_BAK=""
+  if [ -f "$SNIPPET_DST" ]; then
+    SNIPPET_BAK="$BACKUP/youyu-locations.conf.$(date +%Y%m%d%H%M%S)"
+    cp -a "$SNIPPET_DST" "$SNIPPET_BAK"
+  fi
+  cp -a "$SNIPPET_SRC" "$SNIPPET_DST"
+  rm -f "$SNIPPET_SRC"
+  if nginx -t; then
+    echo "nginx 配置片段已同步"
+  else
+    echo "ERROR: 同步 nginx 片段后 nginx -t 未通过，回滚"
+    if [ -n "$SNIPPET_BAK" ]; then
+      cp -a "$SNIPPET_BAK" "$SNIPPET_DST"
+    else
+      # 首次同步就失败：移除新装的片段。若 youyu.conf 已 include 它，则需人工介入。
+      rm -f "$SNIPPET_DST"
+    fi
+    nginx -t
+    exit 1
+  fi
+fi
+
 # reload nginx
 nginx -t && systemctl reload nginx
 echo "=== deploy finished ==="

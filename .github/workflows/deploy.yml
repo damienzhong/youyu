@@ -83,6 +83,9 @@ jobs:
         run: |
           scp -i ~/.ssh/id_deploy -o IdentitiesOnly=yes stage/youyu.jar "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/youyu/app/youyu.jar.new"
           scp -i ~/.ssh/id_deploy -o IdentitiesOnly=yes stage/web.tar.gz "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/youyu-web.tar.gz"
+          # nginx 应用配置片段：由 ci-deploy-remote.sh 安装到 /etc/nginx/snippets/。
+          # 只传这个片段，不传 nginx-youyu.conf —— 后者由 certbot 管理（443/ssl），覆盖会弄掉 HTTPS。
+          scp -i ~/.ssh/id_deploy -o IdentitiesOnly=yes deploy/nginx-youyu-locations.conf "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/tmp/youyu-nginx-locations.conf"
 
       - name: Deploy on server
         run: |
