@@ -1197,10 +1197,15 @@ function goAddCategory() {
 .cursor { display: inline-block; width: 3rpx; height: 40rpx; background: currentColor; margin-left: 4rpx; vertical-align: -6rpx; opacity: 0.7; }
 
 .main {
-  /* 分类九宫格为主区，撑满剩余高度，把键盘稳定钉底；内容多时内部滚动 */
-  flex: 1 1 auto;
+  /* 分类九宫格为主区，只占剩余高度，把键盘稳定钉底；内容多时内部滚动。
+     basis 必须是 0：若用 auto，展开二级类目后内容变高，flex 会把溢出按比例分摊给
+     下面的备注行 / chips / 键盘一起收缩，键盘最后一行就被裁掉。 */
+  flex: 1 1 0;
+  height: 0;
   min-height: 0;
 }
+/* 顶部与底部固定区一律不参与收缩，空间不够时只让分类区滚动 */
+.statusbar, .rnav, .tyseg, .noteamt, .chips, .kp { flex-shrink: 0; }
 /* 分类容器：白底直接铺满（不再浮动卡片），对齐竞品 */
 .cats {
   padding: 12rpx 12rpx 4rpx;
