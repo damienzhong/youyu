@@ -48,11 +48,11 @@ import org.junit.jupiter.api.Test;
 class MigrationDirectoryTest {
 
     /**
-     * 本 spec 新增的迁移脚本（recurring-auto-post 定为 V44；撰写设计时目录内最大为 V43 即
-     * {@code V43__budget_reminder.sql}）。
+     * 本轮新增的迁移脚本（自动分类规则 V46；此前目录内最大为 V45 即
+     * {@code V45__wechat_subscribe_template.sql}）。
      */
-    private static final String NEW_MIGRATION = "V45__wechat_subscribe_template.sql";
-    private static final int NEW_MIGRATION_VERSION = 45;
+    private static final String NEW_MIGRATION = "V46__category_rules.sql";
+    private static final int NEW_MIGRATION_VERSION = 46;
 
     private static final String BASELINE_RESOURCE = "/db/migration-baseline.sha256";
     private static final Pattern MIGRATION_NAME = Pattern.compile("^V(\\d+)__[A-Za-z0-9_]+\\.sql$");

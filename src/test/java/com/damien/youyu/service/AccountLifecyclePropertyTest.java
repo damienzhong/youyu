@@ -195,6 +195,7 @@ class AccountLifecyclePropertyTest {
                 // subscribe-message-reminders 注销序列还要删预算提醒两表行；同样给测试替身。
                 mock(com.damien.youyu.repository.BudgetReminderSettingRepository.class),
                 mock(com.damien.youyu.repository.BudgetReminderSendLogRepository.class),
+                mock(com.damien.youyu.repository.CategoryRuleRepository.class),
                 clock);
 
         return new Fixture(userRepository, authService, deletionService);

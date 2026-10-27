@@ -163,8 +163,13 @@ export function parseBillText(text, source, categories) {
       occurredAt,
       note,
       externalId,
+      // 供后端自动分类：交易对方走「规则 / 历史习惯」，其余文本走商户库与分类名关键字
+      counterparty: party,
+      matchText: [cCatText >= 0 ? cells[cCatText] : '', product].filter(Boolean).join(' '),
+      // 本地关键字匹配：后端分类不可用（离线 / 失败）时的兜底
       categoryId: matched ? matched.id : null,
-      categoryName: matched ? matched.name : ''
+      categoryName: matched ? matched.name : '',
+      source: matched ? 'KEYWORD' : 'NONE'
     })
 
     const cents = Math.round(Number(amount) * 100)

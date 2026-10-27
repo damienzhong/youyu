@@ -222,6 +222,26 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                                  @Param("from") LocalDateTime from,
                                                  @Param("to") LocalDateTime to);
 
+    /**
+     * 自动分类「按习惯」的历史行：某账本、{@code occurred_at >= from} 的收支流水（不含转账），只读投影。
+     * 只取用户亲手定过分类的：手动记账（无 external_id），或导入后又被编辑过（updated_at 晚于 created_at）。
+     * 导入时走默认分类兜底、用户没碰过的流水不算习惯，避免「猜错一次、以后一直错」。
+     * 供 {@code CategorySuggestService} 统计「商户 → 最常用分类」。
+     */
+    @Query("""
+            SELECT t.type AS type, t.categoryId AS categoryId, t.merchantId AS merchantId,
+                   t.note AS note, t.occurredAt AS occurredAt
+            FROM Transaction t
+            WHERE t.ledgerId = :ledgerId
+              AND t.type IN (com.damien.youyu.domain.TransactionType.EXPENSE,
+                             com.damien.youyu.domain.TransactionType.INCOME)
+              AND t.categoryId IS NOT NULL
+              AND (t.externalId IS NULL OR t.updatedAt > t.createdAt)
+              AND t.occurredAt >= :from
+            """)
+    List<ClassifyHistoryRow> findClassifyHistoryRows(@Param("ledgerId") Long ledgerId,
+                                                     @Param("from") LocalDateTime from);
+
     /** 删除某账本的全部交易（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 

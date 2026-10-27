@@ -30,6 +30,7 @@ import com.damien.youyu.repository.LedgerMemberRepository;
 import com.damien.youyu.repository.LedgerRepository;
 import com.damien.youyu.repository.LoanRepaymentRepository;
 import com.damien.youyu.repository.LoanRepository;
+import com.damien.youyu.repository.CategoryRuleRepository;
 import com.damien.youyu.repository.MerchantRepository;
 import com.damien.youyu.repository.ProjectRepository;
 import com.damien.youyu.repository.ReminderQuotaRepository;
@@ -89,6 +90,7 @@ public class AccountDeletionService {
     private final LoanRepaymentRepository loanRepaymentRepository;
     private final ProjectRepository projectRepository;
     private final MerchantRepository merchantRepository;
+    private final CategoryRuleRepository categoryRuleRepository;
     private final TagRepository tagRepository;
     private final TransactionTemplateRepository templateRepository;
     private final LedgerInviteRepository inviteRepository;
@@ -156,6 +158,7 @@ public class AccountDeletionService {
             ReminderQuotaRepository reminderQuotaRepository,
             BudgetReminderSettingRepository budgetReminderSettingRepository,
             BudgetReminderSendLogRepository budgetReminderSendLogRepository,
+            CategoryRuleRepository categoryRuleRepository,
             Clock clock) {
         this.ledgerRepository = ledgerRepository;
         this.memberRepository = memberRepository;
@@ -173,6 +176,7 @@ public class AccountDeletionService {
         this.loanRepaymentRepository = loanRepaymentRepository;
         this.projectRepository = projectRepository;
         this.merchantRepository = merchantRepository;
+        this.categoryRuleRepository = categoryRuleRepository;
         this.tagRepository = tagRepository;
         this.templateRepository = templateRepository;
         this.inviteRepository = inviteRepository;
@@ -349,6 +353,7 @@ public class AccountDeletionService {
         tagRepository.deleteByUserId(userId);
         projectRepository.deleteByUserId(userId);
         merchantRepository.deleteByUserId(userId);
+        categoryRuleRepository.deleteByUserId(userId);
         // 8) 邀请码：本人创建的 + 本人拥有账本上的（先于 ledgers）。
         inviteRepository.deleteByCreatedBy(userId);
         if (!ownedLedgerIds.isEmpty()) {

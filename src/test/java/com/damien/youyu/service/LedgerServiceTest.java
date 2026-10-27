@@ -60,6 +60,7 @@ class LedgerServiceTest {
     @Autowired private TransactionTemplateRepository templateRepository;
     @Autowired private ProjectRepository projectRepository;
     @Autowired private MerchantRepository merchantRepository;
+    @Autowired private com.damien.youyu.repository.CategoryRuleRepository categoryRuleRepository;
     @Autowired private TagRepository tagRepository;
     @Autowired private TransactionTagRepository transactionTagRepository;
     @Autowired private com.damien.youyu.repository.TransactionSplitRepository splitRepository;
@@ -81,7 +82,7 @@ class LedgerServiceTest {
                 accountLedgerRepository, transactionRepository, budgetRepository, categoryBudgetRepository,
                 loanRepository, loanRepaymentRepository, memberRepository, inviteRepository, templateRepository,
                 projectRepository, merchantRepository, tagRepository, transactionTagRepository, accountService,
-                new InviteCodeGenerator(), aaSettlementService, clock);
+                new InviteCodeGenerator(), aaSettlementService, categoryRuleRepository, clock);
     }
 
     /** AA 记账服务（用于构造非零净额场景）。 */

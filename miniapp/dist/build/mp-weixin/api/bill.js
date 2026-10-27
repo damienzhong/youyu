@@ -1,1 +1,1 @@
-"use strict";const t=require("../utils/request.js");exports.importBills=function(s){return t.http.post("/imports/bills",s)};
+"use strict";const t=require("../utils/request.js");exports.classifyBills=function(s){return t.http.post("/imports/bills/classify",{items:s})},exports.importBills=function(s){return t.http.post("/imports/bills",s)},exports.saveCategoryRules=function(s){return t.http.put("/category-rules",{rules:s})};
