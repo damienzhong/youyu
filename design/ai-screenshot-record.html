@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>有余 · AI 截图记账（目标效果稿）</title>
+<style>
+  :root{
+    --bg:#eef0f2; --surface:#fff; --surface-2:#f6f7f9; --line:#eceef1;
+    --ink:#16181c; --ink-2:#5b6470; --ink-3:#9aa2ad;
+    --brand:#12a150; --brand-600:#0e8a44; --brand-weak:#e6f6ec;
+    --exp:#e5563d; --inc:#12a150; --tr:#8a94a6; --warn:#f4a72b; --warn-weak:#fff5e3; --danger:#e5484d;
+    --ai:#6d5cff; --ai-weak:#efedff;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:linear-gradient(180deg,#e7ebef,#eef0f2);color:var(--ink);}
+  .doc{max-width:1560px;margin:0 auto;padding:48px 24px 90px;}
+  .h1{font-size:32px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;}
+  .sub{font-size:15px;color:var(--ink-2);max-width:980px;line-height:1.75;margin:0 0 10px;}
+  .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 0;font-size:13px;color:var(--ink-2);}
+  .flow span{background:#fff;border-radius:999px;padding:5px 12px;box-shadow:0 2px 8px rgba(20,24,28,.05);font-weight:700;color:var(--ink);}
+  .flow i{font-style:normal;color:var(--ink-3);}
+  .sec{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--ink-3);margin:46px 0 18px;}
+  .screens{display:flex;flex-wrap:wrap;gap:34px;}
+  .pw{width:340px;}
+  .cap{font-size:15px;font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;}
+  .cap .n{width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;display:inline-flex;align-items:center;justify-content:center;font-weight:800;}
+  .note{font-size:12.5px;color:var(--ink-2);margin:0 0 12px;line-height:1.6;min-height:82px;}
+  .phone{width:340px;height:724px;background:#fff;border-radius:42px;padding:11px;box-shadow:0 26px 54px rgba(20,24,28,.15),0 0 0 1px rgba(0,0,0,.04);position:relative;}
+  .screen{width:100%;height:100%;border-radius:32px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;}
+  .screen.white{background:#fff;}
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:140px;height:24px;background:#fff;border-radius:0 0 16px 16px;z-index:30;}
+  .notch.dark{background:#111;}
+  .sb{height:36px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 20px 4px;font-size:11px;font-weight:700;flex:0 0 auto;}
+  .sb.onb{color:#fff;}
+  .body{flex:1;overflow-y:auto;position:relative;min-height:0;}
+  .body::-webkit-scrollbar{width:0;}
+
+  /* 顶栏 */
+  .nav{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex:0 0 auto;background:#fff;}
+  .nav .bk{width:32px;height:32px;border-radius:50%;background:#f4f5f7;display:flex;align-items:center;justify-content:center;font-size:20px;color:#3a3f45;}
+  .nav .t{font-size:16px;font-weight:800;}
+  .nav .r{font-size:12px;color:var(--ink-2);min-width:32px;text-align:right;}
+
+  /* 首页 hero（沿用 home-redesign 令牌） */
+  .hero{background:linear-gradient(155deg,#1fbf63,#0f8a45 78%);color:#fff;padding:5px 17px 22px;border-radius:0 0 24px 24px;position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-40px;top:-30px;width:170px;height:170px;border-radius:50%;background:rgba(255,255,255,.08);}
+  .hnav{display:flex;align-items:center;justify-content:space-between;height:38px;position:relative;z-index:2;}
+  .ledger{font-weight:800;font-size:15px;}
+  .balrow{display:flex;align-items:flex-end;justify-content:space-between;position:relative;z-index:2;}
+  .bal-k{font-size:11px;opacity:.85;}
+  .bal-v{font-size:32px;font-weight:800;letter-spacing:-.02em;line-height:1.15;}
+  .bal-v small{font-size:17px;opacity:.8;}
+  .io{text-align:right;font-size:11px;opacity:.92;line-height:1.85;}
+  .card{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);}
+  .pad{padding:0 14px;}
+  .quick{display:flex;justify-content:space-around;padding:14px 3px;margin:-14px 14px 0;position:relative;z-index:2;}
+  .qa{display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .qa .ic{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;background:#f6f7f9;}
+  .qa .l{font-size:11px;color:var(--ink-2);}
+  .qa.ai .ic{background:var(--ai-weak);color:var(--ai);position:relative;}
+  .qa.ai .l{color:var(--ai);font-weight:700;}
+  .badge-new{position:absolute;top:-4px;right:-10px;background:var(--ai);color:#fff;font-size:9px;font-weight:800;border-radius:999px;padding:1px 5px;border:2px solid #fff;}
+
+  /* AI 入口横幅 */
+  .ai-banner{margin:12px 14px 0;padding:13px 14px;border-radius:16px;background:linear-gradient(120deg,#f3f1ff,#eaf7ef);display:flex;align-items:center;gap:12px;}
+  .ai-banner .ic{width:40px;height:40px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 4px 12px rgba(109,92,255,.15);}
+  .ai-banner .tt{font-size:13.5px;font-weight:800;}
+  .ai-banner .ss{font-size:11px;color:var(--ink-2);margin-top:2px;}
+  .ai-banner .go{margin-left:auto;font-size:12px;font-weight:800;color:var(--ai);white-space:nowrap;}
+
+  .dayh{display:flex;justify-content:space-between;padding:14px 19px 7px;font-size:11px;color:var(--ink-3);font-weight:600;}
+  .tx{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--line);}
+  .tx:first-child{border-top:none;}
+  .cic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex:0 0 auto;}
+  .tinfo{flex:1;min-width:0;}
+  .tname{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;}
+  .tacc{font-size:11px;color:var(--ink-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tamt{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .tamt.exp{color:var(--exp);} .tamt.inc{color:var(--inc);} .tamt.tr{color:var(--tr);}
+  .tabbar{height:56px;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;flex:0 0 auto;}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;color:var(--ink-3);flex:1;}
+  .tab .ic{font-size:18px;}
+  .tab.on{color:var(--brand-600);}
+  .tab.plus .ic{width:42px;height:42px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;margin-top:-16px;box-shadow:0 8px 18px rgba(18,161,80,.32);}
+
+  /* 小标记 */
+  .ai-tag{display:inline-flex;align-items:center;gap:2px;font-size:10px;font-weight:800;color:var(--ai);background:var(--ai-weak);border-radius:6px;padding:1px 5px;}
+  .src-tag{display:inline-flex;font-size:10px;font-weight:700;color:var(--ink-2);background:#f1f3f5;border-radius:6px;padding:1px 5px;}
+  .warn-tag{display:inline-flex;font-size:10px;font-weight:800;color:#b86e00;background:var(--warn-weak);border-radius:6px;padding:1px 5px;}
+  .dup-tag{display:inline-flex;font-size:10px;font-weight:800;color:var(--ink-3);background:#f1f3f5;border-radius:6px;padding:1px 5px;}
+
+  /* 底部弹层 */
+  .mask{position:absolute;inset:0;background:rgba(15,23,42,.42);display:flex;align-items:flex-end;z-index:20;}
+  .sheet{width:100%;background:#fff;border-radius:22px 22px 0 0;padding:10px 18px 22px;}
+  .grab{width:36px;height:4px;border-radius:2px;background:#dfe3e8;margin:0 auto 12px;}
+  .sheet-t{font-size:16px;font-weight:800;text-align:center;}
+  .sheet-s{font-size:12px;color:var(--ink-2);text-align:center;margin-top:4px;line-height:1.6;}
+  .opt{display:flex;align-items:center;gap:12px;padding:13px 12px;border-radius:14px;background:var(--surface-2);margin-top:10px;}
+  .opt .oi{width:40px;height:40px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;}
+  .opt .ot{font-size:14px;font-weight:800;}
+  .opt .os{font-size:11px;color:var(--ink-3);margin-top:2px;}
+  .opt .oa{margin-left:auto;color:var(--ink-3);font-size:18px;}
+  .opt.primary{background:var(--ai-weak);}
+  .opt.primary .ot{color:#4a3bd6;}
+  .btn{height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;border:none;width:100%;}
+  .btn.pri{background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;box-shadow:0 8px 18px rgba(18,161,80,.28);}
+  .btn.ghost{background:#f4f5f7;color:var(--ink-2);}
+  .btn.ai{background:linear-gradient(135deg,#18b85a,#0e8a44);color:#fff;box-shadow:0 8px 18px rgba(18,161,80,.28);}
+  .privacy{display:flex;gap:8px;align-items:flex-start;font-size:11px;color:var(--ink-2);line-height:1.6;background:var(--surface-2);border-radius:12px;padding:10px 12px;margin-top:12px;}
+  .quota{font-size:11px;color:var(--ink-3);text-align:center;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="doc">
+  <div class="h1">有余 · AI 截图记账（目标效果稿）</div>
+  <p class="sub">
+    目标：用户把支付成功页或账单列表的截图丢进来，系统自动识别出每一笔的时间、金额、收支方向、商户，并按<b>用户自己的历史和分类</b>自动归类；
+    用户只做一件事——<b>核对后点一下「记入」</b>。识别结果永远先进预览，不会未经确认直接入账。
+  </p>
+  <div class="flow"><span>入口</span><i>→</i><span>选图（首次授权）</span><i>→</i><span>识别中</span><i>→</i><span>核对预览</span><i>→</i><span>改分类 / 记住规则</span><i>→</i><span>记入完成 · 可撤销</span></div>
+
+<style>
+  /* 记账页（对齐 pages/record/record.vue） */
+  .tyseg{display:flex;background:#e3e7ea;border-radius:9px;padding:3px;margin:2px 12px 0;}
+  .tys{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--ink-2);padding:7px 0;border-radius:7px;}
+  .tys.on{background:#fff;color:var(--brand);box-shadow:0 1px 4px rgba(20,24,28,.08);}
+  .cgrid{display:flex;flex-wrap:wrap;padding:8px 6px 0;}
+  .cat{width:20%;display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 0;}
+  .cat .ci{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;}
+  .cat .cl{font-size:11px;color:var(--ink-2);}
+  .cat.on .ci{box-shadow:0 0 0 3px rgba(18,161,80,.22);}
+  .cat.on .cl{color:var(--brand);font-weight:700;}
+  .noteamt{display:flex;align-items:center;justify-content:space-between;padding:9px 15px;border-top:1px solid #f1f3f5;background:#fff;}
+  .na-note{font-size:13px;color:var(--ink-3);}
+  .na-amt{font-size:26px;font-weight:800;color:var(--exp);letter-spacing:-.02em;}
+  .chips{white-space:nowrap;overflow:hidden;padding:7px 12px 8px;background:#fff;}
+  .chip{display:inline-flex;align-items:center;gap:4px;background:#f4f5f7;border-radius:999px;padding:6px 11px;margin-right:6px;font-size:12px;color:var(--ink-2);}
+  .chip.on{background:var(--brand-weak);color:var(--brand-600);font-weight:700;}
+  .chip.ai{background:var(--ai-weak);color:#4a3bd6;font-weight:800;box-shadow:0 0 0 1.5px rgba(109,92,255,.45);}
+  .kp{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#e4e7ec;border-radius:12px 12px 0 0;overflow:hidden;box-shadow:0 -3px 10px rgba(20,24,28,.06);flex:0 0 auto;}
+  .key{background:#fdfdfe;height:50px;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:600;}
+  .key.op{color:var(--ink-2);}
+  .key.mini{font-size:12px;color:var(--ink-2);font-weight:700;}
+  .key.done{background:var(--brand);color:#fff;font-weight:800;font-size:15px;}
+  .coach{position:absolute;left:12px;bottom:262px;z-index:5;background:#1f2330;color:#fff;font-size:12px;line-height:1.55;border-radius:12px;padding:9px 12px;max-width:230px;box-shadow:0 10px 24px rgba(0,0,0,.2);}
+  .coach b{color:#c9c2ff;}
+  .coach::after{content:"";position:absolute;left:26px;bottom:-6px;width:12px;height:12px;background:#1f2330;transform:rotate(45deg);}
+  .coach .x{display:block;margin-top:5px;font-size:11px;color:#a9afbd;}
+</style>
+
+<div class="sec">A · 入口与选图</div>
+<div class="screens">
+
+  <!-- 1 首页入口 -->
+  <div class="pw">
+    <p class="cap"><span class="n">1</span> 首页 · 快捷入口「截图记账」</p>
+    <p class="note">快捷入口第一位换成「截图记账」（紫色 = AI 能力的统一识别色）。新用户前 7 天额外露出一条横幅，用过一次后横幅自动收起。</p>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="sb onb" style="background:#1fbf63;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="body">
+        <div class="hero">
+          <div class="hnav"><div class="ledger">🏠 我的账本 ▾</div><div style="font-size:16px;">🔍　🔔</div></div>
+          <div class="balrow"><div><div class="bal-k">2026年10月 · 月结余</div><div class="bal-v">¥2,318<small>.40</small></div></div><div class="io"><div>收入 9,200</div><div>支出 6,881.60</div></div></div>
+        </div>
+        <div class="card quick">
+          <div class="qa ai"><div class="ic">📷<span class="badge-new">AI</span></div><div class="l">截图记账</div></div>
+          <div class="qa"><div class="ic">📊</div><div class="l">统计</div></div>
+          <div class="qa"><div class="ic">🎯</div><div class="l">预算</div></div>
+          <div class="qa"><div class="ic">⋯</div><div class="l">更多</div></div>
+        </div>
+        <div class="ai-banner">
+          <div class="ic">✨</div>
+          <div><div class="tt">付完款，截个图就记好了</div><div class="ss">支持微信 / 支付宝 / 银行账单截图，一次最多 9 张</div></div>
+          <div class="go">试试 ›</div>
+        </div>
+        <div class="dayh"><span>今天 10月23日</span><span>支出 58.00</span></div>
+        <div class="card" style="margin:0 14px;">
+          <div class="tx"><div class="cic" style="background:#8b5e3c;">☕</div><div class="tinfo"><div class="tname">瑞幸咖啡</div><div class="tacc">咖啡 · 微信零钱</div></div><div class="tamt exp">-23.00</div></div>
+          <div class="tx"><div class="cic" style="background:#f0553d;">🍱</div><div class="tinfo"><div class="tname">午饭</div><div class="tacc">外卖 · 支付宝</div></div><div class="tamt exp">-35.00</div></div>
+        </div>
+        <div style="height:16px;"></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab on"><span class="ic">🏠</span>首页</div>
+        <div class="tab"><span class="ic">📋</span>明细</div>
+        <div class="tab plus"><span class="ic">＋</span>记一笔</div>
+        <div class="tab"><span class="ic">📈</span>报表</div>
+        <div class="tab"><span class="ic">👤</span>我的</div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- 2 记账页入口 -->
+  <div class="pw">
+    <p class="cap"><span class="n">2</span> 记账页 · 第一个快捷条「截图识别」</p>
+    <p class="note">已经点进记账页的用户，在日期/账户那排快捷条最前面就能切到截图识别。首次出现时带一次引导气泡，点掉后不再出现。</p>
+    <div class="phone"><div class="notch"></div><div class="screen white">
+      <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">我的账本 <span style="font-size:11px;color:var(--ink-3);">▾</span></div><div style="width:32px;"></div></div>
+      <div class="tyseg"><span class="tys on">支出</span><span class="tys">收入</span><span class="tys">转账</span><span class="tys">借贷</span></div>
+      <div class="body">
+        <div class="cgrid">
+          <div class="cat on"><div class="ci" style="background:#fdece8;">🍜</div><div class="cl">餐饮</div></div>
+          <div class="cat"><div class="ci" style="background:#fde8f2;">🛍</div><div class="cl">购物</div></div>
+          <div class="cat"><div class="ci" style="background:#eeebff;">🚕</div><div class="cl">交通</div></div>
+          <div class="cat"><div class="ci" style="background:#f4ece5;">☕</div><div class="cl">咖啡</div></div>
+          <div class="cat"><div class="ci" style="background:#fff3dc;">🧴</div><div class="cl">日用</div></div>
+          <div class="cat"><div class="ci" style="background:#e6f6ec;">🥬</div><div class="cl">买菜</div></div>
+          <div class="cat"><div class="ci" style="background:#e5f0ff;">📱</div><div class="cl">话费</div></div>
+          <div class="cat"><div class="ci" style="background:#fdece8;">🍱</div><div class="cl">外卖</div></div>
+          <div class="cat"><div class="ci" style="background:#f1f3f5;">🏠</div><div class="cl">住房</div></div>
+          <div class="cat"><div class="ci" style="background:#fff;border:1.5px dashed #d1d5db;color:#b6bcc4;">＋</div><div class="cl">管理</div></div>
+        </div>
+      </div>
+      <div class="coach">📷 <b>付完款截个图</b>，点这里自动识别金额、商户和分类，不用一笔笔敲。<span class="x">知道了</span></div>
+      <div class="noteamt"><span class="na-note">添加备注…</span><span class="na-amt">0.00</span></div>
+      <div class="chips"><span class="chip ai">📷 截图识别</span><span class="chip on">📅 今天</span><span class="chip on">💚 微信零钱</span><span class="chip">标签</span><span class="chip">模板</span></div>
+      <div class="kp">
+        <div class="key">1</div><div class="key">2</div><div class="key">3</div><div class="key op">⌫</div>
+        <div class="key">4</div><div class="key">5</div><div class="key">6</div><div class="key op">−</div>
+        <div class="key">7</div><div class="key">8</div><div class="key">9</div><div class="key op">＋</div>
+        <div class="key mini">保存再记</div><div class="key">0</div><div class="key">.</div><div class="key done">完成</div>
+      </div>
+    </div></div>
+  </div>
+
+<style>
+  .eg-row{display:flex;gap:8px;margin-top:12px;}
+  .eg{flex:1;background:var(--surface-2);border-radius:12px;padding:8px 6px 7px;text-align:center;}
+  .eg .mini-shot{height:74px;border-radius:7px;background:#fff;margin:0 auto 6px;width:46px;box-shadow:0 2px 6px rgba(0,0,0,.08);padding:5px 4px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .eg .el{font-size:10.5px;color:var(--ink-2);font-weight:700;}
+  .ln{height:3px;border-radius:2px;background:#e3e6ea;width:100%;}
+  .ln.s{width:60%;} .ln.g{background:#bfe8cf;} .ln.d{background:#c7ccd3;}
+  .dot-ok{width:14px;height:14px;border-radius:50%;background:#12a150;margin-top:3px;}
+  .pv-list{margin-top:12px;display:flex;flex-direction:column;gap:9px;}
+  .pv{display:flex;gap:10px;align-items:flex-start;font-size:12.5px;line-height:1.55;color:var(--ink);}
+  .pv .pi{width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto;}
+  .pv small{display:block;color:var(--ink-3);font-size:11px;}
+  .btn-row{display:flex;gap:10px;margin-top:16px;}
+  .btn-row .btn{flex:1;}
+
+  /* 识别中 */
+  .scan-wrap{display:flex;flex-direction:column;align-items:center;padding-top:34px;}
+  .stack{position:relative;width:150px;height:230px;}
+  .stack .s1,.stack .s2{position:absolute;width:128px;height:220px;border-radius:14px;background:#fff;box-shadow:0 10px 26px rgba(20,24,28,.12);}
+  .stack .s2{left:22px;top:10px;transform:rotate(6deg);opacity:.9;}
+  .stack .s1{left:0;top:0;transform:rotate(-4deg);overflow:hidden;padding:12px 10px;display:flex;flex-direction:column;gap:7px;}
+  .bl-row{display:flex;align-items:center;gap:5px;}
+  .bl-row .d{width:13px;height:13px;border-radius:50%;background:#e3e6ea;flex:0 0 auto;}
+  .bl-row .m{flex:1;display:flex;flex-direction:column;gap:2px;}
+  .bl-row .a{width:22px;height:4px;border-radius:2px;background:#cfd4da;}
+  .scanline{position:absolute;left:-6px;right:-6px;height:44px;top:0;background:linear-gradient(180deg,rgba(109,92,255,0),rgba(109,92,255,.28) 80%,rgba(109,92,255,.9) 100%);border-bottom:2px solid #7d6dff;animation:scan 2.2s ease-in-out infinite;}
+  @keyframes scan{0%{top:-40px;}100%{top:210px;}}
+  .scan-t{font-size:17px;font-weight:800;margin-top:26px;}
+  .scan-s{font-size:12px;color:var(--ink-3);margin-top:4px;}
+  .steps{margin:22px 0 0;width:240px;display:flex;flex-direction:column;gap:12px;}
+  .step{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-3);}
+  .step .si{width:20px;height:20px;border-radius:50%;border:2px solid #d5d9df;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex:0 0 auto;}
+  .step.ok{color:var(--ink);} .step.ok .si{background:var(--brand);border-color:var(--brand);}
+  .step.ing{color:var(--ink);font-weight:700;} .step.ing .si{border-color:var(--ai);border-top-color:transparent;animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .step em{font-style:normal;margin-left:auto;font-size:11px;color:var(--ink-3);font-weight:600;}
+</style>
+
+  <!-- 3 首次使用说明 + 选图 -->
+  <div class="pw">
+    <p class="cap"><span class="n">3</span> 选图 · 首次使用先讲清隐私</p>
+    <p class="note">只在第一次弹完整说明，之后点入口直接出「拍照 / 相册」两项。隐私三条放在按钮上方必经位置，对应产品「干净、数据自持」的承诺。</p>
+    <div class="phone"><div class="notch"></div><div class="screen white">
+      <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">我的账本 ▾</div><div style="width:32px;"></div></div>
+      <div class="tyseg"><span class="tys on">支出</span><span class="tys">收入</span><span class="tys">转账</span><span class="tys">借贷</span></div>
+      <div class="body"></div>
+      <div class="mask">
+        <div class="sheet">
+          <div class="grab"></div>
+          <div class="sheet-t">截图记账</div>
+          <div class="sheet-s">自动识别金额、时间、商户，并按你的习惯分好类</div>
+          <div class="eg-row">
+            <div class="eg"><div class="mini-shot"><div class="dot-ok"></div><div class="ln s"></div><div class="ln" style="height:6px;background:#9aa2ad;width:70%;"></div><div class="ln"></div><div class="ln s"></div></div><div class="el">支付成功页</div></div>
+            <div class="eg"><div class="mini-shot"><div class="ln d s"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div><div class="ln"></div></div><div class="el">账单列表</div></div>
+            <div class="eg"><div class="mini-shot"><div class="ln g" style="height:10px;"></div><div class="ln s"></div><div class="ln"></div><div class="ln"></div><div class="ln s"></div></div><div class="el">订单详情</div></div>
+          </div>
+          <div class="pv-list">
+            <div class="pv"><div class="pi">🔒</div><div>截图只用于这一次识别<small>识别完立即删除，不保存原图，不用于训练模型</small></div></div>
+            <div class="pv"><div class="pi">✋</div><div>结果先给你核对<small>你点「记入」之前，不会写进账本</small></div></div>
+            <div class="pv"><div class="pi">🎁</div><div>每天免费识别 10 张<small>今日剩余 10 张 · 识别失败不计入</small></div></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn ghost">📸 拍照</button>
+            <button class="btn ai">🖼 从相册选</button>
+          </div>
+          <div class="quota">继续即表示同意《截图识别服务说明》</div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- 4 识别中 -->
+  <div class="pw">
+    <p class="cap"><span class="n">4</span> 识别中 · 分步告诉用户在干什么</p>
+    <p class="note">一般 3–6 秒。把「读字 → 拆笔 → 分类去重」三步摊开，等待不焦虑，也让用户知道分类是结合了自己的历史。可随时取消。</p>
+    <div class="phone"><div class="notch"></div><div class="screen white">
+      <div class="sb"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">✕</div><div class="t">截图识别</div><div style="width:32px;"></div></div>
+      <div class="body">
+        <div class="scan-wrap">
+          <div class="stack">
+            <div class="s2"></div>
+            <div class="s1">
+              <div class="ln d s" style="height:5px;"></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="bl-row"><div class="d"></div><div class="m"><div class="ln"></div><div class="ln s"></div></div><div class="a"></div></div>
+              <div class="scanline"></div>
+            </div>
+          </div>
+          <div class="scan-t">正在识别 2 张截图</div>
+          <div class="scan-s">支付宝账单列表 · 共约 10 笔</div>
+          <div class="steps">
+            <div class="step ok"><span class="si">✓</span>读取截图文字<em>完成</em></div>
+            <div class="step ok"><span class="si">✓</span>拆分出 10 笔流水<em>完成</em></div>
+            <div class="step ing"><span class="si"></span>按你的习惯分类、查重复<em>进行中</em></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:14px 18px 22px;">
+        <div class="privacy" style="margin:0 0 12px;">🔒<span>截图仅用于本次识别，完成后服务端立即删除</span></div>
+        <button class="btn ghost">取消识别</button>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<style>
+  .grey{background:var(--surface-2);}
+  .src-card{display:flex;align-items:center;gap:12px;margin:12px 14px 0;padding:10px 12px;}
+  .thumb{width:44px;height:78px;border-radius:7px;background:#f3f4f6;box-shadow:0 0 0 1px #e6e8eb inset;padding:6px 5px;display:flex;flex-direction:column;align-items:center;gap:4px;flex:0 0 auto;}
+  .src-card .st{font-size:13px;font-weight:800;}
+  .src-card .ss{font-size:11px;color:var(--ink-3);margin-top:3px;line-height:1.5;}
+  .src-card .sl{margin-left:auto;font-size:12px;color:var(--ink-2);white-space:nowrap;}
+  .res-card{margin:12px 14px 0;padding:6px 0 4px;}
+  .res-amt{display:flex;align-items:flex-end;justify-content:space-between;padding:12px 16px 12px;}
+  .res-amt .k{font-size:12px;color:var(--ink-3);}
+  .res-amt .k b{display:block;font-size:15px;color:var(--ink);margin-top:3px;}
+  .res-amt .v{font-size:34px;font-weight:800;color:var(--exp);letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+  .res-amt .v small{font-size:18px;}
+  .frow{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--line);font-size:14px;}
+  .frow .k{color:var(--ink-2);width:44px;flex:0 0 auto;}
+  .frow .v{font-weight:700;display:flex;align-items:center;gap:6px;flex:1;min-width:0;}
+  .frow .a{color:var(--ink-3);}
+  .mini-ci{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;}
+  .why{margin:12px 14px 0;background:var(--brand-weak);color:var(--brand-600);border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.6;display:flex;gap:7px;}
+  .bottom{padding:12px 14px 20px;background:#fff;border-top:1px solid var(--line);flex:0 0 auto;}
+  .bottom .row{display:flex;gap:10px;}
+  .bottom .row .btn.ghost{flex:0 0 120px;}
+  .bottom .row .btn.pri{flex:1;}
+  .done-pop{display:none;flex-direction:column;align-items:center;gap:6px;padding:26px 0 18px;}
+  .done-badge{width:54px;height:54px;border-radius:50%;background:var(--brand-weak);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:28px;}
+</style>
+
+<div class="sec">B · 核对预览（核心页）</div>
+<div class="screens">
+
+  <!-- 5 单笔结果 -->
+  <div class="pw">
+    <p class="cap"><span class="n">5</span> 单笔截图 · 直接给一张已填好的单</p>
+    <p class="note">支付成功页一张图一笔。所有字段已填好，每个字段旁标明来源；分类沿用用户在该商家的历史。默认动作只有一个：「记入」。（可点按钮看效果）</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">识别结果</div><div class="r">重选</div></div>
+      <div class="body" id="single">
+        <div class="card src-card">
+          <div class="thumb"><div class="dot-ok"></div><div class="ln s"></div><div class="ln" style="height:5px;background:#9aa2ad;width:80%;"></div><div class="ln"></div><div class="ln s"></div><div class="ln"></div></div>
+          <div><div class="st">微信支付 · 支付成功页</div><div class="ss">识别到 1 笔支出<br/>与账本中已有记录无重复</div></div>
+          <div class="sl">原图 ›</div>
+        </div>
+        <div class="card res-card">
+          <div class="res-amt"><div class="k">支出<b>瑞幸咖啡</b></div><div class="v"><small>-¥</small>23.00</div></div>
+          <div class="frow"><span class="k">分类</span><span class="v"><span class="mini-ci" style="background:#f4ece5;">☕</span>咖啡 <span class="src-tag">按习惯</span></span><span class="a">›</span></div>
+          <div class="frow"><span class="k">账户</span><span class="v">💚 微信零钱 <span class="src-tag">截图识别</span></span><span class="a">›</span></div>
+          <div class="frow"><span class="k">时间</span><span class="v">今天 10:32</span><span class="a">›</span></div>
+          <div class="frow"><span class="k">商家</span><span class="v">瑞幸咖啡 <span class="src-tag">已有商家</span></span><span class="a">›</span></div>
+          <div class="frow"><span class="k">备注</span><span class="v" style="font-weight:600;">生椰拿铁 大杯</span><span class="a">›</span></div>
+        </div>
+        <div class="why">✨<span>你最近 6 次在「瑞幸咖啡」都记在「咖啡」，这次也这样记。改了分类，下次会按新的来。</span></div>
+        <div class="card done-pop" id="singleDone" style="margin:12px 14px 0;">
+          <div class="done-badge">✓</div>
+          <div style="font-size:15px;font-weight:800;color:var(--brand-600);">已记入 · 瑞幸咖啡 ¥23.00</div>
+          <div style="font-size:11.5px;color:var(--ink-3);">咖啡 · 微信零钱　查看 · 撤销</div>
+        </div>
+      </div>
+      <div class="bottom" id="singleBar">
+        <div class="row"><button class="btn ghost">去记账页改</button><button class="btn pri" onclick="singleConfirm()">记入</button></div>
+      </div>
+    </div></div>
+  </div>
+
+<style>
+  .seg2{display:flex;background:#e9ecef;border-radius:9px;padding:3px;margin:8px 14px 0;}
+  .seg2 span{flex:1;text-align:center;font-size:12.5px;font-weight:700;color:var(--ink-2);padding:6px 0;border-radius:7px;}
+  .seg2 span.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  .sum{margin:10px 14px 0;padding:12px 14px;}
+  .sum .l1{display:flex;align-items:baseline;justify-content:space-between;}
+  .sum .big{font-size:15px;font-weight:800;}
+  .sum .big b{font-size:22px;color:var(--exp);font-variant-numeric:tabular-nums;}
+  .sum .meta{font-size:11px;color:var(--ink-3);margin-top:3px;}
+  .sum .acc{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12.5px;}
+  .sum .acc span:first-child{color:var(--ink-2);}
+  .sum .acc b{font-weight:800;}
+  .gh{display:flex;justify-content:space-between;align-items:center;padding:12px 20px 6px;font-size:11.5px;color:var(--ink-3);font-weight:700;}
+  .gh .lk{color:var(--brand-600);}
+  .lst{margin:0 14px;overflow:hidden;}
+  .it{display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer;}
+  .it:first-child{border-top:none;}
+  .ck{width:20px;height:20px;border-radius:50%;border:2px solid #cfd4da;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:900;}
+  .it.on .ck{background:var(--brand);border-color:var(--brand);}
+  .it.on .ck::after{content:"✓";}
+  .it .cic{width:34px;height:34px;font-size:15px;}
+  .it .tname{font-size:13.5px;}
+  .it .tacc{display:flex;align-items:center;gap:4px;}
+  .it .tamt{font-size:14px;}
+  .it.off .cic,.it.off .tinfo,.it.off .tamt{opacity:.45;}
+  .it.flag{background:#fffaf0;}
+  .amt-warn{border-bottom:2px dotted var(--warn);}
+  .skip{display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--line);}
+  .skip:first-child{border-top:none;}
+  .skip .cic{width:34px;height:34px;font-size:14px;background:#eef0f3;color:var(--ink-2);}
+  .skip .act{font-size:11.5px;color:var(--brand-600);font-weight:700;white-space:nowrap;}
+  .cta{display:flex;align-items:center;gap:12px;}
+  .cta .sel{font-size:11.5px;color:var(--ink-3);line-height:1.4;}
+  .cta .sel b{display:block;font-size:14px;color:var(--ink);}
+  .cta .btn{flex:1;}
+</style>
+
+  <!-- 6 多笔结果 -->
+  <div class="pw">
+    <p class="cap"><span class="n">6</span> 账单列表截图 · 一次核对一批</p>
+    <p class="note">多张截图合并去重后一屏核对。需要用户看一眼的（金额看不清、AI 猜的分类）排在最前并标黄；重复的默认不勾；还款默认不计支出、退款与原单自动抵消，都放在底部说明。点勾选可看合计变化。</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">识别结果</div><div class="r">重选</div></div>
+      <div style="background:#fff;padding-bottom:8px;flex:0 0 auto;"><div class="seg2" style="margin-top:0;"><span class="on">流水 10</span><span>原图对照</span></div></div>
+      <div class="body">
+        <div class="card sum">
+          <div class="l1"><span class="big">将记入 <span id="mCount">6</span> 笔</span><span class="big"><b id="mSum">-312.50</b></span></div>
+          <div class="meta">2 张截图 · 识别 10 笔 · 1 笔重复 · 1 笔还款 · 1 对退款抵消</div>
+          <div class="acc"><span>记入账户</span><span><b>🔵 支付宝余额</b> <span class="src-tag">截图识别</span> ›</span></div>
+        </div>
+
+        <div class="gh"><span>⚠️ 需要你看一眼 · 2</span></div>
+        <div class="card lst">
+          <div class="it on flag" data-amt="18.70" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#f4a72b;">🧴</div><div class="tinfo"><div class="tname">便利蜂 <span class="warn-tag">金额请核对</span></div><div class="tacc">10/20 21:14 · 日用</div></div><div class="tamt exp"><span class="amt-warn">-18.70</span></div></div>
+          <div class="it on flag" data-amt="50.00" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#2f80ed;">📱</div><div class="tinfo"><div class="tname">中国移动 <span class="ai-tag">✨ AI 推测</span></div><div class="tacc">10/20 08:30 · 话费</div></div><div class="tamt exp">-50.00</div></div>
+        </div>
+
+        <div class="gh"><span>✓ 已分好类 · 4</span><span class="lk">全不选</span></div>
+        <div class="card lst">
+          <div class="it on" data-amt="86.30" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#12a150;">🥬</div><div class="tinfo"><div class="tname">盒马鲜生</div><div class="tacc">10/22 19:40 · 买菜 <span class="src-tag">按习惯</span></div></div><div class="tamt exp">-86.30</div></div>
+          <div class="it on" data-amt="23.50" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#7c5cff;">🚕</div><div class="tinfo"><div class="tname">滴滴出行</div><div class="tacc">10/22 09:12 · 交通 <span class="src-tag">按习惯</span></div></div><div class="tamt exp">-23.50</div></div>
+          <div class="it on" data-amt="76.00" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#e94e9b;">🛍</div><div class="tinfo"><div class="tname">淘宝 · 收纳盒</div><div class="tacc">10/19 22:47 · 购物 <span class="src-tag">按商户</span></div></div><div class="tamt exp">-76.00</div></div>
+          <div class="it on" data-amt="58.00" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#f0553d;">🍜</div><div class="tinfo"><div class="tname">海底捞</div><div class="tacc">10/18 18:56 · 餐饮 <span class="src-tag">按习惯</span></div></div><div class="tamt exp">-58.00</div></div>
+        </div>
+
+        <div class="gh"><span>⧉ 疑似重复 · 默认不记 · 1</span></div>
+        <div class="card lst">
+          <div class="it off" data-amt="23.00" onclick="tg(this)"><span class="ck"></span><div class="cic" style="background:#8b5e3c;">☕</div><div class="tinfo"><div class="tname">瑞幸咖啡</div><div class="tacc"><span class="dup-tag">账本里已有：今天 10:32 ¥23.00</span></div></div><div class="tamt exp">-23.00</div></div>
+        </div>
+
+        <div class="gh"><span>↷ 不计入 · 3</span></div>
+        <div class="card lst">
+          <div class="skip"><div class="cic">💳</div><div class="tinfo"><div class="tname">信用卡还款</div><div class="tacc">账户之间的转账，不计支出</div></div><span class="act">记为转账</span></div>
+          <div class="skip"><div class="cic">↩</div><div class="tinfo"><div class="tname">美团外卖 -32.00 / 退款 +32.00</div><div class="tacc">10/21 下单后全额退款，两笔已抵消</div></div><span class="act">仍然记入</span></div>
+        </div>
+        <div style="height:14px;"></div>
+      </div>
+      <div class="bottom">
+        <div class="cta"><div class="sel">已选<b><span id="mCount2">6</span> 笔</b></div><button class="btn pri">全部记入</button></div>
+      </div>
+    </div></div>
+  </div>
+
+<style>
+  .orig{margin:10px 14px 0;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 6px 20px rgba(20,24,28,.06);position:relative;}
+  .orig .oh{background:#1677ff;color:#fff;font-size:11px;font-weight:700;padding:8px 10px;display:flex;justify-content:space-between;}
+  .orig .om{font-size:10px;color:#8c8c8c;padding:6px 10px 2px;background:#f5f5f5;}
+  .orow{display:flex;align-items:center;gap:7px;padding:7px 44px 7px 10px;border-bottom:1px solid #f0f0f0;position:relative;font-size:10.5px;}
+  .orow .od{width:20px;height:20px;border-radius:50%;background:#eef2f7;display:flex;align-items:center;justify-content:center;font-size:10px;flex:0 0 auto;}
+  .orow .on1{flex:1;min-width:0;}
+  .orow .on1 b{display:block;font-weight:600;color:#262626;}
+  .orow .on1 span{color:#a0a0a0;font-size:9.5px;}
+  .orow .oa{font-weight:700;color:#262626;font-variant-numeric:tabular-nums;}
+  .orow .oa.blur{filter:blur(.8px);}
+  .box{position:absolute;inset:2px 4px;border-radius:7px;border:2px solid var(--brand);pointer-events:none;}
+  .box.w{border-color:var(--warn);background:rgba(244,167,43,.08);}
+  .box.a{border-color:var(--ai);}
+  .box.d{border-color:#b6bcc4;border-style:solid;background:rgba(150,150,150,.06);}
+  .box.s{border-color:#b6bcc4;border-style:dashed;}
+  .box i{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-style:normal;font-size:9px;font-weight:900;color:#fff;background:var(--brand);border-radius:6px;padding:2px 5px;}
+  .box.w i{background:var(--warn);} .box.a i{background:var(--ai);} .box.d i,.box.s i{background:#9aa2ad;}
+  .orow.sel{background:rgba(18,161,80,.06);}
+  .lg{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 18px 0;font-size:11px;color:var(--ink-2);}
+  .lg span{display:inline-flex;align-items:center;gap:5px;}
+  .lg i{width:12px;height:12px;border-radius:3px;border:2px solid var(--brand);display:inline-block;}
+  .pick-tip{margin:10px 14px 0;padding:10px 12px;font-size:12px;color:var(--ink-2);line-height:1.6;}
+  .pick-tip b{color:var(--ink);}
+</style>
+
+  <!-- 7 原图对照 -->
+  <div class="pw">
+    <p class="cap"><span class="n">7</span> 原图对照 · 每一笔都能对回截图</p>
+    <p class="note">切到「原图对照」，在原截图上逐行框出识别到的流水，颜色与列表一致。用户能确认「没漏、没多、金额对」，这是让人敢点「全部记入」的关键。点任一框可定位。</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">识别结果</div><div class="r">重选</div></div>
+      <div style="background:#fff;padding-bottom:8px;flex:0 0 auto;"><div class="seg2" style="margin-top:0;"><span>流水 10</span><span class="on">原图对照</span></div></div>
+      <div class="body">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 20px 0;font-size:12px;color:var(--ink-2);"><b style="color:var(--ink);">截图 1 / 2</b><span>‹　›</span></div>
+        <div class="orig" id="orig">
+          <div class="oh"><span>‹　账单</span><span>筛选</span></div>
+          <div class="om">10月　支出 ¥1,612.50　收入 ¥32.00</div>
+          <div class="orow" onclick="pk(this)"><div class="od">☕</div><div class="on1"><b>瑞幸咖啡</b><span>今天 10:32 · 餐饮美食</span></div><div class="oa">-23.00</div><div class="box d"><i>重复</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">🛒</div><div class="on1"><b>盒马鲜生</b><span>10-22 19:40 · 日用百货</span></div><div class="oa">-86.30</div><div class="box"><i>1</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">🚗</div><div class="on1"><b>滴滴出行</b><span>10-22 09:12 · 交通出行</span></div><div class="oa">-23.50</div><div class="box"><i>2</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">↩</div><div class="on1"><b>美团外卖-退款</b><span>10-21 15:20 · 退款</span></div><div class="oa">+32.00</div><div class="box s"><i>抵消</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">🍱</div><div class="on1"><b>美团外卖</b><span>10-21 12:05 · 餐饮美食</span></div><div class="oa">-32.00</div><div class="box s"><i>抵消</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">💳</div><div class="on1"><b>信用卡还款</b><span>10-21 10:00 · 信用卡</span></div><div class="oa">-1,200.00</div><div class="box s"><i>跳过</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">🏪</div><div class="on1"><b>便利蜂</b><span>10-20 21:14 · 日用百货</span></div><div class="oa blur">-18.70</div><div class="box w"><i>核对</i></div></div>
+          <div class="orow" onclick="pk(this)"><div class="od">📶</div><div class="on1"><b>中国移动</b><span>10-20 08:30 · 充值缴费</span></div><div class="oa">-50.00</div><div class="box a"><i>AI</i></div></div>
+        </div>
+        <div class="lg">
+          <span><i></i>将记入</span>
+          <span><i style="border-color:var(--warn);"></i>请核对</span>
+          <span><i style="border-color:var(--ai);"></i>AI 推测分类</span>
+          <span><i style="border-color:#b6bcc4;"></i>重复 / 跳过 / 抵消</span>
+        </div>
+        <div class="card pick-tip">截图 2 里与截图 1 <b>重叠的 3 行已自动合并</b>，不会记两次。</div>
+        <div style="height:14px;"></div>
+      </div>
+      <div class="bottom">
+        <div class="cta"><div class="sel">已选<b>6 笔</b></div><button class="btn pri">全部记入</button></div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<style>
+  .crop{margin-top:12px;border-radius:12px;background:#fff;box-shadow:0 0 0 1px #eceef1 inset;padding:9px 11px;display:flex;align-items:center;gap:8px;font-size:12px;position:relative;}
+  .crop .cl2{flex:1;}
+  .crop .cl2 b{display:block;font-weight:600;}
+  .crop .cl2 span{color:#a0a0a0;font-size:10.5px;}
+  .crop .ca{font-weight:800;filter:blur(.8px);background:rgba(244,167,43,.25);border-radius:4px;padding:1px 4px;}
+  .crop-k{font-size:10.5px;color:var(--ink-3);margin-top:12px;}
+  .ed-amt{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--warn-weak);}
+  .ed-amt .ev{font-size:26px;font-weight:800;color:var(--exp);letter-spacing:-.02em;}
+  .ed-amt .ev small{font-size:15px;}
+  .ed-amt .en{font-size:11px;color:#b86e00;line-height:1.5;text-align:right;}
+  .ed-k{font-size:12px;color:var(--ink-2);margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center;}
+  .cchips{display:flex;flex-wrap:wrap;gap:8px;}
+  .cc{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;border-radius:999px;background:#f4f5f7;font-size:12.5px;color:var(--ink-2);}
+  .cc.on{background:var(--brand-weak);color:var(--brand-600);font-weight:800;box-shadow:0 0 0 1.5px var(--brand) inset;}
+  .tgl{display:flex;align-items:center;gap:10px;margin-top:14px;padding:11px 12px;border-radius:12px;background:var(--surface-2);font-size:12.5px;line-height:1.5;}
+  .tgl small{display:block;color:var(--ink-3);font-size:11px;}
+  .sw{margin-left:auto;width:42px;height:24px;border-radius:999px;background:var(--brand);position:relative;flex:0 0 auto;cursor:pointer;}
+  .sw::after{content:"";position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .sw.off{background:#d5d9df;} .sw.off::after{right:auto;left:3px;}
+  .ed-row{display:flex;justify-content:space-between;align-items:center;padding:11px 2px;border-top:1px solid var(--line);font-size:13px;margin-top:10px;}
+  .ed-row span:first-child{color:var(--ink-2);}
+  .ed-row b small{font-weight:600;color:var(--ink-3);font-size:11px;}
+</style>
+
+<div class="sec">C · 修正、完成与异常</div>
+<div class="screens">
+
+  <!-- 8 核对一笔 -->
+  <div class="pw">
+    <p class="cap"><span class="n">8</span> 核对一笔 · 改分类顺手「记住」</p>
+    <p class="note">点列表里任一笔弹出。顶部放这一行的原图片段，金额看不清时标黄让用户确认。改了分类后默认勾上「以后都这样记」，这条规则会作用于之后的截图识别和 CSV 导入。</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">‹</div><div class="t">识别结果</div><div class="r">重选</div></div>
+      <div class="body"></div>
+      <div class="mask">
+        <div class="sheet">
+          <div class="grab"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;"><span class="sheet-t">核对这一笔</span><span style="color:var(--ink-3);font-size:18px;">✕</span></div>
+          <div class="crop-k">原图片段</div>
+          <div class="crop" style="margin-top:6px;"><span style="font-size:14px;">🏪</span><div class="cl2"><b>便利蜂</b><span>10-20 21:14 · 日用百货</span></div><span class="ca">-18.70</span></div>
+          <div class="ed-amt"><span class="ev"><small>-¥</small>18.70</span><span class="en">末位有遮挡，<br/>识别为 18.70，请核对</span></div>
+          <div class="ed-k"><span>分类</span><span class="ai-tag">✨ AI 推测：日用</span></div>
+          <div class="cchips">
+            <span class="cc">🧴 日用</span><span class="cc on">🍪 零食</span><span class="cc">🍜 餐饮</span><span class="cc">🛍 购物</span><span class="cc">全部 ›</span>
+          </div>
+          <div class="tgl"><div>以后「便利蜂」都记为「零食」<small>也会用在以后的 CSV 导入</small></div><span class="sw" onclick="this.classList.toggle('off')"></span></div>
+          <div class="ed-row"><span>时间</span><b>2026年10月20日 21:14 <small>年份按最近推断</small></b></div>
+          <div class="btn-row" style="margin-top:10px;"><button class="btn ghost">这笔不记</button><button class="btn pri">保存</button></div>
+        </div>
+      </div>
+    </div></div>
+  </div>
+
+<style>
+  .fin{display:flex;flex-direction:column;align-items:center;padding:26px 0 6px;}
+  .fin .done-badge{width:62px;height:62px;font-size:32px;}
+  .fin .t1{font-size:19px;font-weight:800;margin-top:12px;}
+  .fin .t2{font-size:12.5px;color:var(--ink-3);margin-top:4px;}
+  .bars{margin:14px 14px 0;padding:12px 14px 6px;}
+  .bars .bh{font-size:12px;color:var(--ink-2);font-weight:700;margin-bottom:6px;}
+  .bar{display:flex;align-items:center;gap:8px;font-size:12px;padding:5px 0;}
+  .bar .bn{width:40px;color:var(--ink-2);}
+  .bar .bt{flex:1;height:8px;border-radius:4px;background:#f1f3f5;overflow:hidden;}
+  .bar .bt i{display:block;height:100%;border-radius:4px;}
+  .bar .bv{width:50px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;}
+  .learn{margin:12px 14px 0;padding:11px 13px;border-radius:14px;background:var(--ai-weak);font-size:12px;line-height:1.65;color:#3e3399;}
+  .learn b{color:#2b2180;}
+  .undo{text-align:center;font-size:12px;color:var(--ink-3);margin-top:12px;}
+  .undo span{color:var(--danger);font-weight:700;}
+  .fail-img{width:120px;height:170px;margin:30px auto 0;border-radius:14px;background:#f3f4f6;box-shadow:0 0 0 1px #e6e8eb inset;padding:14px 10px;display:flex;flex-direction:column;gap:9px;opacity:.75;position:relative;}
+  .bub{height:18px;border-radius:9px;background:#fff;width:70%;}
+  .bub.r{align-self:flex-end;background:#c9efd6;}
+  .fail-x{position:absolute;right:-12px;bottom:-12px;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .supp{margin:16px 14px 0;padding:12px 14px;}
+  .supp .sh{font-size:12px;font-weight:800;margin-bottom:8px;}
+  .supp .sg{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .supp .sg span{font-size:11.5px;color:var(--ink-2);background:var(--surface-2);border-radius:9px;padding:7px 9px;}
+  .supp .sg span.no{color:var(--ink-3);text-decoration:line-through;}
+</style>
+
+  <!-- 9 完成 -->
+  <div class="pw">
+    <p class="cap"><span class="n">9</span> 记入完成 · 有反馈、能撤销</p>
+    <p class="note">告诉用户这批记了什么、花在哪；把这次「学到的分类」明确说出来，让用户感到越用越省事。24 小时内整批一键撤销，避免误导入后一条条删。</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">✕</div><div class="t">截图识别</div><div style="width:32px;"></div></div>
+      <div class="body">
+        <div class="fin">
+          <div class="done-badge">✓</div>
+          <div class="t1">已记入 6 笔</div>
+          <div class="t2">支出 ¥312.50 · 支付宝余额 · 10月18日–22日</div>
+        </div>
+        <div class="card bars">
+          <div class="bh">这批花在哪</div>
+          <div class="bar"><span class="bn">买菜</span><span class="bt"><i style="width:100%;background:#12a150;"></i></span><span class="bv">86.30</span></div>
+          <div class="bar"><span class="bn">购物</span><span class="bt"><i style="width:88%;background:#e94e9b;"></i></span><span class="bv">76.00</span></div>
+          <div class="bar"><span class="bn">餐饮</span><span class="bt"><i style="width:67%;background:#f0553d;"></i></span><span class="bv">58.00</span></div>
+          <div class="bar"><span class="bn">话费</span><span class="bt"><i style="width:58%;background:#2f80ed;"></i></span><span class="bv">50.00</span></div>
+          <div class="bar"><span class="bn">交通</span><span class="bt"><i style="width:27%;background:#7c5cff;"></i></span><span class="bv">23.50</span></div>
+          <div class="bar"><span class="bn">零食</span><span class="bt"><i style="width:22%;background:#f4a72b;"></i></span><span class="bv">18.70</span></div>
+        </div>
+        <div class="learn">🧠 记住了 2 个新商家：<b>中国移动 → 话费</b>、<b>便利蜂 → 零食</b>。下次截图或导入账单，会直接按这个分。</div>
+        <div class="undo">记错了？<span>撤销这 6 笔</span>（24 小时内）</div>
+      </div>
+      <div class="bottom">
+        <div class="row"><button class="btn ghost">继续识别</button><button class="btn pri">查看这 6 笔</button></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- 10 识别不出 -->
+  <div class="pw">
+    <p class="cap"><span class="n">10</span> 识别不出 / 额度用完</p>
+    <p class="note">不是账单的图（聊天记录、风景照）不硬猜，直接说清楚并给出支持的截图类型。额度只在页底轻提示；用完时主按钮换成「手动记一笔」，不打断记账。</p>
+    <div class="phone"><div class="notch"></div><div class="screen grey">
+      <div class="sb" style="background:#fff;"><span>9:41</span><span>5G ▮▮▮</span></div>
+      <div class="nav"><div class="bk">✕</div><div class="t">截图识别</div><div style="width:32px;"></div></div>
+      <div class="body">
+        <div class="fail-img"><div class="bub"></div><div class="bub r"></div><div class="bub"></div><div class="bub r" style="width:50%;"></div><div class="bub"></div><div class="fail-x">🤔</div></div>
+        <div style="text-align:center;margin-top:22px;"><div style="font-size:17px;font-weight:800;">这张图里没找到流水</div><div style="font-size:12px;color:var(--ink-3);margin-top:5px;line-height:1.6;">看起来是聊天截图。换一张带金额和时间的账单截图试试</div></div>
+        <div class="card supp">
+          <div class="sh">能识别的截图</div>
+          <div class="sg">
+            <span>✓ 微信 / 支付宝支付成功页</span><span>✓ 微信 / 支付宝账单列表</span>
+            <span>✓ 银行 App 交易明细</span><span>✓ 美团 / 淘宝订单详情</span>
+            <span>✓ 购物小票照片</span><span class="no">聊天记录 / 转账聊天</span>
+          </div>
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="row"><button class="btn ghost">手动记一笔</button><button class="btn ai">换一张截图</button></div>
+        <div class="quota">本次未计入额度 · 今日还可识别 7 张</div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<style>
+  .panel{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:1460px;}
+  .pbox{background:#fff;border-radius:16px;box-shadow:0 6px 20px rgba(20,24,28,.05);padding:18px 20px;}
+  .pbox h3{margin:0 0 10px;font-size:15px;}
+  .pbox table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .pbox th{text-align:left;color:var(--ink-3);font-weight:700;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .pbox td{padding:8px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top;line-height:1.55;}
+  .pbox td:first-child{white-space:nowrap;}
+  .pbox ol{margin:0;padding-left:18px;}
+  .pbox li{font-size:13px;color:var(--ink-2);line-height:1.65;margin:6px 0;}
+  .pbox li b{color:var(--ink);}
+  @media (max-width:900px){.panel{grid-template-columns:1fr;}}
+</style>
+
+<div class="panel">
+  <div class="pbox">
+    <h3>分类来源（列表里的小标签）</h3>
+    <table>
+      <tr><th>标签</th><th>依据</th><th>优先级</th></tr>
+      <tr><td><span class="src-tag">按习惯</span></td><td>这个用户在同一商家的历史分类（含他在识别页改过、勾了「以后都这样记」的规则）</td><td>最高</td></tr>
+      <tr><td><span class="src-tag">按商户</span></td><td>内置商户库关键词：美团外卖→外卖、淘宝→购物、滴滴→交通……映射到用户自己的分类</td><td>其次</td></tr>
+      <tr><td><span class="ai-tag">✨ AI 推测</span></td><td>前两条都没命中时，让模型从<b>用户现有分类</b>里挑一个，不新建分类；这类排进「需要你看一眼」</td><td>兜底</td></tr>
+      <tr><td><span class="warn-tag">金额请核对</span></td><td>模型对金额/日期把握不足（遮挡、模糊、多张图结果不一致）</td><td>强制展示</td></tr>
+      <tr><td><span class="dup-tag">重复</span></td><td>账本里已有「金额相同 + 时间相差 ≤10 分钟 + 商户相近」的流水，或多张截图的重叠行</td><td>默认不勾</td></tr>
+    </table>
+  </div>
+  <div class="pbox">
+    <h3>已定方案</h3>
+    <ol>
+      <li><b>入口：两个都留。</b>首页快捷入口负责让人发现；记账页快捷条接住「已经要手动记」的那一刻。首页横幅用过一次就永久收起。</li>
+      <li><b>单笔也要点「记入」，不做免确认。</b>记错一笔的伤害远大于多点一下。等线上有了识别准确率数据，再考虑在设置里做成可选项。</li>
+      <li><b>还款默认跳过，退款默认抵消。</b>信用卡还款、自己账户互转默认不记，可一键「记为转账」。退款能在同一批或账本里找到原支出时默认抵消（同批两笔都不记，部分退款按差额记），找不到才跳过并提示。这样不会多算支出。</li>
+      <li><b>每天免费 10 张，识别失败不计。</b>一张账单列表截图就能带出 5–10 笔，10 张够日常用；不设付费墙，守住「基础功能免费」。</li>
+      <li><b>24 小时内可整批撤销。</b>覆盖「当天发现导错」的情况；超过 24 小时，用户多半已经改过其中几笔，整批删除会误伤，改为逐条删。</li>
+      <li><b>紫色只做 AI 标记。</b>入口图标、「AI 推测」标签、识别动画用紫色；所有主按钮统一品牌绿，界面上不出现第二种主色。</li>
+    </ol>
+  </div>
+</div>
+
+<p class="sub" style="margin-top:22px;font-size:12.5px;">说明：本稿为目标效果稿，配色与组件沿用 <code>pages/record/record.vue</code> 与 home-redesign 令牌；截图中的第三方 App 界面为示意。可交互：⑤ 点「记入」、⑥ 点勾选看合计变化、⑦ 点框定位、⑧ 点开关。</p>
+</div>
+
+<script>
+  function singleConfirm(){
+    document.querySelectorAll('#single .res-card,#single .why').forEach(function(e){e.style.display='none';});
+    document.getElementById('singleDone').style.display='flex';
+    document.getElementById('singleBar').innerHTML='<div class="row"><button class="btn ghost" style="flex:1;">再识别一张</button><button class="btn pri">完成</button></div>';
+  }
+  function tg(el){
+    var on = !el.classList.contains('on');
+    el.classList.toggle('on', on);
+    el.classList.toggle('off', !on);
+    var n = 0, s = 0;
+    document.querySelectorAll('.it[data-amt]').forEach(function(r){
+      if(r.classList.contains('on')){ n++; s += parseFloat(r.getAttribute('data-amt')); }
+    });
+    document.getElementById('mCount').textContent = n;
+    document.getElementById('mCount2').textContent = n;
+    document.getElementById('mSum').textContent = '-' + s.toFixed(2);
+  }
+  function pk(el){
+    document.querySelectorAll('#orig .orow').forEach(function(r){ r.classList.remove('sel'); });
+    el.classList.add('sel');
+  }
+</script>
+</body>
+</html>
