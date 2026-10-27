@@ -150,6 +150,12 @@
       }
     },
     {
+      "path": "pages/screenshot/screenshot",
+      "style": {
+        "navigationBarTitleText": "截图记账"
+      }
+    },
+    {
       "path": "pages/ledgers/ledgers",
       "style": {
         "navigationBarTitleText": "账本管理"

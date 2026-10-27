@@ -196,6 +196,7 @@ class AccountLifecyclePropertyTest {
                 mock(com.damien.youyu.repository.BudgetReminderSettingRepository.class),
                 mock(com.damien.youyu.repository.BudgetReminderSendLogRepository.class),
                 mock(com.damien.youyu.repository.CategoryRuleRepository.class),
+                mock(com.damien.youyu.repository.VisionUsageRepository.class),
                 clock);
 
         return new Fixture(userRepository, authService, deletionService);

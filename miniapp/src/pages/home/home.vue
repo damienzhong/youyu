@@ -261,6 +261,9 @@ function goStreak() { uni.navigateTo({ url: '/pages/streak/streak' }) }
 function goReport() { uni.navigateTo({ url: '/pages/report/report' }) }
 function goPersonality() { uni.navigateTo({ url: '/pages/personality/personality' }) }
 function goFun() { uni.navigateTo({ url: '/pages/funanalysis/funanalysis' }) }
+// 截图记账横幅：用过一次（截图页记入成功时写入）后不再出现
+const showShotBanner = ref(!uni.getStorageSync('youyu_vision_used'))
+function goScreenshot() { uni.navigateTo({ url: '/pages/screenshot/screenshot' }) }
 function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免费开放', icon: 'none' }) }
 </script>
 
@@ -313,6 +316,15 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
           <text class="em">{{ nudgeEmoji }}</text>
           <text class="txt">{{ nudgeText }}</text>
         </view>
+      </view>
+    </view>
+
+    <!-- 截图记账入口：用过一次截图记账后永久收起 -->
+    <view v-if="showShotBanner" class="wrap">
+      <view class="shot-banner" @click="goScreenshot">
+        <view class="sb-ic">📷</view>
+        <view class="sb-x"><text class="sb-t">付完款，截个图就记好了</text><text class="sb-s">支持微信 / 支付宝 / 银行账单截图，一次最多 9 张</text></view>
+        <text class="sb-go">试试 ›</text>
       </view>
     </view>
 
@@ -462,6 +474,12 @@ function onPlan() { uni.showToast({ title: '当前免费版 · 全部功能免�
 .blk-t { font-size: 28rpx; font-weight: 800; color: #16181c; }
 .blk-m { font-size: 22rpx; color: #9aa2ad; }
 .quick { white-space: nowrap; }
+.shot-banner { display: flex; align-items: center; gap: 20rpx; margin-top: 20rpx; padding: 24rpx 26rpx; border-radius: 26rpx; background: linear-gradient(120deg, #f3f1ff, #eaf7ef); }
+.sb-ic { width: 76rpx; height: 76rpx; border-radius: 22rpx; background: #fff; text-align: center; line-height: 76rpx; font-size: 36rpx; flex: 0 0 auto; box-shadow: 0 8rpx 20rpx rgba(109, 92, 255, 0.15); }
+.sb-x { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4rpx; }
+.sb-t { font-size: 27rpx; font-weight: 800; color: #16181c; }
+.sb-s { font-size: 21rpx; color: #5b6470; }
+.sb-go { font-size: 24rpx; font-weight: 800; color: #6d5cff; flex: 0 0 auto; }
 .qpill {
   display: inline-flex; align-items: center; gap: 12rpx;
   background: #fff; border-radius: 999rpx; padding: 12rpx 24rpx 12rpx 12rpx;

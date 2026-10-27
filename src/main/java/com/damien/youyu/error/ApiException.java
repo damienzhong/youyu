@@ -378,6 +378,33 @@ public class ApiException extends RuntimeException {
                 "导入失败，未还原任何数据", null);
     }
 
+    // ---- 截图识别 ----
+
+    /** 截图识别未开启（未配置视觉模型 API Key）。 */
+    public static ApiException visionDisabled() {
+        return new ApiException("VISION_DISABLED", HttpStatus.SERVICE_UNAVAILABLE,
+                "截图识别暂未开启", null);
+    }
+
+    /** 今日截图识别额度不足。 */
+    public static ApiException visionQuotaExceeded(int remaining) {
+        return new ApiException("VISION_QUOTA_EXCEEDED", HttpStatus.TOO_MANY_REQUESTS,
+                remaining <= 0 ? "今天的免费识别次数用完了，明天再来，或先手动记一笔"
+                        : "今天只能再识别 " + remaining + " 张，请少选几张",
+                null);
+    }
+
+    /** 截图请求非法（张数 / 格式 / 大小）。 */
+    public static ApiException visionInvalid(String message) {
+        return new ApiException("VISION_INVALID", HttpStatus.BAD_REQUEST, message, "images");
+    }
+
+    /** 识别服务调用全部失败（模型不可用 / 超时）。额度已退回。 */
+    public static ApiException visionUnavailable() {
+        return new ApiException("VISION_UNAVAILABLE", HttpStatus.BAD_GATEWAY,
+                "识别服务暂时不可用，请稍后再试，本次不计入额度", null);
+    }
+
     // ---- 常用工厂方法（Budget 域） ----
 
     /** 预算金额非法（&lt;0.01、&gt;上限或小数位超过 2 位）。 */

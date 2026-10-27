@@ -23,6 +23,7 @@
     "pages/budget/budget",
     "pages/data/data",
     "pages/billimport/billimport",
+    "pages/screenshot/screenshot",
     "pages/ledgers/ledgers",
     "pages/aamembers/aamembers",
     "pages/loans/loans",

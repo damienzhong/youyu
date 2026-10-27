@@ -119,6 +119,14 @@ app:
       budget-template-id: ${YOUYU_WX_BUDGET_TEMPLATE_ID:}
       message-field: ${YOUYU_WX_SUBSCRIBE_MESSAGE_FIELD:thing1}
 
+# 截图识别（视觉大模型，OpenAI 兼容接口，默认阿里云百炼；与 lodestar 共用百炼账号）。
+# API Key 只经环境变量注入、切勿提交明文；未配置时截图识别关闭，其它功能不受影响。
+youyu:
+  vision:
+    base-url: ${YOUYU_VISION_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    api-key: ${YOUYU_VISION_API_KEY:}
+    model: ${YOUYU_VISION_MODEL:qwen3.8-flash}
+    daily-limit: ${YOUYU_VISION_DAILY_LIMIT:10}
 # 健康检查端点
 management:
   endpoints:

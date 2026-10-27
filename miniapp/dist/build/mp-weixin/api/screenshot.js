@@ -1,0 +1,1 @@
+"use strict";const t=require("../utils/request.js");exports.recognizeScreenshots=function(e){return t.http.post("/imports/screenshot/recognize",{images:e})},exports.screenshotStatus=function(){return t.http.get("/imports/screenshot/status")},exports.undoScreenshotBatch=function(e){return t.http.post("/imports/screenshot/undo",{batch:e})};

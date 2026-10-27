@@ -242,6 +242,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     List<ClassifyHistoryRow> findClassifyHistoryRows(@Param("ledgerId") Long ledgerId,
                                                      @Param("from") LocalDateTime from);
 
+    /** 截图识别整批撤销：某账本、本人创建、{@code created_at >= since} 且 external_id 以批次前缀开头的流水。 */
+    @Query("SELECT t FROM Transaction t WHERE t.ledgerId = :ledgerId AND t.createdBy = :userId "
+            + "AND t.externalId LIKE :prefix AND t.createdAt >= :since")
+    List<Transaction> findScreenshotBatch(@Param("ledgerId") Long ledgerId, @Param("userId") Long userId,
+            @Param("prefix") String prefix, @Param("since") LocalDateTime since);
+
     /** 删除某账本的全部交易（账本删除级联）。 */
     void deleteByLedgerId(Long ledgerId);
 

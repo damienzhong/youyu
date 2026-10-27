@@ -85,6 +85,7 @@ class AccountDeletionCascadeTest {
     @Autowired private ProjectRepository projectRepository;
     @Autowired private MerchantRepository merchantRepository;
     @Autowired private com.damien.youyu.repository.CategoryRuleRepository categoryRuleRepository;
+    @Autowired private com.damien.youyu.repository.VisionUsageRepository visionUsageRepository;
     @Autowired private TagRepository tagRepository;
     @Autowired private TransactionTemplateRepository templateRepository;
     @Autowired private LedgerInviteRepository inviteRepository;
@@ -113,6 +114,7 @@ class AccountDeletionCascadeTest {
                 reminderSendLogRepository, customReminderRepository, reminderQuotaRepository,
                 budgetReminderSettingRepository, budgetReminderSendLogRepository,
                 categoryRuleRepository,
+                visionUsageRepository,
                 java.time.Clock.systemDefaultZone());
     }
 

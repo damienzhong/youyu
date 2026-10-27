@@ -842,6 +842,17 @@ onUnload(() => {
   releaseAchievementBroadcastOnLeave()
 })
 
+// 截图识别入口 + 一次性引导气泡
+const shotTip = ref(!uni.getStorageSync('youyu_vision_tip'))
+function dismissShotTip() {
+  shotTip.value = false
+  uni.setStorageSync('youyu_vision_tip', '1')
+}
+function goScreenshot() {
+  dismissShotTip()
+  uni.navigateTo({ url: '/pages/screenshot/screenshot' })
+}
+
 function goBack() {
   safeBack('/pages/index/index')
 }
@@ -949,7 +960,12 @@ function goAddCategory() {
     </view>
 
     <!-- meta chips：日期 / 账户 / 记账人 / 标签 / 模板（同一行横向滚动） -->
+    <view v-if="shotTip && !isEditing && !isLoan" class="shot-tip" @click="dismissShotTip">
+      <text>📷 <text class="st-b">付完款截个图</text>，点下面自动识别金额、商户和分类，不用一笔笔敲</text>
+      <text class="st-x">知道了</text>
+    </view>
     <scroll-view scroll-x class="chips" :show-scrollbar="false">
+      <view v-if="!isEditing && !isLoan" class="chip ai" @click="goScreenshot">📷 截图识别</view>
       <picker class="chip-picker" mode="date" :value="occurredDate" @change="onDateChange">
         <view class="chip on">
           <AppIcon class="chip-ic" name="calendar" :size="26" color="#0e8a44" />
@@ -1272,6 +1288,10 @@ function goAddCategory() {
 }
 .chip .chip-ic { flex: 0 0 auto; }
 .chip.on { background: #e6f6ec; color: #0e8a44; font-weight: 700; }
+.chip.ai { background: #efedff; color: #4a3bd6; font-weight: 800; box-shadow: 0 0 0 2rpx rgba(109, 92, 255, 0.45) inset; }
+.shot-tip { flex-shrink: 0; display: flex; align-items: center; gap: 16rpx; margin: 10rpx 24rpx 0; padding: 16rpx 22rpx; border-radius: 18rpx; background: #1f2330; color: #fff; font-size: 23rpx; line-height: 1.5; }
+.shot-tip .st-b { color: #c9c2ff; font-weight: 700; }
+.shot-tip .st-x { flex: 0 0 auto; color: #a9afbd; font-size: 22rpx; }
 
 .kp {
   display: grid;
