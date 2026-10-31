@@ -23,7 +23,7 @@ public final class ScreenshotPrompt {
                  "payAccount":"付款方式原文，如 零钱/余额宝/花呗/招商银行信用卡(1234)，看不出填空",
                  "entries":[{"time":"时间原文","amount":"金额原文","direction":"expense|income|refund|transfer",
                    "merchant":"商户或交易对方","item":"商品说明","billCategory":"App自带的分类原文",
-                   "status":"交易状态原文，如 交易成功/交易关闭/退款成功，没有填空",
+                   "status":"交易状态原文，如 交易成功/交易关闭/退款成功/已全额退款，没有填空",
                    "category":"从下面分类表里挑一个最合适的，挑不准填空","uncertain":false}]}
 
                 规则：

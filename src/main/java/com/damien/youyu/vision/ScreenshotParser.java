@@ -78,8 +78,12 @@ public final class ScreenshotParser {
         return new Shot(screen, text(root, "app"), text(root, "payAccount"), entries, dropped);
     }
 
-    /** 没有真正发生资金变动的状态：这类行不是流水，直接跳过（不算丢弃）。 */
-    private static final Pattern NO_MONEY_STATUS = Pattern.compile("交易关闭|已关闭|支付失败|交易失败|已撤销|已取消|未支付|待支付");
+    /**
+     * 没有真正发生资金变动的状态：这类行不是流水，直接跳过（不算丢弃）。
+     * 「已全额退款」是支付宝在原支出行上标的状态：钱已经全部退回，净额为零，同样不记。
+     */
+    private static final Pattern NO_MONEY_STATUS = Pattern.compile(
+            "交易关闭|已关闭|支付失败|交易失败|已撤销|已取消|未支付|待支付|全额退款");
 
     private static Entry parseEntry(JsonNode n, LocalDateTime now) {
         if (NO_MONEY_STATUS.matcher(text(n, "status")).find()) {
