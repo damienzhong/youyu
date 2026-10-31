@@ -97,9 +97,48 @@ public final class ScreenshotParser {
             uncertain = true;
         }
         Time t = parseTime(text(n, "time"), now);
+        String[] mi = normalizeMerchant(text(n, "merchant"), text(n, "item"));
         return new Entry(dir, a.value, t == null ? null : t.at, t != null && t.dateOnly, uncertain,
-                clip(text(n, "merchant"), 50), clip(text(n, "item"), 100), clip(text(n, "billCategory"), 20),
+                clip(mi[0], 50), clip(mi[1], 100), clip(text(n, "billCategory"), 20),
                 clip(text(n, "category"), 60));
+    }
+
+    // ---------------- 商户 ----------------
+
+    /** 微信 / 支付宝列表标题里的付款方式前缀，如「扫二维码付款-给张三」「群收款-转给李四」。 */
+    private static final Pattern PAY_PREFIX = Pattern.compile(
+            "^(扫二维码付款|二维码付款|付款码付款|扫码付款|群收款|微信转账|转账|二维码收款|收款)\\s*[-—－:：]?\\s*");
+    private static final Pattern TO_FROM = Pattern.compile("^(转给|付给|给|来自)\\s*");
+    private static final Pattern ELLIPSIS = Pattern.compile("\\s*(\\.{2,}|…+|⋯+)\\s*$");
+
+    /**
+     * 规整商户：把「扫二维码付款-给张三」拆成商户「张三」+ 说明「扫二维码付款」，去掉列表截断留下的省略号。
+     * 模型对同一行时而输出「给张三」时而输出「张三」，规整后保持一致，「以后都这样记」的规则才对得上。
+     *
+     * @return {商户, 说明}
+     */
+    static String[] normalizeMerchant(String merchant, String item) {
+        String m = merchant == null ? "" : merchant.trim();
+        String it = item == null ? "" : item.trim();
+        m = ELLIPSIS.matcher(m).replaceAll("");
+        it = ELLIPSIS.matcher(it).replaceAll("");
+        Matcher p = PAY_PREFIX.matcher(m);
+        boolean payLike = PAY_PREFIX.matcher(it).find() && it.length() <= 8;
+        if (p.find()) {
+            String prefix = p.group(1);
+            m = m.substring(p.end());
+            payLike = true;
+            if (it.isEmpty()) {
+                it = prefix;
+            }
+        }
+        if (payLike) {
+            m = TO_FROM.matcher(m).replaceFirst("");
+        }
+        if (m.isEmpty()) {
+            m = it;
+        }
+        return new String[] {m, it.equals(m) ? "" : it};
     }
 
     // ---------------- 金额 ----------------
@@ -185,9 +224,15 @@ public final class ScreenshotParser {
         if (m.find()) {
             int mo = Integer.parseInt(m.group(1));
             int day = Integer.parseInt(m.group(2));
-            LocalDate d = safeDate(today.getYear(), mo, day);
-            if (d != null && d.isAfter(today)) {
-                d = safeDate(today.getYear() - 1, mo, day);
+            // 没写年份：账单只会是过去的，取「不晚于今天 + 7 天」的最近一年。
+            // 留 7 天余量是为了手机与服务器时钟、时区稍有出入时不把今天的账推到去年。
+            LocalDate latest = today.plusDays(7);
+            LocalDate d = null;
+            for (int y = today.getYear() + 1; y >= today.getYear() - 1 && d == null; y--) {
+                LocalDate c = safeDate(y, mo, day);
+                if (c != null && !c.isAfter(latest)) {
+                    d = c;
+                }
             }
             return d == null ? null : at(d, m.group(3), m.group(4));
         }

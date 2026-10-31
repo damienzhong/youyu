@@ -45,6 +45,19 @@ export function mergeShots(shots) {
     }
   })
 
+  // 看不出时间的行（多是截图边缘被切掉一半）：另一张截图里有同方向、同金额、同商户且带时间的行，就是同一笔，丢掉
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i]
+    if (r.occurredAt) continue
+    const k = merchantKey(r.merchant)
+    const twin = rows.find((x) => x !== r && x.shot !== r.shot && x.occurredAt && x.direction === r.direction &&
+      x.amount === r.amount && k && (merchantKey(x.merchant).startsWith(k) || k.startsWith(merchantKey(x.merchant))))
+    if (twin) {
+      rows.splice(i, 1)
+      overlap++
+    }
+  }
+
   // 同批退款抵消：退款找同商户、时间不晚于退款、金额不小于退款的原支出
   let offsetPairs = 0
   for (const r of rows) {
