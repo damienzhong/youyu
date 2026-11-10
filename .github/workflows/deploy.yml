@@ -8,7 +8,8 @@ name: Deploy
 # 需要在仓库 Settings → Secrets and variables → Actions 配置：
 #   SERVER_HOST     服务器 IP（如 47.120.65.57）
 #   SERVER_USER     SSH 用户（root）
-#   SERVER_SSH_KEY  已授权到服务器的私钥内容（可复用 lodestar 的部署私钥）
+#   SERVER_SSH_KEY  已授权到服务器的私钥内容
+# SSH 端口固定 2222，写在 Configure SSH 那一步。
 on:
   workflow_dispatch:
   push:
@@ -77,7 +78,10 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          # 服务器 SSH 只开 2222（22 已在安全组关闭）。写进 ssh config，下面的 scp / ssh 都按它走，不用逐条加 -P / -p。
+          printf 'Host %s\n  Port 2222\n' "${{ secrets.SERVER_HOST }}" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          ssh-keyscan -p 2222 -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Upload artifacts
         run: |
